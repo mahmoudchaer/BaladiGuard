@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "BaladiGuard",
+    "slug": "baladiguard",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "baladiguard",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow BaladiGuard to access your photos so you can attach issue images."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    }
+  }
+}
