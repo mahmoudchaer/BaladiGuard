@@ -48,29 +48,25 @@ BaladiGuard/
 
 ## Branching Strategy
 
-| Branch | Purpose |
-|---------|---------|
-| `main` | Stable production-ready code |
-| `develop` | Integration branch |
-| `feature/<name>` | New features |
-| `bugfix/<name>` | Bug fixes |
-| `docs/<name>` | Documentation updates |
+The `main` branch contains the stable project code.
+
+Create all work branches from `main` and name each branch after the assigned GitHub issue.
 
 Example:
 
 ```text
-feature/report-submission
-feature/duplicate-detection
-docs/update-readme
+4-prepare-initial-readme-and-repo-structure-notes
+12-complaint-submission-flow
+27-admin-dashboard
 ```
 
 ## Development Workflow
 
-1. Create a feature branch from `develop`.
+1. Create a branch from `main` using the issue name.
 2. Implement the assigned task.
 3. Open a Pull Request.
 4. Request a review from a teammate.
-5. Merge into `develop` after approval.
+5. Merge into `main` after approval.
 
 ## Documentation
 
