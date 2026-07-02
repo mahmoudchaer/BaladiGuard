@@ -14,7 +14,9 @@
         {
           "photosPermission": "Allow BaladiGuard to access your photos so you can attach issue images."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
