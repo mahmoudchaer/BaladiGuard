@@ -1,0 +1,27 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+current_date = None
+seq = 1
+
+def generate_ticketID():
+    global current_date, seq
+
+    lebanon_now = datetime.now(ZoneInfo("Asia/Beirut"))
+    todays_date = lebanon_now.strftime("%Y%m%d")
+
+    if current_date != todays_date:
+        current_date = todays_date
+        seq = 1
+
+    ticket_id = f"RP-{todays_date}-{seq:04d}"
+
+    seq += 1
+
+    return ticket_id
+
+
+print(generate_ticketID())
+print(generate_ticketID())
+print(generate_ticketID())
+print(generate_ticketID())
