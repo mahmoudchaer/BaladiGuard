@@ -1,9 +1,6 @@
-from app.models.ticket import TicketRecord
-
-
 class InMemoryTicketStore:
     def __init__(self) -> None:
-        self._tickets: dict[str, TicketRecord] = {}
+        self._ticket_ids: set[str] = set()
         self._ticket_numbers: set[str] = set()
         self._tracking_codes: set[str] = set()
         self._sequence = 0
@@ -12,21 +9,13 @@ class InMemoryTicketStore:
         self._sequence += 1
         return self._sequence
 
-    def save(self, ticket: TicketRecord) -> TicketRecord:
-        if ticket.ticket_id in self._tickets:
-            raise ValueError("Ticket ID already exists.")
-        if ticket.ticket_number in self._ticket_numbers:
-            raise ValueError("Ticket number already exists.")
-        if ticket.tracking_code in self._tracking_codes:
-            raise ValueError("Tracking code already exists.")
+    def save(self, ticket_id: str, ticket_number: str, tracking_code: str) -> None:
+        self._ticket_ids.add(ticket_id)
+        self._ticket_numbers.add(ticket_number)
+        self._tracking_codes.add(tracking_code)
 
-        self._tickets[ticket.ticket_id] = ticket
-        self._ticket_numbers.add(ticket.ticket_number)
-        self._tracking_codes.add(ticket.tracking_code)
-        return ticket
-
-    def get(self, ticket_id: str) -> TicketRecord | None:
-        return self._tickets.get(ticket_id)
+    def has_ticket_id(self, ticket_id: str) -> bool:
+        return ticket_id in self._ticket_ids
 
     def has_ticket_number(self, ticket_number: str) -> bool:
         return ticket_number in self._ticket_numbers
@@ -35,7 +24,7 @@ class InMemoryTicketStore:
         return tracking_code in self._tracking_codes
 
     def clear(self) -> None:
-        self._tickets.clear()
+        self._ticket_ids.clear()
         self._ticket_numbers.clear()
         self._tracking_codes.clear()
         self._sequence = 0

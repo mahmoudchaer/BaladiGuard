@@ -4,22 +4,24 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.api.tickets import router as tickets_router
-from app.core.config import get_settings
 from app.core.errors import create_request_id, validation_exception_handler
+
+LOCAL_CORS_ORIGINS = [
+    "http://localhost:8081",
+    "http://localhost:19006",
+]
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()
     app = FastAPI(
         title="BaladiGuard API",
         version="0.1.0",
         description="BaladiGuard civic reporting backend API.",
     )
 
-    origins = [origin.strip() for origin in settings.cors_allowed_origins.split(",") if origin.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=LOCAL_CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
