@@ -68,6 +68,51 @@ Example:
 4. Request a review from a teammate.
 5. Merge into `main` after approval.
 
+## Code Quality Commands
+
+Run these commands before opening a pull request.
+
+### Mobile
+
+```bash
+cd mobile
+npm run lint
+npm run format
+npm run format:check
+npm run typecheck
+```
+
+### Backend
+
+Install dev dependencies once:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+```
+
+Then run:
+
+```bash
+python -m ruff check .
+python -m ruff format .
+python -m ruff format --check .
+```
+
+### All (from repository root)
+
+With Make installed:
+
+```bash
+make lint
+make format
+make format-check
+make typecheck
+make quality
+```
+
+`make quality` runs lint, format check, and typecheck across the project.
+
 ## Documentation
 
 Project documentation is located in the `docs/` directory.
