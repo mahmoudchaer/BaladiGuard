@@ -1,27 +1,162 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
-current_date = None
-seq = 1
-
-def generate_ticketID():
-    global current_date, seq
-
-    lebanon_now = datetime.now(ZoneInfo("Asia/Beirut"))
-    todays_date = lebanon_now.strftime("%Y%m%d")
-
-    if current_date != todays_date:
-        current_date = todays_date
-        seq = 1
-
-    ticket_id = f"RP-{todays_date}-{seq:04d}"
-
-    seq += 1
-
-    return ticket_id
-
-
-print(generate_ticketID())
-print(generate_ticketID())
-print(generate_ticketID())
-print(generate_ticketID())
+[
+  {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "created_by": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d1111111-1111-1111-1111-111111111111",
+    "duplicate_group_id": null,
+    "description": "Large pothole causing traffic near the university entrance.",
+    "latitude": 33.896112,
+    "longitude": 35.478419,
+    "address": "Near AUB Main Gate, Hamra, Beirut",
+    "category": "road_damage",
+    "priority": "high",
+    "status": "submitted",
+    "created_at": "2026-08-12T09:30:00Z",
+    "updated_at": "2026-08-12T09:30:00Z"
+  },
+  {
+    "id": "22222222-2222-2222-2222-222222222222",
+    "created_by": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d2222222-2222-2222-2222-222222222222",
+    "duplicate_group_id": null,
+    "description": "Overflowing garbage bins on the sidewalk.",
+    "latitude": 33.893791,
+    "longitude": 35.501777,
+    "address": "Hamra Street, Beirut",
+    "category": "waste",
+    "priority": "medium",
+    "status": "in_progress",
+    "created_at": "2026-08-12T10:15:00Z",
+    "updated_at": "2026-08-12T11:00:00Z"
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "created_by": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d3333333-3333-3333-3333-333333333333",
+    "duplicate_group_id": null,
+    "description": "Street light is not working at night.",
+    "latitude": 33.8915,
+    "longitude": 35.4979,
+    "address": "Ain El Mreisseh, Beirut",
+    "category": "street_lighting",
+    "priority": "low",
+    "status": "resolved",
+    "created_at": "2026-08-12T18:45:00Z",
+    "updated_at": "2026-08-13T08:20:00Z"
+  },
+  {
+    "id": "44444444-4444-4444-4444-444444444444",
+    "created_by": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d4444444-4444-4444-4444-444444444444",
+    "duplicate_group_id": null,
+    "description": "Water leaking from an underground pipe.",
+    "latitude": 33.8869,
+    "longitude": 35.5131,
+    "address": "Achrafieh, Beirut",
+    "category": "water_leak",
+    "priority": "high",
+    "status": "submitted",
+    "created_at": "2026-08-12T12:10:00Z",
+    "updated_at": "2026-08-12T12:10:00Z"
+  },
+  {
+    "id": "55555555-5555-5555-5555-555555555555",
+    "created_by": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d2222222-2222-2222-2222-222222222222",
+    "duplicate_group_id": "99999999-9999-9999-9999-999999999999",
+    "description": "Garbage bags accumulating beside the same sidewalk.",
+    "latitude": 33.89382,
+    "longitude": 35.5018,
+    "address": "Hamra Street, Beirut",
+    "category": "waste",
+    "priority": "medium",
+    "status": "submitted",
+    "created_at": "2026-08-12T09:45:00Z",
+    "updated_at": "2026-08-12T09:45:00Z"
+  },
+  {
+    "id": "66666666-6666-6666-6666-666666666666",
+    "created_by": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d5555555-5555-5555-5555-555555555555",
+    "duplicate_group_id": null,
+    "description": "Loud construction noise continuing late at night.",
+    "latitude": 33.8883,
+    "longitude": 35.5067,
+    "address": "Gemmayze, Beirut",
+    "category": "noise",
+    "priority": "medium",
+    "status": "submitted",
+    "created_at": "2026-08-13T21:20:00Z",
+    "updated_at": "2026-08-13T21:20:00Z"
+  },
+  {
+    "id": "77777777-7777-7777-7777-777777777777",
+    "created_by": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d1111111-1111-1111-1111-111111111111",
+    "duplicate_group_id": null,
+    "description": "Broken sidewalk tiles creating a tripping hazard.",
+    "latitude": 33.8899,
+    "longitude": 35.4912,
+    "address": "Manara, Beirut",
+    "category": "sidewalk_damage",
+    "priority": "medium",
+    "status": "in_progress",
+    "created_at": "2026-08-13T14:05:00Z",
+    "updated_at": "2026-08-13T15:30:00Z"
+  },
+  {
+    "id": "88888888-8888-8888-8888-888888888888",
+    "created_by": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d6666666-6666-6666-6666-666666666666",
+    "duplicate_group_id": null,
+    "description": "Traffic signal is not working at a busy intersection.",
+    "latitude": 33.8926,
+    "longitude": 35.5124,
+    "address": "Sodeco, Beirut",
+    "category": "traffic_signal",
+    "priority": "high",
+    "status": "submitted",
+    "created_at": "2026-08-14T08:25:00Z",
+    "updated_at": "2026-08-14T08:25:00Z"
+  },
+  {
+    "id": "99999999-aaaa-bbbb-cccc-999999999999",
+    "created_by": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d7777777-7777-7777-7777-777777777777",
+    "duplicate_group_id": null,
+    "description": "Blocked storm drain causing water accumulation after rain.",
+    "latitude": 33.9001,
+    "longitude": 35.4827,
+    "address": "Ras Beirut, Beirut",
+    "category": "drainage",
+    "priority": "high",
+    "status": "in_progress",
+    "created_at": "2026-08-14T11:40:00Z",
+    "updated_at": "2026-08-14T12:10:00Z"
+  },
+  {
+    "id": "aaaaaaaa-1111-2222-3333-aaaaaaaaaaaa",
+    "created_by": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "municipality_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "department_id": "d8888888-8888-8888-8888-888888888888",
+    "duplicate_group_id": null,
+    "description": "Damaged public bench in the park.",
+    "latitude": 33.8772,
+    "longitude": 35.5186,
+    "address": "Horsh Beirut, Beirut",
+    "category": "public_facilities",
+    "priority": "low",
+    "status": "resolved",
+    "created_at": "2026-08-15T16:00:00Z",
+    "updated_at": "2026-08-16T09:15:00Z"
+  }
+]
