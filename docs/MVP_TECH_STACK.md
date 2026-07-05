@@ -29,7 +29,9 @@ This document lists the agreed MVP technology choices only.
 | Area | Choice |
 |---|---|
 | MVP database | Amazon DynamoDB |
-| Local/Sprint 1 fallback | In-memory store while database work is not merged |
+| Local development | DynamoDB Local (Docker) |
+| Unit tests | In-memory ticket store (`DATABASE_BACKEND=memory`) |
+| Migrations | Idempotent boto3 scripts in `backend/scripts/db/` |
 
 ## Storage
 

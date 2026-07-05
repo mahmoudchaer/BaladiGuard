@@ -119,18 +119,42 @@ Project documentation is located in the `docs/` directory.
 - Architecture
 - API Specification
 - Database Design
+- [Local Database Setup](docs/local-database-setup.md)
 - Design Decisions
 - Sprint Notes
 
 ## Getting Started
 
-Setup instructions will be added as development progresses.
+### Backend (local API + DynamoDB)
+
+1. Install backend dependencies:
+
+```bash
+cd backend
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+2. Start DynamoDB Local and prepare tables:
+
+```bash
+make db-up
+make db-migrate
+make db-seed
+```
+
+3. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb`.
+
+4. Run the API:
+
+```bash
+cd backend
+uvicorn app.main:app --reload --port 8000
+```
+
+See [docs/local-database-setup.md](docs/local-database-setup.md) for full database setup, env vars, and troubleshooting.
 
 ### Mobile
-
-Coming soon.
-
-### Backend
 
 Coming soon.
 

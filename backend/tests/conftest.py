@@ -1,3 +1,7 @@
+import os
+
+os.environ["DATABASE_BACKEND"] = "memory"
+
 import pytest
 from fastapi.testclient import TestClient
 
