@@ -1,0 +1,99 @@
+.ticket-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.ticket-filters__search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 14rem;
+}
+
+.ticket-filters__search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.ticket-filters__search {
+  width: 100%;
+  padding: 0.6rem 0.85rem 0.6rem 2.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ticket-filters__search::placeholder {
+  color: var(--color-text-muted);
+}
+
+.ticket-filters__search:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgb(11 95 255 / 15%);
+}
+
+.ticket-filters__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ticket-filters__pill {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ticket-filters__pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.ticket-filters__pill--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.ticket-filters__count {
+  margin: 0;
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.ticket-filters__count strong {
+  color: var(--color-text);
+}
+
+@media (max-width: 720px) {
+  .ticket-filters__count {
+    width: 100%;
+    margin-left: 0;
+  }
+}

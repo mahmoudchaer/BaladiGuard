@@ -71,6 +71,16 @@ Example:
 
 Run these commands before opening a pull request.
 
+### Admin Dashboard
+
+```bash
+cd admin
+npm run lint
+npm run format
+npm run format:check
+npm run typecheck
+```
+
 ### Mobile
 
 ```bash
@@ -136,7 +146,13 @@ Coming soon.
 
 ### Admin Dashboard
 
-Coming soon.
+```bash
+cd admin
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). The dashboard loads shared mock tickets from `mock_tickets.json` by default.
 
 ## Contributors
 

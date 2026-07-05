@@ -1,0 +1,63 @@
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.category-badge__icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.category-badge--road-damage {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.category-badge--street-lighting {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.category-badge--waste {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.category-badge--water-leak,
+.category-badge--drainage {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.category-badge--sidewalk-damage {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.category-badge--noise {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.category-badge--traffic-signal {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.category-badge--public-facilities {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.category-badge--pending-classification {
+  background: #f1f5f9;
+  color: #64748b;
+}
