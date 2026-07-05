@@ -4,6 +4,8 @@ This document defines the MVP persistence model for BaladiGuard. Attribute names
 
 Citizen submissions are stored as **tickets**. The words "report" and "complaint" are product language only.
 
+> **Note:** An early Postgres/Supabase schema was removed from the repo because it no longer matched this model. MVP persistence is DynamoDB only. The old SQL remains available in git history if needed.
+
 ## 1. Ticket
 
 Primary key: `ticketId` (string, format `tkt_<hex>`).
