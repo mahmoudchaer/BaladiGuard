@@ -1,121 +1,186 @@
-# MVP Database Schema
+# MVP Persistence Model (DynamoDB)
 
-The MVP database contains eight core tables for municipalities, users, complaint reports, report media, status tracking, AI processing output, and duplicate grouping.
+This document defines the MVP persistence model for BaladiGuard. Attribute names match the [MVP API contract](./MVP_API_CONTRACT.md) JSON field names so the mobile app, API, and storage stay aligned.
 
-## 1. Municipalities
+Citizen submissions are stored as **tickets**. The words "report" and "complaint" are product language only.
 
-| Field | Type | Description |
+> **Note:** An early Postgres/Supabase schema was removed from the repo because it no longer matched this model. MVP persistence is DynamoDB only. The old SQL remains available in git history if needed.
+
+## 1. Ticket
+
+Primary key: `ticketId` (string, format `tkt_<hex>`).
+
+### Submission fields (from `POST /v1/tickets`)
+
+| Attribute | Type | Required | Description |
+| --- | --- | --- | --- |
+| `description` | string | Yes | Citizen description of the issue. |
+| `contact` | object | Yes | Contact snapshot at submission time. |
+| `contact.name` | string | No | Optional citizen name. |
+| `contact.phone` | string | Conditional | Required if `contact.email` is absent. |
+| `contact.email` | string | Conditional | Required if `contact.phone` is absent. |
+| `location` | object | Yes | Report location. |
+| `location.latitude` | number | Yes | Latitude between `-90` and `90`. |
+| `location.longitude` | number | Yes | Longitude between `-180` and `180`. |
+| `location.addressText` | string | Yes | Typed address, landmark, or placeholder text. |
+| `location.source` | enum | Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`. |
+| `imageObjectKey` | string | Yes | S3 object key for the uploaded photo. |
+
+### Backend-generated fields (from `POST /v1/tickets` response)
+
+| Attribute | Type | Required | Description |
+| --- | --- | --- | --- |
+| `ticketId` | string | Yes | Primary key. Format: `tkt_<hex>`. |
+| `ticketNumber` | string | Yes | Citizen-facing ticket number, e.g. `BG-2026-0001`. |
+| `trackingCode` | string | Yes | Citizen-facing tracking code, e.g. `AB12CD`. |
+| `status` | enum | Yes | Initial value: `SUBMITTED`. |
+| `createdAt` | string | Yes | ISO 8601 timestamp. |
+
+### Workflow / AI fields (populated after submission)
+
+| Attribute | Type | Required | Description |
+| --- | --- | --- | --- |
+| `category` | string | Yes | Defaults to `PENDING_CLASSIFICATION` until AI classification runs. |
+| `priority` | enum | No | `low`, `medium`, or `high`. Set by AI urgency estimation. |
+| `createdBy` | string | No | User identifier once authentication is wired. |
+| `municipalityId` | string | No | Set by geocoding / municipality routing. |
+| `departmentId` | string | No | Set by AI department recommendation. |
+| `duplicateGroupId` | string | No | Set by duplicate detection. |
+| `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
+
+### Not persisted
+
+These API request fields are accepted at submission time but are not stored on the ticket record in MVP:
+
+| API field | Reason |
+| --- | --- |
+| `languageHint` | Client default; processed transiently when AI is wired. |
+| `contact.preferredChannel` | Derived by the client from contact details. |
+| `clientMetadata` | Ephemeral client telemetry for the request lifecycle. |
+
+## 2. Municipality
+
+| Attribute | Type | Description |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| name | VARCHAR | Municipality name |
-| city | VARCHAR | City |
-| governorate | VARCHAR | Governorate |
-| created_at | TIMESTAMP | Creation timestamp |
+| `municipalityId` | string | Primary key. |
+| `name` | string | Municipality name. |
+| `city` | string | City. |
+| `governorate` | string | Governorate. |
+| `createdAt` | string | ISO 8601 timestamp. |
 
-## 2. Departments
+## 3. Department
 
-| Field | Type | Description |
+| Attribute | Type | Description |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| municipality_id | UUID | FK to Municipalities |
-| name | VARCHAR | Department name |
-| description | TEXT | Department responsibilities |
+| `departmentId` | string | Primary key. |
+| `municipalityId` | string | Parent municipality. |
+| `name` | string | Department name. |
+| `description` | string | Department responsibilities. |
 
-## 3. Users
+## 4. User
 
-| Field | Type | Description |
+| Attribute | Type | Description |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| municipality_id | UUID, nullable | FK to Municipalities |
-| phone | VARCHAR | Unique phone number |
-| full_name | VARCHAR | Optional full name |
-| role | ENUM | `citizen`, `municipality_admin` |
-| reputation_score | INTEGER | Trust score |
-| created_at | TIMESTAMP | Creation timestamp |
+| `userId` | string | Primary key. |
+| `municipalityId` | string, nullable | Municipality for staff users. |
+| `phone` | string, nullable | Unique when present. |
+| `email` | string, nullable | Unique when present. |
+| `fullName` | string, nullable | Optional display name. |
+| `role` | enum | `citizen` or `municipality_admin`. |
+| `reputationScore` | number | Trust score. Default `0`. |
+| `createdAt` | string | ISO 8601 timestamp. |
 
-## 4. Reports
+At least one of `phone` or `email` is required for citizen users.
 
-| Field | Type | Description |
+## 5. TicketStatusHistory
+
+| Attribute | Type | Description |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| created_by | UUID | FK to Users |
-| municipality_id | UUID | FK to Municipalities |
-| department_id | UUID, nullable | FK to Departments |
-| duplicate_group_id | UUID, nullable | FK to DuplicateGroups |
-| description | TEXT | User description |
-| latitude | DECIMAL | GPS latitude |
-| longitude | DECIMAL | GPS longitude |
-| address | TEXT | Human-readable address |
-| category | VARCHAR | Report category, such as road or waste |
-| priority | ENUM | `low`, `medium`, `high` |
-| status | ENUM | `submitted`, `under_review`, `assigned`, `in_progress`, `resolved` |
-| created_at | TIMESTAMP | Creation timestamp |
-| updated_at | TIMESTAMP | Last update timestamp |
+| `historyId` | string | Primary key. |
+| `ticketId` | string | Parent ticket. |
+| `previousStatus` | enum, nullable | Previous ticket status. |
+| `newStatus` | enum | New ticket status. |
+| `updatedBy` | string | User who made the change. |
+| `note` | string, nullable | Optional note. |
+| `createdAt` | string | ISO 8601 timestamp. |
 
-## 5. Images
+## 6. AiOutput
 
-| Field | Type | Description |
+| Attribute | Type | Description |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| report_id | UUID | FK to Reports |
-| storage_key | VARCHAR | S3 or Supabase storage path |
-| created_at | TIMESTAMP | Upload timestamp |
+| `aiOutputId` | string | Primary key. |
+| `ticketId` | string | Parent ticket (one per ticket). |
+| `cleanedDescription` | string, nullable | AI-cleaned description. |
+| `predictedCategory` | string, nullable | AI category prediction. |
+| `confidence` | number, nullable | `0` to `1`. |
+| `urgencyScore` | number, nullable | `0` to `100`. |
+| `urgencyReason` | string, nullable | Explanation. |
+| `suggestedDepartmentId` | string, nullable | Recommended department. |
+| `summary` | string, nullable | AI-generated summary. |
+| `createdAt` | string | ISO 8601 timestamp. |
 
-## 6. StatusHistory
+## 7. DuplicateGroup
 
-| Field | Type | Description |
+| Attribute | Type | Description |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| report_id | UUID | FK to Reports |
-| previous_status | ENUM | Previous report status |
-| new_status | ENUM | New report status |
-| updated_by | UUID | FK to Users |
-| note | TEXT | Optional note |
-| created_at | TIMESTAMP | Timestamp |
-
-## 7. AIOutputs
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | UUID | Primary key |
-| report_id | UUID | FK to Reports |
-| cleaned_description | TEXT | AI-cleaned description |
-| predicted_category | VARCHAR | AI prediction |
-| confidence | FLOAT | Confidence score |
-| urgency_score | INTEGER | 0-100 urgency score |
-| urgency_reason | TEXT | Explanation |
-| suggested_department_id | UUID | FK to Departments |
-| summary | TEXT | AI-generated summary |
-| created_at | TIMESTAMP | Timestamp |
-
-## 8. DuplicateGroups
-
-| Field | Type | Description |
-| --- | --- | --- |
-| id | UUID | Primary key |
-| created_at | TIMESTAMP | Creation timestamp |
+| `duplicateGroupId` | string | Primary key. |
+| `createdAt` | string | ISO 8601 timestamp. |
 
 ## Relationships
 
 ```text
 Municipality (1)
-├── Departments (N)
-├── Users (N)
-└── Reports (N)
+├── Department (N)
+├── User (N)
+└── Ticket (N)
 
 Department (1)
-└── Reports (N)
+└── Ticket (N)
 
 User (1)
-└── Reports (N)
+└── Ticket (N)
 
-Report (1)
-├── Images (N)
-├── StatusHistory (N)
-├── AIOutput (1)
+Ticket (1)
+├── TicketStatusHistory (N)
+├── AiOutput (1)
 └── DuplicateGroup (N:1)
 ```
 
-## Future Consideration
+## Enums
 
-The `ai_outputs` table may later be merged into `reports` if the project only stores a small amount of AI metadata.
+### Ticket status (API and storage)
+
+```text
+SUBMITTED
+UNDER_REVIEW
+ASSIGNED
+IN_PROGRESS
+RESOLVED
+```
+
+### Report priority (AI / admin domain)
+
+```text
+low
+medium
+high
+```
+
+### Location source
+
+```text
+GPS
+MANUAL
+PLACEHOLDER
+```
+
+## Default values at submission
+
+When a ticket is created from `POST /v1/tickets`, the backend sets:
+
+| Attribute | Default |
+| --- | --- |
+| `status` | `SUBMITTED` |
+| `category` | `PENDING_CLASSIFICATION` |
+| `createdAt` | current UTC timestamp |
+| `updatedAt` | same as `createdAt` |

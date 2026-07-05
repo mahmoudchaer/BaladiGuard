@@ -166,6 +166,53 @@ EMAIL
 
 ### `TicketStatus`
 
+Ticket status values use uppercase strings in API responses and storage.
+
 ```text
 SUBMITTED
+UNDER_REVIEW
+ASSIGNED
+IN_PROGRESS
+RESOLVED
 ```
+
+New submissions always return `SUBMITTED`.
+
+## Persistence Mapping
+
+Submitted tickets are persisted using the same JSON field names as this contract. See [database.md](./database.md) for the full DynamoDB model.
+
+### Request → Ticket record
+
+| API request field | Ticket attribute | Persisted |
+|---|---|---|
+| `description` | `description` | Yes |
+| `contact` | `contact` | Yes |
+| `location` | `location` | Yes |
+| `imageObjectKey` | `imageObjectKey` | Yes |
+| `languageHint` | — | No |
+| `contact.preferredChannel` | — | No |
+| `clientMetadata` | — | No |
+
+### Response → Ticket record
+
+| API response field | Ticket attribute | Persisted |
+|---|---|---|
+| `ticketId` | `ticketId` | Yes |
+| `ticketNumber` | `ticketNumber` | Yes |
+| `trackingCode` | `trackingCode` | Yes |
+| `status` | `status` | Yes |
+| `createdAt` | `createdAt` | Yes |
+| `message` | — | No (response-only) |
+
+### Backend defaults (not in API request)
+
+| Ticket attribute | Default | Set by |
+|---|---|---|
+| `category` | `PENDING_CLASSIFICATION` | Backend on create |
+| `priority` | `null` | AI urgency estimation |
+| `municipalityId` | `null` | Geocoding / routing |
+| `departmentId` | `null` | AI department recommendation |
+| `createdBy` | `null` | Authentication |
+| `duplicateGroupId` | `null` | Duplicate detection |
+| `updatedAt` | same as `createdAt` | Backend on create |

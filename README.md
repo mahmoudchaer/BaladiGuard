@@ -42,7 +42,6 @@ BaladiGuard/
 ├── admin/
 ├── docs/
 ├── scripts/
-├── supabase/
 └── .github/
 ```
 

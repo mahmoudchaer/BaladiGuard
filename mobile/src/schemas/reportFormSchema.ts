@@ -28,8 +28,8 @@ export const reportFormSchema = z
       .string()
       .trim()
       .min(3, 'Enter a location or choose a sample place.'),
-    latitude: z.number().optional(),
-    longitude: z.number().optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
     locationSource: z.enum(['GPS', 'MANUAL', 'PLACEHOLDER']).default('MANUAL'),
     photoUri: z.string().min(1, 'Please attach a photo of the issue.'),
     photoFileName: z.string().optional(),
@@ -49,6 +49,14 @@ export const reportFormSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Provide a phone number or email so we can reach you.',
         path: ['email'],
+      });
+    }
+
+    if (data.latitude === undefined || data.longitude === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Select a sample location to provide map coordinates.',
+        path: ['addressText'],
       });
     }
   });

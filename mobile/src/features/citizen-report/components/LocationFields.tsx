@@ -27,7 +27,8 @@ export function LocationFields({
         Location
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        Type an address or pick a sample location. Full map selection comes later.
+        Type an address or pick a sample location. Map coordinates are required until GPS
+        and map selection are available.
       </Text>
 
       <Controller
@@ -41,6 +42,8 @@ export function LocationFields({
             value={value}
             onChangeText={(text) => {
               onChange(text);
+              setValue('latitude', undefined);
+              setValue('longitude', undefined);
               setValue('locationSource', 'MANUAL');
               onSelectPlaceholder('');
             }}

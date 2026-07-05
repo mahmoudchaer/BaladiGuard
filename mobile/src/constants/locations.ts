@@ -23,8 +23,3 @@ export const PLACEHOLDER_LOCATIONS: PlaceholderLocation[] = [
     longitude: 35.48306,
   },
 ];
-
-export const DEFAULT_MAP_COORDINATES = {
-  latitude: 33.8938,
-  longitude: 35.5018,
-};

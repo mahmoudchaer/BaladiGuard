@@ -18,8 +18,8 @@ const buildSubmitPayload = (values: ReportFormValues): SubmitTicketRequest => {
       preferredChannel,
     },
     location: {
-      latitude: values.latitude ?? 33.8938,
-      longitude: values.longitude ?? 35.5018,
+      latitude: values.latitude as number,
+      longitude: values.longitude as number,
       addressText: values.addressText.trim(),
       source: values.locationSource,
     },
