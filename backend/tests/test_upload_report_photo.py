@@ -36,13 +36,13 @@ def test_upload_report_photo_success(client, monkeypatch):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["storage_key"].startswith("reports/photos/")
-    assert body["storage_key"].endswith(".png")
+    assert body["imageObjectKey"].startswith("reports/photos/")
+    assert body["imageObjectKey"].endswith(".png")
 
     assert fake_s3_client.put_object_calls
     call = fake_s3_client.put_object_calls[0]
     assert call["Bucket"] == "baladiguard-test"
-    assert call["Key"] == body["storage_key"]
+    assert call["Key"] == body["imageObjectKey"]
     assert call["Body"] == b"image-bytes"
     assert call["ContentType"] == "image/png"
 
@@ -58,6 +58,16 @@ def test_upload_report_photo_rejects_invalid_file_type(client):
     response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("notes.txt", b"not-an-image", "text/plain")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_FILE_TYPE"
+
+
+def test_upload_report_photo_rejects_invalid_content_type(client):
+    response = client.post(
+        "/v1/uploads/report-photo",
+        files={"file": ("fake.jpg", b"not-an-image", "text/plain")},
     )
 
     assert response.status_code == 400

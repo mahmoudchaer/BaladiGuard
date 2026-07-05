@@ -118,8 +118,8 @@ Creates a submitted citizen report ticket.
 
 ## `POST /v1/uploads/report-photo`
 
-Uploads one citizen report photo to project storage and returns a stable storage key. The
-returned `storage_key` should be sent later as `imageObjectKey` when creating the report ticket.
+Uploads one citizen report photo to project storage and returns a stable image object key. The
+returned `imageObjectKey` should be sent later when creating the report ticket.
 
 This endpoint stores only the image file. It does not create or update a ticket record.
 
@@ -129,13 +129,13 @@ Content type: `multipart/form-data`
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
-| `file` | image file | Yes | Allowed extensions: `jpg`, `jpeg`, `png`, `webp`. Maximum size: `5MB`. |
+| `file` | image file | Yes | Allowed extensions: `jpg`, `jpeg`, `png`, `webp`. Allowed content types: `image/jpeg`, `image/png`, `image/webp`. Maximum size: `5MB`. |
 
 ### Response `200`
 
 ```json
 {
-  "storage_key": "reports/photos/2f7b3a5e-4c9d-4a0c-9c1b-8f1234567890.png"
+  "imageObjectKey": "reports/photos/2f7b3a5e-4c9d-4a0c-9c1b-8f1234567890.png"
 }
 ```
 
@@ -143,7 +143,7 @@ Content type: `multipart/form-data`
 
 | Field | Type | Notes |
 |---|---|---|
-| `storage_key` | string | Stable object key for the uploaded report photo. |
+| `imageObjectKey` | string | Stable object key for the uploaded report photo. |
 
 ### Upload error codes
 
@@ -152,7 +152,7 @@ Upload errors use the common error format.
 | Code | Status | Meaning |
 |---|---:|---|
 | `MISSING_FILE` | 400 | No file was provided in the `file` field. |
-| `INVALID_FILE_TYPE` | 400 | File extension is not one of `jpg`, `jpeg`, `png`, or `webp`. |
+| `INVALID_FILE_TYPE` | 400 | File extension or content type is not allowed. |
 | `FILE_TOO_LARGE` | 400 | File is larger than `5MB`. |
 | `S3_UPLOAD_FAILED` | 502 | The backend could not upload the file to project storage. |
 

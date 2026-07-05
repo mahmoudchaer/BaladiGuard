@@ -7,6 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile
 
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 REQUIRED_AWS_ENV_VARS = (
     "AWS_REGION",
@@ -54,6 +55,7 @@ class PhotoUploadService:
 
     async def upload_report_photo(self, file: UploadFile) -> str:
         extension = self._get_extension(file.filename)
+        self._validate_content_type(file.content_type)
         contents = await file.read()
 
         if len(contents) > MAX_IMAGE_SIZE_BYTES:
@@ -85,6 +87,14 @@ class PhotoUploadService:
                 message="Image file must be a jpg, jpeg, png, or webp file.",
             )
         return extension
+
+    @staticmethod
+    def _validate_content_type(content_type: str | None) -> None:
+        if content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            raise InvalidUploadError(
+                code="INVALID_FILE_TYPE",
+                message="Image file content type must be image/jpeg, image/png, or image/webp.",
+            )
 
 
 photo_upload_service = PhotoUploadService()

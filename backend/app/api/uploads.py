@@ -14,7 +14,7 @@ REPORT_PHOTO_FILE = File(default=None)
 
 
 class ReportPhotoUploadResponse(BaseModel):
-    storage_key: str = Field(serialization_alias="storage_key")
+    image_object_key: str = Field(serialization_alias="imageObjectKey")
 
 
 @router.post("/report-photo", response_model=ReportPhotoUploadResponse)
@@ -31,7 +31,7 @@ async def upload_report_photo(
         )
 
     try:
-        storage_key = await photo_upload_service.upload_report_photo(file)
+        image_object_key = await photo_upload_service.upload_report_photo(file)
     except InvalidUploadError as exc:
         return build_error_response(
             code=exc.code,
@@ -47,4 +47,4 @@ async def upload_report_photo(
             status_code=502,
         )
 
-    return ReportPhotoUploadResponse(storage_key=storage_key)
+    return ReportPhotoUploadResponse(image_object_key=image_object_key)
