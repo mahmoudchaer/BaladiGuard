@@ -33,9 +33,7 @@ const buildSubmitPayload = (values: ReportFormValues): SubmitTicketRequest => {
   };
 };
 
-export async function submitReport(
-  values: ReportFormValues,
-): Promise<SubmitTicketResponse> {
+export async function submitReport(values: ReportFormValues): Promise<SubmitTicketResponse> {
   const payload = buildSubmitPayload(values);
 
   if (appConfig.enableMockApi) {
@@ -53,8 +51,7 @@ export async function submitReport(
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const message =
-      errorBody?.error?.message ?? 'Unable to submit your report right now.';
+    const message = errorBody?.error?.message ?? 'Unable to submit your report right now.';
     throw new Error(message);
   }
 

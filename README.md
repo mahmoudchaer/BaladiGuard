@@ -69,14 +69,23 @@ Example:
 
 ## Code Quality Commands
 
-Run these commands before opening a pull request.
+GitHub Actions runs automated checks on every pull request and on pushes to `main`.
+Run these same checks locally before opening a pull request.
 
 ### Mobile
+
+Install dependencies once:
+
+```bash
+cd mobile
+npm ci
+```
+
+Then run:
 
 ```bash
 cd mobile
 npm run lint
-npm run format
 npm run format:check
 npm run typecheck
 ```
@@ -87,15 +96,16 @@ Install dev dependencies once:
 
 ```bash
 cd backend
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Then run:
 
 ```bash
 python -m ruff check .
-python -m ruff format .
 python -m ruff format --check .
+PYTHONPATH=. python scripts/validate_mock_tickets.py
+python -m pytest
 ```
 
 ### All (from repository root)
@@ -111,6 +121,14 @@ make quality
 ```
 
 `make quality` runs lint, format check, and typecheck across the project.
+
+To match CI fully, also run the backend data validation and test suite:
+
+```bash
+cd backend
+PYTHONPATH=. python scripts/validate_mock_tickets.py
+python -m pytest
+```
 
 ## Documentation
 

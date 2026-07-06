@@ -24,10 +24,7 @@ export const reportFormSchema = z
       .refine((value) => !value || z.string().email().safeParse(value).success, {
         message: 'Enter a valid email address.',
       }),
-    addressText: z
-      .string()
-      .trim()
-      .min(3, 'Enter a location or choose a sample place.'),
+    addressText: z.string().trim().min(3, 'Enter a location or choose a sample place.'),
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
     locationSource: z.enum(['GPS', 'MANUAL', 'PLACEHOLDER']).default('MANUAL'),
