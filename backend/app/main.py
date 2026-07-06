@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.api.tickets import router as tickets_router
+from app.api.uploads import router as uploads_router
 from app.core.errors import create_request_id, validation_exception_handler
 
 LOCAL_CORS_ORIGINS = [
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.include_router(health_router)
     app.include_router(tickets_router)
+    app.include_router(uploads_router)
 
     return app
 
