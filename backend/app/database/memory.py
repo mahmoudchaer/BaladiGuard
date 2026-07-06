@@ -20,6 +20,9 @@ class InMemoryTicketStore:
     def get(self, ticket_id: str) -> StoredTicket | None:
         return self._tickets.get(ticket_id)
 
+    def list(self) -> list[StoredTicket]:
+        return list(self._tickets.values())
+
     def has_ticket_id(self, ticket_id: str) -> bool:
         return ticket_id in self._tickets
 

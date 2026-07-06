@@ -116,6 +116,84 @@ Creates a submitted citizen report ticket.
 | `message` | string | Human-readable confirmation message. |
 | `createdAt` | string | ISO 8601 timestamp. |
 
+## `GET /v1/tickets`
+
+Returns all persisted tickets using the ticket record shape.
+
+### Response `200`
+
+```json
+[
+  {
+    "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
+    "ticketNumber": "BG-2026-0001",
+    "trackingCode": "AB12CD",
+    "description": "Large pothole reported near the university gate causing traffic disruption.",
+    "contact": {
+      "name": "Citizen Name",
+      "phone": "+96170123456",
+      "email": "citizen@example.com"
+    },
+    "location": {
+      "latitude": 33.896112,
+      "longitude": 35.478419,
+      "addressText": "Near AUB Main Gate, Hamra, Beirut",
+      "source": "PLACEHOLDER"
+    },
+    "imageObjectKey": "reports/mock/photo.jpg",
+    "status": "SUBMITTED",
+    "category": "PENDING_CLASSIFICATION",
+    "priority": null,
+    "createdBy": null,
+    "municipalityId": null,
+    "departmentId": null,
+    "duplicateGroupId": null,
+    "createdAt": "2026-07-03T00:54:15Z",
+    "updatedAt": "2026-07-03T00:54:15Z"
+  }
+]
+```
+
+## `GET /v1/tickets/{ticketId}`
+
+Returns one persisted ticket by ID using the ticket record shape.
+
+### Response `200`
+
+```json
+{
+  "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
+  "ticketNumber": "BG-2026-0001",
+  "trackingCode": "AB12CD",
+  "description": "Large pothole reported near the university gate causing traffic disruption.",
+  "contact": {
+    "name": "Citizen Name",
+    "phone": "+96170123456",
+    "email": "citizen@example.com"
+  },
+  "location": {
+    "latitude": 33.896112,
+    "longitude": 35.478419,
+    "addressText": "Near AUB Main Gate, Hamra, Beirut",
+    "source": "PLACEHOLDER"
+  },
+  "imageObjectKey": "reports/mock/photo.jpg",
+  "status": "SUBMITTED",
+  "category": "PENDING_CLASSIFICATION",
+  "priority": null,
+  "createdBy": null,
+  "municipalityId": null,
+  "departmentId": null,
+  "duplicateGroupId": null,
+  "createdAt": "2026-07-03T00:54:15Z",
+  "updatedAt": "2026-07-03T00:54:15Z"
+}
+```
+
+### Response `404`
+
+Uses the common error format with `TICKET_NOT_FOUND`.
+
 ## `POST /v1/uploads/report-photo`
 
 Uploads one citizen report photo to project storage and returns a stable image object key. The

@@ -46,5 +46,11 @@ class TicketService:
             createdAt=created_at_iso,
         )
 
+    def list_tickets(self) -> list[StoredTicket]:
+        return self._store.list()
+
+    def get_ticket(self, ticket_id: str) -> StoredTicket | None:
+        return self._store.get(ticket_id)
+
 
 ticket_service = TicketService(get_ticket_store())
