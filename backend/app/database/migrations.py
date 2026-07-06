@@ -46,9 +46,7 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
 def delete_tables(prefix: str, settings: Settings | None = None) -> None:
     client = create_dynamodb_client(settings)
     existing_tables = client.list_tables().get("TableNames", [])
-    target_tables = [
-        table_name for table_name in existing_tables if table_name.startswith(prefix)
-    ]
+    target_tables = [table_name for table_name in existing_tables if table_name.startswith(prefix)]
 
     for table_name in target_tables:
         print(f"Deleting table: {table_name}")
