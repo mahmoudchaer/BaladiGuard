@@ -45,3 +45,38 @@ export async function fetchTickets(): Promise<Ticket[]> {
 
   return fetchTicketsFromApi();
 }
+
+async function fetchMockTicketById(ticketId: string): Promise<Ticket | null> {
+  const tickets = await fetchMockTickets();
+  return tickets.find((ticket) => ticket.ticketId === ticketId) ?? null;
+}
+
+async function fetchTicketByIdFromApi(ticketId: string): Promise<Ticket | null> {
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const message = errorBody?.error?.message ?? 'Unable to load ticket from the server.';
+    throw new Error(message);
+  }
+
+  const data: unknown = await response.json();
+
+  if (!data || typeof data !== 'object' || !('ticketId' in data)) {
+    throw new Error('Unexpected ticket response shape.');
+  }
+
+  return data as Ticket;
+}
+
+export async function fetchTicketById(ticketId: string): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return fetchMockTicketById(ticketId);
+  }
+
+  return fetchTicketByIdFromApi(ticketId);
+}

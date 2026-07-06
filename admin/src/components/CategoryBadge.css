@@ -1,63 +1,58 @@
 .category-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.65rem;
+  gap: 0.45rem;
+  padding: 0.28rem 0.65rem;
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
-  background: #f1f5f9;
-  color: #334155;
+  border: 1px solid var(--color-border);
+  background: #f8f9fb;
+  color: var(--color-text);
 }
 
-.category-badge__icon {
-  font-size: 0.85rem;
-  line-height: 1;
+.category-badge__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #6b7c8f;
 }
 
-.category-badge--road-damage {
-  background: #fef3c7;
-  color: #92400e;
+.category-badge--road-damage .category-badge__dot {
+  background: #8b6914;
 }
 
-.category-badge--street-lighting {
-  background: #fef9c3;
-  color: #854d0e;
+.category-badge--street-lighting .category-badge__dot {
+  background: #c47d1a;
 }
 
-.category-badge--waste {
-  background: #dcfce7;
-  color: #166534;
+.category-badge--waste .category-badge__dot {
+  background: var(--lb-green);
 }
 
-.category-badge--water-leak,
-.category-badge--drainage {
-  background: #dbeafe;
-  color: #1e40af;
+.category-badge--water-leak .category-badge__dot,
+.category-badge--drainage .category-badge__dot {
+  background: #1d5a7a;
 }
 
-.category-badge--sidewalk-damage {
-  background: #ffedd5;
-  color: #9a3412;
+.category-badge--sidewalk-damage .category-badge__dot {
+  background: #7a4a2a;
 }
 
-.category-badge--noise {
-  background: #fce7f3;
-  color: #9d174d;
+.category-badge--noise .category-badge__dot {
+  background: #6b3d6b;
 }
 
-.category-badge--traffic-signal {
-  background: #fee2e2;
-  color: #991b1b;
+.category-badge--traffic-signal .category-badge__dot {
+  background: var(--lb-red);
 }
 
-.category-badge--public-facilities {
-  background: #e0e7ff;
-  color: #3730a3;
+.category-badge--public-facilities .category-badge__dot {
+  background: #3d5a6b;
 }
 
-.category-badge--pending-classification {
-  background: #f1f5f9;
-  color: #64748b;
+.category-badge--pending-classification .category-badge__dot {
+  background: #94a3b8;
 }

@@ -1,8 +1,8 @@
 .ticket-table-panel {
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -10,9 +10,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.1rem 1.35rem;
+  padding: 1rem 1.35rem;
   border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+  background: #fafbfc;
 }
 
 .ticket-table-panel__title {
@@ -34,19 +34,19 @@
 }
 
 .ticket-table thead {
-  background: #f8fafc;
+  background: #f4f6f8;
 }
 
 .ticket-table th,
 .ticket-table td {
-  padding: 0.95rem 1.25rem;
+  padding: 0.9rem 1.25rem;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--color-border-light);
 }
 
 .ticket-table th {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -57,12 +57,21 @@
   transition: background 0.12s;
 }
 
-.ticket-table__row:hover {
-  background: #f8fafc;
+.ticket-table__row--clickable {
+  cursor: pointer;
 }
 
-.ticket-table__row:hover td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-primary);
+.ticket-table__row--clickable:hover {
+  background: #f8f9fb;
+}
+
+.ticket-table__row--clickable:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--lb-red);
+}
+
+.ticket-table__row--clickable:focus-visible {
+  outline: 2px solid var(--lb-red);
+  outline-offset: -2px;
 }
 
 .ticket-table tbody tr:last-child td {
@@ -82,8 +91,9 @@
   width: 2rem;
   height: 2rem;
   border-radius: var(--radius-sm);
-  background: var(--color-primary-light);
-  font-size: 0.9rem;
+  background: var(--lb-red-soft);
+  color: var(--lb-red);
+  border: 1px solid #f0b8c0;
   flex-shrink: 0;
 }
 
@@ -146,7 +156,7 @@
     border-bottom: none;
   }
 
-  .ticket-table__row:hover td:first-child {
+  .ticket-table__row--clickable:hover td:first-child {
     box-shadow: none;
   }
 

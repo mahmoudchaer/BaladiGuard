@@ -1,6 +1,7 @@
 import type { TicketStatus } from '@/types/ticket';
 import type { StatusFilter } from '@/utils/ticketStats';
 import { formatStatus } from '@/utils/labels';
+import { IconSearch } from '@/components/icons';
 import './TicketFilters.css';
 
 type TicketFiltersProps = {
@@ -31,7 +32,7 @@ export function TicketFilters({
     <div className="ticket-filters">
       <div className="ticket-filters__search-wrap">
         <span className="ticket-filters__search-icon" aria-hidden="true">
-          🔍
+          <IconSearch />
         </span>
         <input
           type="search"

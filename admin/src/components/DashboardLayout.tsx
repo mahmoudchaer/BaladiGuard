@@ -1,28 +1,36 @@
 import type { ReactNode } from 'react';
 import { config } from '@/services/config';
+import { IconAnalytics, IconMap, IconTickets } from '@/components/icons';
 import './DashboardLayout.css';
 
 type DashboardLayoutProps = {
   children: ReactNode;
+  title?: string;
+  subtitle?: string;
 };
 
 const NAV_ITEMS = [
-  { id: 'tickets', label: 'Tickets', icon: '📋', active: true },
-  { id: 'map', label: 'Map View', icon: '🗺️', active: false, soon: true },
-  { id: 'analytics', label: 'Analytics', icon: '📊', active: false, soon: true },
-];
+  { id: 'tickets', label: 'Tickets', Icon: IconTickets, active: true },
+  { id: 'map', label: 'Map View', Icon: IconMap, active: false, soon: true },
+  { id: 'analytics', label: 'Analytics', Icon: IconAnalytics, active: false, soon: true },
+] as const;
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout({
+  children,
+  title = 'Ticket Dashboard',
+  subtitle = 'Monitor and manage citizen infrastructure reports',
+}: DashboardLayoutProps) {
   return (
     <div className="dashboard-layout">
       <aside className="dashboard-sidebar">
+        <div className="dashboard-sidebar__flag" aria-hidden="true" />
         <div className="dashboard-sidebar__brand">
           <span className="dashboard-sidebar__logo" aria-hidden="true">
             BG
           </span>
           <div>
             <p className="dashboard-sidebar__name">BaladiGuard</p>
-            <p className="dashboard-sidebar__role">Staff Portal</p>
+            <p className="dashboard-sidebar__role">Municipal Staff Portal</p>
           </div>
         </div>
 
@@ -32,14 +40,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               key={item.id}
               className={`dashboard-sidebar__link${
                 item.active ? ' dashboard-sidebar__link--active' : ''
-              }${item.soon ? ' dashboard-sidebar__link--disabled' : ''}`}
+              }${'soon' in item && item.soon ? ' dashboard-sidebar__link--disabled' : ''}`}
               aria-current={item.active ? 'page' : undefined}
             >
               <span className="dashboard-sidebar__link-icon" aria-hidden="true">
-                {item.icon}
+                <item.Icon />
               </span>
               {item.label}
-              {item.soon && <span className="dashboard-sidebar__soon">Soon</span>}
+              {'soon' in item && item.soon && <span className="dashboard-sidebar__soon">Soon</span>}
             </span>
           ))}
         </nav>
@@ -47,7 +55,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="dashboard-sidebar__footer">
           <div className="dashboard-sidebar__staff">
             <span className="dashboard-sidebar__avatar" aria-hidden="true">
-              M
+              MS
             </span>
             <div>
               <p className="dashboard-sidebar__staff-name">Municipality Staff</p>
@@ -59,11 +67,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
       <div className="dashboard-shell">
         <header className="dashboard-topbar">
+          <div className="dashboard-topbar__flag" aria-hidden="true" />
           <div className="dashboard-topbar__left">
-            <h1 className="dashboard-topbar__title">Ticket Dashboard</h1>
-            <p className="dashboard-topbar__subtitle">
-              Monitor and manage citizen infrastructure reports
-            </p>
+            <h1 className="dashboard-topbar__title">{title}</h1>
+            <p className="dashboard-topbar__subtitle">{subtitle}</p>
           </div>
           <div className="dashboard-topbar__actions">
             {config.useMockData && <span className="dashboard-topbar__badge">Mock data mode</span>}

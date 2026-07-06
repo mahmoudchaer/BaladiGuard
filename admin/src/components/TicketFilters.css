@@ -22,9 +22,9 @@
   left: 0.85rem;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.9rem;
+  display: flex;
+  color: var(--color-text-muted);
   pointer-events: none;
-  opacity: 0.5;
 }
 
 .ticket-filters__search {
@@ -32,7 +32,7 @@
   padding: 0.6rem 0.85rem 0.6rem 2.35rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-bg);
+  background: var(--lb-white);
   font-family: inherit;
   font-size: 0.875rem;
   color: var(--color-text);
@@ -47,8 +47,8 @@
 }
 
 .ticket-filters__search:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgb(11 95 255 / 15%);
+  border-color: var(--lb-red);
+  box-shadow: 0 0 0 3px rgb(206 17 38 / 12%);
 }
 
 .ticket-filters__pills {
@@ -60,10 +60,10 @@
 .ticket-filters__pill {
   padding: 0.4rem 0.85rem;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  background: var(--lb-white);
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -71,13 +71,14 @@
 }
 
 .ticket-filters__pill:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  border-color: var(--lb-red);
+  color: var(--lb-red);
+  background: var(--lb-red-soft);
 }
 
 .ticket-filters__pill--active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--lb-red);
+  border-color: var(--lb-red);
   color: #fff;
 }
 
@@ -90,7 +91,8 @@
 }
 
 .ticket-filters__count strong {
-  color: var(--color-text);
+  color: var(--lb-green);
+  font-weight: 700;
 }
 
 @media (max-width: 720px) {

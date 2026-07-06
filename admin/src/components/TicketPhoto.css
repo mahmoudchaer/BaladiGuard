@@ -1,0 +1,106 @@
+.ticket-photo {
+  margin: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--lb-white);
+  box-shadow: var(--shadow-sm);
+}
+
+.ticket-photo__image {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  object-fit: cover;
+  background: var(--color-border-light);
+}
+
+.ticket-photo__caption {
+  padding: 0.55rem 1rem;
+  font-size: 0.72rem;
+  font-family: 'Courier New', monospace;
+  color: var(--color-text-muted);
+  background: #fafbfc;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.ticket-photo__mock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 15rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: linear-gradient(180deg, #fafbfc 0%, #f0f2f5 100%);
+  overflow: hidden;
+}
+
+.ticket-photo__mock-flag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    var(--lb-red) 0%,
+    var(--lb-red) 33.33%,
+    var(--lb-white) 33.33%,
+    var(--lb-white) 66.66%,
+    var(--lb-green) 66.66%,
+    var(--lb-green) 100%
+  );
+}
+
+.ticket-photo__mock-icon {
+  color: #6b7c8f;
+}
+
+.ticket-photo__mock-category {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.ticket-photo__mock-hint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.ticket-photo--fallback .ticket-photo__fallback,
+.ticket-photo__fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 14rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  background: #f8f9fb;
+}
+
+.ticket-photo__fallback-icon {
+  color: var(--color-text-muted);
+}
+
+.ticket-photo__fallback-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ticket-photo__fallback-key {
+  margin: 0;
+  font-size: 0.72rem;
+  font-family: 'Courier New', monospace;
+  color: var(--color-text-muted);
+  word-break: break-all;
+}

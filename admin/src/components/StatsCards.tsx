@@ -1,4 +1,5 @@
 import type { TicketStats } from '@/utils/ticketStats';
+import { IconAlert, IconCheckCircle, IconDocument, IconFolderOpen } from '@/components/icons';
 import './StatsCards.css';
 
 type StatsCardsProps = {
@@ -9,25 +10,25 @@ const CARDS = [
   {
     key: 'total' as const,
     label: 'Total Tickets',
-    icon: '📋',
-    accent: 'stats-card--blue',
+    Icon: IconDocument,
+    accent: 'stats-card--neutral',
   },
   {
     key: 'open' as const,
     label: 'Open Tickets',
-    icon: '🔓',
-    accent: 'stats-card--amber',
+    Icon: IconFolderOpen,
+    accent: 'stats-card--red',
   },
   {
     key: 'highUrgency' as const,
     label: 'High Urgency',
-    icon: '🔴',
-    accent: 'stats-card--red',
+    Icon: IconAlert,
+    accent: 'stats-card--amber',
   },
   {
     key: 'resolved' as const,
     label: 'Resolved',
-    icon: '✅',
+    Icon: IconCheckCircle,
     accent: 'stats-card--green',
   },
 ];
@@ -38,7 +39,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
       {CARDS.map((card) => (
         <div key={card.key} className={`stats-card ${card.accent}`}>
           <div className="stats-card__icon" aria-hidden="true">
-            {card.icon}
+            <card.Icon />
           </div>
           <div className="stats-card__body">
             <p className="stats-card__value">{stats[card.key]}</p>
