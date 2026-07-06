@@ -1,0 +1,19 @@
+.ticket-list-page__error {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-lg);
+  background: #fef2f2;
+  color: #991b1b;
+  box-shadow: var(--shadow-sm);
+}
+
+.ticket-list-page__error h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ticket-list-page__error p {
+  margin: 0;
+  font-size: 0.875rem;
+}

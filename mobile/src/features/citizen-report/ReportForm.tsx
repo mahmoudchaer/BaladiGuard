@@ -97,8 +97,8 @@ export function ReportForm() {
           Report an issue
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Tell us about an infrastructure problem in your area. Required fields are marked
-          through validation when you submit.
+          Tell us about an infrastructure problem in your area. Required fields are marked through
+          validation when you submit.
         </Text>
       </View>
 

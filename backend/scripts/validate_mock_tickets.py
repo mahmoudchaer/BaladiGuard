@@ -83,7 +83,11 @@ print("=== Contact rule (phone OR email) ===")
 print("Violations:", contact_violations or "none")
 
 valid_status = {"SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS", "RESOLVED"}
-bad_status = [(record["ticketId"], record["status"]) for record in records if record["status"] not in valid_status]
+bad_status = [
+    (record["ticketId"], record["status"])
+    for record in records
+    if record["status"] not in valid_status
+]
 print("\n=== Status enum (uppercase) ===")
 print("Invalid:", bad_status or "none")
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.database.store_factory import get_ticket_store
 from app.database.ticket_store import TicketStore
@@ -19,7 +19,7 @@ class TicketService:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
         tracking_code = generate_tracking_code()
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
         created_at_iso = created_at.isoformat().replace("+00:00", "Z")
 
         stored_ticket = StoredTicket(

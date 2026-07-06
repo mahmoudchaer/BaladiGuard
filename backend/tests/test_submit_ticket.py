@@ -1,5 +1,6 @@
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
+
 VALID_PAYLOAD = {
     "description": "Large pothole reported near the university gate causing traffic disruption.",
     "languageHint": "auto",
