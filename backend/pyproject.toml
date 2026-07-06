@@ -10,6 +10,7 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = ["app/database/migrations.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
