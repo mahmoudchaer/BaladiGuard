@@ -7,12 +7,7 @@
  * Intended for staff dashboard and future GET /v1/tickets responses.
  */
 
-export type TicketStatus =
-  | 'SUBMITTED'
-  | 'UNDER_REVIEW'
-  | 'ASSIGNED'
-  | 'IN_PROGRESS'
-  | 'RESOLVED';
+export type TicketStatus = 'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
 
 export type TicketPriority = 'low' | 'medium' | 'high';
 
@@ -52,11 +47,5 @@ export type Ticket = {
 
 export type TicketListItem = Pick<
   Ticket,
-  | 'ticketId'
-  | 'ticketNumber'
-  | 'category'
-  | 'location'
-  | 'status'
-  | 'priority'
-  | 'createdAt'
+  'ticketId' | 'ticketNumber' | 'category' | 'location' | 'status' | 'priority' | 'createdAt'
 >;

@@ -37,12 +37,8 @@ export function TicketTable({ tickets }: TicketTableProps) {
                       🎫
                     </span>
                     <div>
-                      <span className="ticket-table__ticket-number">
-                        {ticket.ticketNumber}
-                      </span>
-                      <span className="ticket-table__tracking-code">
-                        {ticket.trackingCode}
-                      </span>
+                      <span className="ticket-table__ticket-number">{ticket.ticketNumber}</span>
+                      <span className="ticket-table__tracking-code">{ticket.trackingCode}</span>
                     </div>
                   </div>
                 </td>

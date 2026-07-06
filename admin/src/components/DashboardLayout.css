@@ -70,10 +70,14 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--color-sidebar-text);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
-.dashboard-sidebar__link:hover:not(.dashboard-sidebar__link--disabled):not(.dashboard-sidebar__link--active) {
+.dashboard-sidebar__link:hover:not(.dashboard-sidebar__link--disabled):not(
+    .dashboard-sidebar__link--active
+  ) {
   background: var(--color-sidebar-hover);
   color: var(--color-text);
 }

@@ -66,9 +66,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </p>
           </div>
           <div className="dashboard-topbar__actions">
-            {config.useMockData && (
-              <span className="dashboard-topbar__badge">Mock data mode</span>
-            )}
+            {config.useMockData && <span className="dashboard-topbar__badge">Mock data mode</span>}
             <span className="dashboard-topbar__date">
               {new Intl.DateTimeFormat(undefined, {
                 weekday: 'long',

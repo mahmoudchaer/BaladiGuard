@@ -15,7 +15,5 @@ const STATUS_CLASS: Record<TicketStatus, string> = {
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  return (
-    <span className={`status-badge ${STATUS_CLASS[status]}`}>{formatStatus(status)}</span>
-  );
+  return <span className={`status-badge ${STATUS_CLASS[status]}`}>{formatStatus(status)}</span>;
 }

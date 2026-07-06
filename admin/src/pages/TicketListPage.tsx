@@ -7,11 +7,7 @@ import { StatsCards } from '@/components/StatsCards';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
-import {
-  computeTicketStats,
-  filterTickets,
-  type StatusFilter,
-} from '@/utils/ticketStats';
+import { computeTicketStats, filterTickets, type StatusFilter } from '@/utils/ticketStats';
 
 type LoadState = 'loading' | 'success' | 'error';
 
@@ -37,9 +33,7 @@ export function TicketListPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(
-            error instanceof Error ? error.message : 'Unable to load tickets.',
-          );
+          setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
           setLoadState('error');
         }
       }

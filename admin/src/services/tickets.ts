@@ -25,8 +25,7 @@ async function fetchTicketsFromApi(): Promise<Ticket[]> {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const message =
-      errorBody?.error?.message ?? 'Unable to load tickets from the server.';
+    const message = errorBody?.error?.message ?? 'Unable to load tickets from the server.';
     throw new Error(message);
   }
 

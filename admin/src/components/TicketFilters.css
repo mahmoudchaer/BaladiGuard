@@ -37,7 +37,9 @@
   font-size: 0.875rem;
   color: var(--color-text);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .ticket-filters__search::placeholder {
