@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.database.memory import InMemoryTicketStore, ticket_store
+from app.database.store_factory import get_ticket_store
+from app.database.ticket_store import TicketStore
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.utils.ticket_ids import (
@@ -11,14 +12,14 @@ from app.utils.ticket_ids import (
 
 
 class TicketService:
-    def __init__(self, store: InMemoryTicketStore) -> None:
+    def __init__(self, store: TicketStore) -> None:
         self._store = store
 
     def submit_ticket(self, payload: SubmitTicketRequest) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
         tracking_code = generate_tracking_code()
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
         created_at_iso = created_at.isoformat().replace("+00:00", "Z")
 
         stored_ticket = StoredTicket(
@@ -46,4 +47,4 @@ class TicketService:
         )
 
 
-ticket_service = TicketService(ticket_store)
+ticket_service = TicketService(get_ticket_store())

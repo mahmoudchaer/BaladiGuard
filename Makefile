@@ -1,4 +1,4 @@
-.PHONY: lint format format-check typecheck quality
+.PHONY: lint format format-check typecheck quality db-up db-down db-migrate db-seed db-reset
 
 lint:
 	cd mobile && npm run lint
@@ -20,3 +20,19 @@ typecheck:
 	cd admin && npm run typecheck
 
 quality: lint format-check typecheck
+
+db-up:
+	docker compose up -d dynamodb-local
+
+db-down:
+	docker compose down
+
+db-migrate:
+	cd backend && python scripts/db/migrate.py
+
+db-seed:
+	cd backend && python scripts/db/seed.py
+
+db-reset:
+	cd backend && python scripts/db/migrate.py --reset
+	cd backend && python scripts/db/seed.py

@@ -69,7 +69,8 @@ Example:
 
 ## Code Quality Commands
 
-Run these commands before opening a pull request.
+GitHub Actions runs automated checks on every pull request and on pushes to `main`.
+Run these same checks locally before opening a pull request.
 
 ### Admin Dashboard
 
@@ -83,10 +84,18 @@ npm run typecheck
 
 ### Mobile
 
+Install dependencies once:
+
+```bash
+cd mobile
+npm ci
+```
+
+Then run:
+
 ```bash
 cd mobile
 npm run lint
-npm run format
 npm run format:check
 npm run typecheck
 ```
@@ -97,15 +106,16 @@ Install dev dependencies once:
 
 ```bash
 cd backend
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Then run:
 
 ```bash
 python -m ruff check .
-python -m ruff format .
 python -m ruff format --check .
+PYTHONPATH=. python scripts/validate_mock_tickets.py
+python -m pytest
 ```
 
 ### All (from repository root)
@@ -122,6 +132,14 @@ make quality
 
 `make quality` runs lint, format check, and typecheck across the project.
 
+To match CI fully, also run the backend data validation and test suite:
+
+```bash
+cd backend
+PYTHONPATH=. python scripts/validate_mock_tickets.py
+python -m pytest
+```
+
 ## Documentation
 
 Project documentation is located in the `docs/` directory.
@@ -129,18 +147,42 @@ Project documentation is located in the `docs/` directory.
 - Architecture
 - API Specification
 - Database Design
+- [Local Database Setup](docs/local-database-setup.md)
 - Design Decisions
 - Sprint Notes
 
 ## Getting Started
 
-Setup instructions will be added as development progresses.
+### Backend (local API + DynamoDB)
+
+1. Install backend dependencies:
+
+```bash
+cd backend
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+2. Start DynamoDB Local and prepare tables:
+
+```bash
+make db-up
+make db-migrate
+make db-seed
+```
+
+3. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb`.
+
+4. Run the API:
+
+```bash
+cd backend
+uvicorn app.main:app --reload --port 8000
+```
+
+See [docs/local-database-setup.md](docs/local-database-setup.md) for full database setup, env vars, and troubleshooting.
 
 ### Mobile
-
-Coming soon.
-
-### Backend
 
 Coming soon.
 

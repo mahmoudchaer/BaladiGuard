@@ -184,3 +184,19 @@ When a ticket is created from `POST /v1/tickets`, the backend sets:
 | `category` | `PENDING_CLASSIFICATION` |
 | `createdAt` | current UTC timestamp |
 | `updatedAt` | same as `createdAt` |
+
+## DynamoDB tables (local and cloud)
+
+See [local-database-setup.md](./local-database-setup.md) for commands and environment variables.
+
+| Table suffix | Partition key | Notes |
+|---|---|---|
+| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode` |
+| `users` | `userId` | GSIs on `phone`, `email` |
+| `municipalities` | `municipalityId` | |
+| `departments` | `departmentId` | GSI on `municipalityId` |
+| `ticket-status-history` | `historyId` | GSI on `ticketId` |
+| `ai-outputs` | `aiOutputId` | GSI on `ticketId` |
+| `duplicate-groups` | `duplicateGroupId` | |
+| `categories` | `categoryId` | Reference taxonomy for AI/admin |
+| `counters` | `counterId` | Ticket number sequence counter |

@@ -1,0 +1,52 @@
+[
+  {
+    "categoryId": "PENDING_CLASSIFICATION",
+    "label": "Pending classification",
+    "description": "Default category assigned before AI classification runs."
+  },
+  {
+    "categoryId": "road_damage",
+    "label": "Road damage",
+    "description": "Potholes, cracked pavement, and road surface issues."
+  },
+  {
+    "categoryId": "waste",
+    "label": "Waste",
+    "description": "Overflowing bins, garbage piles, and litter."
+  },
+  {
+    "categoryId": "street_lighting",
+    "label": "Street lighting",
+    "description": "Broken or non-working street lights."
+  },
+  {
+    "categoryId": "water_leak",
+    "label": "Water leak",
+    "description": "Leaking pipes and water accumulation."
+  },
+  {
+    "categoryId": "noise",
+    "label": "Noise",
+    "description": "Excessive noise from construction or other sources."
+  },
+  {
+    "categoryId": "sidewalk_damage",
+    "label": "Sidewalk damage",
+    "description": "Broken tiles, hazards, and accessibility issues."
+  },
+  {
+    "categoryId": "traffic_signal",
+    "label": "Traffic signal",
+    "description": "Broken or malfunctioning traffic lights."
+  },
+  {
+    "categoryId": "drainage",
+    "label": "Drainage",
+    "description": "Blocked drains and stormwater issues."
+  },
+  {
+    "categoryId": "public_facilities",
+    "label": "Public facilities",
+    "description": "Damaged benches, playgrounds, and public spaces."
+  }
+]

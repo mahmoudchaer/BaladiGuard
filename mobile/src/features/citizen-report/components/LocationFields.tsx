@@ -27,8 +27,8 @@ export function LocationFields({
         Location
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        Type an address or pick a sample location. Map coordinates are required until GPS
-        and map selection are available.
+        Type an address or pick a sample location. Map coordinates are required until GPS and map
+        selection are available.
       </Text>
 
       <Controller
@@ -75,8 +75,8 @@ export function LocationFields({
       <View style={styles.mapPlaceholder}>
         <Text variant="labelLarge">Map picker placeholder</Text>
         <Text variant="bodySmall" style={styles.mapText}>
-          Interactive map selection will be added in a later sprint. For now, use the
-          address field or sample locations above.
+          Interactive map selection will be added in a later sprint. For now, use the address field
+          or sample locations above.
         </Text>
       </View>
 
