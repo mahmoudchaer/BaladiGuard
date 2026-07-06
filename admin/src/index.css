@@ -8,11 +8,11 @@
   /* Surfaces */
   --color-bg: #f1f5f9;
   --color-bg-elevated: #ffffff;
-  --color-sidebar: #0f172a;
-  --color-sidebar-hover: #1e293b;
-  --color-sidebar-active: #1e3a5f;
-  --color-sidebar-text: #94a3b8;
-  --color-sidebar-text-active: #ffffff;
+  --color-sidebar: #ffffff;
+  --color-sidebar-hover: #f1f5f9;
+  --color-sidebar-active: #eff6ff;
+  --color-sidebar-text: #64748b;
+  --color-sidebar-text-active: #1d4ed8;
 
   /* Text */
   --color-text: #0f172a;

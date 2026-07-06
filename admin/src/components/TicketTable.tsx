@@ -18,14 +18,6 @@ export function TicketTable({ tickets }: TicketTableProps) {
       <div className="ticket-table-wrapper">
         <table className="ticket-table">
           <caption className="sr-only">Submitted infrastructure tickets</caption>
-          <colgroup>
-            <col className="ticket-table__col-id" />
-            <col className="ticket-table__col-category" />
-            <col className="ticket-table__col-location" />
-            <col className="ticket-table__col-status" />
-            <col className="ticket-table__col-urgency" />
-            <col className="ticket-table__col-created" />
-          </colgroup>
           <thead>
             <tr>
               <th scope="col">Ticket ID</th>
@@ -58,12 +50,7 @@ export function TicketTable({ tickets }: TicketTableProps) {
                   <CategoryBadge category={ticket.category} />
                 </td>
                 <td data-label="Location">
-                  <span
-                    className="ticket-table__location"
-                    title={ticket.location.addressText}
-                  >
-                    {ticket.location.addressText}
-                  </span>
+                  <span className="ticket-table__location">{ticket.location.addressText}</span>
                 </td>
                 <td data-label="Status">
                   <StatusBadge status={ticket.status} />
