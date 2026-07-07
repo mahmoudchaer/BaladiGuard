@@ -15,11 +15,16 @@ const CATEGORY_PLACEHOLDER_COLORS: Record<string, string> = {
 
 /**
  * Resolves a display URL for a ticket image.
- * Mock mode uses a deterministic placeholder; API mode will use storage/CDN URLs later.
+ * Mock mode uses a deterministic placeholder. API mode should use the URL
+ * returned by the ticket read endpoint (`imageReferences[].url`).
  */
-export function getTicketImageUrl(imageObjectKey: string, category: string): string {
+export function getTicketImageUrl(
+  imageObjectKey: string,
+  category: string,
+  providedImageUrl?: string,
+): string | null {
   if (!config.useMockData) {
-    return `${config.apiBaseUrl}/v1/uploads/${encodeURIComponent(imageObjectKey)}`;
+    return providedImageUrl ?? null;
   }
 
   const color = CATEGORY_PLACEHOLDER_COLORS[category] ?? '64748b';

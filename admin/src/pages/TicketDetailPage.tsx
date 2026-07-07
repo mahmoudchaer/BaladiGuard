@@ -115,6 +115,7 @@ export function TicketDetailPage() {
               <section className="ticket-detail__main" aria-labelledby="ticket-description-heading">
                 <TicketPhoto
                   imageObjectKey={ticket.imageObjectKey}
+                  imageUrl={ticket.imageUrl}
                   category={ticket.category}
                   alt={`Report photo for ${ticket.ticketNumber}`}
                 />
@@ -203,7 +204,7 @@ export function TicketDetailPage() {
                       <dt>Department</dt>
                       <dd>
                         <span className="ticket-detail__department">
-                          {formatDepartment(ticket.departmentId)}
+                          {ticket.departmentName ?? formatDepartment(ticket.departmentId)}
                         </span>
                       </dd>
                     </div>

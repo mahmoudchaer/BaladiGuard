@@ -26,6 +26,18 @@ export type TicketLocation = {
   source: LocationSource;
 };
 
+export type TicketImageReference = {
+  objectKey: string;
+  url?: string;
+  contentType?: string;
+  createdAt?: string;
+};
+
+export type TicketDepartment = {
+  departmentId?: string;
+  name?: string;
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -34,12 +46,16 @@ export type Ticket = {
   contact: TicketContact;
   location: TicketLocation;
   imageObjectKey: string;
+  imageUrl?: string;
+  imageReferences?: TicketImageReference[];
   status: TicketStatus;
   category: string;
   priority: TicketPriority | null;
   createdBy: string | null;
   municipalityId: string | null;
   departmentId: string | null;
+  departmentName?: string;
+  department?: TicketDepartment | null;
   duplicateGroupId: string | null;
   createdAt: string;
   updatedAt: string | null;

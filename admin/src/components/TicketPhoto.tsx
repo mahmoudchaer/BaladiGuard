@@ -9,9 +9,10 @@ type TicketPhotoProps = {
   imageObjectKey: string;
   category: string;
   alt: string;
+  imageUrl?: string;
 };
 
-export function TicketPhoto({ imageObjectKey, category, alt }: TicketPhotoProps) {
+export function TicketPhoto({ imageObjectKey, category, alt, imageUrl }: TicketPhotoProps) {
   const [hasError, setHasError] = useState(false);
   const categorySlug = category.replace(/_/g, '-');
 
@@ -29,7 +30,19 @@ export function TicketPhoto({ imageObjectKey, category, alt }: TicketPhotoProps)
     );
   }
 
-  const imageUrl = getTicketImageUrl(imageObjectKey, category);
+  const resolvedImageUrl = getTicketImageUrl(imageObjectKey, category, imageUrl);
+
+  if (!resolvedImageUrl) {
+    return (
+      <figure className="ticket-photo ticket-photo--fallback">
+        <div className="ticket-photo__fallback" role="img" aria-label={alt}>
+          <IconImage className="ticket-photo__fallback-icon" />
+          <p className="ticket-photo__fallback-title">Report photo unavailable</p>
+          <p className="ticket-photo__fallback-key">{imageObjectKey}</p>
+        </div>
+      </figure>
+    );
+  }
 
   if (hasError) {
     return (
@@ -47,7 +60,7 @@ export function TicketPhoto({ imageObjectKey, category, alt }: TicketPhotoProps)
     <figure className="ticket-photo">
       <img
         className="ticket-photo__image"
-        src={imageUrl}
+        src={resolvedImageUrl}
         alt={alt}
         onError={() => setHasError(true)}
       />
