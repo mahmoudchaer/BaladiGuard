@@ -1,9 +1,6 @@
-from botocore.exceptions import ClientError
-
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.services.uploads.photo_upload_service import photo_upload_service
-
 from tests.test_upload_report_photo import FakeS3Client, set_aws_env
 
 TICKET_PAYLOAD = {
