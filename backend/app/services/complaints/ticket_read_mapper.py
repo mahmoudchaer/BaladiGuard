@@ -68,6 +68,9 @@ def map_ticket_to_response(ticket: StoredTicket) -> TicketResponse:
         imageObjectKey=ticket.image_object_key,
         department=department,
         departmentId=ticket.department_id,
+        createdBy=ticket.created_by,
+        municipalityId=ticket.municipality_id,
+        duplicateGroupId=ticket.duplicate_group_id,
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
     )

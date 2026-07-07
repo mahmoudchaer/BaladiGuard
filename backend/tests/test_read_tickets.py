@@ -32,6 +32,9 @@ def test_list_tickets_returns_submitted_tickets(client):
     assert body[0]["imageObjectKey"] == VALID_PAYLOAD["imageObjectKey"]
     assert body[0]["department"] is None
     assert body[0]["departmentId"] is None
+    assert body[0]["createdBy"] is None
+    assert body[0]["municipalityId"] is None
+    assert body[0]["duplicateGroupId"] is None
     assert body[1]["ticketNumber"] == second["ticketNumber"]
 
 
@@ -66,6 +69,9 @@ def test_get_ticket_returns_ticket_by_id(client):
     assert body["priority"] is None
     assert body["department"] is None
     assert body["departmentId"] is None
+    assert body["createdBy"] == stored.created_by
+    assert body["municipalityId"] == stored.municipality_id
+    assert body["duplicateGroupId"] == stored.duplicate_group_id
     assert body["createdAt"] == created["createdAt"]
     assert body["updatedAt"] == created["createdAt"]
 

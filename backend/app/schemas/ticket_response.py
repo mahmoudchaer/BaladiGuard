@@ -72,6 +72,9 @@ class TicketResponse(BaseModel):
     image_object_key: str | None = Field(default=None, alias="imageObjectKey")
     department: TicketDepartment | None
     department_id: str | None = Field(default=None, alias="departmentId")
+    created_by: str | None = Field(default=None, alias="createdBy")
+    municipality_id: str | None = Field(default=None, alias="municipalityId")
+    duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
     ai: TicketAiFields | None = None
