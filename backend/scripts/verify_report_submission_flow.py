@@ -27,7 +27,7 @@ image_object_key = upload.json()["imageObjectKey"]
 submit = client.post(
     "/v1/tickets",
     json={
-        "description": "Large pothole reported near the university gate causing traffic disruption.",
+        "description": "Large pothole near the university gate causing traffic disruption.",
         "languageHint": "auto",
         "contact": {
             "name": "Citizen Name",
