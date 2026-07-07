@@ -20,13 +20,19 @@ import {
   reportFormSchema,
   type ReportFormValues,
 } from '@/schemas/reportFormSchema';
-import { submitReport } from '@/services/api/tickets';
+import { submitReport, type SubmitReportPhase } from '@/services/api/tickets';
 import { appConfig } from '@/services/config';
 import type { SubmitTicketResponse } from '@/types/ticket';
+
+const submitPhaseLabels: Record<SubmitReportPhase, string> = {
+  'uploading-photo': 'Uploading photo...',
+  'submitting-report': 'Submitting report...',
+};
 
 export function ReportForm() {
   const [selectedPlaceholderId, setSelectedPlaceholderId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitPhase, setSubmitPhase] = useState<SubmitReportPhase | null>(null);
   const [successResult, setSuccessResult] = useState<SubmitTicketResponse | null>(null);
 
   const {
@@ -43,14 +49,19 @@ export function ReportForm() {
 
   const onSubmit = async (values: ReportFormValues) => {
     setSubmitError(null);
+    setSubmitPhase(null);
 
     try {
-      const response = await submitReport(values);
+      const response = await submitReport(values, {
+        onProgress: setSubmitPhase,
+      });
       setSuccessResult(response);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Something went wrong. Please try again.';
       setSubmitError(message);
+    } finally {
+      setSubmitPhase(null);
     }
   };
 
@@ -58,6 +69,7 @@ export function ReportForm() {
     reset(defaultReportFormValues);
     setSelectedPlaceholderId('');
     setSubmitError(null);
+    setSubmitPhase(null);
     setSuccessResult(null);
   };
 
@@ -168,7 +180,16 @@ export function ReportForm() {
         style={styles.submitButton}
         contentStyle={styles.submitButtonContent}
       >
-        {isSubmitting ? <ActivityIndicator animating color="#FFFFFF" /> : 'Submit report'}
+        {isSubmitting ? (
+          <View style={styles.submittingContent}>
+            <ActivityIndicator animating color="#FFFFFF" />
+            <Text style={styles.submittingText}>
+              {submitPhaseLabels[submitPhase ?? 'submitting-report']}
+            </Text>
+          </View>
+        ) : (
+          'Submit report'
+        )}
       </Button>
     </ScrollView>
   );
@@ -203,6 +224,15 @@ const styles = StyleSheet.create({
   },
   submitButtonContent: {
     paddingVertical: 6,
+  },
+  submittingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  submittingText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   errorBanner: {
     backgroundColor: '#FEF2F2',
