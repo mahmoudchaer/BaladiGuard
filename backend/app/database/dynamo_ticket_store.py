@@ -55,7 +55,7 @@ class DynamoTicketStore:
                 break
             scan_kwargs["ExclusiveStartKey"] = last_key
 
-        return sorted(tickets, key=lambda ticket: ticket.created_at, reverse=True)
+        return tickets
 
     def has_ticket_id(self, ticket_id: str) -> bool:
         response = self._tickets_table.get_item(

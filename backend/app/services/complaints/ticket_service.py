@@ -49,7 +49,12 @@ class TicketService:
         )
 
     def list_tickets(self) -> list[TicketResponse]:
-        return [map_ticket_to_response(ticket) for ticket in self._store.list()]
+        tickets = sorted(
+            self._store.list(),
+            key=lambda ticket: (ticket.created_at, ticket.ticket_number),
+            reverse=True,
+        )
+        return [map_ticket_to_response(ticket) for ticket in tickets]
 
     def get_ticket(self, ticket_id: str) -> TicketResponse | None:
         ticket = self._store.get(ticket_id)

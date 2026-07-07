@@ -23,9 +23,9 @@ def test_list_tickets_returns_submitted_tickets(client):
 
     assert response.status_code == 200
     body = response.json()
-    assert [ticket["ticketId"] for ticket in body] == [first["ticketId"], second["ticketId"]]
-    assert body[0]["ticketNumber"] == first["ticketNumber"]
-    assert body[0]["trackingCode"] == first["trackingCode"]
+    assert [ticket["ticketId"] for ticket in body] == [second["ticketId"], first["ticketId"]]
+    assert body[0]["ticketNumber"] == second["ticketNumber"]
+    assert body[0]["trackingCode"] == second["trackingCode"]
     assert body[0]["imageReferences"][0]["objectKey"] == VALID_PAYLOAD["imageObjectKey"]
     assert body[0]["imageReferences"][0]["contentType"] is None
     assert body[0]["imageReferences"][0]["createdAt"] is None
@@ -35,7 +35,7 @@ def test_list_tickets_returns_submitted_tickets(client):
     assert body[0]["createdBy"] is None
     assert body[0]["municipalityId"] is None
     assert body[0]["duplicateGroupId"] is None
-    assert body[1]["ticketNumber"] == second["ticketNumber"]
+    assert body[1]["ticketNumber"] == first["ticketNumber"]
 
 
 def test_list_tickets_returns_empty_list_when_no_tickets_exist(client):

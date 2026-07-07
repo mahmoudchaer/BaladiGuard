@@ -89,6 +89,9 @@ export type TicketResponse = {
   imageObjectKey?: string;
   department: TicketDepartment | null;
   departmentId?: string | null;
+  createdBy?: string | null;
+  municipalityId?: string | null;
+  duplicateGroupId?: string | null;
   createdAt: string;
   updatedAt: string | null;
   ai?: TicketAiFields;
