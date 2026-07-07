@@ -13,10 +13,7 @@ export function getClientHeaders(): Record<string, string> {
   };
 }
 
-export async function parseApiError(
-  response: Response,
-  fallbackMessage: string,
-): Promise<string> {
+export async function parseApiError(response: Response, fallbackMessage: string): Promise<string> {
   const errorBody = (await response.json().catch(() => null)) as ApiErrorBody | null;
   return errorBody?.error?.message ?? fallbackMessage;
 }
