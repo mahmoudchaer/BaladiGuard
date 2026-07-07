@@ -26,5 +26,11 @@ export async function uploadReportPhoto(photo: ReportPhoto): Promise<string> {
   }
 
   const body = (await response.json()) as ReportPhotoUploadResponse;
-  return body.imageObjectKey;
+  const imageObjectKey = body?.imageObjectKey?.trim();
+
+  if (!imageObjectKey) {
+    throw new Error('Photo upload succeeded but no image reference was returned.');
+  }
+
+  return imageObjectKey;
 }

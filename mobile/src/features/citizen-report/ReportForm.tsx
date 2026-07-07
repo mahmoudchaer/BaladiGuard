@@ -49,7 +49,7 @@ export function ReportForm() {
 
   const onSubmit = async (values: ReportFormValues) => {
     setSubmitError(null);
-    setSubmitPhase(null);
+    setSubmitPhase(appConfig.enableMockApi ? null : 'uploading-photo');
 
     try {
       const response = await submitReport(values, {
@@ -184,7 +184,7 @@ export function ReportForm() {
           <View style={styles.submittingContent}>
             <ActivityIndicator animating color="#FFFFFF" />
             <Text style={styles.submittingText}>
-              {submitPhaseLabels[submitPhase ?? 'submitting-report']}
+              {submitPhaseLabels[submitPhase ?? 'uploading-photo']}
             </Text>
           </View>
         ) : (

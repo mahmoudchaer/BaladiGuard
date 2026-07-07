@@ -76,3 +76,7 @@ jobs:
       - name: Run mobile typecheck
         working-directory: mobile
         run: npm run typecheck
+
+      - name: Run mobile tests
+        working-directory: mobile
+        run: npm test

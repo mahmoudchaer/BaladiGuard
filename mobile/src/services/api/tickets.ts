@@ -77,7 +77,7 @@ export async function submitReport(
 
   if (!response.ok) {
     const message = await parseApiError(response, 'Unable to submit your report right now.');
-    throw new Error(message);
+    throw new Error(`Your photo was uploaded, but the report could not be saved. ${message}`);
   }
 
   return response.json() as Promise<SubmitTicketResponse>;
