@@ -1,9 +1,10 @@
 .ticket-list-page__error {
   padding: 1.25rem 1.5rem;
-  border: 1px solid #fecaca;
+  border: 1px solid #f0b8c0;
+  border-left: 4px solid var(--lb-red);
   border-radius: var(--radius-lg);
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--lb-red-soft);
+  color: var(--lb-red-dark);
   box-shadow: var(--shadow-sm);
 }
 

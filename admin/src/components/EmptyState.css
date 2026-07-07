@@ -6,8 +6,8 @@
   gap: 0.75rem;
   padding: 4.5rem 2rem;
   text-align: center;
-  border: 2px dashed var(--color-border);
-  border-radius: var(--radius-xl);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
   background: var(--color-bg-elevated);
 }
 
@@ -15,16 +15,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 4rem;
-  height: 4rem;
+  width: 3.5rem;
+  height: 3.5rem;
   border-radius: 50%;
-  background: var(--color-primary-light);
-  font-size: 1.75rem;
+  background: var(--lb-red-soft);
+  color: var(--lb-red);
+  border: 1px solid #f0b8c0;
 }
 
 .empty-state__title {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-text);
 }

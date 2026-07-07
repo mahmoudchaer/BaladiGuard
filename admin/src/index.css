@@ -1,40 +1,58 @@
 :root {
-  /* Brand */
-  --color-primary: #0b5fff;
-  --color-primary-dark: #0847cc;
-  --color-primary-light: #dbeafe;
-  --color-accent: #0f766e;
+  /* Lebanese civic palette */
+  --lb-red: #ce1126;
+  --lb-red-dark: #a50e1f;
+  --lb-red-soft: #fde8eb;
+  --lb-green: #007a3d;
+  --lb-green-dark: #005c2e;
+  --lb-green-soft: #e6f4ec;
+  --lb-white: #ffffff;
+
+  /* Brand mapping */
+  --color-primary: var(--lb-red);
+  --color-primary-dark: var(--lb-red-dark);
+  --color-primary-light: var(--lb-red-soft);
+  --color-accent: var(--lb-green);
+  --color-accent-soft: var(--lb-green-soft);
 
   /* Surfaces */
-  --color-bg: #f1f5f9;
-  --color-bg-elevated: #ffffff;
-  --color-sidebar: #ffffff;
-  --color-sidebar-hover: #f1f5f9;
-  --color-sidebar-active: #eff6ff;
-  --color-sidebar-text: #64748b;
-  --color-sidebar-text-active: #1d4ed8;
+  --color-bg: #f0f2f5;
+  --color-bg-elevated: var(--lb-white);
+  --color-sidebar: var(--lb-white);
+  --color-sidebar-hover: #f5f6f8;
+  --color-sidebar-active: var(--lb-red-soft);
+  --color-sidebar-text: #5a6472;
+  --color-sidebar-text-active: var(--lb-red-dark);
 
   /* Text */
-  --color-text: #0f172a;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  --color-text: #1a2332;
+  --color-text-secondary: #4f5d6f;
+  --color-text-muted: #7a8796;
+
+  /* Semantic */
+  --color-success: var(--lb-green);
+  --color-warning: #b45309;
+  --color-danger: var(--lb-red);
 
   /* Borders & shadows */
-  --color-border: #e2e8f0;
-  --color-border-light: #f1f5f9;
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
-  --shadow-md: 0 4px 12px rgb(15 23 42 / 8%);
-  --shadow-lg: 0 12px 32px rgb(15 23 42 / 10%);
+  --color-border: #dde2e8;
+  --color-border-light: #eceff3;
+  --shadow-sm: 0 1px 2px rgb(26 35 50 / 5%);
+  --shadow-md: 0 4px 12px rgb(26 35 50 / 8%);
+  --shadow-lg: 0 12px 28px rgb(26 35 50 / 10%);
 
   /* Radius */
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
+  --radius-sm: 0.35rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.65rem;
+  --radius-xl: 0.85rem;
 
   /* Layout */
   --sidebar-width: 15.5rem;
   --header-height: 4rem;
+
+  /* Typography */
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
 }
 
 *,
@@ -47,11 +65,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
   color: var(--color-text);
@@ -64,6 +78,13 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-body);
+  font-weight: 700;
 }
 
 .sr-only {

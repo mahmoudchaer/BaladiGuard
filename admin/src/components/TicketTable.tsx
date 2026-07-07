@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom';
+import { IconTicket } from '@/components/icons';
 import type { Ticket } from '@/types/ticket';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
@@ -10,6 +12,12 @@ type TicketTableProps = {
 };
 
 export function TicketTable({ tickets }: TicketTableProps) {
+  const navigate = useNavigate();
+
+  const openTicket = (ticketId: string) => {
+    navigate(`/tickets/${ticketId}`);
+  };
+
   return (
     <div className="ticket-table-panel">
       <div className="ticket-table-panel__header">
@@ -30,11 +38,24 @@ export function TicketTable({ tickets }: TicketTableProps) {
           </thead>
           <tbody>
             {tickets.map((ticket) => (
-              <tr key={ticket.ticketId} className="ticket-table__row">
+              <tr
+                key={ticket.ticketId}
+                className="ticket-table__row ticket-table__row--clickable"
+                onClick={() => openTicket(ticket.ticketId)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openTicket(ticket.ticketId);
+                  }
+                }}
+                tabIndex={0}
+                role="link"
+                aria-label={`View ticket ${ticket.ticketNumber}`}
+              >
                 <td data-label="Ticket ID">
                   <div className="ticket-table__id-cell">
                     <span className="ticket-table__id-icon" aria-hidden="true">
-                      🎫
+                      <IconTicket />
                     </span>
                     <div>
                       <span className="ticket-table__ticket-number">{ticket.ticketNumber}</span>

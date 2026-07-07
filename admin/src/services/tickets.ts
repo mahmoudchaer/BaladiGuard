@@ -45,3 +45,137 @@ export async function fetchTickets(): Promise<Ticket[]> {
 
   return fetchTicketsFromApi();
 }
+
+async function fetchMockTicketById(ticketId: string): Promise<Ticket | null> {
+  const tickets = await fetchMockTickets();
+  return tickets.find((ticket) => ticket.ticketId === ticketId) ?? null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function normalizeTicketFromApi(data: unknown): Ticket {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    throw new Error('Unexpected ticket response shape.');
+  }
+
+  const location = isRecord(data.location) ? data.location : {};
+  const department = isRecord(data.department) ? data.department : null;
+  const imageReferences = Array.isArray(data.imageReferences)
+    ? data.imageReferences.filter(isRecord)
+    : [];
+  const primaryImage = imageReferences[0];
+
+  const ticketNumber =
+    typeof data.ticketNumber === 'string' && data.ticketNumber.trim().length > 0
+      ? data.ticketNumber
+      : data.ticketId;
+
+  const trackingCode =
+    typeof data.trackingCode === 'string' && data.trackingCode.trim().length > 0
+      ? data.trackingCode
+      : 'N/A';
+
+  const resolvedImageObjectKey =
+    typeof data.imageObjectKey === 'string' && data.imageObjectKey.trim().length > 0
+      ? data.imageObjectKey
+      : typeof primaryImage?.objectKey === 'string'
+        ? primaryImage.objectKey
+        : 'unavailable';
+
+  const resolvedImageUrl = typeof primaryImage?.url === 'string' ? primaryImage.url : undefined;
+  const resolvedDepartmentId =
+    typeof data.departmentId === 'string'
+      ? data.departmentId
+      : typeof department?.departmentId === 'string'
+        ? department.departmentId
+        : null;
+  const resolvedDepartmentName = typeof department?.name === 'string' ? department.name : undefined;
+
+  return {
+    ticketId: data.ticketId,
+    ticketNumber,
+    trackingCode,
+    description: typeof data.description === 'string' ? data.description : '',
+    contact: isRecord(data.contact)
+      ? {
+          name: typeof data.contact.name === 'string' ? data.contact.name : undefined,
+          phone: typeof data.contact.phone === 'string' ? data.contact.phone : undefined,
+          email: typeof data.contact.email === 'string' ? data.contact.email : undefined,
+        }
+      : {},
+    location: {
+      latitude: typeof location.latitude === 'number' ? location.latitude : 0,
+      longitude: typeof location.longitude === 'number' ? location.longitude : 0,
+      addressText: typeof location.addressText === 'string' ? location.addressText : 'Not provided',
+      source:
+        location.source === 'GPS' ||
+        location.source === 'MANUAL' ||
+        location.source === 'PLACEHOLDER'
+          ? location.source
+          : 'PLACEHOLDER',
+    },
+    imageObjectKey: resolvedImageObjectKey,
+    imageUrl: resolvedImageUrl,
+    imageReferences: imageReferences.map((reference) => ({
+      objectKey: typeof reference.objectKey === 'string' ? reference.objectKey : 'unavailable',
+      url: typeof reference.url === 'string' ? reference.url : undefined,
+      contentType: typeof reference.contentType === 'string' ? reference.contentType : undefined,
+      createdAt: typeof reference.createdAt === 'string' ? reference.createdAt : undefined,
+    })),
+    status:
+      data.status === 'SUBMITTED' ||
+      data.status === 'UNDER_REVIEW' ||
+      data.status === 'ASSIGNED' ||
+      data.status === 'IN_PROGRESS' ||
+      data.status === 'RESOLVED'
+        ? data.status
+        : 'SUBMITTED',
+    category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
+    priority:
+      data.priority === 'low' || data.priority === 'medium' || data.priority === 'high'
+        ? data.priority
+        : null,
+    createdBy: typeof data.createdBy === 'string' ? data.createdBy : null,
+    municipalityId: typeof data.municipalityId === 'string' ? data.municipalityId : null,
+    departmentId: resolvedDepartmentId,
+    departmentName: resolvedDepartmentName,
+    department:
+      department && (department.departmentId || department.name)
+        ? {
+            departmentId:
+              typeof department.departmentId === 'string' ? department.departmentId : undefined,
+            name: typeof department.name === 'string' ? department.name : undefined,
+          }
+        : null,
+    duplicateGroupId: typeof data.duplicateGroupId === 'string' ? data.duplicateGroupId : null,
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+  };
+}
+
+async function fetchTicketByIdFromApi(ticketId: string): Promise<Ticket | null> {
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const message = errorBody?.error?.message ?? 'Unable to load ticket from the server.';
+    throw new Error(message);
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function fetchTicketById(ticketId: string): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return fetchMockTicketById(ticketId);
+  }
+
+  return fetchTicketByIdFromApi(ticketId);
+}
