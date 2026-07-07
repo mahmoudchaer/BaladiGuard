@@ -140,10 +140,19 @@ Returns all persisted tickets using the ticket record shape.
       "addressText": "Near AUB Main Gate, Hamra, Beirut",
       "source": "PLACEHOLDER"
     },
+    "imageReferences": [
+      {
+        "objectKey": "reports/mock/photo.jpg",
+        "url": null,
+        "contentType": null,
+        "createdAt": null
+      }
+    ],
     "imageObjectKey": "reports/mock/photo.jpg",
     "status": "SUBMITTED",
     "category": "PENDING_CLASSIFICATION",
     "priority": null,
+    "department": null,
     "createdBy": null,
     "municipalityId": null,
     "departmentId": null,
@@ -177,10 +186,19 @@ Returns one persisted ticket by ID using the ticket record shape.
     "addressText": "Near AUB Main Gate, Hamra, Beirut",
     "source": "PLACEHOLDER"
   },
+  "imageReferences": [
+    {
+      "objectKey": "reports/mock/photo.jpg",
+      "url": null,
+      "contentType": null,
+      "createdAt": null
+    }
+  ],
   "imageObjectKey": "reports/mock/photo.jpg",
   "status": "SUBMITTED",
   "category": "PENDING_CLASSIFICATION",
   "priority": null,
+  "department": null,
   "createdBy": null,
   "municipalityId": null,
   "departmentId": null,
@@ -344,6 +362,9 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
     "name": "Roads"
   },
   "departmentId": "d1111111-1111-1111-1111-111111111111",
+  "createdBy": "system",
+  "municipalityId": "m1111111-1111-1111-1111-111111111111",
+  "duplicateGroupId": "99999999-9999-9999-9999-999999999999",
   "createdAt": "2026-08-12T09:30:00Z",
   "updatedAt": "2026-08-12T11:30:00Z",
   "ai": {
