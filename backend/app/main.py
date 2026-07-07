@@ -1,3 +1,5 @@
+import app.config  # noqa: F401 - load .env before other app modules
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware

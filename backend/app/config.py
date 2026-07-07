@@ -1,5 +1,19 @@
 import os
 from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = BACKEND_DIR.parent
+
+
+def load_environment() -> None:
+    load_dotenv(BACKEND_DIR / ".env", override=True)
+    load_dotenv(REPO_ROOT / ".env", override=True)
+
+
+load_environment()
 
 
 class Settings:
