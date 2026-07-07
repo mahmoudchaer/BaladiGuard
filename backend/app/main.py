@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+import app.config  # noqa: F401 - load .env before other app modules
 from app.api.health import router as health_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router

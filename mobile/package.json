@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -40,7 +41,8 @@
     "eslint-config-expo": "~10.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.3.3",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
   },
   "private": true
 }

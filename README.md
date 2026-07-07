@@ -98,6 +98,7 @@ cd mobile
 npm run lint
 npm run format:check
 npm run typecheck
+npm test
 ```
 
 ### Backend
@@ -184,7 +185,40 @@ See [docs/local-database-setup.md](docs/local-database-setup.md) for full databa
 
 ### Mobile
 
-Coming soon.
+Install dependencies once:
+
+```bash
+cd mobile
+npm ci
+```
+
+Run quality checks:
+
+```bash
+cd mobile
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+```
+
+Start the Expo app:
+
+```bash
+cd mobile
+npm start
+```
+
+By default, `EXPO_PUBLIC_ENABLE_MOCK_API=true` in `mobile/.env`, so report submissions return a sample ticket without calling the backend.
+
+For real end-to-end submission:
+
+1. Copy `mobile/.env.example` to `mobile/.env` and set `EXPO_PUBLIC_ENABLE_MOCK_API=false`.
+2. Start the backend API on port `8000` (see Backend section above).
+3. Configure `backend/.env` with database settings and AWS S3 credentials for photo uploads.
+4. Set `EXPO_PUBLIC_API_BASE_URL` to your API URL (`http://localhost:8000/v1` for emulators; use your machine IP for a physical device).
+
+See `mobile/.env.example` for the full checklist.
 
 ### Admin Dashboard
 

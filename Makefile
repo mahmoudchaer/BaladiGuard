@@ -19,6 +19,9 @@ typecheck:
 	cd mobile && npm run typecheck
 	cd admin && npm run typecheck
 
+test:
+	cd mobile && npm test
+
 quality: lint format-check typecheck
 
 db-up:
