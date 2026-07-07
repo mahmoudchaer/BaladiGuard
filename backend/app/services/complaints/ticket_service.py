@@ -4,6 +4,8 @@ from app.database.store_factory import get_ticket_store
 from app.database.ticket_store import TicketStore
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
+from app.schemas.ticket_response import TicketResponse
+from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 from app.utils.ticket_ids import (
     generate_ticket_id,
     generate_ticket_number,
@@ -46,11 +48,14 @@ class TicketService:
             createdAt=created_at_iso,
         )
 
-    def list_tickets(self) -> list[StoredTicket]:
-        return self._store.list()
+    def list_tickets(self) -> list[TicketResponse]:
+        return [map_ticket_to_response(ticket) for ticket in self._store.list()]
 
-    def get_ticket(self, ticket_id: str) -> StoredTicket | None:
-        return self._store.get(ticket_id)
+    def get_ticket(self, ticket_id: str) -> TicketResponse | None:
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            return None
+        return map_ticket_to_response(ticket)
 
 
 ticket_service = TicketService(get_ticket_store())

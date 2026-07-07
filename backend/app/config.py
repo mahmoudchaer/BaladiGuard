@@ -20,6 +20,7 @@ class Settings:
     def __init__(self) -> None:
         self.database_backend = os.getenv("DATABASE_BACKEND", "memory").strip().lower()
         self.aws_region = os.getenv("AWS_REGION", "us-east-1").strip()
+        self.aws_s3_bucket = os.getenv("AWS_S3_BUCKET", "").strip() or None
         endpoint = os.getenv("DYNAMODB_ENDPOINT_URL", "").strip()
         self.dynamodb_endpoint_url = endpoint or None
         self.dynamodb_table_prefix = os.getenv("DYNAMODB_TABLE_PREFIX", "baladiguard-").strip()

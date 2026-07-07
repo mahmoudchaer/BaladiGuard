@@ -6,6 +6,7 @@ def test_ticket_response_accepts_core_staff_read_shape():
         {
             "ticketId": "tkt_11111111111111111111111111111111",
             "ticketNumber": "BG-2026-0001",
+            "trackingCode": "AB12CD",
             "description": "Large pothole causing traffic near the university entrance.",
             "category": "road_damage",
             "priority": "high",
@@ -41,6 +42,7 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
     ticket = TicketResponse.model_validate(
         {
             "ticketId": "tkt_55555555555555555555555555555555",
+            "trackingCode": "ZX98YU",
             "description": "Garbage bags accumulating beside the same sidewalk.",
             "category": "waste",
             "priority": "medium",

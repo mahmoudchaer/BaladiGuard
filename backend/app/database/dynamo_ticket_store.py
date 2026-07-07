@@ -42,6 +42,21 @@ class DynamoTicketStore:
             return None
         return item_to_ticket(item)
 
+    def list(self) -> list[StoredTicket]:
+        tickets: list[StoredTicket] = []
+        scan_kwargs: dict[str, object] = {}
+
+        while True:
+            response = self._tickets_table.scan(**scan_kwargs)
+            tickets.extend(item_to_ticket(item) for item in response.get("Items", []))
+
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+
+        return sorted(tickets, key=lambda ticket: ticket.created_at, reverse=True)
+
     def has_ticket_id(self, ticket_id: str) -> bool:
         response = self._tickets_table.get_item(
             Key={"ticketId": ticket_id},

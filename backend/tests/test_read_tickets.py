@@ -24,8 +24,15 @@ def test_list_tickets_returns_submitted_tickets(client):
     assert response.status_code == 200
     body = response.json()
     assert [ticket["ticketId"] for ticket in body] == [first["ticketId"], second["ticketId"]]
-    assert body[0] == ticket_store.get(first["ticketId"]).model_dump(by_alias=True)
-    assert body[1] == ticket_store.get(second["ticketId"]).model_dump(by_alias=True)
+    assert body[0]["ticketNumber"] == first["ticketNumber"]
+    assert body[0]["trackingCode"] == first["trackingCode"]
+    assert body[0]["imageReferences"][0]["objectKey"] == VALID_PAYLOAD["imageObjectKey"]
+    assert body[0]["imageReferences"][0]["contentType"] is None
+    assert body[0]["imageReferences"][0]["createdAt"] is None
+    assert body[0]["imageObjectKey"] == VALID_PAYLOAD["imageObjectKey"]
+    assert body[0]["department"] is None
+    assert body[0]["departmentId"] is None
+    assert body[1]["ticketNumber"] == second["ticketNumber"]
 
 
 def test_list_tickets_returns_empty_list_when_no_tickets_exist(client):
@@ -42,13 +49,23 @@ def test_get_ticket_returns_ticket_by_id(client):
 
     assert response.status_code == 200
     body = response.json()
-    assert body == ticket_store.get(created["ticketId"]).model_dump(by_alias=True)
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
     assert body["ticketId"] == created["ticketId"]
     assert body["ticketNumber"] == created["ticketNumber"]
     assert body["trackingCode"] == created["trackingCode"]
+    assert body["description"] == stored.description
+    assert body["contact"] == stored.contact.model_dump(by_alias=True)
+    assert body["location"] == stored.location.model_dump(by_alias=True)
+    assert body["imageReferences"][0]["objectKey"] == stored.image_object_key
+    image_url = body["imageReferences"][0]["url"]
+    assert image_url is None or image_url.startswith("https://")
+    assert body["imageObjectKey"] == stored.image_object_key
     assert body["status"] == "SUBMITTED"
     assert body["category"] == "PENDING_CLASSIFICATION"
     assert body["priority"] is None
+    assert body["department"] is None
+    assert body["departmentId"] is None
     assert body["createdAt"] == created["createdAt"]
     assert body["updatedAt"] == created["createdAt"]
 
