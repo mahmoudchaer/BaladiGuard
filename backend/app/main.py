@@ -9,6 +9,7 @@ from app.api.uploads import router as uploads_router
 from app.core.errors import create_request_id, validation_exception_handler
 
 LOCAL_CORS_ORIGINS = [
+    "http://localhost:5173",
     "http://localhost:8081",
     "http://localhost:19006",
 ]

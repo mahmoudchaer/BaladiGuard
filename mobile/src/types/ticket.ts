@@ -78,13 +78,20 @@ export type TicketDuplicateReference = {
 export type TicketResponse = {
   ticketId: string;
   ticketNumber?: string;
+  trackingCode: string;
   description: string;
+  contact?: ReportContact | null;
   category: string;
   priority: TicketPriority | null;
   status: TicketStatus;
   location: ReportLocation;
   imageReferences: TicketImageReference[];
+  imageObjectKey?: string;
   department: TicketDepartment | null;
+  departmentId?: string | null;
+  createdBy?: string | null;
+  municipalityId?: string | null;
+  duplicateGroupId?: string | null;
   createdAt: string;
   updatedAt: string | null;
   ai?: TicketAiFields;

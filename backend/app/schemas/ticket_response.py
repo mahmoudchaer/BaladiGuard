@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.ticket import ReportLocation
+from app.schemas.ticket import ReportContact, ReportLocation
 
 TicketStatus = Literal[
     "SUBMITTED",
@@ -61,13 +61,20 @@ class TicketResponse(BaseModel):
 
     ticket_id: str = Field(alias="ticketId")
     ticket_number: str | None = Field(default=None, alias="ticketNumber")
+    tracking_code: str = Field(alias="trackingCode")
     description: str
+    contact: ReportContact | None = None
     category: str
     priority: TicketPriority | None
     status: TicketStatus
     location: ReportLocation
     image_references: list[TicketImageReference] = Field(alias="imageReferences")
+    image_object_key: str | None = Field(default=None, alias="imageObjectKey")
     department: TicketDepartment | None
+    department_id: str | None = Field(default=None, alias="departmentId")
+    created_by: str | None = Field(default=None, alias="createdBy")
+    municipality_id: str | None = Field(default=None, alias="municipalityId")
+    duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
     ai: TicketAiFields | None = None
