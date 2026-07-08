@@ -118,7 +118,7 @@ Creates a submitted citizen report ticket.
 
 ## `GET /v1/tickets`
 
-Returns all persisted tickets using the ticket record shape.
+Returns all persisted tickets using the ticket record shape, sorted by `createdAt` descending.
 
 ### Response `200`
 

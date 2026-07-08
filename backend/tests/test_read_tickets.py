@@ -24,6 +24,10 @@ def test_list_tickets_returns_submitted_tickets(client):
     assert response.status_code == 200
     body = response.json()
     assert [ticket["ticketId"] for ticket in body] == [second["ticketId"], first["ticketId"]]
+    assert [ticket["createdAt"] for ticket in body] == sorted(
+        [first["createdAt"], second["createdAt"]],
+        reverse=True,
+    )
     assert body[0]["ticketNumber"] == second["ticketNumber"]
     assert body[0]["trackingCode"] == second["trackingCode"]
     assert body[0]["imageReferences"][0]["objectKey"] == VALID_PAYLOAD["imageObjectKey"]
