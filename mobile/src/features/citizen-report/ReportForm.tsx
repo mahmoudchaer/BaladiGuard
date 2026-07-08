@@ -87,7 +87,13 @@ export function ReportForm() {
               {successResult.ticketNumber}
             </Text>
             <Text variant="bodySmall" style={styles.trackingHint}>
-              Save this number to track your report later.
+              Save this number and tracking code to follow your report later.
+            </Text>
+            <Text variant="labelLarge" style={styles.trackingLabel}>
+              Ticket ID
+            </Text>
+            <Text variant="bodyMedium" style={styles.ticketId}>
+              {successResult.ticketId}
             </Text>
             <Text variant="labelLarge" style={styles.trackingLabel}>
               Tracking code
@@ -257,6 +263,9 @@ const styles = StyleSheet.create({
   trackingHint: {
     color: '#64748B',
     marginBottom: 8,
+  },
+  ticketId: {
+    color: '#334155',
   },
   trackingLabel: {
     marginTop: 4,
