@@ -111,7 +111,7 @@ Sample tickets are **off by default** so local `POST /v1/tickets` testing starts
 | `DYNAMODB_TABLE_PREFIX` | `baladiguard-` | Prefix for all table names |
 | `SEED_SAMPLE_TICKETS` | `false` | Load `mock_tickets.json` when seeding |
 
-Unit tests always force `DATABASE_BACKEND=memory` and do not require Docker.
+Most unit tests force `DATABASE_BACKEND=memory` and do not require Docker. Issue #9 DynamoDB persistence is covered by `tests/test_submit_ticket_dynamodb.py` using moto (no Docker required).
 
 ## Verify setup
 
@@ -125,7 +125,13 @@ curl -X POST http://localhost:8000/v1/tickets ^
   -d "{\"description\":\"Large pothole near the university gate causing traffic disruption.\",\"contact\":{\"phone\":\"+96170123456\"},\"location\":{\"latitude\":33.896112,\"longitude\":35.478419,\"addressText\":\"Near AUB Main Gate, Hamra, Beirut\",\"source\":\"PLACEHOLDER\"},\"imageObjectKey\":\"reports/mock/photo.jpg\",\"clientMetadata\":{\"platform\":\"ios\",\"appVersion\":\"0.1.0\"}}"
 ```
 
-4. Validate mock fixtures (optional):
+4. Confirm the saved ticket can be retrieved by ID (for dashboard use):
+
+```bash
+curl http://localhost:8000/v1/tickets/<ticketId>
+```
+
+5. Validate mock fixtures (optional):
 
 ```bash
 cd backend
