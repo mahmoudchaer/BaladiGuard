@@ -1,57 +1,10 @@
-import os
 from datetime import UTC, datetime
 
-import pytest
-from moto import mock_aws
-
-from app.config import Settings, get_settings
+from app.config import Settings
 from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.dynamodb_tables import build_table_name
-from app.database.migrations import create_tables
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import ReportContact, ReportLocation
-
-
-@pytest.fixture
-def dynamodb_settings() -> Settings:
-    original_backend = os.environ.get("DATABASE_BACKEND")
-    original_region = os.environ.get("AWS_REGION")
-    original_endpoint = os.environ.get("DYNAMODB_ENDPOINT_URL")
-    original_seed = os.environ.get("SEED_SAMPLE_TICKETS")
-
-    with mock_aws():
-        os.environ["DATABASE_BACKEND"] = "dynamodb"
-        os.environ["AWS_REGION"] = "us-east-1"
-        os.environ["SEED_SAMPLE_TICKETS"] = "false"
-        os.environ.pop("DYNAMODB_ENDPOINT_URL", None)
-        get_settings.cache_clear()
-
-        settings = Settings()
-        create_tables(settings.dynamodb_table_prefix, settings)
-
-        yield settings
-
-    if original_backend is None:
-        os.environ.pop("DATABASE_BACKEND", None)
-    else:
-        os.environ["DATABASE_BACKEND"] = original_backend
-
-    if original_region is None:
-        os.environ.pop("AWS_REGION", None)
-    else:
-        os.environ["AWS_REGION"] = original_region
-
-    if original_endpoint is None:
-        os.environ.pop("DYNAMODB_ENDPOINT_URL", None)
-    else:
-        os.environ["DYNAMODB_ENDPOINT_URL"] = original_endpoint
-
-    if original_seed is None:
-        os.environ.pop("SEED_SAMPLE_TICKETS", None)
-    else:
-        os.environ["SEED_SAMPLE_TICKETS"] = original_seed
-
-    get_settings.cache_clear()
 
 
 def test_dynamo_ticket_store_save_get_and_sequence(dynamodb_settings: Settings) -> None:
