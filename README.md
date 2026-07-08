@@ -181,7 +181,9 @@ cd backend
 uvicorn app.main:app --reload --port 8000
 ```
 
-See [docs/local-database-setup.md](docs/local-database-setup.md) for full database setup, env vars, and troubleshooting.
+`pytest` uses in-memory storage by default (and moto for one DynamoDB persistence test), so CI does not require Docker. For a real local persistence run, keep DynamoDB Local running with `DATABASE_BACKEND=dynamodb` after migrate/seed.
+
+See [docs/local-database-setup.md](docs/local-database-setup.md) for full database setup, env vars, troubleshooting, and the tests-vs-real-run distinction.
 
 ### Mobile
 

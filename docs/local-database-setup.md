@@ -111,12 +111,23 @@ Sample tickets are **off by default** so local `POST /v1/tickets` testing starts
 | `DYNAMODB_TABLE_PREFIX` | `baladiguard-` | Prefix for all table names |
 | `SEED_SAMPLE_TICKETS` | `false` | Load `mock_tickets.json` when seeding |
 
-Most unit tests force `DATABASE_BACKEND=memory` and do not require Docker. Issue #9 DynamoDB persistence is covered by `tests/test_submit_ticket_dynamodb.py` using moto (no Docker required).
+## Tests vs real local persistence
+
+These are separate paths:
+
+| Path | What it uses | When to use it |
+|---|---|---|
+| Automated tests (`pytest`) | Default `DATABASE_BACKEND=memory`, plus one issue #9 Dynamo test that uses **moto** | CI and everyday backend test runs — **no Docker required** |
+| Real local API persistence | `DATABASE_BACKEND=dynamodb` + DynamoDB Local + `make db-migrate` (+ optional `make db-seed`) | Manual/demo runs against a real local database |
+
+So yes: for a real run (not just CI), you still need DynamoDB Local up, migrations applied, and `DATABASE_BACKEND=dynamodb`. The moto test only proves the submit → save → get-by-ID path in CI; it does not replace local DynamoDB setup.
+
+Issue #9 DynamoDB persistence is covered in `tests/test_submit_ticket_dynamodb.py` with moto (no Docker). Seed data is optional for submit/get-by-ID; migrations create the ticket tables required for persistence.
 
 ## Verify setup
 
 1. Run `make db-migrate` — all tables should report as created or already existing.
-2. Run `make db-seed` — should print counts for municipalities, departments, and categories.
+2. Run `make db-seed` — should print counts for municipalities, departments, and categories. Optional for a basic submit/get check; required if your flow depends on seed reference data.
 3. Start the API with `DATABASE_BACKEND=dynamodb` and submit a ticket:
 
 ```bash
