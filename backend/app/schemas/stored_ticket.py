@@ -3,14 +3,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ticket import ReportContact, ReportLocation
+from app.schemas.ticket_status import TicketStatus
 
-TicketStatus = Literal[
-    "SUBMITTED",
-    "UNDER_REVIEW",
-    "ASSIGNED",
-    "IN_PROGRESS",
-    "RESOLVED",
-]
 ReportPriority = Literal["low", "medium", "high"]
 
 PENDING_CLASSIFICATION = "PENDING_CLASSIFICATION"
@@ -33,5 +27,6 @@ class StoredTicket(BaseModel):
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
+    updated_by: str | None = Field(default=None, alias="updatedBy")
 
     model_config = {"populate_by_name": True}

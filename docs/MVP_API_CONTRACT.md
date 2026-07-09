@@ -212,6 +212,39 @@ Returns one persisted ticket by ID using the ticket record shape.
 
 Uses the common error format with `TICKET_NOT_FOUND`.
 
+## `PATCH /v1/tickets/{ticketId}/status`
+
+Updates a ticket's workflow status using the strict transition rules documented below.
+
+### Request body
+
+```json
+{
+  "status": "UNDER_REVIEW",
+  "updatedBy": "staff-1",
+  "note": "Queued for review."
+}
+```
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| `status` | `TicketStatus` | Yes | Target status. Invalid enum values are rejected with `422`. |
+| `updatedBy` | string | No | Actor identifier for audit/history (max 120 characters). |
+| `note` | string | No | Optional human-readable note (max 500 characters). |
+
+### Response `200`
+
+Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, and `statusHistory`.
+
+### Status update error codes
+
+| Code | Status | Meaning |
+|---|---:|---|
+| `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
+| `INVALID_STATUS_TRANSITION` | 400 | Requested status is not allowed from the ticket's current status. |
+
 ## `POST /v1/uploads/report-photo`
 
 Uploads one citizen report photo to project storage and returns a stable image object key. The
@@ -310,9 +343,27 @@ UNDER_REVIEW
 ASSIGNED
 IN_PROGRESS
 RESOLVED
+CLOSED
 ```
 
 New submissions always return `SUBMITTED`.
+
+### Allowed status transitions
+
+The backend enforces a strict workflow. Only the transitions below are accepted by
+`PATCH /v1/tickets/{ticketId}/status`.
+
+| Current status | Allowed next statuses |
+|---|---|
+| `SUBMITTED` | `UNDER_REVIEW`, `CLOSED` |
+| `UNDER_REVIEW` | `ASSIGNED`, `CLOSED` |
+| `ASSIGNED` | `IN_PROGRESS`, `UNDER_REVIEW` |
+| `IN_PROGRESS` | `RESOLVED`, `ASSIGNED` |
+| `RESOLVED` | `CLOSED`, `IN_PROGRESS` |
+| `CLOSED` | _(terminal — no further transitions)_ |
+
+Each successful status change appends a row to ticket status history and updates `updatedAt`
+and `updatedBy` on the ticket record.
 
 ## Shared Ticket Read Shape
 
@@ -408,6 +459,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `department` | object or null | Routed department summary when assigned or suggested. |
 | `createdAt` | string | ISO 8601 timestamp. |
 | `updatedAt` | string or null | ISO 8601 timestamp for the latest ticket update. |
+| `updatedBy` | string or null | Actor identifier for the latest ticket update when available. |
 
 ### Optional fields
 

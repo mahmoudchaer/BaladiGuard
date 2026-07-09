@@ -4,8 +4,14 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.config import get_settings
+from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
-from app.schemas.ticket_response import TicketDepartment, TicketImageReference, TicketResponse
+from app.schemas.ticket_response import (
+    TicketDepartment,
+    TicketImageReference,
+    TicketResponse,
+    TicketStatusHistoryEntry,
+)
 
 DEPARTMENT_NAMES: dict[str, str] = {
     "d1111111-1111-1111-1111-111111111111": "Road Maintenance",
@@ -40,7 +46,10 @@ def build_image_url(object_key: str) -> str | None:
         return None
 
 
-def map_ticket_to_response(ticket: StoredTicket) -> TicketResponse:
+def map_ticket_to_response(
+    ticket: StoredTicket,
+    status_history: list[StoredStatusHistory] | None = None,
+) -> TicketResponse:
     image_reference = TicketImageReference(
         objectKey=ticket.image_object_key,
         url=build_image_url(ticket.image_object_key),
@@ -73,4 +82,14 @@ def map_ticket_to_response(ticket: StoredTicket) -> TicketResponse:
         duplicateGroupId=ticket.duplicate_group_id,
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
+        updatedBy=ticket.updated_by,
+        statusHistory=[
+            TicketStatusHistoryEntry(
+                status=entry.new_status,
+                changedAt=entry.created_at,
+                changedBy=entry.updated_by,
+                note=entry.note,
+            )
+            for entry in (status_history or [])
+        ],
     )

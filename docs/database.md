@@ -156,7 +156,19 @@ UNDER_REVIEW
 ASSIGNED
 IN_PROGRESS
 RESOLVED
+CLOSED
 ```
+
+Allowed transitions (strict workflow):
+
+| From | To |
+|---|---|
+| `SUBMITTED` | `UNDER_REVIEW`, `CLOSED` |
+| `UNDER_REVIEW` | `ASSIGNED`, `CLOSED` |
+| `ASSIGNED` | `IN_PROGRESS`, `UNDER_REVIEW` |
+| `IN_PROGRESS` | `RESOLVED`, `ASSIGNED` |
+| `RESOLVED` | `CLOSED`, `IN_PROGRESS` |
+| `CLOSED` | _(none)_ |
 
 ### Report priority (AI / admin domain)
 
@@ -184,6 +196,9 @@ When a ticket is created from `POST /v1/tickets`, the backend sets:
 | `category` | `PENDING_CLASSIFICATION` |
 | `createdAt` | current UTC timestamp |
 | `updatedAt` | same as `createdAt` |
+| `updatedBy` | `null` |
+
+An initial status-history entry is also created with `newStatus = SUBMITTED`.
 
 ## DynamoDB tables (local and cloud)
 

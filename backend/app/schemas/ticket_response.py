@@ -3,14 +3,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ticket import ReportContact, ReportLocation
+from app.schemas.ticket_status import TicketStatus
 
-TicketStatus = Literal[
-    "SUBMITTED",
-    "UNDER_REVIEW",
-    "ASSIGNED",
-    "IN_PROGRESS",
-    "RESOLVED",
-]
 TicketPriority = Literal["low", "medium", "high"]
 
 
@@ -77,6 +71,7 @@ class TicketResponse(BaseModel):
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
+    updated_by: str | None = Field(default=None, alias="updatedBy")
     ai: TicketAiFields | None = None
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,

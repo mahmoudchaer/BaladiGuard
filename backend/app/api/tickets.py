@@ -4,7 +4,9 @@ from fastapi.responses import JSONResponse
 from app.core.errors import build_error_response, get_request_id
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_response import TicketResponse
-from app.services.complaints.ticket_service import ticket_service
+from app.schemas.ticket_status_update import UpdateTicketStatusRequest
+from app.services.complaints.status_workflow import InvalidStatusTransitionError
+from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
 
@@ -30,3 +32,27 @@ def get_ticket(ticket_id: str, request: Request) -> TicketResponse | JSONRespons
             status_code=404,
         )
     return ticket
+
+
+@router.patch("/tickets/{ticket_id}/status", response_model=TicketResponse)
+def update_ticket_status(
+    ticket_id: str,
+    payload: UpdateTicketStatusRequest,
+    request: Request,
+) -> TicketResponse | JSONResponse:
+    try:
+        return ticket_service.update_ticket_status(ticket_id, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except InvalidStatusTransitionError as exc:
+        return build_error_response(
+            code="INVALID_STATUS_TRANSITION",
+            message=str(exc),
+            request_id=get_request_id(request),
+            status_code=400,
+        )

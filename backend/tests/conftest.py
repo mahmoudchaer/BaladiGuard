@@ -8,6 +8,7 @@ from moto import mock_aws
 
 from app.config import Settings, get_settings
 from app.database.memory import ticket_store
+from app.database.memory_status_history import status_history_store
 from app.database.migrations import create_tables
 from app.main import app
 
@@ -15,6 +16,7 @@ from app.main import app
 @pytest.fixture(autouse=True)
 def reset_ticket_store() -> None:
     ticket_store.clear()
+    status_history_store.clear()
 
 
 @pytest.fixture
