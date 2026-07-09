@@ -1,12 +1,14 @@
 from decimal import Decimal
 
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
 from app.database.serialization import item_to_ticket, ticket_to_item
 from app.schemas.stored_ticket import StoredTicket
+from app.schemas.ticket_response import TicketStatus
 
 TICKET_NUMBER_COUNTER_ID = "ticketNumberSequence"
 
@@ -56,6 +58,34 @@ class DynamoTicketStore:
             scan_kwargs["ExclusiveStartKey"] = last_key
 
         return tickets
+
+    def update_status(
+        self,
+        ticket_id: str,
+        status: TicketStatus,
+        updated_at: str,
+    ) -> StoredTicket | None:
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression="SET #status = :status, #updatedAt = :updatedAt",
+                ConditionExpression="attribute_exists(ticketId)",
+                ExpressionAttributeNames={
+                    "#status": "status",
+                    "#updatedAt": "updatedAt",
+                },
+                ExpressionAttributeValues={
+                    ":status": status,
+                    ":updatedAt": updated_at,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+        return item_to_ticket(response["Attributes"])
 
     def has_ticket_id(self, ticket_id: str) -> bool:
         response = self._tickets_table.get_item(
