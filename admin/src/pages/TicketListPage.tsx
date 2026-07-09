@@ -7,7 +7,13 @@ import { StatsCards } from '@/components/StatsCards';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
-import { computeTicketStats, filterTickets, type StatusFilter } from '@/utils/ticketStats';
+import {
+  computeTicketStats,
+  filterTickets,
+  getCategoryFilterOptions,
+  type CategoryFilter,
+  type StatusFilter,
+} from '@/utils/ticketStats';
 
 type LoadState = 'loading' | 'success' | 'error';
 
@@ -17,6 +23,7 @@ export function TicketListPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
 
   useEffect(() => {
     let cancelled = false;
@@ -47,10 +54,11 @@ export function TicketListPage() {
   }, []);
 
   const stats = useMemo(() => computeTicketStats(tickets), [tickets]);
+  const categoryOptions = useMemo(() => getCategoryFilterOptions(tickets), [tickets]);
 
   const filteredTickets = useMemo(
-    () => filterTickets(tickets, searchQuery, statusFilter),
-    [tickets, searchQuery, statusFilter],
+    () => filterTickets(tickets, searchQuery, statusFilter, categoryFilter),
+    [tickets, searchQuery, statusFilter, categoryFilter],
   );
 
   return (
@@ -71,10 +79,13 @@ export function TicketListPage() {
           <TicketFilters
             searchQuery={searchQuery}
             statusFilter={statusFilter}
+            categoryFilter={categoryFilter}
+            categoryOptions={categoryOptions}
             resultCount={filteredTickets.length}
             totalCount={tickets.length}
             onSearchChange={setSearchQuery}
             onStatusChange={setStatusFilter}
+            onCategoryChange={setCategoryFilter}
           />
 
           {tickets.length === 0 && <EmptyState />}
@@ -82,7 +93,7 @@ export function TicketListPage() {
           {tickets.length > 0 && filteredTickets.length === 0 && (
             <EmptyState
               title="No matching tickets"
-              message="Try adjusting your search or status filter to find tickets."
+              message="Try adjusting your search, status filter, or category filter to find tickets."
             />
           )}
 

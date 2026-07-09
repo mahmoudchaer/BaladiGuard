@@ -82,6 +82,41 @@
   color: #fff;
 }
 
+.ticket-filters__select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.ticket-filters__select-label {
+  white-space: nowrap;
+}
+
+.ticket-filters__select {
+  min-width: 11rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--lb-white);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.ticket-filters__select:focus {
+  border-color: var(--lb-red);
+  box-shadow: 0 0 0 3px rgb(206 17 38 / 12%);
+}
+
 .ticket-filters__count {
   margin: 0;
   margin-left: auto;
@@ -96,6 +131,16 @@
 }
 
 @media (max-width: 720px) {
+  .ticket-filters__select-wrap {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ticket-filters__select {
+    width: 100%;
+  }
+
   .ticket-filters__count {
     width: 100%;
     margin-left: 0;
