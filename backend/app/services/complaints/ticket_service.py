@@ -6,9 +6,8 @@ from app.database.ticket_store import TicketStore
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
-from app.schemas.ticket_response import TicketResponse
+from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
 from app.schemas.ticket_status import TicketStatus
-from app.schemas.ticket_status_update import UpdateTicketStatusRequest
 from app.services.complaints.status_workflow import validate_status_transition
 from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 from app.utils.ticket_ids import (

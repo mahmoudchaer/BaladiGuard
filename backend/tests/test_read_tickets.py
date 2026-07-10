@@ -89,3 +89,48 @@ def test_get_ticket_returns_404_for_unknown_ticket(client):
     assert body["error"]["message"] == "Ticket was not found."
     assert body["error"]["requestId"].startswith("req_")
     assert "X-Request-Id" in response.headers
+
+
+def test_update_ticket_status_returns_updated_ticket(client):
+    created = create_ticket(client)
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/status",
+        json={"status": "UNDER_REVIEW"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ticketId"] == created["ticketId"]
+    assert body["status"] == "UNDER_REVIEW"
+    assert body["updatedAt"]
+    assert len(body["statusHistory"]) == 2
+
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.status == "UNDER_REVIEW"
+    assert stored.updated_at == body["updatedAt"]
+
+
+def test_update_ticket_status_returns_404_for_unknown_ticket(client):
+    response = client.patch("/v1/tickets/tkt_missing/status", json={"status": "IN_PROGRESS"})
+
+    assert response.status_code == 404
+    body = response.json()
+    assert body["error"]["code"] == "TICKET_NOT_FOUND"
+    assert body["error"]["message"] == "Ticket was not found."
+    assert body["error"]["requestId"].startswith("req_")
+    assert "X-Request-Id" in response.headers
+
+
+def test_update_ticket_status_rejects_invalid_status(client):
+    created = create_ticket(client)
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/status",
+        json={"status": "ARCHIVED"},
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "VALIDATION_ERROR"

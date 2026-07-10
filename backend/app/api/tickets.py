@@ -3,8 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
-from app.schemas.ticket_response import TicketResponse
-from app.schemas.ticket_status_update import UpdateTicketStatusRequest
+from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
 from app.services.complaints.status_workflow import InvalidStatusTransitionError
 from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
 

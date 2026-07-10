@@ -1,4 +1,4 @@
-import type { Ticket } from '@/types/ticket';
+import type { Ticket, TicketStatus } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { config } from '@/services/config';
 
@@ -179,4 +179,61 @@ export async function fetchTicketById(ticketId: string): Promise<Ticket | null> 
   }
 
   return fetchTicketByIdFromApi(ticketId);
+}
+
+async function updateMockTicketStatus(
+  ticketId: string,
+  status: TicketStatus,
+): Promise<Ticket | null> {
+  const ticket = await fetchMockTicketById(ticketId);
+
+  if (!ticket) {
+    return null;
+  }
+
+  return {
+    ...ticket,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function updateTicketStatusFromApi(
+  ticketId: string,
+  status: TicketStatus,
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status }),
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const message = errorBody?.error?.message ?? 'Unable to update ticket status.';
+    throw new Error(message);
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function updateTicketStatus(
+  ticketId: string,
+  status: TicketStatus,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return updateMockTicketStatus(ticketId, status);
+  }
+
+  return updateTicketStatusFromApi(ticketId, status);
 }
