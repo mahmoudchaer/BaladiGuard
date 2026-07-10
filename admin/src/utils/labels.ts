@@ -6,6 +6,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   ASSIGNED: 'Assigned',
   IN_PROGRESS: 'In Progress',
   RESOLVED: 'Resolved',
+  CLOSED: 'Closed',
 };
 
 const PRIORITY_LABELS: Record<TicketPriority, string> = {

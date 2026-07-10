@@ -21,6 +21,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'SUBMITTED', label: 'Submitted' },
   { value: 'IN_PROGRESS', label: 'In Progress' },
   { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'CLOSED', label: 'Closed' },
 ];
 
 export function TicketFilters({

@@ -230,7 +230,7 @@ Updates a ticket's workflow status using the strict transition rules documented 
 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
-| `status` | `TicketStatus` | Yes | Target status. Invalid enum values are rejected with `422`. |
+| `status` | `TicketStatus` | Yes | Target status. Invalid enum values are rejected with `400` (`VALIDATION_ERROR`). |
 | `updatedBy` | string | No | Actor identifier for audit/history (max 120 characters). |
 | `note` | string | No | Optional human-readable note (max 500 characters). |
 

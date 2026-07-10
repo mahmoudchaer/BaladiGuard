@@ -12,6 +12,7 @@ const STATUS_CLASS: Record<TicketStatus, string> = {
   ASSIGNED: 'status-badge--assigned',
   IN_PROGRESS: 'status-badge--in-progress',
   RESOLVED: 'status-badge--resolved',
+  CLOSED: 'status-badge--closed',
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {

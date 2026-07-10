@@ -7,7 +7,13 @@
  * Intended for staff dashboard and future GET /v1/tickets responses.
  */
 
-export type TicketStatus = 'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
+export type TicketStatus =
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'CLOSED';
 
 export type TicketPriority = 'low' | 'medium' | 'high';
 
