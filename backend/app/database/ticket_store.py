@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from app.schemas.stored_ticket import StoredTicket
+from app.schemas.ticket_response import TicketStatus
 
 
 class TicketStore(Protocol):
@@ -11,6 +12,13 @@ class TicketStore(Protocol):
     def get(self, ticket_id: str) -> StoredTicket | None: ...
 
     def list(self) -> list[StoredTicket]: ...
+
+    def update_status(
+        self,
+        ticket_id: str,
+        status: TicketStatus,
+        updated_at: str,
+    ) -> StoredTicket | None: ...
 
     def has_ticket_id(self, ticket_id: str) -> bool: ...
 

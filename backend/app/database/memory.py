@@ -1,4 +1,5 @@
 from app.schemas.stored_ticket import StoredTicket
+from app.schemas.ticket_response import TicketStatus
 
 
 class InMemoryTicketStore:
@@ -22,6 +23,25 @@ class InMemoryTicketStore:
 
     def list(self) -> list[StoredTicket]:
         return list(self._tickets.values())
+
+    def update_status(
+        self,
+        ticket_id: str,
+        status: TicketStatus,
+        updated_at: str,
+    ) -> StoredTicket | None:
+        ticket = self._tickets.get(ticket_id)
+        if ticket is None:
+            return None
+
+        updated_ticket = ticket.model_copy(
+            update={
+                "status": status,
+                "updated_at": updated_at,
+            },
+        )
+        self._tickets[ticket_id] = updated_ticket
+        return updated_ticket
 
     def has_ticket_id(self, ticket_id: str) -> bool:
         return ticket_id in self._tickets

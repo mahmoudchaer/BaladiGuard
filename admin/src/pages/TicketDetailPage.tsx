@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { Ticket } from '@/types/ticket';
-import { fetchTicketById } from '@/services/tickets';
+import type { Ticket, TicketStatus } from '@/types/ticket';
+import { fetchTicketById, updateTicketStatus } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -9,7 +9,7 @@ import { TicketPhoto } from '@/components/TicketPhoto';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
-import { formatCreatedDate } from '@/utils/labels';
+import { formatCreatedDate, formatStatus } from '@/utils/labels';
 import { formatDepartment } from '@/utils/departments';
 import { statusToModifier } from '@/utils/statusTheme';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
@@ -17,11 +17,21 @@ import './TicketDetailPage.css';
 
 type LoadState = 'loading' | 'success' | 'not-found' | 'error';
 
+const STATUS_OPTIONS: TicketStatus[] = [
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'RESOLVED',
+];
+
 export function TicketDetailPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (!ticketId) {
@@ -64,6 +74,32 @@ export function TicketDetailPage() {
       cancelled = true;
     };
   }, [ticketId]);
+
+  const handleStatusChange = async (status: TicketStatus) => {
+    if (!ticket || status === ticket.status) {
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    setStatusUpdateError(null);
+
+    try {
+      const updatedTicket = await updateTicketStatus(ticket.ticketId, status);
+
+      if (!updatedTicket) {
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+
+      setTicket(updatedTicket);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update ticket status.';
+      setStatusUpdateError(message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   return (
     <DashboardLayout
@@ -188,6 +224,37 @@ export function TicketDetailPage() {
                         <StatusBadge status={ticket.status} />
                       </dd>
                     </div>
+                    <div className="ticket-detail__meta-row">
+                      <dt>Update status</dt>
+                      <dd>
+                        <select
+                          className="ticket-detail__status-select"
+                          value={ticket.status}
+                          onChange={(event) =>
+                            void handleStatusChange(event.target.value as TicketStatus)
+                          }
+                          disabled={isUpdatingStatus}
+                          aria-label="Update ticket status"
+                        >
+                          {STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {formatStatus(status)}
+                            </option>
+                          ))}
+                        </select>
+                      </dd>
+                    </div>
+                    {isUpdatingStatus && (
+                      <div className="ticket-detail__meta-row">
+                        <dt>Status update</dt>
+                        <dd className="ticket-detail__status-message">Saving...</dd>
+                      </div>
+                    )}
+                    {statusUpdateError && (
+                      <div className="ticket-detail__status-error" role="alert">
+                        {statusUpdateError}
+                      </div>
+                    )}
                     <div className="ticket-detail__meta-row ticket-detail__meta-row--badge">
                       <dt>Category</dt>
                       <dd>

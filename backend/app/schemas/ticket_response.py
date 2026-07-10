@@ -56,6 +56,10 @@ class TicketDuplicateReference(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class UpdateTicketStatusRequest(BaseModel):
+    status: TicketStatus
+
+
 class TicketResponse(BaseModel):
     """Shared ticket read shape returned by staff dashboard and ticket read APIs."""
 
