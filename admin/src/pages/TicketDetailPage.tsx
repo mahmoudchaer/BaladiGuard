@@ -23,6 +23,7 @@ const STATUS_OPTIONS: TicketStatus[] = [
   'ASSIGNED',
   'IN_PROGRESS',
   'RESOLVED',
+  'CLOSED',
 ];
 
 export function TicketDetailPage() {
