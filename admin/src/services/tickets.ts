@@ -129,7 +129,8 @@ function normalizeTicketFromApi(data: unknown): Ticket {
       data.status === 'UNDER_REVIEW' ||
       data.status === 'ASSIGNED' ||
       data.status === 'IN_PROGRESS' ||
-      data.status === 'RESOLVED'
+      data.status === 'RESOLVED' ||
+      data.status === 'CLOSED'
         ? data.status
         : 'SUBMITTED',
     category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',

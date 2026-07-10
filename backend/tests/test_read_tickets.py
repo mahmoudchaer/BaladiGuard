@@ -96,18 +96,19 @@ def test_update_ticket_status_returns_updated_ticket(client):
 
     response = client.patch(
         f"/v1/tickets/{created['ticketId']}/status",
-        json={"status": "IN_PROGRESS"},
+        json={"status": "UNDER_REVIEW"},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["ticketId"] == created["ticketId"]
-    assert body["status"] == "IN_PROGRESS"
+    assert body["status"] == "UNDER_REVIEW"
     assert body["updatedAt"]
+    assert len(body["statusHistory"]) == 2
 
     stored = ticket_store.get(created["ticketId"])
     assert stored is not None
-    assert stored.status == "IN_PROGRESS"
+    assert stored.status == "UNDER_REVIEW"
     assert stored.updated_at == body["updatedAt"]
 
 
