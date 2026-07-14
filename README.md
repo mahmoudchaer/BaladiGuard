@@ -148,6 +148,7 @@ Project documentation is located in the `docs/` directory.
 - Architecture
 - API Specification
 - Database Design
+- [Complaint Categories](docs/complaint-categories.md)
 - [Local Database Setup](docs/local-database-setup.md)
 - Design Decisions
 - Sprint Notes
