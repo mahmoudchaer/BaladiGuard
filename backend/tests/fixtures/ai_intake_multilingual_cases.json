@@ -1,0 +1,263 @@
+{
+  "schemaVersion": "1.0",
+  "datasetId": "ai-intake-multilingual-mvp-v1",
+  "description": "Reusable multilingual evaluation cases for MVP AI category classification and description cleaning.",
+  "categorySource": "backend/scripts/db/seeds/categories.json",
+  "uncategorizedCategory": "PENDING_CLASSIFICATION",
+  "cases": [
+    {
+      "id": "ai-multi-001-road-damage-en",
+      "languageTags": ["en"],
+      "input": "Huge pothole on Bliss Street near AUB main gate, cars keep swerving and traffic is backing up.",
+      "expectedCategory": "road_damage",
+      "classificationNotes": "Road surface defect with traffic impact.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "states that there is a large pothole",
+          "mentions Bliss Street near AUB main gate",
+          "mentions cars swerving or traffic disruption",
+          "uses a clear municipal-report tone"
+        ],
+        "mustPreserve": ["large pothole", "Bliss Street", "AUB main gate", "traffic impact"],
+        "mustNotInvent": ["injuries", "exact pothole dimensions", "repair history"]
+      }
+    },
+    {
+      "id": "ai-multi-002-waste-ar",
+      "languageTags": ["ar"],
+      "input": "في حاويات زبالة طافشة حد المدرسة بمار الياس والريحة قوية كتير من مبارح.",
+      "expectedCategory": "waste",
+      "classificationNotes": "Overflowing garbage bins and odor.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies overflowing garbage bins",
+          "mentions the school area in Mar Elias",
+          "mentions strong odor since yesterday",
+          "keeps the report concise"
+        ],
+        "mustPreserve": ["overflowing bins", "near the school", "Mar Elias", "strong odor", "since yesterday"],
+        "mustNotInvent": ["number of bins", "rodents", "collection schedule"]
+      }
+    },
+    {
+      "id": "ai-multi-003-street-lighting-fr",
+      "languageTags": ["fr"],
+      "input": "Le lampadaire devant l'immeuble 24 rue Gouraud ne marche plus depuis trois nuits, la rue est très sombre.",
+      "expectedCategory": "street_lighting",
+      "classificationNotes": "Broken street light.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "states that the street light is not working",
+          "mentions building 24 on Rue Gouraud",
+          "mentions the issue has lasted three nights",
+          "mentions the street is very dark"
+        ],
+        "mustPreserve": ["street light", "building 24", "Rue Gouraud", "three nights", "very dark street"],
+        "mustNotInvent": ["electrical fire", "police report", "lamp post number"]
+      }
+    },
+    {
+      "id": "ai-multi-004-water-leak-arabizi",
+      "languageTags": ["arabizi", "ar-LB"],
+      "input": "Fi may 3am tenzal mn pipe maksur 7ad el pharmacy b Verdun, el tari2 saret kolha may.",
+      "expectedCategory": "water_leak",
+      "classificationNotes": "Broken pipe causing water accumulation.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies water leaking from a broken pipe",
+          "mentions the pharmacy in Verdun",
+          "mentions water covering the road",
+          "normalizes informal Arabizi into clear text"
+        ],
+        "mustPreserve": ["broken pipe", "pharmacy", "Verdun", "water on the road"],
+        "mustNotInvent": ["sewage", "building flooding", "water company response"]
+      }
+    },
+    {
+      "id": "ai-multi-005-noise-mixed",
+      "languageTags": ["en", "fr", "arabizi", "mixed"],
+      "input": "Construction noise ktir loud after midnight près de Sassine square, ma 3am na2dar nem.",
+      "expectedCategory": "noise",
+      "classificationNotes": "Excessive construction noise at night.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "states that construction noise is excessive",
+          "mentions it happens after midnight",
+          "mentions Sassine Square",
+          "mentions residents cannot sleep"
+        ],
+        "mustPreserve": ["construction noise", "after midnight", "Sassine Square", "residents cannot sleep"],
+        "mustNotInvent": ["permit violation confirmation", "contractor name", "police involvement"]
+      }
+    },
+    {
+      "id": "ai-multi-006-sidewalk-damage-en-typo",
+      "languageTags": ["en"],
+      "input": "Side walk tiles are brokn and lifted near Hamra main st, my mother almost tripped with her walker.",
+      "expectedCategory": "sidewalk_damage",
+      "classificationNotes": "Damaged sidewalk tiles and accessibility hazard, with spelling mistakes.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "corrects spelling while preserving meaning",
+          "identifies broken or lifted sidewalk tiles",
+          "mentions Hamra Main Street",
+          "mentions trip risk for a person using a walker"
+        ],
+        "mustPreserve": ["broken raised sidewalk tiles", "Hamra Main Street", "walker", "near trip"],
+        "mustNotInvent": ["actual injury", "lawsuit", "exact tile count"]
+      }
+    },
+    {
+      "id": "ai-multi-007-traffic-signal-ar",
+      "languageTags": ["ar"],
+      "input": "إشارة السير عند تقاطع العدلية عالقة على الأحمر من الصبح والسيارات عم تعمل فوضى.",
+      "expectedCategory": "traffic_signal",
+      "classificationNotes": "Traffic light stuck on red.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies a malfunctioning traffic signal",
+          "mentions the Adlieh intersection",
+          "mentions it is stuck on red",
+          "mentions traffic disorder since morning"
+        ],
+        "mustPreserve": ["Adlieh intersection", "stuck on red", "since morning", "traffic disorder"],
+        "mustNotInvent": ["accident", "police officer on site", "power outage cause"]
+      }
+    },
+    {
+      "id": "ai-multi-008-drainage-arabizi-typo",
+      "languageTags": ["arabizi", "ar-LB"],
+      "input": "El majrour msakkar bi tari2 el matar, ba3d el shate kel shi 3am yfayd w el may woslit lal mahalet.",
+      "expectedCategory": "drainage",
+      "classificationNotes": "Blocked drain causing flooding after rain.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies a blocked drain",
+          "mentions the airport road",
+          "mentions flooding after rain",
+          "mentions water reaching nearby shops"
+        ],
+        "mustPreserve": ["blocked drain", "airport road", "after rain", "flooding", "nearby shops"],
+        "mustNotInvent": ["sewage contamination", "shop damage costs", "road closure"]
+      }
+    },
+    {
+      "id": "ai-multi-009-public-facilities-fr",
+      "languageTags": ["fr"],
+      "input": "Le banc du jardin public Sanayeh est cassé et des vis pointues dépassent, c'est dangereux pour les enfants.",
+      "expectedCategory": "public_facilities",
+      "classificationNotes": "Damaged public park bench.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies a broken public bench",
+          "mentions Sanayeh public garden",
+          "mentions exposed sharp screws",
+          "mentions danger to children"
+        ],
+        "mustPreserve": ["broken bench", "Sanayeh public garden", "sharp screws", "children"],
+        "mustNotInvent": ["playground equipment damage", "reported injury", "maintenance date"]
+      }
+    },
+    {
+      "id": "ai-multi-010-uncategorized-ar-out-of-scope",
+      "languageTags": ["ar"],
+      "input": "بدي أعرف إذا في حفلة موسيقى بالواجهة البحرية هالويكند وشو أسعار البطاقات.",
+      "expectedCategory": "PENDING_CLASSIFICATION",
+      "classificationNotes": "Out-of-scope event information request; maps to uncategorized pending classification in MVP.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "preserves that the citizen is asking about a weekend music event",
+          "does not convert the request into an infrastructure complaint",
+          "keeps the waterfront and ticket-price details"
+        ],
+        "mustPreserve": ["music event", "waterfront", "this weekend", "ticket prices"],
+        "mustNotInvent": ["infrastructure issue", "noise complaint", "official event schedule"]
+      }
+    },
+    {
+      "id": "ai-multi-011-road-vs-drainage-ambiguous",
+      "languageTags": ["en", "mixed"],
+      "input": "Big hole near the curb in Gemmayze, after rain it fills with water but the asphalt around it is cracked too.",
+      "expectedCategory": "road_damage",
+      "classificationNotes": "Ambiguous road/drainage report; primary issue is road surface damage.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies the main issue as a large hole or damaged asphalt near the curb",
+          "mentions Gemmayze",
+          "mentions water collects in the hole after rain",
+          "does not lose the cracked asphalt detail"
+        ],
+        "mustPreserve": ["large hole near curb", "Gemmayze", "fills with water after rain", "cracked asphalt"],
+        "mustNotInvent": ["blocked drain", "pipe leak", "vehicle damage"]
+      }
+    },
+    {
+      "id": "ai-multi-012-waste-vs-noise-ambiguous-arabizi",
+      "languageTags": ["arabizi", "fr", "mixed"],
+      "input": "El camion zbele byiji 3al 5 sobo7 w fi sacs poubelle mfatt7in 7ad el entrance, ri7a w sawt.",
+      "expectedCategory": "waste",
+      "classificationNotes": "Mentions noise, but primary complaint is opened garbage bags and odor.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies opened garbage bags near the entrance",
+          "mentions early morning garbage truck noise as secondary context",
+          "mentions odor",
+          "normalizes mixed Arabizi and French wording"
+        ],
+        "mustPreserve": ["opened garbage bags", "near entrance", "odor", "garbage truck at 5 AM"],
+        "mustNotInvent": ["missed pickup for multiple days", "animal infestation", "exact building name"]
+      }
+    },
+    {
+      "id": "ai-multi-013-street-lighting-arabizi-spelling",
+      "languageTags": ["arabizi", "ar-LB"],
+      "input": "Daw l sheri3 m2ata3 2edem bina 12 b Mar Mikhael, bel lel ma mnchouf shi.",
+      "expectedCategory": "street_lighting",
+      "classificationNotes": "Arabizi with informal spelling for broken street light.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies a non-working street light",
+          "mentions building 12 in Mar Mikhael",
+          "mentions poor visibility at night",
+          "converts informal wording to a clear report"
+        ],
+        "mustPreserve": ["street light out", "building 12", "Mar Mikhael", "poor night visibility"],
+        "mustNotInvent": ["crime incident", "all lights on the street", "electric pole damage"]
+      }
+    },
+    {
+      "id": "ai-multi-014-water-vs-drainage-fr-mixed",
+      "languageTags": ["fr", "arabizi", "mixed"],
+      "input": "Il y a de l'eau qui sort du trottoir près du café, mish shate, probably tuyau cassé à Badaro.",
+      "expectedCategory": "water_leak",
+      "classificationNotes": "Explicitly says not rain; likely broken pipe.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies water coming out of the sidewalk",
+          "mentions the cafe in Badaro",
+          "notes that it is not rain-related",
+          "mentions likely broken pipe without overstating certainty"
+        ],
+        "mustPreserve": ["water from sidewalk", "near the cafe", "Badaro", "not rain", "likely broken pipe"],
+        "mustNotInvent": ["confirmed source", "drinking water contamination", "basement flooding"]
+      }
+    },
+    {
+      "id": "ai-multi-015-public-facilities-en-informal",
+      "languageTags": ["en"],
+      "input": "Kids slide in the municipal playground is busted, plastic cracked open and sharp edge sticking out.",
+      "expectedCategory": "public_facilities",
+      "classificationNotes": "Damaged playground equipment in a public facility.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies damaged playground slide",
+          "mentions municipal playground",
+          "mentions cracked plastic and sharp edge",
+          "frames it as a safety risk"
+        ],
+        "mustPreserve": ["playground slide", "municipal playground", "cracked plastic", "sharp edge"],
+        "mustNotInvent": ["injured child", "playground closure", "equipment brand"]
+      }
+    }
+  ]
+}
