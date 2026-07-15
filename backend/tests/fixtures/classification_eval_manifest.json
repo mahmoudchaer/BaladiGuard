@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "datasetId": "classification-live-eval-v1",
+  "description": "Labeled live-eval cases for Bedrock complaint classification. Text lives in-repo; images are referenced externally (S3 object keys or HTTPS URLs) and are never committed as binaries.",
+  "categorySource": "backend/scripts/db/seeds/categories.json",
+  "uncategorizedCategory": "PENDING_CLASSIFICATION",
+  "imageSource": {
+    "default": "s3",
+    "s3PrefixEnv": "CLASSIFICATION_EVAL_S3_PREFIX",
+    "s3BucketEnv": "CLASSIFICATION_EVAL_S3_BUCKET",
+    "urlBaseEnv": "CLASSIFICATION_EVAL_IMAGE_BASE_URL",
+    "notes": "Resolve imageRef against CLASSIFICATION_EVAL_S3_PREFIX in S3 (bucket defaults to AWS_S3_BUCKET), or against CLASSIFICATION_EVAL_IMAGE_BASE_URL for HTTPS hosts. Absolute imageUrl bypasses env base settings."
+  },
+  "cases": [
+    {
+      "id": "eval-text-001-road-damage",
+      "modality": "text",
+      "description": "Huge pothole on Bliss Street near AUB main gate, cars keep swerving and traffic is backing up.",
+      "expectedCategory": "road_damage",
+      "notes": "Clear road surface defect."
+    },
+    {
+      "id": "eval-text-002-waste",
+      "modality": "text",
+      "description": "Overflowing garbage bins blocking the sidewalk near Mar Elias school, strong odor since yesterday.",
+      "expectedCategory": "waste",
+      "notes": "Waste / litter primary issue."
+    },
+    {
+      "id": "eval-text-003-street-lighting",
+      "modality": "text",
+      "description": "Street light in front of building 24 on Rue Gouraud has been dark for three nights.",
+      "expectedCategory": "street_lighting",
+      "notes": "Broken public lighting."
+    },
+    {
+      "id": "eval-text-004-water-leak",
+      "modality": "text",
+      "description": "Water is leaking from a broken pipe near the pharmacy in Verdun and covering the road.",
+      "expectedCategory": "water_leak",
+      "notes": "Public water infrastructure leak."
+    },
+    {
+      "id": "eval-text-005-noise",
+      "modality": "text",
+      "description": "Construction noise is extremely loud after midnight near Sassine Square and residents cannot sleep.",
+      "expectedCategory": "noise",
+      "notes": "Excessive night noise."
+    },
+    {
+      "id": "eval-text-006-sidewalk-damage",
+      "modality": "text",
+      "description": "Sidewalk tiles are broken and lifted near Hamra Main Street; a walker almost tripped.",
+      "expectedCategory": "sidewalk_damage",
+      "notes": "Pedestrian trip hazard."
+    },
+    {
+      "id": "eval-text-007-traffic-signal",
+      "modality": "text",
+      "description": "Traffic light at the Adlieh intersection has been stuck on red since morning.",
+      "expectedCategory": "traffic_signal",
+      "notes": "Signal malfunction."
+    },
+    {
+      "id": "eval-text-008-drainage",
+      "modality": "text",
+      "description": "Storm drain on Airport Road is blocked; after rain the street floods and water reaches nearby shops.",
+      "expectedCategory": "drainage",
+      "notes": "Blocked drain / stormwater."
+    },
+    {
+      "id": "eval-text-009-public-facilities",
+      "modality": "text",
+      "description": "The public bench in Sanayeh garden is broken with sharp screws sticking out.",
+      "expectedCategory": "public_facilities",
+      "notes": "Damaged public amenity."
+    },
+    {
+      "id": "eval-text-010-pending-out-of-scope",
+      "modality": "text",
+      "description": "Can you tell me if there is a concert on the waterfront this weekend and what ticket prices are?",
+      "expectedCategory": "PENDING_CLASSIFICATION",
+      "notes": "Out-of-scope event question."
+    },
+    {
+      "id": "eval-text-011-pending-too-vague",
+      "modality": "text",
+      "description": "There is a problem near my house.",
+      "expectedCategory": "PENDING_CLASSIFICATION",
+      "notes": "Too ambiguous for MVP routing."
+    },
+    {
+      "id": "eval-text-012-pending-private-plumbing",
+      "modality": "text",
+      "description": "My apartment kitchen sink is clogged and the landlord will not fix it.",
+      "expectedCategory": "PENDING_CLASSIFICATION",
+      "notes": "Private property, not municipal infrastructure."
+    },
+    {
+      "id": "eval-img-001-road-damage",
+      "modality": "image",
+      "imageRef": "img_01.jpg",
+      "expectedCategory": "road_damage",
+      "notes": "External S3 eval image: clear road surface damage / pothole."
+    },
+    {
+      "id": "eval-img-002-waste",
+      "modality": "image",
+      "imageRef": "img_02.jpg",
+      "expectedCategory": "waste",
+      "notes": "External S3 eval image: garbage / litter pile."
+    },
+    {
+      "id": "eval-mm-003-street-lighting",
+      "modality": "multimodal",
+      "description": "The street lamp on this block has not been working at night and the road is very dark.",
+      "imageRef": "img_03.jpg",
+      "expectedCategory": "street_lighting",
+      "notes": "Photo + short description; stock photo alone is ambiguous without text."
+    },
+    {
+      "id": "eval-mm-004-water-leak",
+      "modality": "multimodal",
+      "description": "Water is coming out of the ground onto the public street and it is not raining.",
+      "imageRef": "img_04.jpg",
+      "expectedCategory": "water_leak",
+      "notes": "Photo + short description for water infrastructure leak."
+    },
+    {
+      "id": "eval-mm-005-traffic-signal",
+      "modality": "multimodal",
+      "description": "This traffic light at the intersection is stuck and not changing for cars.",
+      "imageRef": "img_05.jpg",
+      "expectedCategory": "traffic_signal",
+      "notes": "Photo + short description for signal malfunction."
+    }
+  ]
+}

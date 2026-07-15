@@ -1,16 +1,20 @@
 import os
 
-os.environ["DATABASE_BACKEND"] = "memory"
-
 import pytest
 from fastapi.testclient import TestClient
 from moto import mock_aws
 
+# Importing app.config loads .env with override=True, so force memory afterward.
+import app.config  # noqa: F401
 from app.config import Settings, get_settings
-from app.database.memory import ticket_store
-from app.database.memory_status_history import status_history_store
-from app.database.migrations import create_tables
-from app.main import app
+
+os.environ["DATABASE_BACKEND"] = "memory"
+get_settings.cache_clear()
+
+from app.database.memory import ticket_store  # noqa: E402
+from app.database.memory_status_history import status_history_store  # noqa: E402
+from app.database.migrations import create_tables  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
