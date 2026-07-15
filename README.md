@@ -203,6 +203,13 @@ cd backend
 python scripts/verify_cloud_report_flow.py
 ```
 
+Optional live Bedrock classification check (issue #17; not wired into ticket submit yet):
+
+```bash
+cd backend
+python scripts/verify_classification.py
+```
+
 `pytest` still uses in-memory storage by default (plus moto for some DynamoDB unit tests),
 so CI does not need AWS credentials.
 

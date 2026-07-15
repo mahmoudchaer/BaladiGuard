@@ -21,8 +21,11 @@ Keep secrets in local `.env` files only — never commit real credentials.
 - IAM user/role that can:
   - DynamoDB: create/describe tables, read/write items
   - S3: put/get objects on the report-photos bucket
+  - Bedrock Runtime: `InvokeModel` / `Converse` for the chosen vision model (issue #17)
 - An S3 bucket for report photos (example name: `baladiguard-report-photos-dev`)
 - Backend dependencies installed (`pip install -r requirements.txt`)
+- For AI classification: enable model access in the Bedrock console
+  (default `amazon.nova-lite-v1:0`)
 
 ## 1. Configure environment
 
@@ -124,7 +127,19 @@ Note: `pytest` and `scripts/verify_report_submission_flow.py` still use in-memor
 moto-style paths for CI. That is intentional. Use `verify_cloud_report_flow.py` for
 issue #115 cloud proof.
 
-## 5. Manual end-to-end verification checklist
+## 5. AI classification smoke test (Bedrock)
+
+Standalone classifier (issue #17) — not yet wired into ticket submit:
+
+```bash
+cd backend
+python scripts/verify_classification.py
+```
+
+Set `BEDROCK_MODEL_ID=amazon.nova-lite-v1:0` (default) and ensure the IAM user can call
+Bedrock Runtime. Automated `pytest` mocks Bedrock and does not need live model access.
+
+## 6. Manual end-to-end verification checklist
 
 1. Mobile app mock mode is off (`EXPO_PUBLIC_ENABLE_MOCK_API=false`).
 2. Submit a report with a photo from the mobile app (or run the script above).
@@ -148,6 +163,7 @@ issue #115 cloud proof.
 |---|---|
 | `AccessDeniedException` on `CreateTable` / `PutItem` | Attach DynamoDB permissions to the IAM user |
 | `AccessDeniedException` on S3 upload | Attach S3 put/get on the report-photos bucket |
+| `AccessDeniedException` on Bedrock `Converse` / `InvokeModel` | Enable the model in Bedrock Model access and attach `bedrock:InvokeModel` for that model ARN |
 | Tables still empty after migrate | Confirm region is correct and `DYNAMODB_ENDPOINT_URL` is empty |
 | API still uses local Docker DB | Remove `DYNAMODB_ENDPOINT_URL` and restart Uvicorn |
 | Phone cannot reach API | Use PC LAN IP, `--host 0.0.0.0`, same Wi‑Fi, firewall allows port 8000 |

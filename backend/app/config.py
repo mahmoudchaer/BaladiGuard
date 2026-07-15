@@ -27,6 +27,10 @@ class Settings:
         self.seed_sample_tickets = (
             os.getenv("SEED_SAMPLE_TICKETS", "false").strip().lower() == "true"
         )
+        self.bedrock_model_id = (
+            os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0").strip()
+            or "amazon.nova-lite-v1:0"
+        )
 
     @property
     def use_dynamodb(self) -> bool:
