@@ -127,17 +127,39 @@ Note: `pytest` and `scripts/verify_report_submission_flow.py` still use in-memor
 moto-style paths for CI. That is intentional. Use `verify_cloud_report_flow.py` for
 issue #115 cloud proof.
 
-## 5. AI classification smoke test (Bedrock)
+## 5. AI classification smoke / eval (Bedrock)
 
-Standalone classifier (issue #17) — not yet wired into ticket submit:
+Standalone classifier (issue #17) — not yet wired into ticket submit.
+
+Quick live smoke (multilingual text subset):
 
 ```bash
 cd backend
 python scripts/verify_classification.py
 ```
 
+Labeled manual evaluation (accuracy + mismatches; **not CI**):
+
+```bash
+cd backend
+python scripts/eval_classification.py
+python scripts/eval_classification.py --text-only
+python scripts/eval_classification.py --images-only
+```
+
+Eval details:
+
+- Manifest: `backend/tests/fixtures/classification_eval_manifest.json`
+- Text cases live in the repo; image binaries stay outside git (S3 by default)
+- Configure with:
+  - `CLASSIFICATION_EVAL_S3_PREFIX=classification-eval/`
+  - `CLASSIFICATION_EVAL_S3_BUCKET=` (defaults to `AWS_S3_BUCKET`)
+  - optional `CLASSIFICATION_EVAL_IMAGE_BASE_URL` for HTTPS-hosted refs
+- Automated `pytest` validates the manifest schema and mocks Bedrock; it does **not**
+  call the live model
+
 Set `BEDROCK_MODEL_ID=amazon.nova-lite-v1:0` (default) and ensure the IAM user can call
-Bedrock Runtime. Automated `pytest` mocks Bedrock and does not need live model access.
+Bedrock Runtime.
 
 ## 6. Manual end-to-end verification checklist
 

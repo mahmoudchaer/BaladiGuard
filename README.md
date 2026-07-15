@@ -203,12 +203,16 @@ cd backend
 python scripts/verify_cloud_report_flow.py
 ```
 
-Optional live Bedrock classification check (issue #17; not wired into ticket submit yet):
+Optional live Bedrock checks (issue #17; not wired into ticket submit yet):
 
 ```bash
 cd backend
 python scripts/verify_classification.py
+python scripts/eval_classification.py
 ```
+
+`eval_classification.py` is the labeled accuracy suite (text + external S3/URL images).
+It is manual-only and not part of CI.
 
 `pytest` still uses in-memory storage by default (plus moto for some DynamoDB unit tests),
 so CI does not need AWS credentials.

@@ -7,6 +7,9 @@ Requires AWS credentials with Bedrock Runtime access and model enabled:
 
 Usage (from backend/):
   python scripts/verify_classification.py
+
+For the full labeled accuracy suite (text + external images), use:
+  python scripts/eval_classification.py
 """
 
 from __future__ import annotations
