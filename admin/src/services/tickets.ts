@@ -8,6 +8,33 @@ function isTicketArray(value: unknown): value is Ticket[] {
   return Array.isArray(value);
 }
 
+async function readApiErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  const errorBody = await response.json().catch(() => null);
+  const error = isRecord(errorBody) && isRecord(errorBody.error) ? errorBody.error : null;
+  const message = error ? error.message : null;
+  const details = error ? error.details : null;
+
+  if (Array.isArray(details) && details.length > 0) {
+    const detailMessages = details
+      .map((detail: unknown) => {
+        if (!isRecord(detail) || typeof detail.message !== 'string') {
+          return null;
+        }
+
+        return typeof detail.field === 'string'
+          ? `${detail.field}: ${detail.message}`
+          : detail.message;
+      })
+      .filter(Boolean);
+
+    if (detailMessages.length > 0) {
+      return `${typeof message === 'string' ? message : fallbackMessage} ${detailMessages.join(' ')}`;
+    }
+  }
+
+  return typeof message === 'string' ? message : fallbackMessage;
+}
+
 async function fetchMockTickets(): Promise<Ticket[]> {
   await new Promise((resolve) => setTimeout(resolve, MOCK_LOAD_DELAY_MS));
 
@@ -24,8 +51,7 @@ async function fetchTicketsFromApi(): Promise<Ticket[]> {
   const response = await fetch(`${config.apiBaseUrl}/v1/tickets`);
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    const message = errorBody?.error?.message ?? 'Unable to load tickets from the server.';
+    const message = await readApiErrorMessage(response, 'Unable to load tickets from the server.');
     throw new Error(message);
   }
 
@@ -164,8 +190,7 @@ async function fetchTicketByIdFromApi(ticketId: string): Promise<Ticket | null> 
   }
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    const message = errorBody?.error?.message ?? 'Unable to load ticket from the server.';
+    const message = await readApiErrorMessage(response, 'Unable to load ticket from the server.');
     throw new Error(message);
   }
 
@@ -218,8 +243,7 @@ async function updateTicketStatusFromApi(
   }
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    const message = errorBody?.error?.message ?? 'Unable to update ticket status.';
+    const message = await readApiErrorMessage(response, 'Unable to update ticket status.');
     throw new Error(message);
   }
 

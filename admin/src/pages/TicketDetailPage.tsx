@@ -12,19 +12,11 @@ import { CategoryBadge } from '@/components/CategoryBadge';
 import { formatCreatedDate, formatStatus } from '@/utils/labels';
 import { formatDepartment } from '@/utils/departments';
 import { statusToModifier } from '@/utils/statusTheme';
+import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
 import './TicketDetailPage.css';
 
 type LoadState = 'loading' | 'success' | 'not-found' | 'error';
-
-const STATUS_OPTIONS: TicketStatus[] = [
-  'SUBMITTED',
-  'UNDER_REVIEW',
-  'ASSIGNED',
-  'IN_PROGRESS',
-  'RESOLVED',
-  'CLOSED',
-];
 
 export function TicketDetailPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -237,7 +229,7 @@ export function TicketDetailPage() {
                           disabled={isUpdatingStatus}
                           aria-label="Update ticket status"
                         >
-                          {STATUS_OPTIONS.map((status) => (
+                          {getSelectableTicketStatuses(ticket.status).map((status) => (
                             <option key={status} value={status}>
                               {formatStatus(status)}
                             </option>
