@@ -160,7 +160,7 @@ Project documentation is located in the `docs/` directory.
 
 ## Getting Started
 
-### Backend (local API + DynamoDB)
+### Backend (cloud AWS by default)
 
 1. Install backend dependencies:
 
@@ -170,27 +170,45 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-2. Start DynamoDB Local and prepare tables:
+2. Copy env examples and fill in real AWS values (never commit secrets):
 
 ```bash
-make db-up
-make db-migrate
-make db-seed
+copy backend\.env.example backend\.env
+copy .env.example .env
 ```
 
-3. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb`.
+`backend/.env.example` defaults to **cloud DynamoDB** (`DATABASE_BACKEND=dynamodb` and
+empty `DYNAMODB_ENDPOINT_URL`). Put `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+`AWS_S3_BUCKET` in `.env` / `backend/.env`.
+
+3. Create cloud tables and seed reference data:
+
+```bash
+cd backend
+python scripts/db/migrate.py
+python scripts/db/seed.py
+```
 
 4. Run the API:
 
 ```bash
 cd backend
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-`pytest` uses in-memory storage by default (and moto for one DynamoDB persistence test), so CI does not require Docker. For a real local persistence run, keep DynamoDB Local running with `DATABASE_BACKEND=dynamodb` after migrate/seed.
+5. Verify the real cloud path (S3 + DynamoDB + API):
 
-See [docs/local-database-setup.md](docs/local-database-setup.md) for Docker local database setup.
-See [docs/cloud-setup.md](docs/cloud-setup.md) for AWS DynamoDB + S3 cloud configuration.
+```bash
+cd backend
+python scripts/verify_cloud_report_flow.py
+```
+
+`pytest` still uses in-memory storage by default (plus moto for some DynamoDB unit tests),
+so CI does not need AWS credentials.
+
+For Docker DynamoDB Local instead of cloud, see
+[docs/local-database-setup.md](docs/local-database-setup.md).
+For full cloud setup details, see [docs/cloud-setup.md](docs/cloud-setup.md).
 
 ### Mobile
 

@@ -38,7 +38,10 @@ make db-migrate
 make db-seed
 ```
 
-Start the API against DynamoDB:
+This path is for **Docker DynamoDB Local**. For AWS cloud DynamoDB + S3 (issue #115),
+use [cloud-setup.md](./cloud-setup.md) instead (`DYNAMODB_ENDPOINT_URL` empty).
+
+Start the API against DynamoDB Local:
 
 ```bash
 cd backend

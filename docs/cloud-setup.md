@@ -101,14 +101,38 @@ curl http://127.0.0.1:8000/docs
 curl http://127.0.0.1:8000/v1/tickets
 ```
 
-## 4. End-to-end verification checklist
+## 4. Automated cloud verification script
 
-1. Mobile app mock mode is off.
-2. Submit a report with a photo from the mobile app.
-3. Confirm the photo object appears in the S3 bucket.
-4. Confirm a new item appears in DynamoDB table `baladiguard-tickets` with `imageObjectKey`.
+With cloud credentials configured and tables migrated, run:
+
+```bash
+cd backend
+python scripts/verify_cloud_report_flow.py
+```
+
+This script **refuses** memory mode and DynamoDB Local. It proves:
+
+1. Photo upload to the real S3 bucket (`head_object` succeeds)
+2. Ticket create against cloud DynamoDB
+3. `GET /v1/tickets/{ticketId}` returns the ticket with the same `imageObjectKey`
+4. Ticket appears in `GET /v1/tickets` (admin list API)
+5. Row exists in the cloud `baladiguard-tickets` table
+
+Expected final line: `CLOUD_REPORT_FLOW_OK`
+
+Note: `pytest` and `scripts/verify_report_submission_flow.py` still use in-memory /
+moto-style paths for CI. That is intentional. Use `verify_cloud_report_flow.py` for
+issue #115 cloud proof.
+
+## 5. Manual end-to-end verification checklist
+
+1. Mobile app mock mode is off (`EXPO_PUBLIC_ENABLE_MOCK_API=false`).
+2. Submit a report with a photo from the mobile app (or run the script above).
+3. Confirm the photo object appears in the S3 bucket under `reports/photos/`.
+4. In DynamoDB console open **Explore items** for `baladiguard-tickets` (or click
+   **Get live item count** — the overview counter can be stale).
 5. Confirm `GET /v1/tickets` / `GET /v1/tickets/{ticketId}` returns that ticket.
-6. Confirm the admin dashboard lists the ticket (mock mode off).
+6. Confirm the admin dashboard lists the ticket (`VITE_USE_MOCK_DATA` unset/false).
 
 ## Local Docker vs cloud (do not mix)
 
