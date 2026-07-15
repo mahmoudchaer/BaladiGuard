@@ -132,8 +132,7 @@ def _require_cloud_settings() -> None:
 
     if not settings.use_dynamodb:
         raise SystemExit(
-            "Cloud verification requires DATABASE_BACKEND=dynamodb "
-            "(currently not using DynamoDB)."
+            "Cloud verification requires DATABASE_BACKEND=dynamodb (currently not using DynamoDB)."
         )
 
     if settings.dynamodb_endpoint_url:
@@ -152,13 +151,13 @@ def _require_cloud_settings() -> None:
 def main() -> int:
     _require_cloud_settings()
 
+    import boto3
     from fastapi.testclient import TestClient
 
+    from app.config import get_settings
     from app.database.dynamodb import create_dynamodb_resource
     from app.database.dynamodb_tables import build_table_name
-    from app.config import get_settings
     from app.main import app
-    import boto3
 
     settings = get_settings()
     client = TestClient(app)
