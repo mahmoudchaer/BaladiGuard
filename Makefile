@@ -1,4 +1,4 @@
-.PHONY: lint format format-check typecheck quality db-up db-down db-migrate db-seed db-reset
+.PHONY: lint format format-check typecheck test quality db-up db-down db-migrate db-seed db-reset
 
 lint:
 	cd mobile && npm run lint
@@ -21,6 +21,7 @@ typecheck:
 
 test:
 	cd mobile && npm test
+	cd admin && npm test
 
 quality: lint format-check typecheck
 

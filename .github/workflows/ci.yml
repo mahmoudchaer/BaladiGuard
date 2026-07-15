@@ -80,3 +80,38 @@ jobs:
       - name: Run mobile tests
         working-directory: mobile
         run: npm test
+
+  admin:
+    name: Admin dashboard checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Run admin lint
+        working-directory: admin
+        run: npm run lint
+
+      - name: Check admin formatting
+        working-directory: admin
+        run: npm run format:check
+
+      - name: Run admin typecheck
+        working-directory: admin
+        run: npm run typecheck
+
+      - name: Run admin tests
+        working-directory: admin
+        run: npm test
