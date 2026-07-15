@@ -112,6 +112,10 @@ jobs:
         working-directory: admin
         run: npm run typecheck
 
+      - name: Run admin tests
+        working-directory: admin
+        run: npm test
+
       - name: Build admin dashboard
         working-directory: admin
         run: npm run build

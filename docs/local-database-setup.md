@@ -88,7 +88,8 @@ Default seed loads:
 
 - **1 municipality** — Beirut Municipality
 - **8 departments** — roads, waste, lighting, water, noise, traffic, drainage, public facilities
-- **10 categories** — including `PENDING_CLASSIFICATION` and the mock taxonomy
+- **10 categories** — including `PENDING_CLASSIFICATION`; see
+  [Complaint Categories](complaint-categories.md) for stable keys, labels, examples, and department mappings
 
 Optional sample tickets from `mock_tickets.json`:
 
