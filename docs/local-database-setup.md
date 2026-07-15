@@ -38,7 +38,10 @@ make db-migrate
 make db-seed
 ```
 
-Start the API against DynamoDB:
+This path is for **Docker DynamoDB Local**. For AWS cloud DynamoDB + S3 (issue #115),
+use [cloud-setup.md](./cloud-setup.md) instead (`DYNAMODB_ENDPOINT_URL` empty).
+
+Start the API against DynamoDB Local:
 
 ```bash
 cd backend
@@ -160,6 +163,10 @@ PYTHONPATH=. python scripts/validate_mock_tickets.py
 | API still uses in-memory storage | Set `DATABASE_BACKEND=dynamodb` and restart Uvicorn |
 | Port `8001` in use | Change the host port in `docker-compose.yml` and update `DYNAMODB_ENDPOINT_URL` |
 
-## Production note
+## Cloud / production note
 
-Production/staging DynamoDB tables will use the same migration scripts without `DYNAMODB_ENDPOINT_URL` set, so boto3 targets real AWS endpoints. That deployment wiring is out of scope for this issue.
+Cloud DynamoDB uses the same migration and seed scripts with `DATABASE_BACKEND=dynamodb` and
+an empty `DYNAMODB_ENDPOINT_URL` (so boto3 targets real AWS endpoints).
+
+See [cloud-setup.md](./cloud-setup.md) for AWS credentials, S3, migrate/seed against cloud, and
+end-to-end verification.

@@ -202,7 +202,8 @@ An initial status-history entry is also created with `newStatus = SUBMITTED`.
 
 ## DynamoDB tables (local and cloud)
 
-See [local-database-setup.md](./local-database-setup.md) for commands and environment variables.
+See [local-database-setup.md](./local-database-setup.md) for Docker local commands and
+[cloud-setup.md](./cloud-setup.md) for AWS cloud configuration.
 
 | Table suffix | Partition key | Notes |
 |---|---|---|

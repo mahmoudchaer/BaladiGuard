@@ -1,4 +1,9 @@
-"""Verify the real upload-then-submit report flow against configured services."""
+"""Verify the upload-then-submit report flow against in-memory storage.
+
+This script forces DATABASE_BACKEND=memory for a fast local smoke check.
+For the real AWS S3 + cloud DynamoDB path required by issue #115, run:
+  python scripts/verify_cloud_report_flow.py
+"""
 
 from __future__ import annotations
 
