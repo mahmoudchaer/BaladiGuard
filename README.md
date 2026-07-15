@@ -80,6 +80,7 @@ npm run lint
 npm run format
 npm run format:check
 npm run typecheck
+npm test
 ```
 
 ### Mobile
@@ -128,10 +129,13 @@ make lint
 make format
 make format-check
 make typecheck
+make test
 make quality
 ```
 
 `make quality` runs lint, format check, and typecheck across the project.
+`make test` runs the frontend test suites for the Expo app and staff dashboard. These tests use
+local mocks and do not require a live backend, DynamoDB, AWS, or AI credentials.
 
 To match CI fully, also run the backend data validation and test suite:
 
