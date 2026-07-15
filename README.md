@@ -154,6 +154,7 @@ Project documentation is located in the `docs/` directory.
 - Database Design
 - [Complaint Categories](docs/complaint-categories.md)
 - [Local Database Setup](docs/local-database-setup.md)
+- [Cloud Setup (AWS DynamoDB + S3)](docs/cloud-setup.md)
 - Design Decisions
 - Sprint Notes
 
@@ -188,7 +189,8 @@ uvicorn app.main:app --reload --port 8000
 
 `pytest` uses in-memory storage by default (and moto for one DynamoDB persistence test), so CI does not require Docker. For a real local persistence run, keep DynamoDB Local running with `DATABASE_BACKEND=dynamodb` after migrate/seed.
 
-See [docs/local-database-setup.md](docs/local-database-setup.md) for full database setup, env vars, troubleshooting, and the tests-vs-real-run distinction.
+See [docs/local-database-setup.md](docs/local-database-setup.md) for Docker local database setup.
+See [docs/cloud-setup.md](docs/cloud-setup.md) for AWS DynamoDB + S3 cloud configuration.
 
 ### Mobile
 
@@ -216,11 +218,12 @@ cd mobile
 npm start
 ```
 
-By default, `EXPO_PUBLIC_ENABLE_MOCK_API=true` in `mobile/.env`, so report submissions return a sample ticket without calling the backend.
+By default the mobile app talks to the real backend API. Mock mode is opt-in only
+(`EXPO_PUBLIC_ENABLE_MOCK_API=true`).
 
 For real end-to-end submission:
 
-1. Copy `mobile/.env.example` to `mobile/.env` and set `EXPO_PUBLIC_ENABLE_MOCK_API=false`.
+1. Copy `mobile/.env.example` to `mobile/.env` (mock stays off by default).
 2. Start the backend API on port `8000` (see Backend section above).
 3. Configure `backend/.env` with database settings and AWS S3 credentials for photo uploads.
 4. Set `EXPO_PUBLIC_API_BASE_URL` to your API URL (`http://localhost:8000/v1` for emulators; use your machine IP for a physical device).
@@ -235,7 +238,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). The dashboard loads shared mock tickets from `mock_tickets.json` by default.
+Open [http://localhost:5173](http://localhost:5173). By default the dashboard talks to the
+local backend API (`VITE_USE_MOCK_DATA=false`). Set `VITE_USE_MOCK_DATA=true` only when you
+intentionally want mock fixtures.
 
 ## Contributors
 
