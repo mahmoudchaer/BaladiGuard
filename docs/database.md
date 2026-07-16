@@ -40,7 +40,17 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 
 | Attribute | Type | Required | Description |
 | --- | --- | --- | --- |
-| `category` | string | Yes | Defaults to `PENDING_CLASSIFICATION` until AI classification runs. |
+| `category` | string | Yes | Defaults to `PENDING_CLASSIFICATION` until AI classification runs. Mirrors `finalCategory` after staff review. |
+| `originalDescription` | string | Yes | Immutable citizen text captured at submission. Mirrors `description`. |
+| `cleanedDescription` | string, nullable | No | AI-cleaned municipal description from issue #18. |
+| `aiSuggestedCategory` | string, nullable | No | AI category suggestion from issue #17. Never overwritten by staff review. |
+| `aiCategoryExplanation` | string, nullable | No | Short AI explanation for the suggested category. |
+| `aiConfidence` | number, nullable | No | `0` to `1` when the implementation provides a meaningful confidence value. |
+| `finalCategory` | string, nullable | No | Staff-approved category, separate from `aiSuggestedCategory`. |
+| `categoryReviewedBy` | string, nullable | No | Staff actor identifier when the category is reviewed. |
+| `categoryReviewedAt` | string, nullable | No | ISO 8601 timestamp when staff reviewed the category. |
+| `aiProcessingStatus` | enum | Yes | `pending`, `completed`, or `failed`. Defaults to `pending` at submission. |
+| `aiModelVersion` | string, nullable | No | Bedrock model or processing version identifier when available. |
 | `priority` | enum | No | `low`, `medium`, or `high`. Set by AI urgency estimation. |
 | `createdBy` | string | No | User identifier once authentication is wired. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
@@ -197,6 +207,8 @@ When a ticket is created from `POST /v1/tickets`, the backend sets:
 | `createdAt` | current UTC timestamp |
 | `updatedAt` | same as `createdAt` |
 | `updatedBy` | `null` |
+| `originalDescription` | same as `description` |
+| `aiProcessingStatus` | `pending` |
 
 An initial status-history entry is also created with `newStatus = SUBMITTED`.
 

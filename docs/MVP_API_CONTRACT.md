@@ -419,7 +419,15 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
   "createdAt": "2026-08-12T09:30:00Z",
   "updatedAt": "2026-08-12T11:30:00Z",
   "ai": {
+    "originalDescription": "Large pothole causing traffic near the university entrance.",
     "cleanedDescription": "Large pothole near the university entrance causing traffic.",
+    "aiSuggestedCategory": "road_damage",
+    "aiCategoryExplanation": "Road surface defect with traffic impact.",
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "amazon.nova-lite-v1:0",
+    "finalCategory": "road_damage",
+    "categoryReviewedBy": "staff-1",
+    "categoryReviewedAt": "2026-08-12T10:00:00Z",
     "suggestedCategory": "road_damage",
     "urgencyReason": "Traffic disruption and safety risk.",
     "summary": "Road damage near AUB Main Gate."
@@ -470,8 +478,17 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `departmentId` | string | Compatibility field for current staff dashboard clients; mirrors `department.departmentId` when assigned. |
 | `department.departmentId` | string | Department identifier. |
 | `department.name` | string | Display name when available. |
+| `ai.originalDescription` | string | Immutable citizen description captured at submission. |
 | `ai.cleanedDescription` | string | AI-normalized description when available. |
-| `ai.suggestedCategory` | string | AI category suggestion when available. |
+| `ai.aiSuggestedCategory` | string | AI category suggestion when available. |
+| `ai.aiCategoryExplanation` | string | Short AI explanation for the suggested category. |
+| `ai.aiConfidence` | number | Optional confidence value between `0` and `1` when available. |
+| `ai.finalCategory` | string | Staff-approved category when reviewed. |
+| `ai.categoryReviewedBy` | string | Staff actor identifier when the category was reviewed. |
+| `ai.categoryReviewedAt` | string | ISO 8601 timestamp for staff category review. |
+| `ai.aiProcessingStatus` | enum | `pending`, `completed`, or `failed`. |
+| `ai.aiModelVersion` | string | Bedrock model or processing version identifier when available. |
+| `ai.suggestedCategory` | string | Compatibility alias for `ai.aiSuggestedCategory`. |
 | `ai.urgencyReason` | string | AI explanation for the urgency/priority when available. |
 | `ai.summary` | string | AI-generated ticket summary when available. |
 | `statusHistory` | array | Optional workflow history returned by detail APIs. |

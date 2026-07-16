@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.ai_processing import AiProcessingStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
@@ -25,7 +26,19 @@ class TicketDepartment(BaseModel):
 
 
 class TicketAiFields(BaseModel):
+    original_description: str | None = Field(default=None, alias="originalDescription")
     cleaned_description: str | None = Field(default=None, alias="cleanedDescription")
+    ai_suggested_category: str | None = Field(default=None, alias="aiSuggestedCategory")
+    ai_category_explanation: str | None = Field(default=None, alias="aiCategoryExplanation")
+    ai_confidence: float | None = Field(default=None, alias="aiConfidence")
+    final_category: str | None = Field(default=None, alias="finalCategory")
+    category_reviewed_by: str | None = Field(default=None, alias="categoryReviewedBy")
+    category_reviewed_at: str | None = Field(default=None, alias="categoryReviewedAt")
+    ai_processing_status: AiProcessingStatus | None = Field(
+        default=None,
+        alias="aiProcessingStatus",
+    )
+    ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
     suggested_category: str | None = Field(default=None, alias="suggestedCategory")
     urgency_reason: str | None = Field(default=None, alias="urgencyReason")
     summary: str | None = None

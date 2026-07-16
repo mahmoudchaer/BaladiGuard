@@ -58,7 +58,11 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
             "createdAt": "2026-08-12T09:45:00Z",
             "updatedAt": None,
             "ai": {
+                "originalDescription": "Garbage bags accumulating beside the same sidewalk.",
                 "cleanedDescription": "Garbage bags are accumulating beside the sidewalk.",
+                "aiSuggestedCategory": "waste",
+                "aiCategoryExplanation": "Overflowing garbage bins and odor.",
+                "aiProcessingStatus": "completed",
                 "suggestedCategory": "waste",
                 "urgencyReason": "Public hygiene concern in a high-traffic area.",
                 "summary": "Waste accumulation on Hamra Street.",
@@ -82,6 +86,7 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
     )
 
     assert ticket.ai is not None
+    assert ticket.ai.ai_suggested_category == "waste"
     assert ticket.ai.suggested_category == "waste"
     assert ticket.status_history is not None
     assert ticket.status_history[0].changed_by == "system"

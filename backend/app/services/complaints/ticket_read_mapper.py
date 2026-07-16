@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
+    TicketAiFields,
     TicketDepartment,
     TicketImageReference,
     TicketResponse,
@@ -46,6 +47,23 @@ def build_image_url(object_key: str) -> str | None:
         return None
 
 
+def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
+    original_description = ticket.original_description or ticket.description
+    return TicketAiFields(
+        originalDescription=original_description,
+        cleanedDescription=ticket.cleaned_description,
+        aiSuggestedCategory=ticket.ai_suggested_category,
+        aiCategoryExplanation=ticket.ai_category_explanation,
+        aiConfidence=ticket.ai_confidence,
+        finalCategory=ticket.final_category,
+        categoryReviewedBy=ticket.category_reviewed_by,
+        categoryReviewedAt=ticket.category_reviewed_at,
+        aiProcessingStatus=ticket.ai_processing_status,
+        aiModelVersion=ticket.ai_model_version,
+        suggestedCategory=ticket.ai_suggested_category,
+    )
+
+
 def map_ticket_to_response(
     ticket: StoredTicket,
     status_history: list[StoredStatusHistory] | None = None,
@@ -83,6 +101,7 @@ def map_ticket_to_response(
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
         updatedBy=ticket.updated_by,
+        ai=build_ticket_ai_fields(ticket),
         statusHistory=[
             TicketStatusHistoryEntry(
                 status=entry.new_status,
