@@ -59,10 +59,60 @@ def test_success_returns_cleaned_description() -> None:
         "Huge pothole on Bliss Street near AUB main gate, cars keep swerving.",
         client=fake,  # type: ignore[arg-type]
     )
-    assert result.cleaned_description is not None
-    assert result.used_fallback is False
+    assert result.cleaned_description is not None, (
+        "clean_report_description.success: expected cleaned description"
+    )
+    assert result.used_fallback is False, (
+        "clean_report_description.success: success path must not use fallback"
+    )
     assert "Bliss Street" in result.cleaned_description
     assert "CITIZEN_REPORT_START" in fake.calls[0]["user_text"]
+
+
+def test_cleaned_output_preserves_concrete_report_details() -> None:
+    original = (
+        "Huge pothole on Bliss Street near AUB main gate, cars keep swerving and traffic is backing up."
+    )
+    cleaned = (
+        "Large pothole on Bliss Street near AUB main gate causing traffic disruption."
+    )
+    fake = FakeBedrockClient({"cleanedDescription": cleaned})
+
+    result = clean_report_description(original, client=fake)  # type: ignore[arg-type]
+
+    assert result.used_fallback is False, (
+        "clean_report_description.preserve: expected successful cleaning"
+    )
+    assert result.cleaned_description is not None
+    for token in ("Bliss Street", "AUB main gate", "pothole"):
+        assert token.lower() in result.cleaned_description.lower(), (
+            f"clean_report_description.preserve: missing required detail {token!r} "
+            f"in {result.cleaned_description!r}"
+        )
+    assert original in fake.calls[0]["user_text"], (
+        "clean_report_description.preserve: original report must be sent to the provider"
+    )
+
+
+def test_system_prompt_encodes_preservation_and_no_invention_rules() -> None:
+    fake = FakeBedrockClient(
+        {"cleanedDescription": "Broken street light on Rue Gouraud for three nights."}
+    )
+    clean_report_description(
+        "Le lampadaire devant l'immeuble 24 rue Gouraud ne marche plus depuis trois nuits.",
+        client=fake,  # type: ignore[arg-type]
+    )
+
+    prompt = fake.calls[0]["system_prompt"].lower()
+    assert "preserve" in prompt, (
+        "clean_report_description.preserve_rules: system prompt must require detail preservation"
+    )
+    assert "do not invent" in prompt, (
+        "clean_report_description.preserve_rules: system prompt must forbid invented facts"
+    )
+    assert "not translation" in prompt or "cleaning, not translation" in prompt, (
+        "clean_report_description.preserve_rules: system prompt must keep original language"
+    )
 
 
 def test_arabic_input_is_sent_to_bedrock_wrapped_as_data() -> None:
@@ -109,9 +159,37 @@ def test_malformed_provider_output_returns_fallback() -> None:
         "Overflowing garbage bins near the school in Mar Elias.",
         client=fake,  # type: ignore[arg-type]
     )
-    assert result.cleaned_description is None
-    assert result.used_fallback is True
-    assert result.message == FALLBACK_MESSAGE
+    assert result.cleaned_description is None, (
+        "clean_report_description.malformed_output: expected no cleaned text on bad payload"
+    )
+    assert result.used_fallback is True, (
+        "clean_report_description.malformed_output: expected fallback flag"
+    )
+    assert result.message == FALLBACK_MESSAGE, (
+        "clean_report_description.malformed_output: expected controlled fallback message"
+    )
+
+
+def test_empty_or_whitespace_cleaned_output_returns_fallback() -> None:
+    for payload in (
+        {"cleanedDescription": ""},
+        {"cleanedDescription": "   \n\t  "},
+        {"cleaned_description": None},
+    ):
+        fake = FakeBedrockClient(payload)
+        result = clean_report_description(
+            "Broken street light on Gouraud Street.",
+            client=fake,  # type: ignore[arg-type]
+        )
+        assert result.cleaned_description is None, (
+            f"clean_report_description.empty_cleaned_output: expected fallback for {payload!r}"
+        )
+        assert result.used_fallback is True, (
+            f"clean_report_description.empty_cleaned_output: expected fallback flag for {payload!r}"
+        )
+        assert result.message == FALLBACK_MESSAGE, (
+            f"clean_report_description.empty_cleaned_output: expected controlled message for {payload!r}"
+        )
 
 
 def test_provider_error_returns_fallback() -> None:
@@ -120,9 +198,15 @@ def test_provider_error_returns_fallback() -> None:
         "Broken street light on Gouraud Street.",
         client=fake,  # type: ignore[arg-type]
     )
-    assert result.cleaned_description is None
-    assert result.used_fallback is True
-    assert result.message == FALLBACK_MESSAGE
+    assert result.cleaned_description is None, (
+        "clean_report_description.provider_error: expected no cleaned text on provider failure"
+    )
+    assert result.used_fallback is True, (
+        "clean_report_description.provider_error: expected fallback flag"
+    )
+    assert result.message == FALLBACK_MESSAGE, (
+        "clean_report_description.provider_error: expected controlled fallback message"
+    )
 
 
 def test_prompt_injection_text_is_wrapped_as_data() -> None:
@@ -153,17 +237,26 @@ def test_multilingual_dataset_cases_are_exercised_with_mock() -> None:
     language_tags: set[str] = set()
 
     for case in dataset["cases"]:
-        fake = FakeBedrockClient(
-            {
-                "cleanedDescription": (
-                    f"Municipal description for {case['id']} preserving report details."
-                )
-            }
-        )
+        must_preserve = case["cleaningExpectations"]["mustPreserve"]
+        # Deterministic mock: include mustPreserve tokens so unit tests can assert
+        # preservation-rule handling without calling a live model (#67 / #70 split).
+        cleaned = "Municipal report: " + "; ".join(must_preserve) + "."
+        fake = FakeBedrockClient({"cleanedDescription": cleaned})
         result = clean_report_description(case["input"], client=fake)  # type: ignore[arg-type]
-        assert result.cleaned_description is not None, case["id"]
-        assert result.used_fallback is False, case["id"]
-        assert case["input"] in fake.calls[0]["user_text"], case["id"]
+        assert result.cleaned_description is not None, (
+            f"clean_report_description.dataset[{case['id']}]: expected cleaned text"
+        )
+        assert result.used_fallback is False, (
+            f"clean_report_description.dataset[{case['id']}]: expected success path"
+        )
+        assert case["input"] in fake.calls[0]["user_text"], (
+            f"clean_report_description.dataset[{case['id']}]: original input must be forwarded"
+        )
+        for token in must_preserve:
+            assert token.lower() in result.cleaned_description.lower(), (
+                f"clean_report_description.dataset[{case['id']}].preserve: "
+                f"missing {token!r} in {result.cleaned_description!r}"
+            )
         language_tags.update(case["languageTags"])
 
     assert {"en", "ar", "fr", "arabizi", "mixed"} <= language_tags

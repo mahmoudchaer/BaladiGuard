@@ -79,3 +79,33 @@ def test_invalid_transition_message_lists_allowed_next_statuses() -> None:
     assert "Resolved" in message
     assert "Under Review" in message
     assert "Closed" in message
+
+
+@pytest.mark.parametrize(
+    ("current", "requested"),
+    [
+        ("BOGUS", "CLOSED"),
+        ("SUBMITTED", "BOGUS"),
+        ("NOT_A_STATUS", "ALSO_FAKE"),
+    ],
+)
+def test_unknown_status_values_raise_clear_workflow_error(
+    current: str,
+    requested: str,
+) -> None:
+    with pytest.raises(InvalidStatusTransitionError) as exc_info:
+        validate_status_transition(current, requested)  # type: ignore[arg-type]
+
+    error = exc_info.value
+    message = str(error)
+    assert error.current_status == current
+    assert error.requested_status == requested
+    assert "Invalid ticket status value" in message, (
+        f"status_workflow.unknown_status: expected clear validation error for "
+        f"{current} -> {requested}, got {message!r}"
+    )
+    assert current in message
+    assert requested in message
+    assert not is_allowed_status_transition(current, requested), (
+        f"status_workflow.unknown_status: expected {current} -> {requested} to be disallowed"
+    )

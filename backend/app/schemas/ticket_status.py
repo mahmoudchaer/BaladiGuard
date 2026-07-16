@@ -37,5 +37,11 @@ STATUS_LABELS: dict[TicketStatus, str] = {
 }
 
 
-def is_allowed_status_transition(current: TicketStatus, requested: TicketStatus) -> bool:
-    return requested in ALLOWED_STATUS_TRANSITIONS[current]
+def is_known_ticket_status(status: str) -> bool:
+    return status in STATUS_LABELS
+
+
+def is_allowed_status_transition(current: TicketStatus | str, requested: TicketStatus | str) -> bool:
+    if not is_known_ticket_status(current) or not is_known_ticket_status(requested):
+        return False
+    return requested in ALLOWED_STATUS_TRANSITIONS[current]  # type: ignore[index]

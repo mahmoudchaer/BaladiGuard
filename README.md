@@ -146,8 +146,9 @@ PYTHONPATH=. python scripts/validate_mock_tickets.py
 python -m pytest
 ```
 
-Backend unit tests cover ticket ID generation, status workflow validation, and AI classification
-fallbacks (with external AI provider calls mocked).
+Backend unit tests cover ticket ID generation, status workflow validation, AI classification
+fallbacks, and description-cleaning fallback/preservation rules (with external AI provider calls
+mocked).
 
 ## Documentation
 
