@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
+from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest
 from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
 from app.services.complaints.status_workflow import InvalidStatusTransitionError
 from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
@@ -54,4 +55,21 @@ def update_ticket_status(
             message=str(exc),
             request_id=get_request_id(request),
             status_code=400,
+        )
+
+
+@router.patch("/tickets/{ticket_id}/category", response_model=TicketResponse)
+def review_ticket_category(
+    ticket_id: str,
+    payload: ReviewTicketCategoryRequest,
+    request: Request,
+) -> TicketResponse | JSONResponse:
+    try:
+        return ticket_service.review_ticket_category(ticket_id, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
         )

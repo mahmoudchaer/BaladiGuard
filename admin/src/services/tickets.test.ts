@@ -94,3 +94,76 @@ describe('updateTicketStatus', () => {
     expect(updatedTicket?.ai?.aiModelVersion).toBe('amazon.nova-lite-v1:0');
   });
 });
+
+describe('reviewTicketCategory', () => {
+  it('sends the final category to the real backend and preserves the AI suggestion', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...apiTicket,
+          category: 'waste',
+          ai: {
+            aiSuggestedCategory: 'street_lighting',
+            aiCategoryExplanation: 'The report describes a broken street light.',
+            finalCategory: 'waste',
+            categoryReviewedAt: '2026-07-17T08:00:00Z',
+            aiProcessingStatus: 'completed',
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { reviewTicketCategory } = await import('@/services/tickets');
+    const updatedTicket = await reviewTicketCategory('tkt_123', {
+      finalCategory: 'waste',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets/tkt_123/category', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ finalCategory: 'waste' }),
+    });
+    expect(updatedTicket?.category).toBe('waste');
+    expect(updatedTicket?.ai?.finalCategory).toBe('waste');
+    expect(updatedTicket?.ai?.aiSuggestedCategory).toBe('street_lighting');
+  });
+
+  it('surfaces backend validation messages', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: 'Request validation failed.',
+              details: [{ field: 'finalCategory', message: 'Category is not supported.' }],
+            },
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    );
+
+    const { reviewTicketCategory } = await import('@/services/tickets');
+
+    await expect(reviewTicketCategory('tkt_123', { finalCategory: 'invalid' })).rejects.toThrow(
+      'Request validation failed. finalCategory: Category is not supported.',
+    );
+  });
+});

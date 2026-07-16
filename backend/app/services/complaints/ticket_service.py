@@ -155,6 +155,7 @@ class TicketService:
                 "category_reviewed_by": payload.category_reviewed_by,
                 "category_reviewed_at": reviewed_at,
                 "updated_at": reviewed_at,
+                "updated_by": payload.category_reviewed_by,
             }
         )
         self._store.save(updated_ticket)

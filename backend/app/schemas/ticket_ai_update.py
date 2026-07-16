@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.services.ai.categories import concrete_category_ids
 
 
 class SaveTicketAiOutputRequest(BaseModel):
@@ -19,7 +20,20 @@ class SaveTicketAiOutputRequest(BaseModel):
 class ReviewTicketCategoryRequest(BaseModel):
     """Staff-approved category that must not overwrite the original AI suggestion."""
 
-    final_category: str = Field(alias="finalCategory")
-    category_reviewed_by: str = Field(alias="categoryReviewedBy", min_length=1, max_length=120)
+    final_category: str = Field(alias="finalCategory", min_length=1)
+    category_reviewed_by: str | None = Field(
+        default=None,
+        alias="categoryReviewedBy",
+        min_length=1,
+        max_length=120,
+    )
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("final_category")
+    @classmethod
+    def validate_final_category(cls, value: str) -> str:
+        if value not in concrete_category_ids():
+            supported = ", ".join(sorted(concrete_category_ids()))
+            raise ValueError(f"Category must be one of: {supported}.")
+        return value

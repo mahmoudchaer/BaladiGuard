@@ -28,6 +28,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   PENDING_CLASSIFICATION: 'Pending Classification',
 };
 
+export const SUPPORTED_CATEGORY_OPTIONS = [
+  'road_damage',
+  'waste',
+  'street_lighting',
+  'water_leak',
+  'noise',
+  'sidewalk_damage',
+  'traffic_signal',
+  'drainage',
+  'public_facilities',
+] as const;
+
 export function formatStatus(status: TicketStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
