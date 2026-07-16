@@ -16,7 +16,10 @@ SUPPORTED_IMAGE_FORMATS = frozenset({"jpeg", "png", "gif", "webp"})
 
 
 class BedrockClassificationError(RuntimeError):
-    """Raised when Bedrock cannot produce a usable classification payload."""
+    """Raised when Bedrock cannot produce a usable AI payload."""
+
+
+BedrockCleaningError = BedrockClassificationError
 
 
 class BedrockClassificationClient:
@@ -54,6 +57,74 @@ class BedrockClassificationClient:
         image_bytes: bytes | None = None,
         image_format: str | None = None,
     ) -> dict[str, Any]:
+        return self._invoke_structured_tool(
+            system_prompt=system_prompt,
+            user_text=user_text,
+            tool_name="submit_classification",
+            tool_description=(
+                "Submit the chosen municipal complaint category and a short explanation."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": (
+                            "One allowed category key from the system prompt allowlist."
+                        ),
+                    },
+                    "explanation": {
+                        "type": "string",
+                        "description": "Short explanation of why this category was chosen.",
+                    },
+                },
+                "required": ["category", "explanation"],
+            },
+            image_bytes=image_bytes,
+            image_format=image_format,
+        )
+
+    def clean_description(
+        self,
+        *,
+        system_prompt: str,
+        user_text: str,
+    ) -> dict[str, Any]:
+        return self._invoke_structured_tool(
+            system_prompt=system_prompt,
+            user_text=user_text,
+            tool_name="submit_cleaned_description",
+            tool_description=(
+                "Submit the concise municipal description rewritten from the citizen report."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "cleanedDescription": {
+                        "type": "string",
+                        "description": (
+                            "Concise professional municipal description preserving the "
+                            "report's language and concrete facts."
+                        ),
+                    },
+                },
+                "required": ["cleanedDescription"],
+            },
+            max_tokens=600,
+        )
+
+    def _invoke_structured_tool(
+        self,
+        *,
+        system_prompt: str,
+        user_text: str,
+        tool_name: str,
+        tool_description: str,
+        input_schema: dict[str, Any],
+        max_tokens: int = 400,
+        image_bytes: bytes | None = None,
+        image_format: str | None = None,
+    ) -> dict[str, Any]:
         content: list[dict[str, Any]] = [{"text": user_text}]
         if image_bytes is not None:
             fmt = (image_format or "png").lower()
@@ -76,53 +147,31 @@ class BedrockClassificationClient:
                 system=[{"text": system_prompt}],
                 messages=[{"role": "user", "content": content}],
                 inferenceConfig={
-                    "maxTokens": 400,
+                    "maxTokens": max_tokens,
                     "temperature": 0,
                 },
                 toolConfig={
                     "tools": [
                         {
                             "toolSpec": {
-                                "name": "submit_classification",
-                                "description": (
-                                    "Submit the chosen municipal complaint category "
-                                    "and a short explanation."
-                                ),
-                                "inputSchema": {
-                                    "json": {
-                                        "type": "object",
-                                        "properties": {
-                                            "category": {
-                                                "type": "string",
-                                                "description": (
-                                                    "One allowed category key from the "
-                                                    "system prompt allowlist."
-                                                ),
-                                            },
-                                            "explanation": {
-                                                "type": "string",
-                                                "description": (
-                                                    "Short explanation of why this "
-                                                    "category was chosen."
-                                                ),
-                                            },
-                                        },
-                                        "required": ["category", "explanation"],
-                                    }
-                                },
+                                "name": tool_name,
+                                "description": tool_description,
+                                "inputSchema": {"json": input_schema},
                             }
                         }
                     ],
-                    "toolChoice": {"tool": {"name": "submit_classification"}},
+                    "toolChoice": {"tool": {"name": tool_name}},
                 },
             )
         except (BotoCoreError, ClientError) as exc:
-            raise BedrockClassificationError("Bedrock classification request failed.") from exc
+            raise BedrockClassificationError("Bedrock request failed.") from exc
 
-        return self._parse_response(response)
+        return self._parse_response(response, tool_name=tool_name)
 
     @staticmethod
-    def _parse_response(response: dict[str, Any]) -> dict[str, Any]:
+    def _parse_response(
+        response: dict[str, Any], *, tool_name: str | None = None
+    ) -> dict[str, Any]:
         message = response.get("output", {}).get("message", {})
         content_blocks = message.get("content") or []
 
@@ -152,7 +201,9 @@ class BedrockClassificationClient:
             if parsed is not None:
                 return parsed
 
-        raise BedrockClassificationError("Bedrock response did not include classification JSON.")
+        raise BedrockClassificationError(
+            f"Bedrock response did not include expected JSON for {tool_name or 'tool'}."
+        )
 
     @staticmethod
     def _extract_json_object(text: str) -> dict[str, Any] | None:
