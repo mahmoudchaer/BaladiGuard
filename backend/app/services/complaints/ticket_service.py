@@ -99,13 +99,17 @@ class TicketService:
         Returns ``True`` when this call persisted a terminal AI status. Repeated or
         concurrent calls for the same ticket are no-ops once processing has started or
         the stored status is already terminal.
-        """
-        ticket = self._store.get(ticket_id)
-        if ticket is None or ticket.ai_processing_status != "pending":
-            return False
 
+        The in-process claim below only dedupes within one worker; cross-worker
+        duplicate suppression relies on the stored ``pending`` status check.
+        """
         with self._processing_lock:
             if ticket_id in self._processing_ticket_ids:
+                return False
+            # Read the stored status inside the lock so two threads cannot both
+            # observe "pending" before either claims the ticket.
+            ticket = self._store.get(ticket_id)
+            if ticket is None or ticket.ai_processing_status != "pending":
                 return False
             self._processing_ticket_ids.add(ticket_id)
 
@@ -118,16 +122,19 @@ class TicketService:
                 ticket.original_description or ticket.description,
             )
 
-            processing_failed = classification.used_fallback or cleaning.used_fallback
+            classification_ok = not classification.used_fallback
+            cleaning_ok = not cleaning.used_fallback
+            # Keep every successful partial result; "failed" only means no AI output
+            # was produced at all. A valid category must never be discarded because
+            # cleaning fell back (or vice versa).
+            processing_failed = not classification_ok and not cleaning_ok
             self.save_ticket_ai_output(
                 ticket_id,
                 SaveTicketAiOutputRequest(
-                    cleanedDescription=cleaning.cleaned_description,
-                    aiSuggestedCategory=(
-                        None if classification.used_fallback else classification.category
-                    ),
+                    cleanedDescription=cleaning.cleaned_description if cleaning_ok else None,
+                    aiSuggestedCategory=(classification.category if classification_ok else None),
                     aiCategoryExplanation=(
-                        None if classification.used_fallback else classification.explanation
+                        classification.explanation if classification_ok else None
                     ),
                     aiModelVersion=get_settings().bedrock_model_id,
                     aiProcessingStatus="failed" if processing_failed else "completed",
@@ -135,8 +142,16 @@ class TicketService:
             )
             if processing_failed:
                 logger.warning(
-                    "AI processing completed with fallback for ticket %s.",
+                    "AI processing produced no output for ticket %s.",
                     ticket_id,
+                )
+            elif not (classification_ok and cleaning_ok):
+                logger.warning(
+                    "AI processing partially succeeded for ticket %s "
+                    "(classification_ok=%s, cleaning_ok=%s).",
+                    ticket_id,
+                    classification_ok,
+                    cleaning_ok,
                 )
             return True
         except Exception as exc:
@@ -160,6 +175,30 @@ class TicketService:
         finally:
             with self._processing_lock:
                 self._processing_ticket_ids.discard(ticket_id)
+
+    def recover_pending_ai_tickets(self) -> int:
+        """Reprocess tickets stuck in ``pending`` (e.g. after a worker crash).
+
+        Called on application startup so a fire-and-forget background task that died
+        between the 201 response and the terminal AI status does not leave tickets
+        unmanageable. Returns the number of tickets that reached a terminal status.
+        """
+        pending_ids = [
+            ticket.ticket_id
+            for ticket in self._store.list()
+            if ticket.ai_processing_status == "pending"
+        ]
+        recovered = 0
+        for ticket_id in pending_ids:
+            if self.process_ticket_ai(ticket_id):
+                recovered += 1
+        if pending_ids:
+            logger.info(
+                "AI pending recovery processed %d of %d stuck ticket(s).",
+                recovered,
+                len(pending_ids),
+            )
+        return recovered
 
     def list_tickets(self) -> list[TicketResponse]:
         tickets = sorted(

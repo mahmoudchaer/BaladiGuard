@@ -1,5 +1,7 @@
 import logging
+import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
@@ -89,7 +91,7 @@ def test_provider_timeout_does_not_block_ticket_creation_or_log_report_content(
     assert VALID_PAYLOAD["description"] not in caplog.text
 
 
-def test_malformed_ai_output_records_failed_status_and_keeps_partial_success(
+def test_classification_fallback_keeps_successful_cleaning_as_partial_success(
     client,
     monkeypatch,
 ):
@@ -115,8 +117,75 @@ def test_malformed_ai_output_records_failed_status_and_keeps_partial_success(
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
     assert stored is not None
-    assert stored.ai_processing_status == "failed"
+    # Cleaning succeeded, so the run is a partial success, not a failure.
+    assert stored.ai_processing_status == "completed"
     assert stored.cleaned_description == VALID_PAYLOAD["description"]
+    assert stored.ai_suggested_category is None
+    assert stored.ai_category_explanation is None
+    assert stored.category == "PENDING_CLASSIFICATION"
+
+
+def test_cleaning_fallback_never_discards_a_valid_category(
+    client,
+    monkeypatch,
+):
+    def classify(*_: object, **__: object):
+        return ClassificationResult(
+            category="road_damage",
+            explanation="The report describes damage to a public road.",
+            usedInputs=ClassificationInputs(description=True, image=False),
+        )
+
+    def fallback_clean(*_: object, **__: object):
+        return CleaningResult(
+            cleanedDescription=None,
+            usedFallback=True,
+            message="Unable to clean this report description.",
+        )
+
+    monkeypatch.setattr(ticket_service, "_classifier", classify)
+    monkeypatch.setattr(ticket_service, "_description_cleaner", fallback_clean)
+
+    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+
+    assert response.status_code == 201
+    stored = ticket_store.get(response.json()["ticketId"])
+    assert stored is not None
+    assert stored.ai_processing_status == "completed"
+    assert stored.ai_suggested_category == "road_damage"
+    assert stored.ai_category_explanation == "The report describes damage to a public road."
+    assert stored.cleaned_description is None
+
+
+def test_processing_is_failed_only_when_both_sides_fall_back(
+    client,
+    monkeypatch,
+):
+    def fallback_classification(*_: object, **__: object):
+        return ClassificationResult(
+            category="PENDING_CLASSIFICATION",
+            explanation="Unable to classify this report confidently.",
+            usedInputs=ClassificationInputs(description=True, image=False),
+            usedFallback=True,
+        )
+
+    def fallback_clean(*_: object, **__: object):
+        return CleaningResult(
+            cleanedDescription=None,
+            usedFallback=True,
+            message="Unable to clean this report description.",
+        )
+
+    monkeypatch.setattr(ticket_service, "_classifier", fallback_classification)
+    monkeypatch.setattr(ticket_service, "_description_cleaner", fallback_clean)
+
+    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+
+    assert response.status_code == 201
+    stored = ticket_store.get(response.json()["ticketId"])
+    assert stored is not None
+    assert stored.ai_processing_status == "failed"
+    assert stored.cleaned_description is None
     assert stored.ai_suggested_category is None
     assert stored.ai_category_explanation is None
 
@@ -145,9 +214,52 @@ def test_repeated_processing_for_same_ticket_is_a_no_op(monkeypatch):
     assert calls == {"classification": 1, "cleaning": 1}
 
 
-def test_submission_ai_output_persists_with_dynamodb(
+def test_recover_pending_ai_tickets_sweeps_stuck_tickets(monkeypatch):
+    """A ticket left `pending` (e.g. worker crash) is recovered by the startup sweep."""
+    calls = {"classification": 0}
+
+    def classify(*_: object, **__: object):
+        calls["classification"] += 1
+        return ClassificationResult(
+            category="road_damage",
+            explanation="Road damage.",
+            usedInputs=ClassificationInputs(description=True, image=False),
+        )
+
+    def clean(description: str, **_: object):
+        return CleaningResult(cleanedDescription=description, usedFallback=False)
+
+    monkeypatch.setattr(ticket_service, "_classifier", classify)
+    monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
+
+    # Submitting through the service (not the API) leaves the ticket pending because
+    # no background task runs, simulating a crash before processing.
+    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    stored = ticket_store.get(created.ticket_id)
+    assert stored is not None
+    assert stored.ai_processing_status == "pending"
+
+    recovered = ticket_service.recover_pending_ai_tickets()
+
+    assert recovered == 1
+    assert calls["classification"] == 1
+    stored = ticket_store.get(created.ticket_id)
+    assert stored is not None
+    assert stored.ai_processing_status == "completed"
+
+    # A second sweep finds nothing to do.
+    assert ticket_service.recover_pending_ai_tickets() == 0
+
+
+def test_submission_ai_output_persists_with_moto_dynamodb(
     dynamodb_settings: Settings,
 ) -> None:
+    """Moto-backed DynamoDB store test with the stubbed classifier/cleaner.
+
+    This verifies the persistence wiring only. It does not exercise real Bedrock or
+    real DynamoDB; see `test_live_submission_processes_real_ai` for the opt-in live
+    end-to-end check.
+    """
     store = DynamoTicketStore(dynamodb_settings)
     original_store = ticket_service._store
     ticket_service._store = store
@@ -164,3 +276,26 @@ def test_submission_ai_output_persists_with_dynamodb(
         assert stored.ai_processing_status == "completed"
     finally:
         ticket_service._store = original_store
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_LIVE_AI") != "1",
+    reason="Live Bedrock test; set RUN_LIVE_AI=1 with AWS credentials to run.",
+)
+def test_live_submission_processes_real_ai(client, monkeypatch):
+    """Opt-in end-to-end check against real Bedrock (no classifier/cleaner stubs)."""
+    from app.services.ai.classify import classify_complaint
+    from app.services.ai.clean import clean_report_description
+
+    monkeypatch.setattr(ticket_service, "_classifier", classify_complaint)
+    monkeypatch.setattr(ticket_service, "_description_cleaner", clean_report_description)
+
+    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+
+    assert response.status_code == 201
+    stored = ticket_store.get(response.json()["ticketId"])
+    assert stored is not None
+    assert stored.original_description == VALID_PAYLOAD["description"]
+    assert stored.ai_processing_status in {"completed", "failed"}
+    if stored.ai_processing_status == "completed":
+        assert stored.cleaned_description or stored.ai_suggested_category

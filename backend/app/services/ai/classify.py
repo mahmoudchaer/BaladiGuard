@@ -231,7 +231,8 @@ def _validated_result(
             used_fallback=True,
         )
 
-    used_fallback = not explanation
+    # A valid category is a successful classification even if the model omitted the
+    # explanation; only default the text, never flag it as a fallback.
     if not explanation:
         explanation = FALLBACK_EXPLANATION
 
@@ -239,5 +240,5 @@ def _validated_result(
         category=category,
         explanation=explanation,
         used_inputs=used_inputs,
-        used_fallback=used_fallback,
+        used_fallback=False,
     )
