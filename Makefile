@@ -1,4 +1,4 @@
-.PHONY: lint format format-check typecheck test quality db-up db-down db-migrate db-seed db-reset
+.PHONY: lint format format-check typecheck test test-ai-regression eval-ai-intake quality db-up db-down db-migrate db-seed db-reset
 
 lint:
 	cd mobile && npm run lint
@@ -23,6 +23,12 @@ test:
 	cd mobile && npm test
 	cd admin && npm test
 	cd backend && python -m pytest
+
+test-ai-regression:
+	cd backend && python -m pytest -m ai_intake_regression -q
+
+eval-ai-intake:
+	cd backend && python scripts/eval_ai_intake.py
 
 quality: lint format-check typecheck
 

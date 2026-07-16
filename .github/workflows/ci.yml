@@ -42,9 +42,13 @@ jobs:
         working-directory: backend
         run: PYTHONPATH=. python scripts/validate_mock_tickets.py
 
-      - name: Run backend tests
+      - name: Run AI intake regression subset
         working-directory: backend
-        run: python -m pytest
+        run: python -m pytest -m ai_intake_regression -q
+
+      - name: Run remaining backend tests
+        working-directory: backend
+        run: python -m pytest -m "not ai_intake_regression"
 
   mobile:
     name: Mobile checks

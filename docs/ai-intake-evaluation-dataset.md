@@ -61,3 +61,47 @@ Automated tests should:
 3. For description-cleaning tests, check `requiredProperties` and `mustPreserve` semantically instead of matching one exact generated sentence.
 4. Assert that cleaned descriptions do not introduce any `mustNotInvent` details.
 5. Include each case `id` in assertion messages so failures clearly identify the failing report.
+
+## Automated Regression Layers
+
+Pull-request CI runs a lightweight provider-free layer:
+
+```bash
+cd backend
+python -m pytest -m ai_intake_regression -q
+```
+
+The regression tests pair this dataset with reviewed deterministic outputs in
+`backend/tests/fixtures/ai_intake_deterministic_outputs.json`. The outputs are intentionally
+separate from the expectations so the tests can verify:
+
+- classification through the real response-validation path;
+- preservation of every `mustPreserve` concept;
+- absence of every `mustNotInvent` concept;
+- safe `PENDING_CLASSIFICATION` behavior for the out-of-scope case;
+- the two documented ambiguous-category decisions; and
+- explicit Arabic, French, Lebanese Arabizi, and mixed-language coverage.
+
+The deterministic suite does not claim to measure live model accuracy. It verifies the application
+contract and regression assertions without network calls or AWS credentials.
+
+## Full Live Evaluation
+
+Run all multilingual cases against the configured Bedrock model:
+
+```bash
+cd backend
+python scripts/eval_ai_intake.py
+```
+
+For a smaller smoke run or a machine-readable scheduled-run artifact:
+
+```bash
+python scripts/eval_ai_intake.py --limit 5
+python scripts/eval_ai_intake.py --json-output artifacts/ai-intake-eval.json
+```
+
+The full command performs both classification and description cleaning. It exits nonzero when a
+category differs from the labeled expectation or cleaning falls back. Its output also prints the
+required and prohibited details for semantic review. It requires AWS credentials, Bedrock model
+access, and is intentionally excluded from pull-request CI.
