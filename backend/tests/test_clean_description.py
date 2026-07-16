@@ -71,11 +71,10 @@ def test_success_returns_cleaned_description() -> None:
 
 def test_cleaned_output_preserves_concrete_report_details() -> None:
     original = (
-        "Huge pothole on Bliss Street near AUB main gate, cars keep swerving and traffic is backing up."
+        "Huge pothole on Bliss Street near AUB main gate, "
+        "cars keep swerving and traffic is backing up."
     )
-    cleaned = (
-        "Large pothole on Bliss Street near AUB main gate causing traffic disruption."
-    )
+    cleaned = "Large pothole on Bliss Street near AUB main gate causing traffic disruption."
     fake = FakeBedrockClient({"cleanedDescription": cleaned})
 
     result = clean_report_description(original, client=fake)  # type: ignore[arg-type]
@@ -188,7 +187,8 @@ def test_empty_or_whitespace_cleaned_output_returns_fallback() -> None:
             f"clean_report_description.empty_cleaned_output: expected fallback flag for {payload!r}"
         )
         assert result.message == FALLBACK_MESSAGE, (
-            f"clean_report_description.empty_cleaned_output: expected controlled message for {payload!r}"
+            "clean_report_description.empty_cleaned_output: "
+            f"expected controlled message for {payload!r}"
         )
 
 

@@ -25,8 +25,7 @@ class InvalidStatusTransitionError(ValueError):
             str(requested_status)
         ):
             message = (
-                f"Invalid ticket status value in transition "
-                f"{current_status} -> {requested_status}."
+                f"Invalid ticket status value in transition {current_status} -> {requested_status}."
             )
         else:
             message = (
