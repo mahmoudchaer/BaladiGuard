@@ -57,4 +57,40 @@ describe('updateTicketStatus', () => {
     });
     expect(updatedTicket?.status).toBe('UNDER_REVIEW');
   });
+
+  it('preserves ai fields from the ticket read response shape', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...apiTicket,
+          ai: {
+            originalDescription: 'Broken street light',
+            cleanedDescription: 'Non-working street light reported on the main road.',
+            aiSuggestedCategory: 'street_lighting',
+            aiCategoryExplanation: 'Broken street light.',
+            aiProcessingStatus: 'completed',
+            aiModelVersion: 'amazon.nova-lite-v1:0',
+            suggestedCategory: 'street_lighting',
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { updateTicketStatus } = await import('@/services/tickets');
+    const updatedTicket = await updateTicketStatus('tkt_123', 'UNDER_REVIEW');
+
+    expect(updatedTicket?.ai?.originalDescription).toBe('Broken street light');
+    expect(updatedTicket?.ai?.cleanedDescription).toContain('street light');
+    expect(updatedTicket?.ai?.aiSuggestedCategory).toBe('street_lighting');
+    expect(updatedTicket?.ai?.aiProcessingStatus).toBe('completed');
+    expect(updatedTicket?.ai?.aiModelVersion).toBe('amazon.nova-lite-v1:0');
+  });
 });

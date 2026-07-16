@@ -6,6 +6,7 @@ from app.database.ticket_store import TicketStore
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
+from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
 from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
 from app.schemas.ticket_status import TicketStatus
 from app.services.complaints.status_workflow import validate_status_transition
@@ -39,11 +40,13 @@ class TicketService:
             ticketNumber=ticket_number,
             trackingCode=tracking_code,
             description=payload.description,
+            originalDescription=payload.description,
             contact=payload.contact,
             location=payload.location,
             imageObjectKey=payload.image_object_key,
             status="SUBMITTED",
             category=PENDING_CLASSIFICATION,
+            aiProcessingStatus="pending",
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
@@ -108,6 +111,53 @@ class TicketService:
             note=payload.note,
             created_at=updated_at,
         )
+        return self._map_ticket(updated_ticket)
+
+    def save_ticket_ai_output(
+        self,
+        ticket_id: str,
+        payload: SaveTicketAiOutputRequest,
+    ) -> TicketResponse:
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        update_fields: dict[str, object] = {
+            "cleaned_description": payload.cleaned_description,
+            "ai_suggested_category": payload.ai_suggested_category,
+            "ai_category_explanation": payload.ai_category_explanation,
+            "ai_model_version": payload.ai_model_version,
+            "ai_processing_status": payload.ai_processing_status,
+            "updated_at": updated_at,
+        }
+        if payload.ai_confidence is not None:
+            update_fields["ai_confidence"] = payload.ai_confidence
+
+        updated_ticket = ticket.model_copy(update=update_fields)
+        self._store.save(updated_ticket)
+        return self._map_ticket(updated_ticket)
+
+    def review_ticket_category(
+        self,
+        ticket_id: str,
+        payload: ReviewTicketCategoryRequest,
+    ) -> TicketResponse:
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+
+        reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated_ticket = ticket.model_copy(
+            update={
+                "final_category": payload.final_category,
+                "category": payload.final_category,
+                "category_reviewed_by": payload.category_reviewed_by,
+                "category_reviewed_at": reviewed_at,
+                "updated_at": reviewed_at,
+            }
+        )
+        self._store.save(updated_ticket)
         return self._map_ticket(updated_ticket)
 
     def _map_ticket(self, ticket: StoredTicket) -> TicketResponse:

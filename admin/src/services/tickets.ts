@@ -1,4 +1,4 @@
-import type { Ticket, TicketStatus } from '@/types/ticket';
+import type { AiProcessingStatus, Ticket, TicketAiFields, TicketStatus } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { config } from '@/services/config';
 
@@ -79,6 +79,48 @@ async function fetchMockTicketById(ticketId: string): Promise<Ticket | null> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
+}
+
+function normalizeAiProcessingStatus(value: unknown): AiProcessingStatus | undefined {
+  if (value === 'pending' || value === 'completed' || value === 'failed') {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
+  if (!isRecord(data)) {
+    return undefined;
+  }
+
+  const aiProcessingStatus = normalizeAiProcessingStatus(data.aiProcessingStatus);
+  const aiConfidence = typeof data.aiConfidence === 'number' ? data.aiConfidence : undefined;
+
+  const ai: TicketAiFields = {
+    originalDescription:
+      typeof data.originalDescription === 'string' ? data.originalDescription : undefined,
+    cleanedDescription:
+      typeof data.cleanedDescription === 'string' ? data.cleanedDescription : undefined,
+    aiSuggestedCategory:
+      typeof data.aiSuggestedCategory === 'string' ? data.aiSuggestedCategory : undefined,
+    aiCategoryExplanation:
+      typeof data.aiCategoryExplanation === 'string' ? data.aiCategoryExplanation : undefined,
+    aiConfidence,
+    finalCategory: typeof data.finalCategory === 'string' ? data.finalCategory : undefined,
+    categoryReviewedBy:
+      typeof data.categoryReviewedBy === 'string' ? data.categoryReviewedBy : undefined,
+    categoryReviewedAt:
+      typeof data.categoryReviewedAt === 'string' ? data.categoryReviewedAt : undefined,
+    aiProcessingStatus,
+    aiModelVersion: typeof data.aiModelVersion === 'string' ? data.aiModelVersion : undefined,
+    suggestedCategory:
+      typeof data.suggestedCategory === 'string' ? data.suggestedCategory : undefined,
+    urgencyReason: typeof data.urgencyReason === 'string' ? data.urgencyReason : undefined,
+    summary: typeof data.summary === 'string' ? data.summary : undefined,
+  };
+
+  const hasAiData = Object.values(ai).some((value) => value !== undefined);
+  return hasAiData ? ai : undefined;
 }
 
 function normalizeTicketFromApi(data: unknown): Ticket {
@@ -179,6 +221,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     duplicateGroupId: typeof data.duplicateGroupId === 'string' ? data.duplicateGroupId : null,
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+    ai: normalizeTicketAiFields(data.ai),
   };
 }
 

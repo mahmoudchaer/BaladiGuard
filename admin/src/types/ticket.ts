@@ -39,6 +39,24 @@ export type TicketDepartment = {
   name?: string;
 };
 
+export type AiProcessingStatus = 'pending' | 'completed' | 'failed';
+
+export type TicketAiFields = {
+  originalDescription?: string;
+  cleanedDescription?: string;
+  aiSuggestedCategory?: string;
+  aiCategoryExplanation?: string;
+  aiConfidence?: number;
+  finalCategory?: string;
+  categoryReviewedBy?: string;
+  categoryReviewedAt?: string;
+  aiProcessingStatus?: AiProcessingStatus;
+  aiModelVersion?: string;
+  suggestedCategory?: string;
+  urgencyReason?: string;
+  summary?: string;
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -60,6 +78,7 @@ export type Ticket = {
   duplicateGroupId: string | null;
   createdAt: string;
   updatedAt: string | null;
+  ai?: TicketAiFields;
 };
 
 export type TicketListItem = Pick<
