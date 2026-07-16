@@ -53,7 +53,10 @@ def test_submit_ticket_success(client):
     assert stored.status == "SUBMITTED"
     assert stored.category == PENDING_CLASSIFICATION
     assert stored.created_at == body["createdAt"]
-    assert stored.updated_at == body["createdAt"]
+    # AI processing runs after create and refreshes updatedAt.
+    assert stored.updated_at is not None
+    assert stored.updated_at >= body["createdAt"]
+    assert stored.ai_processing_status == "completed"
 
 
 def test_submit_ticket_requires_contact_channel(client):

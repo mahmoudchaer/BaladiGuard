@@ -1,14 +1,22 @@
+import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
+from threading import Lock
 
+from app.config import get_settings
 from app.database.status_history_store import StatusHistoryStore
 from app.database.store_factory import get_status_history_store, get_ticket_store
 from app.database.ticket_store import TicketStore
+from app.schemas.classification import ClassificationResult
+from app.schemas.cleaning import CleaningResult
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
 from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
 from app.schemas.ticket_status import TicketStatus
+from app.services.ai.classify import classify_complaint
+from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
 from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 from app.utils.ticket_ids import (
@@ -18,15 +26,31 @@ from app.utils.ticket_ids import (
     generate_tracking_code,
 )
 
+logger = logging.getLogger(__name__)
+
+Classifier = Callable[..., ClassificationResult]
+DescriptionCleaner = Callable[..., CleaningResult]
+
 
 class TicketNotFoundError(LookupError):
     pass
 
 
 class TicketService:
-    def __init__(self, store: TicketStore, history_store: StatusHistoryStore) -> None:
+    def __init__(
+        self,
+        store: TicketStore,
+        history_store: StatusHistoryStore,
+        *,
+        classifier: Classifier = classify_complaint,
+        description_cleaner: DescriptionCleaner = clean_report_description,
+    ) -> None:
         self._store = store
         self._history_store = history_store
+        self._classifier = classifier
+        self._description_cleaner = description_cleaner
+        self._processing_ticket_ids: set[str] = set()
+        self._processing_lock = Lock()
 
     def submit_ticket(self, payload: SubmitTicketRequest) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
@@ -68,6 +92,74 @@ class TicketService:
             message="Your report was submitted successfully.",
             createdAt=created_at_iso,
         )
+
+    def process_ticket_ai(self, ticket_id: str) -> bool:
+        """Process one pending ticket without exposing failures to the submit request.
+
+        Returns ``True`` when this call persisted a terminal AI status. Repeated or
+        concurrent calls for the same ticket are no-ops once processing has started or
+        the stored status is already terminal.
+        """
+        ticket = self._store.get(ticket_id)
+        if ticket is None or ticket.ai_processing_status != "pending":
+            return False
+
+        with self._processing_lock:
+            if ticket_id in self._processing_ticket_ids:
+                return False
+            self._processing_ticket_ids.add(ticket_id)
+
+        try:
+            classification = self._classifier(
+                ticket.original_description or ticket.description,
+                image_object_key=ticket.image_object_key,
+            )
+            cleaning = self._description_cleaner(
+                ticket.original_description or ticket.description,
+            )
+
+            processing_failed = classification.used_fallback or cleaning.used_fallback
+            self.save_ticket_ai_output(
+                ticket_id,
+                SaveTicketAiOutputRequest(
+                    cleanedDescription=cleaning.cleaned_description,
+                    aiSuggestedCategory=(
+                        None if classification.used_fallback else classification.category
+                    ),
+                    aiCategoryExplanation=(
+                        None if classification.used_fallback else classification.explanation
+                    ),
+                    aiModelVersion=get_settings().bedrock_model_id,
+                    aiProcessingStatus="failed" if processing_failed else "completed",
+                ),
+            )
+            if processing_failed:
+                logger.warning(
+                    "AI processing completed with fallback for ticket %s.",
+                    ticket_id,
+                )
+            return True
+        except Exception as exc:
+            logger.error(
+                "AI processing failed for ticket %s (%s).",
+                ticket_id,
+                type(exc).__name__,
+            )
+            try:
+                self.save_ticket_ai_output(
+                    ticket_id,
+                    SaveTicketAiOutputRequest(aiProcessingStatus="failed"),
+                )
+            except Exception as persistence_exc:
+                logger.error(
+                    "Could not persist failed AI status for ticket %s (%s).",
+                    ticket_id,
+                    type(persistence_exc).__name__,
+                )
+            return True
+        finally:
+            with self._processing_lock:
+                self._processing_ticket_ids.discard(ticket_id)
 
     def list_tickets(self) -> list[TicketResponse]:
         tickets = sorted(
