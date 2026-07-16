@@ -22,6 +22,7 @@ typecheck:
 test:
 	cd mobile && npm test
 	cd admin && npm test
+	cd backend && python -m pytest
 
 quality: lint format-check typecheck
 

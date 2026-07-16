@@ -107,15 +107,45 @@ class FakeBedrockClient:
 
 def test_neither_input_returns_pending() -> None:
     result = classify_complaint(None)
-    assert result.category == PENDING_CLASSIFICATION
+    assert result.category == PENDING_CLASSIFICATION, (
+        "classify_complaint.neither_input: expected PENDING_CLASSIFICATION"
+    )
     assert result.used_inputs.description is False
     assert result.used_inputs.image is False
 
 
 def test_short_text_without_image_returns_pending() -> None:
     result = classify_complaint("hi")
-    assert result.category == PENDING_CLASSIFICATION
+    assert result.category == PENDING_CLASSIFICATION, (
+        "classify_complaint.short_text: expected PENDING_CLASSIFICATION"
+    )
     assert "too short" in result.explanation.lower()
+
+
+def test_empty_explanation_uses_fallback_but_keeps_category() -> None:
+    fake = FakeBedrockClient({"category": "waste", "explanation": "  "})
+    result = classify_complaint(
+        "Overflowing bins near the school.",
+        client=fake,  # type: ignore[arg-type]
+    )
+    assert result.category == "waste", (
+        "classify_complaint.empty_explanation: category should be kept"
+    )
+    assert result.explanation == FALLBACK_EXPLANATION, (
+        "classify_complaint.empty_explanation: expected FALLBACK_EXPLANATION"
+    )
+
+
+def test_whitespace_category_falls_back() -> None:
+    fake = FakeBedrockClient({"category": "   ", "explanation": "No clear category."})
+    result = classify_complaint(
+        "Something is wrong on the street.",
+        client=fake,  # type: ignore[arg-type]
+    )
+    assert result.category == PENDING_CLASSIFICATION, (
+        "classify_complaint.whitespace_category: expected PENDING_CLASSIFICATION"
+    )
+    assert result.explanation == FALLBACK_EXPLANATION
 
 
 def test_text_only_success() -> None:
@@ -173,7 +203,9 @@ def test_invalid_category_falls_back() -> None:
         "There is a hole in the road.",
         client=fake,  # type: ignore[arg-type]
     )
-    assert result.category == PENDING_CLASSIFICATION
+    assert result.category == PENDING_CLASSIFICATION, (
+        "classify_complaint.invalid_category: expected PENDING_CLASSIFICATION"
+    )
     assert result.explanation == FALLBACK_EXPLANATION
 
 
@@ -185,7 +217,9 @@ def test_provider_error_falls_back() -> None:
         "Overflowing bins near the school.",
         client=fake,  # type: ignore[arg-type]
     )
-    assert result.category == PENDING_CLASSIFICATION
+    assert result.category == PENDING_CLASSIFICATION, (
+        "classify_complaint.provider_error: expected PENDING_CLASSIFICATION"
+    )
     assert result.explanation == FALLBACK_EXPLANATION
 
 
@@ -220,7 +254,9 @@ def test_multilingual_dataset_categories_are_exercised_with_mock() -> None:
             case["input"],
             client=fake,  # type: ignore[arg-type]
         )
-        assert result.category == expected, case["id"]
+        assert result.category == expected, (
+            f"classify_complaint[{case['id']}]: expected {expected!r}, got {result.category!r}"
+        )
         seen.add(expected)
 
     assert concrete_category_ids() <= seen

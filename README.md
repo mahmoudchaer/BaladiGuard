@@ -134,16 +134,21 @@ make quality
 ```
 
 `make quality` runs lint, format check, and typecheck across the project.
-`make test` runs the frontend test suites for the Expo app and staff dashboard. These tests use
-local mocks and do not require a live backend, DynamoDB, AWS, or AI credentials.
+`make test` runs the Expo app, staff dashboard, and backend pytest suites. Frontend tests use
+local mocks and do not require a live backend, DynamoDB, AWS, or AI credentials. Backend unit
+tests mock external AI provider calls and use in-memory storage (plus moto for DynamoDB cases).
 
-To match CI fully, also run the backend data validation and test suite:
+To match CI fully, also run the backend data validation step before pytest:
 
 ```bash
 cd backend
 PYTHONPATH=. python scripts/validate_mock_tickets.py
 python -m pytest
 ```
+
+Backend unit tests cover ticket ID generation, status workflow validation, AI classification
+fallbacks, and description-cleaning fallback/preservation rules (with external AI provider calls
+mocked).
 
 ## Documentation
 
