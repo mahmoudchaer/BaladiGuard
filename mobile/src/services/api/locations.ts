@@ -108,6 +108,7 @@ export function defaultMapRegion(location?: { latitude?: number; longitude?: num
   };
 }
 
-export function locationSourceForMapPin(existing?: LocationSource): LocationSource {
-  return existing === 'PLACEHOLDER' ? 'PLACEHOLDER' : 'GPS';
+export function locationSourceForMapPin(_existing?: LocationSource): LocationSource {
+  // Map taps are user-selected pins, not sample placeholders.
+  return 'GPS';
 }

@@ -92,3 +92,12 @@ describe('validateLocation', () => {
     );
   });
 });
+
+describe('locationSourceForMapPin', () => {
+  it('always marks map pins as GPS, even after a placeholder selection', async () => {
+    const { locationSourceForMapPin } = await import('@/services/api/locations');
+    expect(locationSourceForMapPin('PLACEHOLDER')).toBe('GPS');
+    expect(locationSourceForMapPin('MANUAL')).toBe('GPS');
+    expect(locationSourceForMapPin(undefined)).toBe('GPS');
+  });
+});

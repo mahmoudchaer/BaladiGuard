@@ -103,6 +103,8 @@ export function LocationFields({
       setLocationError(
         error instanceof Error ? error.message : 'Unable to validate that map point.',
       );
+      setValue('latitude', undefined, { shouldValidate: true });
+      setValue('longitude', undefined, { shouldValidate: true });
     } finally {
       setIsValidating(false);
     }
@@ -129,6 +131,9 @@ export function LocationFields({
             onChangeText={(text) => {
               onChange(text);
               setLocationError(null);
+              setValue('latitude', undefined);
+              setValue('longitude', undefined);
+              setValue('locationSource', 'MANUAL');
               if (selectedPlaceholderId) {
                 onSelectPlaceholder('');
               }
