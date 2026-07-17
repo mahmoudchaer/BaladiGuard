@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -297,7 +298,7 @@ def test_recover_pending_ai_tickets_sweeps_stuck_tickets(monkeypatch):
 
 
 def test_recover_pending_ai_tickets_releases_stuck_processing_claims(monkeypatch):
-    """A ticket left `processing` after a crash is released and completed by recovery."""
+    """A stale `processing` claim (past the timeout) is released and completed."""
     calls = {"classification": 0}
 
     def classify(*_: object, **__: object):
@@ -315,7 +316,8 @@ def test_recover_pending_ai_tickets_releases_stuck_processing_claims(monkeypatch
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
     created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
-    claimed = ticket_store.claim_ai_processing(created.ticket_id, "2026-07-18T00:00:00Z")
+    # Far in the past so the claim is older than AI_PROCESSING_CLAIM_TIMEOUT_SECONDS.
+    claimed = ticket_store.claim_ai_processing(created.ticket_id, "2020-01-01T00:00:00Z")
     assert claimed is not None
     assert claimed.ai_processing_status == "processing"
 
@@ -326,6 +328,40 @@ def test_recover_pending_ai_tickets_releases_stuck_processing_claims(monkeypatch
     stored = ticket_store.get(created.ticket_id)
     assert stored is not None
     assert stored.ai_processing_status == "completed"
+
+
+def test_recover_pending_ai_tickets_skips_fresh_processing_claims(monkeypatch):
+    """A fresh processing claim must not be stolen during multi-worker startup."""
+    calls = {"classification": 0}
+
+    def classify(*_: object, **__: object):
+        calls["classification"] += 1
+        return ClassificationResult(
+            category="road_damage",
+            explanation="Road damage.",
+            usedInputs=ClassificationInputs(description=True, image=False),
+        )
+
+    def clean(description: str, **_: object):
+        return CleaningResult(cleanedDescription=description, usedFallback=False)
+
+    monkeypatch.setattr(ticket_service, "_classifier", classify)
+    monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
+
+    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    claimed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    claimed = ticket_store.claim_ai_processing(created.ticket_id, claimed_at)
+    assert claimed is not None
+    assert claimed.ai_processing_status == "processing"
+
+    recovered = ticket_service.recover_pending_ai_tickets()
+
+    assert recovered == 0
+    assert calls["classification"] == 0
+    stored = ticket_store.get(created.ticket_id)
+    assert stored is not None
+    assert stored.ai_processing_status == "processing"
+    assert stored.updated_at == claimed_at
 
 
 def test_submission_ai_output_persists_with_moto_dynamodb(

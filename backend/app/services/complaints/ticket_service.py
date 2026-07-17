@@ -32,6 +32,13 @@ Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
 
 
+def _parse_iso_utc(value: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 class TicketNotFoundError(LookupError):
     pass
 
@@ -177,36 +184,64 @@ class TicketService:
                 self._processing_ticket_ids.discard(ticket_id)
 
     def recover_pending_ai_tickets(self) -> int:
-        """Reprocess tickets stuck in ``pending`` or ``processing`` after a crash.
+        """Reprocess tickets stuck in ``pending`` or stale ``processing`` after a crash.
 
         Called on application startup so a fire-and-forget background task that died
         between the 201 response and the terminal AI status does not leave tickets
-        unmanageable. Stuck ``processing`` claims are released back to ``pending``
-        first (safe on startup when the previous worker is gone), then reclaimed.
-        Returns the number of tickets that reached a terminal status.
+        unmanageable.
+
+        Fresh ``processing`` claims are left alone so a rolling deploy / multi-worker
+        startup cannot steal a ticket another worker is still handling. Only claims
+        whose ``updatedAt`` is older than ``AI_PROCESSING_CLAIM_TIMEOUT_SECONDS`` are
+        released back to ``pending`` and reclaimed. Returns the number of tickets that
+        reached a terminal status.
         """
-        stuck_ids = [
-            ticket.ticket_id
-            for ticket in self._store.list()
-            if ticket.ai_processing_status in {"pending", "processing"}
-        ]
-        now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        for ticket_id in stuck_ids:
-            ticket = self._store.get(ticket_id)
-            if ticket is not None and ticket.ai_processing_status == "processing":
-                self._store.release_ai_processing_claim(ticket_id, now)
+        now_dt = datetime.now(UTC)
+        now = now_dt.isoformat().replace("+00:00", "Z")
+        recoverable_ids: list[str] = []
+        skipped_active_claims = 0
+
+        for ticket in self._store.list():
+            status = ticket.ai_processing_status
+            if status == "pending":
+                recoverable_ids.append(ticket.ticket_id)
+                continue
+            if status != "processing":
+                continue
+            if not self._is_stale_ai_processing_claim(ticket, now=now_dt):
+                skipped_active_claims += 1
+                continue
+            released = self._store.release_ai_processing_claim(ticket.ticket_id, now)
+            if released is not None:
+                recoverable_ids.append(ticket.ticket_id)
 
         recovered = 0
-        for ticket_id in stuck_ids:
+        for ticket_id in recoverable_ids:
             if self.process_ticket_ai(ticket_id):
                 recovered += 1
-        if stuck_ids:
+        if recoverable_ids or skipped_active_claims:
             logger.info(
-                "AI pending recovery processed %d of %d stuck ticket(s).",
+                "AI pending recovery processed %d of %d recoverable ticket(s) "
+                "(skipped %d active processing claim(s)).",
                 recovered,
-                len(stuck_ids),
+                len(recoverable_ids),
+                skipped_active_claims,
             )
         return recovered
+
+    def _is_stale_ai_processing_claim(
+        self,
+        ticket: StoredTicket,
+        *,
+        now: datetime,
+    ) -> bool:
+        """Return True when a processing claim is old enough to safely reclaim."""
+        claimed_at = _parse_iso_utc(ticket.updated_at)
+        if claimed_at is None:
+            # Unparseable timestamps should not leave tickets permanently stuck.
+            return True
+        age_seconds = (now - claimed_at.astimezone(UTC)).total_seconds()
+        return age_seconds >= get_settings().ai_processing_claim_timeout_seconds
 
     def list_tickets(self) -> list[TicketResponse]:
         tickets = sorted(
