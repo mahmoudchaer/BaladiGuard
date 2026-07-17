@@ -333,3 +333,71 @@ export async function updateTicketStatus(
 
   return updateTicketStatusFromApi(ticketId, status);
 }
+
+export type ReviewTicketCategoryInput = {
+  finalCategory: string;
+  categoryReviewedBy?: string;
+};
+
+async function reviewMockTicketCategory(
+  ticketId: string,
+  input: ReviewTicketCategoryInput,
+): Promise<Ticket | null> {
+  const ticket = await fetchMockTicketById(ticketId);
+
+  if (!ticket) {
+    return null;
+  }
+
+  const reviewedAt = new Date().toISOString();
+  return {
+    ...ticket,
+    category: input.finalCategory,
+    updatedAt: reviewedAt,
+    ai: {
+      ...ticket.ai,
+      finalCategory: input.finalCategory,
+      categoryReviewedBy: input.categoryReviewedBy,
+      categoryReviewedAt: reviewedAt,
+    },
+  };
+}
+
+async function reviewTicketCategoryFromApi(
+  ticketId: string,
+  input: ReviewTicketCategoryInput,
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/category`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const message = await readApiErrorMessage(response, 'Unable to save category review.');
+    throw new Error(message);
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function reviewTicketCategory(
+  ticketId: string,
+  input: ReviewTicketCategoryInput,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return reviewMockTicketCategory(ticketId, input);
+  }
+
+  return reviewTicketCategoryFromApi(ticketId, input);
+}
