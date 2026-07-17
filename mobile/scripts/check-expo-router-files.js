@@ -55,6 +55,7 @@ function validateExpoRouterFiles(appDir = path.join(process.cwd(), 'app')) {
 
     const routeName = filename.slice(0, -extension.length);
     if (isSpecialRouteFile(routeName)) {
+      // Expo Router special files have framework-defined contracts and may not render screens.
       continue;
     }
 
@@ -90,7 +91,17 @@ function isSpecialRouteFile(routeName) {
 }
 
 function hasDefaultExport(contents) {
-  return /\bexport\s+default\b/.test(contents);
+  const code = stripJavaScriptComments(contents);
+  return (
+    /\bexport\s+default\b/.test(code) ||
+    /\bexport\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(code)
+  );
+}
+
+function stripJavaScriptComments(contents) {
+  return contents
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 if (require.main === module) {

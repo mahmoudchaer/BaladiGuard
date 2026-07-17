@@ -19,8 +19,16 @@ describe('validateExpoRouterFiles', () => {
       '_layout.tsx': 'export default function Layout() { return null; }',
       'index.tsx': 'export default function HomeScreen() { return null; }',
       'report/index.tsx': 'export default function ReportScreen() { return null; }',
-      '+not-found.tsx': 'export default function NotFoundScreen() { return null; }',
+      '+not-found.tsx': 'export const NotFoundScreen = () => null;',
       '.gitkeep': '',
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([]);
+  });
+
+  it('allows named re-exports as default route exports', () => {
+    const appDir = createAppFixture({
+      'report/index.tsx': 'const ReportScreen = () => null; export { ReportScreen as default };',
     });
 
     expect(validateExpoRouterFiles(appDir)).toEqual([]);
@@ -44,6 +52,32 @@ describe('validateExpoRouterFiles', () => {
 
     expect(validateExpoRouterFiles(appDir)).toEqual([
       expect.stringContaining('report/index.tsx: route files must export a React component'),
+    ]);
+  });
+
+  it('does not count comments as default exports', () => {
+    const appDir = createAppFixture({
+      'report/index.tsx':
+        '// export default function ReportScreen() { return null; }\nexport const ReportScreen = () => null;',
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([
+      expect.stringContaining('report/index.tsx: route files must export a React component'),
+    ]);
+  });
+
+  it('rejects test and mock directories inside app', () => {
+    const appDir = createAppFixture({
+      'index.tsx': 'export default function HomeScreen() { return null; }',
+      '__tests__/index.tsx': 'export default function TestRoute() { return null; }',
+      'report/__mocks__/mock.tsx': 'export default function MockRoute() { return null; }',
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([
+      expect.stringContaining('__tests__/index.tsx: __tests__ directories are not valid inside app/'),
+      expect.stringContaining(
+        'report/__mocks__/mock.tsx: __mocks__ directories are not valid inside app/',
+      ),
     ]);
   });
 
