@@ -97,19 +97,19 @@ class TicketService:
         """Process one pending ticket without exposing failures to the submit request.
 
         Returns ``True`` when this call persisted a terminal AI status. Repeated or
-        concurrent calls for the same ticket are no-ops once processing has started or
-        the stored status is already terminal.
+        concurrent calls for the same ticket are no-ops once another worker has claimed
+        the ticket (``pending`` → ``processing``) or the stored status is already
+        terminal.
 
-        The in-process claim below only dedupes within one worker; cross-worker
-        duplicate suppression relies on the stored ``pending`` status check.
+        Ownership of the AI job is decided by a store-level conditional claim so
+        multi-worker / redeploy races cannot both invoke Bedrock for the same ticket.
         """
         with self._processing_lock:
             if ticket_id in self._processing_ticket_ids:
                 return False
-            # Read the stored status inside the lock so two threads cannot both
-            # observe "pending" before either claims the ticket.
-            ticket = self._store.get(ticket_id)
-            if ticket is None or ticket.ai_processing_status != "pending":
+            claimed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            ticket = self._store.claim_ai_processing(ticket_id, claimed_at)
+            if ticket is None:
                 return False
             self._processing_ticket_ids.add(ticket_id)
 
@@ -177,26 +177,34 @@ class TicketService:
                 self._processing_ticket_ids.discard(ticket_id)
 
     def recover_pending_ai_tickets(self) -> int:
-        """Reprocess tickets stuck in ``pending`` (e.g. after a worker crash).
+        """Reprocess tickets stuck in ``pending`` or ``processing`` after a crash.
 
         Called on application startup so a fire-and-forget background task that died
         between the 201 response and the terminal AI status does not leave tickets
-        unmanageable. Returns the number of tickets that reached a terminal status.
+        unmanageable. Stuck ``processing`` claims are released back to ``pending``
+        first (safe on startup when the previous worker is gone), then reclaimed.
+        Returns the number of tickets that reached a terminal status.
         """
-        pending_ids = [
+        stuck_ids = [
             ticket.ticket_id
             for ticket in self._store.list()
-            if ticket.ai_processing_status == "pending"
+            if ticket.ai_processing_status in {"pending", "processing"}
         ]
+        now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        for ticket_id in stuck_ids:
+            ticket = self._store.get(ticket_id)
+            if ticket is not None and ticket.ai_processing_status == "processing":
+                self._store.release_ai_processing_claim(ticket_id, now)
+
         recovered = 0
-        for ticket_id in pending_ids:
+        for ticket_id in stuck_ids:
             if self.process_ticket_ai(ticket_id):
                 recovered += 1
-        if pending_ids:
+        if stuck_ids:
             logger.info(
                 "AI pending recovery processed %d of %d stuck ticket(s).",
                 recovered,
-                len(pending_ids),
+                len(stuck_ids),
             )
         return recovered
 

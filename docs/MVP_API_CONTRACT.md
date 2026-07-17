@@ -486,7 +486,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `ai.finalCategory` | string | Staff-approved category when reviewed. |
 | `ai.categoryReviewedBy` | string | Staff actor identifier when the category was reviewed. |
 | `ai.categoryReviewedAt` | string | ISO 8601 timestamp for staff category review. |
-| `ai.aiProcessingStatus` | enum | `pending`, `completed`, or `failed`. |
+| `ai.aiProcessingStatus` | enum | `pending`, `processing`, `completed`, or `failed`. |
 | `ai.aiModelVersion` | string | Bedrock model or processing version identifier when available. |
 | `ai.suggestedCategory` | string | Compatibility alias for `ai.aiSuggestedCategory`. |
 | `ai.urgencyReason` | string | AI explanation for the urgency/priority when available. |

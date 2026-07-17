@@ -208,19 +208,26 @@ cd backend
 python scripts/verify_cloud_report_flow.py
 ```
 
-Optional live Bedrock checks (issue #17; not wired into ticket submit yet):
+Optional live Bedrock checks (manual / scheduled; not part of PR CI):
 
 ```bash
 cd backend
 python scripts/verify_classification.py
 python scripts/eval_classification.py
+
+# Opt-in pytest: real Bedrock with the in-memory store
+RUN_LIVE_AI=1 pytest tests/test_ai_submission_integration.py -k live_submission_processes_real_ai
+
+# Opt-in pytest: real Bedrock + real cloud DynamoDB persistence + read API
+RUN_LIVE_AI=1 RUN_LIVE_DYNAMODB=1 pytest tests/test_ai_submission_integration.py -k live_submission_persists_real_ai_to_cloud_dynamodb
 ```
 
 `eval_classification.py` is the labeled accuracy suite (text + external S3/URL images).
 It is manual-only and not part of CI.
 
 `pytest` still uses in-memory storage by default (plus moto for some DynamoDB unit tests),
-so CI does not need AWS credentials.
+so CI does not need AWS credentials. The cloud DynamoDB live test requires provisioned
+tables and `DATABASE_BACKEND=dynamodb` credentials (no `DYNAMODB_ENDPOINT_URL`).
 
 For Docker DynamoDB Local instead of cloud, see
 [docs/local-database-setup.md](docs/local-database-setup.md).
