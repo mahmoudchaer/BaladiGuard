@@ -1,4 +1,10 @@
-import type { AiProcessingStatus, Ticket, TicketAiFields, TicketStatus } from '@/types/ticket';
+import type {
+  AiProcessingStatus,
+  Ticket,
+  TicketAiFields,
+  TicketLocation,
+  TicketStatus,
+} from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { config } from '@/services/config';
 
@@ -61,7 +67,7 @@ async function fetchTicketsFromApi(): Promise<Ticket[]> {
     throw new Error('Unexpected ticket list response shape.');
   }
 
-  return data;
+  return data.map((ticket) => normalizeTicketFromApi(ticket));
 }
 
 export async function fetchTickets(): Promise<Ticket[]> {
@@ -128,12 +134,40 @@ function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   return hasAiData ? ai : undefined;
 }
 
+function normalizeTicketLocation(data: unknown): TicketLocation {
+  if (!isRecord(data)) {
+    throw new Error('Unexpected ticket location response shape.');
+  }
+
+  const { latitude, longitude, addressText, source } = data;
+  const hasValidLatitude =
+    typeof latitude === 'number' && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90;
+  const hasValidLongitude =
+    typeof longitude === 'number' &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180;
+  const normalizedAddress = typeof addressText === 'string' ? addressText.trim() : '';
+  const hasValidSource = source === 'GPS' || source === 'MANUAL' || source === 'PLACEHOLDER';
+
+  if (!hasValidLatitude || !hasValidLongitude || normalizedAddress.length < 3 || !hasValidSource) {
+    throw new Error('Unexpected ticket location response shape.');
+  }
+
+  return {
+    latitude,
+    longitude,
+    addressText: normalizedAddress,
+    source,
+  };
+}
+
 function normalizeTicketFromApi(data: unknown): Ticket {
   if (!isRecord(data) || typeof data.ticketId !== 'string') {
     throw new Error('Unexpected ticket response shape.');
   }
 
-  const location = isRecord(data.location) ? data.location : {};
+  const location = normalizeTicketLocation(data.location);
   const department = isRecord(data.department) ? data.department : null;
   const imageReferences = Array.isArray(data.imageReferences)
     ? data.imageReferences.filter(isRecord)
@@ -178,17 +212,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
           email: typeof data.contact.email === 'string' ? data.contact.email : undefined,
         }
       : {},
-    location: {
-      latitude: typeof location.latitude === 'number' ? location.latitude : 0,
-      longitude: typeof location.longitude === 'number' ? location.longitude : 0,
-      addressText: typeof location.addressText === 'string' ? location.addressText : 'Not provided',
-      source:
-        location.source === 'GPS' ||
-        location.source === 'MANUAL' ||
-        location.source === 'PLACEHOLDER'
-          ? location.source
-          : 'PLACEHOLDER',
-    },
+    location,
     imageObjectKey: resolvedImageObjectKey,
     imageUrl: resolvedImageUrl,
     imageReferences: imageReferences.map((reference) => ({

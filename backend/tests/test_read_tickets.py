@@ -39,6 +39,7 @@ def test_list_tickets_returns_submitted_tickets(client):
     assert body[0]["createdBy"] is None
     assert body[0]["municipalityId"] is None
     assert body[0]["duplicateGroupId"] is None
+    assert body[0]["location"] == VALID_PAYLOAD["location"]
     assert body[1]["ticketNumber"] == first["ticketNumber"]
 
 

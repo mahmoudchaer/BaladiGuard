@@ -83,9 +83,9 @@ Creates a submitted citizen report ticket.
 | `contact.email` | string | Conditional | Required if `contact.phone` is not provided. |
 | `contact.preferredChannel` | enum | No | `SMS` or `EMAIL`. |
 | `location` | object | Yes | Report location. |
-| `location.latitude` | number | Yes | Latitude between `-90` and `90`. |
-| `location.longitude` | number | Yes | Longitude between `-180` and `180`. |
-| `location.addressText` | string | Yes | Typed address, landmark, or selected placeholder location text. |
+| `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
+| `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
+| `location.addressText` | string | Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters). |
 | `location.source` | enum | Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`. |
 | `imageObjectKey` | string | Yes | Stable image object key/reference used by the backend. |
 | `clientMetadata` | object | Yes | Client metadata sent by the mobile app. |
@@ -244,6 +244,67 @@ Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, and `s
 |---|---:|---|
 | `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
 | `INVALID_STATUS_TRANSITION` | 400 | Requested status is not allowed from the ticket's current status. |
+
+## `POST /v1/locations/validate`
+
+Validates a citizen-reported location. Accepts either a readable address or a
+latitude/longitude pair and returns a normalized location suitable for ticket submission.
+
+Uses Amazon Location Service when `LOCATION_PLACE_INDEX_NAME` is configured. When the place
+index is unset, the backend falls back to a curated Beirut local place index for local/CI use.
+
+### Request body (address)
+
+```json
+{
+  "addressText": "AUB Main Gate, Hamra, Beirut"
+}
+```
+
+### Request body (coordinates)
+
+```json
+{
+  "latitude": 33.896112,
+  "longitude": 35.478419
+}
+```
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| `addressText` | string | Conditional | Required when coordinates are not provided. Minimum 3 characters after trim. |
+| `latitude` | number | Conditional | Required with `longitude`. Finite value between `-90` and `90`. |
+| `longitude` | number | Conditional | Required with `latitude`. Finite value between `-180` and `180`. |
+
+Provide either `addressText` or both coordinates. Partial coordinate pairs are rejected.
+
+### Response `200`
+
+```json
+{
+  "success": true,
+  "location": {
+    "latitude": 33.896112,
+    "longitude": 35.478419,
+    "addressText": "Near AUB Main Gate, Hamra, Beirut",
+    "source": "MANUAL"
+  },
+  "message": "Location validated successfully."
+}
+```
+
+`source` is `MANUAL` for address lookup and `GPS` for coordinate reverse lookup.
+
+### Location validation error codes
+
+| Code | Status | Meaning |
+|---|---:|---|
+| `VALIDATION_ERROR` | 400 | Missing address/coordinates or invalid field values. |
+| `LOCATION_NOT_FOUND` | 400 | Provider could not resolve the address/point. |
+| `LOCATION_OUT_OF_SERVICE_AREA` | 400 | Coordinates are outside the supported service area. |
+| `LOCATION_PROVIDER_UNAVAILABLE` | 502 | Amazon Location request failed or returned incomplete data. |
 
 ## `POST /v1/uploads/report-photo`
 
@@ -460,7 +521,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `description` | string | Citizen-submitted issue description. |
 | `contact` | `ReportContact` or null | Citizen contact details when available to staff. |
 | `category` | string | Current category value, for example `road_damage` or `PENDING_CLASSIFICATION`. |
-| `priority` | enum or null | `low`, `medium`, or `high`; represents urgency/priority when known. |
+| `priority` | enum or null | `low`, `medium`, or `high`; represents urgency/priority when known. MVP urgency rules also define `critical` (see `docs/urgency-scoring.md`; storage/UI extension tracked in #29). |
 | `status` | `TicketStatus` | Current workflow status. |
 | `location` | `ReportLocation` | Same location object used by ticket submission. |
 | `imageReferences` | array | One or more stable image references for display. |
