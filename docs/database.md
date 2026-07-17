@@ -20,9 +20,9 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `contact.phone` | string | Conditional | Required if `contact.email` is absent. |
 | `contact.email` | string | Conditional | Required if `contact.phone` is absent. |
 | `location` | object | Yes | Report location. |
-| `location.latitude` | number | Yes | Latitude between `-90` and `90`. |
-| `location.longitude` | number | Yes | Longitude between `-180` and `180`. |
-| `location.addressText` | string | Yes | Typed address, landmark, or placeholder text. |
+| `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
+| `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
+| `location.addressText` | string | Yes | Trimmed readable address, landmark, or placeholder text (3–500 characters). |
 | `location.source` | enum | Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`. |
 | `imageObjectKey` | string | Yes | S3 object key for the uploaded photo. |
 
