@@ -82,6 +82,11 @@ separate from the expectations so the tests can verify:
 - the two documented ambiguous-category decisions; and
 - explicit Arabic, French, Lebanese Arabizi, and mixed-language coverage.
 
+`languageTags` describe the **input** language only. Cleaned descriptions in the deterministic
+outputs (and the live cleaner by default) are **English-normalized** for staff review. Place names
+and landmarks are preserved as written. A separate user-facing translation option may be added
+later; it is out of scope for this regression layer.
+
 The deterministic suite does not claim to measure live model accuracy. It verifies the application
 contract and regression assertions without network calls or AWS credentials.
 

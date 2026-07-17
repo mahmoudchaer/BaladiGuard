@@ -104,8 +104,9 @@ def test_system_prompt_encodes_preservation_and_no_invention_rules() -> None:
     assert "do not invent" in prompt, (
         "clean_report_description.preserve_rules: system prompt must forbid invented facts"
     )
-    assert "not translation" in prompt or "cleaning, not translation" in prompt, (
-        "clean_report_description.preserve_rules: system prompt must keep original language"
+    assert "english-normalized" in prompt or "professional english" in prompt, (
+        "clean_report_description.preserve_rules: "
+        "system prompt must default to English-normalized output"
     )
 
 

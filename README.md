@@ -156,6 +156,8 @@ The lightweight multilingual regression subset is deterministic and never calls 
 the issue #21 dataset, checks every supported category (including
 `PENDING_CLASSIFICATION`), covers Arabic, French, Lebanese Arabizi, and mixed-language reports,
 and verifies that cleaned output preserves required details without introducing prohibited facts.
+Cleaned descriptions are English-normalized by default (inputs stay multilingual; place names are
+preserved as written).
 
 Run the same subset used by CI:
 
