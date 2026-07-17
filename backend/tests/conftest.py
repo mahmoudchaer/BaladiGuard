@@ -15,12 +15,34 @@ from app.database.memory import ticket_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
+from app.schemas.classification import ClassificationInputs, ClassificationResult  # noqa: E402
+from app.schemas.cleaning import CleaningResult  # noqa: E402
+from app.services.complaints.ticket_service import ticket_service  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
+
+
+@pytest.fixture(autouse=True)
+def deterministic_submission_ai(monkeypatch: pytest.MonkeyPatch) -> None:
+    def classify(description: str, **_: object) -> ClassificationResult:
+        return ClassificationResult(
+            category="road_damage",
+            explanation="The report describes damage to a public road.",
+            usedInputs=ClassificationInputs(description=bool(description), image=False),
+        )
+
+    def clean(description: str, **_: object) -> CleaningResult:
+        return CleaningResult(
+            cleanedDescription=description,
+            usedFallback=False,
+        )
+
+    monkeypatch.setattr(ticket_service, "_classifier", classify)
+    monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
 
 @pytest.fixture

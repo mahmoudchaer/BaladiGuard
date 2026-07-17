@@ -87,6 +87,64 @@ class DynamoTicketStore:
 
         return item_to_ticket(response["Attributes"])
 
+    def claim_ai_processing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+    ) -> StoredTicket | None:
+        """Atomically claim a pending ticket for AI work (pending → processing)."""
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=("SET #aiProcessingStatus = :processing, #updatedAt = :updatedAt"),
+                ConditionExpression="#aiProcessingStatus = :pending",
+                ExpressionAttributeNames={
+                    "#aiProcessingStatus": "aiProcessingStatus",
+                    "#updatedAt": "updatedAt",
+                },
+                ExpressionAttributeValues={
+                    ":pending": "pending",
+                    ":processing": "processing",
+                    ":updatedAt": updated_at,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+        return item_to_ticket(response["Attributes"])
+
+    def release_ai_processing_claim(
+        self,
+        ticket_id: str,
+        updated_at: str,
+    ) -> StoredTicket | None:
+        """Return a stuck processing claim to pending so recovery can reclaim it."""
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=("SET #aiProcessingStatus = :pending, #updatedAt = :updatedAt"),
+                ConditionExpression="#aiProcessingStatus = :processing",
+                ExpressionAttributeNames={
+                    "#aiProcessingStatus": "aiProcessingStatus",
+                    "#updatedAt": "updatedAt",
+                },
+                ExpressionAttributeValues={
+                    ":pending": "pending",
+                    ":processing": "processing",
+                    ":updatedAt": updated_at,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+        return item_to_ticket(response["Attributes"])
+
     def has_ticket_id(self, ticket_id: str) -> bool:
         response = self._tickets_table.get_item(
             Key={"ticketId": ticket_id},

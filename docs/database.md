@@ -49,7 +49,7 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `finalCategory` | string, nullable | No | Staff-approved category, separate from `aiSuggestedCategory`. |
 | `categoryReviewedBy` | string, nullable | No | Staff actor identifier when the category is reviewed. |
 | `categoryReviewedAt` | string, nullable | No | ISO 8601 timestamp when staff reviewed the category. |
-| `aiProcessingStatus` | enum | Yes | `pending`, `completed`, or `failed`. Defaults to `pending` at submission. |
+| `aiProcessingStatus` | enum | Yes | `pending`, `processing`, `completed`, or `failed`. Defaults to `pending` at submission. Conditionally moves to `processing` when a worker claims the AI job. Startup recovery only reclaims `processing` tickets whose `updatedAt` is older than `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` (default 300). |
 | `aiModelVersion` | string, nullable | No | Bedrock model or processing version identifier when available. |
 | `priority` | enum | No | `low`, `medium`, or `high`. Set by AI urgency estimation. |
 | `createdBy` | string | No | User identifier once authentication is wired. |
