@@ -1,10 +1,17 @@
-import { StyleSheet, View } from 'react-native';
-import { Chip, HelperText, Text, TextInput } from 'react-native-paper';
+import { Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Button, Chip, HelperText, Text, TextInput } from 'react-native-paper';
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
-import { Controller } from 'react-hook-form';
+import { Controller, useWatch } from 'react-hook-form';
+import { useState } from 'react';
+import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
 
 import { PLACEHOLDER_LOCATIONS } from '@/constants/locations';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
+import {
+  defaultMapRegion,
+  locationSourceForMapPin,
+  validateLocation,
+} from '@/services/api/locations';
 
 type LocationFieldsProps = {
   control: Control<ReportFormValues>;
@@ -21,14 +28,93 @@ export function LocationFields({
   selectedPlaceholderId,
   onSelectPlaceholder,
 }: LocationFieldsProps) {
+  const [isValidating, setIsValidating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const addressText = useWatch({ control, name: 'addressText' });
+  const latitude = useWatch({ control, name: 'latitude' });
+  const longitude = useWatch({ control, name: 'longitude' });
+  const locationSource = useWatch({ control, name: 'locationSource' });
+
+  const mapRegion: Region = defaultMapRegion({ latitude, longitude });
+  const hasPin = latitude !== undefined && longitude !== undefined;
+
+  const applyValidatedLocation = (location: {
+    latitude: number;
+    longitude: number;
+    addressText: string;
+    source: ReportFormValues['locationSource'];
+  }) => {
+    setValue('addressText', location.addressText, { shouldValidate: true });
+    setValue('latitude', location.latitude, { shouldValidate: true });
+    setValue('longitude', location.longitude, { shouldValidate: true });
+    setValue('locationSource', location.source, { shouldValidate: true });
+  };
+
+  const handleLookupAddress = async () => {
+    const query = addressText?.trim() ?? '';
+    if (query.length < 3) {
+      setLocationError('Enter at least 3 characters before looking up an address.');
+      return;
+    }
+
+    setIsValidating(true);
+    setLocationError(null);
+    try {
+      const result = await validateLocation({ addressText: query });
+      if (!result.success || !result.location) {
+        throw new Error(result.message ?? 'Unable to validate that location.');
+      }
+      onSelectPlaceholder('');
+      applyValidatedLocation({
+        ...result.location,
+        source: 'MANUAL',
+      });
+    } catch (error) {
+      setLocationError(
+        error instanceof Error ? error.message : 'Unable to validate that location.',
+      );
+      setValue('latitude', undefined, { shouldValidate: true });
+      setValue('longitude', undefined, { shouldValidate: true });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleMapPress = async (event: MapPressEvent) => {
+    const coordinate = event.nativeEvent.coordinate;
+    setIsValidating(true);
+    setLocationError(null);
+    onSelectPlaceholder('');
+
+    try {
+      const result = await validateLocation({
+        latitude: coordinate.latitude,
+        longitude: coordinate.longitude,
+      });
+      if (!result.success || !result.location) {
+        throw new Error(result.message ?? 'Unable to validate that map point.');
+      }
+      applyValidatedLocation({
+        ...result.location,
+        source: locationSourceForMapPin(locationSource),
+      });
+    } catch (error) {
+      setLocationError(
+        error instanceof Error ? error.message : 'Unable to validate that map point.',
+      );
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text variant="titleMedium" style={styles.label}>
         Location
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        Type an address or pick a sample location. Map coordinates are required until GPS and map
-        selection are available.
+        Look up an address, tap the map to drop a pin, or pick a sample Beirut location.
       </Text>
 
       <Controller
@@ -42,16 +128,27 @@ export function LocationFields({
             value={value}
             onChangeText={(text) => {
               onChange(text);
-              setValue('latitude', undefined);
-              setValue('longitude', undefined);
-              setValue('locationSource', 'MANUAL');
-              onSelectPlaceholder('');
+              setLocationError(null);
+              if (selectedPlaceholderId) {
+                onSelectPlaceholder('');
+              }
             }}
             onBlur={onBlur}
-            error={Boolean(errors.addressText)}
+            error={Boolean(errors.addressText) || Boolean(locationError)}
           />
         )}
       />
+
+      <Button
+        mode="outlined"
+        onPress={() => {
+          void handleLookupAddress();
+        }}
+        disabled={isValidating}
+        icon="map-search"
+      >
+        {isValidating ? 'Validating…' : 'Look up address'}
+      </Button>
 
       <View style={styles.chipRow}>
         {PLACEHOLDER_LOCATIONS.map((location) => (
@@ -60,10 +157,13 @@ export function LocationFields({
             selected={selectedPlaceholderId === location.id}
             onPress={() => {
               onSelectPlaceholder(location.id);
-              setValue('addressText', location.addressText, { shouldValidate: true });
-              setValue('latitude', location.latitude);
-              setValue('longitude', location.longitude);
-              setValue('locationSource', 'PLACEHOLDER');
+              setLocationError(null);
+              applyValidatedLocation({
+                latitude: location.latitude,
+                longitude: location.longitude,
+                addressText: location.addressText,
+                source: 'PLACEHOLDER',
+              });
             }}
             style={styles.chip}
           >
@@ -72,17 +172,69 @@ export function LocationFields({
         ))}
       </View>
 
-      <View style={styles.mapPlaceholder}>
-        <Text variant="labelLarge">Map picker placeholder</Text>
-        <Text variant="bodySmall" style={styles.mapText}>
-          Interactive map selection will be added in a later sprint. For now, use the address field
-          or sample locations above.
-        </Text>
-      </View>
+      {Platform.OS === 'web' ? (
+        <View style={styles.mapPlaceholder}>
+          <Text variant="labelLarge">Map picker</Text>
+          <Text variant="bodySmall" style={styles.mapText}>
+            Interactive map pins are available in the iOS/Android app. On web, use address lookup or
+            a sample location.
+          </Text>
+          {hasPin ? (
+            <Text variant="bodySmall" style={styles.coordinates}>
+              Selected: {latitude?.toFixed(5)}, {longitude?.toFixed(5)}
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.mapContainer}>
+          <MapView
+            style={styles.map}
+            initialRegion={mapRegion}
+            region={hasPin ? mapRegion : undefined}
+            onPress={(event) => {
+              void handleMapPress(event);
+            }}
+          >
+            {hasPin ? (
+              <Marker
+                coordinate={{
+                  latitude: latitude as number,
+                  longitude: longitude as number,
+                }}
+                title="Report location"
+                description={addressText}
+              />
+            ) : null}
+          </MapView>
+          <Text variant="bodySmall" style={styles.mapHint}>
+            Tap the map to place or move the pin.
+          </Text>
+        </View>
+      )}
+
+      {isValidating ? (
+        <View style={styles.validatingRow}>
+          <ActivityIndicator animating />
+          <Text variant="bodySmall">Checking location…</Text>
+        </View>
+      ) : null}
+
+      {locationError ? (
+        <HelperText type="error" visible>
+          {locationError}
+        </HelperText>
+      ) : null}
 
       {errors.addressText ? (
         <HelperText type="error" visible>
           {errors.addressText.message}
+        </HelperText>
+      ) : null}
+
+      {hasPin ? (
+        <HelperText type="info" visible>
+          Coordinates ready ({latitude?.toFixed(5)}, {longitude?.toFixed(5)}) · source{' '}
+          {locationSource}
         </HelperText>
       ) : null}
     </View>
@@ -107,6 +259,22 @@ const styles = StyleSheet.create({
   chip: {
     marginBottom: 4,
   },
+  mapContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    gap: 6,
+  },
+  map: {
+    width: '100%',
+    height: 220,
+  },
+  mapHint: {
+    color: '#64748B',
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
   mapPlaceholder: {
     borderWidth: 1,
     borderColor: '#CBD5E1',
@@ -118,5 +286,14 @@ const styles = StyleSheet.create({
   },
   mapText: {
     color: '#64748B',
+  },
+  coordinates: {
+    color: '#334155',
+    marginTop: 4,
+  },
+  validatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });
