@@ -83,9 +83,9 @@ Creates a submitted citizen report ticket.
 | `contact.email` | string | Conditional | Required if `contact.phone` is not provided. |
 | `contact.preferredChannel` | enum | No | `SMS` or `EMAIL`. |
 | `location` | object | Yes | Report location. |
-| `location.latitude` | number | Yes | Latitude between `-90` and `90`. |
-| `location.longitude` | number | Yes | Longitude between `-180` and `180`. |
-| `location.addressText` | string | Yes | Typed address, landmark, or selected placeholder location text. |
+| `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
+| `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
+| `location.addressText` | string | Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters). |
 | `location.source` | enum | Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`. |
 | `imageObjectKey` | string | Yes | Stable image object key/reference used by the backend. |
 | `clientMetadata` | object | Yes | Client metadata sent by the mobile app. |
