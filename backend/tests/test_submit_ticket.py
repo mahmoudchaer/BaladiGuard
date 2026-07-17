@@ -1,5 +1,11 @@
+import math
+
+import pytest
+from pydantic import ValidationError
+
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
+from app.schemas.ticket import ReportLocation
 
 VALID_PAYLOAD = {
     "description": "Large pothole reported near the university gate causing traffic disruption.",
@@ -101,6 +107,96 @@ def test_submit_ticket_rejects_invalid_coordinates(client):
     body = response.json()
     assert body["error"]["code"] == "VALIDATION_ERROR"
     assert any("latitude" in detail["field"] for detail in body["error"]["details"])
+
+
+@pytest.mark.parametrize("invalid_latitude", ["33.896112", True, None])
+def test_submit_ticket_rejects_non_numeric_coordinates(client, invalid_latitude):
+    payload = {
+        **VALID_PAYLOAD,
+        "location": {
+            **VALID_PAYLOAD["location"],
+            "latitude": invalid_latitude,
+        },
+    }
+
+    response = client.post("/v1/tickets", json=payload)
+
+    assert response.status_code == 400
+    assert any(
+        detail["field"] == "location.latitude" for detail in response.json()["error"]["details"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("latitude", "longitude"),
+    [
+        (-90, -180),
+        (90, 180),
+        (0, 0),
+    ],
+)
+def test_submit_ticket_accepts_coordinate_boundaries(client, latitude, longitude):
+    payload = {
+        **VALID_PAYLOAD,
+        "location": {
+            **VALID_PAYLOAD["location"],
+            "latitude": latitude,
+            "longitude": longitude,
+        },
+    }
+
+    response = client.post("/v1/tickets", json=payload)
+
+    assert response.status_code == 201
+    stored = ticket_store.get(response.json()["ticketId"])
+    assert stored is not None
+    assert stored.location.latitude == latitude
+    assert stored.location.longitude == longitude
+
+
+@pytest.mark.parametrize("invalid_coordinate", [math.nan, math.inf, -math.inf])
+def test_report_location_rejects_non_finite_coordinates(invalid_coordinate):
+    with pytest.raises(ValidationError, match="finite number"):
+        ReportLocation(
+            latitude=invalid_coordinate,
+            longitude=35.478419,
+            addressText="Hamra, Beirut",
+            source="GPS",
+        )
+
+
+def test_submit_ticket_trims_readable_address(client):
+    payload = {
+        **VALID_PAYLOAD,
+        "location": {
+            **VALID_PAYLOAD["location"],
+            "addressText": "  Near AUB Main Gate, Hamra, Beirut  ",
+        },
+    }
+
+    response = client.post("/v1/tickets", json=payload)
+
+    assert response.status_code == 201
+    stored = ticket_store.get(response.json()["ticketId"])
+    assert stored is not None
+    assert stored.location.address_text == "Near AUB Main Gate, Hamra, Beirut"
+
+
+def test_submit_ticket_rejects_blank_address(client):
+    payload = {
+        **VALID_PAYLOAD,
+        "location": {
+            **VALID_PAYLOAD["location"],
+            "addressText": "   ",
+        },
+    }
+
+    response = client.post("/v1/tickets", json=payload)
+
+    assert response.status_code == 400
+    assert any(
+        detail["field"] == "location.addressText" for detail in response.json()["error"]["details"]
+    )
 
 
 def test_submit_ticket_requires_image_reference(client):
