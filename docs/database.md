@@ -188,6 +188,9 @@ medium
 high
 ```
 
+MVP urgency rules also define a `critical` level (score 75–100). Extending this enum and the
+admin/mobile types is part of urgency implementation (issue #29). See `docs/urgency-scoring.md`.
+
 ### Location source
 
 ```text
