@@ -22,10 +22,14 @@ Keep secrets in local `.env` files only — never commit real credentials.
   - DynamoDB: create/describe tables, read/write items
   - S3: put/get objects on the report-photos bucket
   - Bedrock Runtime: `InvokeModel` / `Converse` for the chosen vision model (issue #17)
+  - Amazon Location: `geo:SearchPlaceIndexForText` and `geo:SearchPlaceIndexForPosition`
+    for the configured place index (issue #24)
 - An S3 bucket for report photos (example name: `baladiguard-report-photos-dev`)
 - Backend dependencies installed (`pip install -r requirements.txt`)
 - For AI classification: enable model access in the Bedrock console
   (default `amazon.nova-lite-v1:0`)
+- For live geocoding: create an Amazon Location place index and set
+  `LOCATION_PLACE_INDEX_NAME` (leave empty to use the curated local Beirut index)
 
 ## 1. Configure environment
 
@@ -54,6 +58,10 @@ SEED_SAMPLE_TICKETS=false
 DYNAMODB_ENDPOINT_URL=
 
 AWS_S3_BUCKET=baladiguard-report-photos-dev
+
+# Optional for live Amazon Location geocoding (issue #24).
+# Leave empty to use the curated local Beirut place index.
+LOCATION_PLACE_INDEX_NAME=
 ```
 
 If `DYNAMODB_ENDPOINT_URL=http://localhost:8001`, the API will use **Docker DynamoDB Local**
@@ -161,7 +169,19 @@ Eval details:
 Set `BEDROCK_MODEL_ID=amazon.nova-lite-v1:0` (default) and ensure the IAM user can call
 Bedrock Runtime.
 
-## 6. Manual end-to-end verification checklist
+## 6. Location validation smoke (Amazon Location)
+
+Standalone location validation (issue #24):
+
+```bash
+cd backend
+python scripts/verify_location_validation.py
+```
+
+Requires `LOCATION_PLACE_INDEX_NAME` plus AWS credentials with Location access.
+When the place index env var is unset, API tests use the local Beirut place index instead.
+
+## 7. Manual end-to-end verification checklist
 
 1. Mobile app mock mode is off (`EXPO_PUBLIC_ENABLE_MOCK_API=false`).
 2. Submit a report with a photo from the mobile app (or run the script above).
