@@ -38,6 +38,49 @@ class Settings:
         except ValueError:
             self.ai_processing_claim_timeout_seconds = 300
 
+        self.duplicate_distance_threshold_m = self._float_setting(
+            "DUPLICATE_DISTANCE_THRESHOLD_M",
+            default=100.0,
+            minimum=1.0,
+        )
+        self.duplicate_min_score = self._float_setting(
+            "DUPLICATE_MIN_SCORE",
+            default=0.4,
+            minimum=0.0,
+            maximum=1.0,
+        )
+        self.duplicate_same_category_weight = self._float_setting(
+            "DUPLICATE_SAME_CATEGORY_WEIGHT",
+            default=1.0,
+            minimum=0.0,
+            maximum=1.0,
+        )
+        self.duplicate_similar_category_weight = self._float_setting(
+            "DUPLICATE_SIMILAR_CATEGORY_WEIGHT",
+            default=0.7,
+            minimum=0.0,
+            maximum=1.0,
+        )
+
+    @staticmethod
+    def _float_setting(
+        name: str,
+        *,
+        default: float,
+        minimum: float | None = None,
+        maximum: float | None = None,
+    ) -> float:
+        raw = os.getenv(name, str(default)).strip()
+        try:
+            value = float(raw)
+        except ValueError:
+            return default
+        if minimum is not None:
+            value = max(minimum, value)
+        if maximum is not None:
+            value = min(maximum, value)
+        return value
+
     @property
     def use_dynamodb(self) -> bool:
         return self.database_backend == "dynamodb"

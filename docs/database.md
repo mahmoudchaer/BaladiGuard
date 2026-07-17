@@ -136,6 +136,22 @@ At least one of `phone` or `email` is required for citizen users.
 | `duplicateGroupId` | string | Primary key. |
 | `createdAt` | string | ISO 8601 timestamp. |
 
+### Nearby duplicate detection (issue #25)
+
+Detection is a standalone backend helper (`find_nearby_duplicates`) and does **not** yet
+persist `duplicateGroupId` or create DuplicateGroup rows (staff merge is issue #27).
+
+Inputs: query category + latitude/longitude (+ optional ticket list / exclude id).
+
+Behavior:
+- Considers only open tickets: `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`
+- Matches the same category, or a similar category that shares a department mapping
+  (today: `road_damage` ↔ `sidewalk_damage`)
+- Uses haversine distance in meters
+- Configurable via `DUPLICATE_DISTANCE_THRESHOLD_M` (default `100`), `DUPLICATE_MIN_SCORE`
+  (default `0.4`), and category weight env vars
+- Returns candidate `ticketId`, `distanceMeters`, `score`, `categoryMatch`, and `status`
+
 ## Relationships
 
 ```text
