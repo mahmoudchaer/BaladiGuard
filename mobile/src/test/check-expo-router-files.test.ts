@@ -1,0 +1,74 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+
+const { validateExpoRouterFiles } = require('../../scripts/check-expo-router-files');
+
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  for (const tempDir of tempDirs.splice(0)) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+describe('validateExpoRouterFiles', () => {
+  it('allows valid Expo Router layouts, screens, and special route files', () => {
+    const appDir = createAppFixture({
+      '_layout.tsx': 'export default function Layout() { return null; }',
+      'index.tsx': 'export default function HomeScreen() { return null; }',
+      'report/index.tsx': 'export default function ReportScreen() { return null; }',
+      '+not-found.tsx': 'export default function NotFoundScreen() { return null; }',
+      '.gitkeep': '',
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([]);
+  });
+
+  it('rejects test files because Expo Router treats app files as routes', () => {
+    const appDir = createAppFixture({
+      'index.tsx': 'export default function HomeScreen() { return null; }',
+      'index.test.tsx': "import { describe } from 'vitest';",
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([
+      expect.stringContaining('index.test.tsx: test/spec/story files are not valid inside app/'),
+    ]);
+  });
+
+  it('rejects normal route files without a default export', () => {
+    const appDir = createAppFixture({
+      'report/index.tsx': 'export const ReportScreen = () => null;',
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([
+      expect.stringContaining('report/index.tsx: route files must export a React component'),
+    ]);
+  });
+
+  it('rejects unsupported files inside route directories', () => {
+    const appDir = createAppFixture({
+      'index.tsx': 'export default function HomeScreen() { return null; }',
+      'report/data.json': '{}',
+    });
+
+    expect(validateExpoRouterFiles(appDir)).toEqual([
+      expect.stringContaining('report/data.json: unsupported file type in app/'),
+    ]);
+  });
+});
+
+function createAppFixture(files: Record<string, string>) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'expo-router-check-'));
+  const appDir = path.join(tempDir, 'app');
+  tempDirs.push(tempDir);
+
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const filePath = path.join(appDir, relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, contents);
+  }
+
+  return appDir;
+}
