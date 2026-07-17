@@ -31,6 +31,7 @@ class Settings:
             os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0").strip()
             or "amazon.nova-lite-v1:0"
         )
+        self.location_place_index_name = os.getenv("LOCATION_PLACE_INDEX_NAME", "").strip() or None
 
     @property
     def use_dynamodb(self) -> bool:

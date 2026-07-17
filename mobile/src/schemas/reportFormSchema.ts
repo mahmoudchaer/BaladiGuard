@@ -52,7 +52,7 @@ export const reportFormSchema = z
     if (data.latitude === undefined || data.longitude === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Select a sample location to provide map coordinates.',
+        message: 'Look up an address, tap the map, or choose a sample location.',
         path: ['addressText'],
       });
     }

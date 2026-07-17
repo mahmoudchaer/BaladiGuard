@@ -1,5 +1,6 @@
+import math
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
@@ -53,17 +54,26 @@ class ReportContact(BaseModel):
 
 
 class ReportLocation(BaseModel):
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    latitude: float = Field(ge=-90, le=90, strict=True)
+    longitude: float = Field(ge=-180, le=180, strict=True)
     address_text: str = Field(alias="addressText", min_length=3, max_length=500)
     source: LocationSource
 
     model_config = {"populate_by_name": True}
 
-    @field_validator("address_text")
+    @field_validator("latitude", "longitude", mode="before")
     @classmethod
-    def normalize_address(cls, value: str) -> str:
-        return value.strip()
+    def validate_finite_coordinate(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError("Coordinate must be a finite number.")
+        if isinstance(value, (int, float)) and not math.isfinite(value):
+            raise ValueError("Coordinate must be a finite number.")
+        return value
+
+    @field_validator("address_text", mode="before")
+    @classmethod
+    def normalize_address(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
 
 
 class SubmitTicketRequest(BaseModel):

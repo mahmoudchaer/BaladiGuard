@@ -53,7 +53,7 @@ This document lists the agreed MVP technology choices only.
 | Area | Choice |
 |---|---|
 | Maps, geocoding, and location validation | Amazon Location Service |
-| MVP location input | Typed address or placeholder/sample location from mobile UI |
+| MVP location input | Typed address, map pin selection, or placeholder/sample location from mobile UI |
 
 ## Authentication
 

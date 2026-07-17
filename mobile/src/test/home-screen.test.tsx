@@ -1,8 +1,8 @@
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 
-import HomeScreen from '@/../app/index';
-import { renderWithProviders } from '@/test/render';
+import HomeScreen from '../../app/index';
+import { renderWithProviders } from './render';
 
 describe('HomeScreen', () => {
   it('renders the citizen reporting entry point', () => {

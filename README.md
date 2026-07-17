@@ -158,6 +158,7 @@ Project documentation is located in the `docs/` directory.
 - API Specification
 - Database Design
 - [Complaint Categories](docs/complaint-categories.md)
+- [Urgency Scoring Rules](docs/urgency-scoring.md)
 - [Local Database Setup](docs/local-database-setup.md)
 - [Cloud Setup (AWS DynamoDB + S3)](docs/cloud-setup.md)
 - Design Decisions
