@@ -32,6 +32,11 @@ class Settings:
             or "amazon.nova-lite-v1:0"
         )
         self.location_place_index_name = os.getenv("LOCATION_PLACE_INDEX_NAME", "").strip() or None
+        raw_claim_timeout = os.getenv("AI_PROCESSING_CLAIM_TIMEOUT_SECONDS", "300").strip()
+        try:
+            self.ai_processing_claim_timeout_seconds = max(1, int(raw_claim_timeout))
+        except ValueError:
+            self.ai_processing_claim_timeout_seconds = 300
 
     @property
     def use_dynamodb(self) -> bool:

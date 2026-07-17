@@ -51,7 +51,7 @@ export type TicketDepartment = {
   name?: string;
 };
 
-export type AiProcessingStatus = 'pending' | 'completed' | 'failed';
+export type AiProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export type TicketAiFields = {
   originalDescription?: string;

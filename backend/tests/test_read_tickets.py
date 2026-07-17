@@ -78,7 +78,10 @@ def test_get_ticket_returns_ticket_by_id(client):
     assert body["municipalityId"] == stored.municipality_id
     assert body["duplicateGroupId"] == stored.duplicate_group_id
     assert body["createdAt"] == created["createdAt"]
-    assert body["updatedAt"] == created["createdAt"]
+    # AI processing runs after create and refreshes updatedAt.
+    assert body["updatedAt"] is not None
+    assert body["updatedAt"] >= created["createdAt"]
+    assert body["ai"]["aiProcessingStatus"] == "completed"
 
 
 def test_get_ticket_returns_404_for_unknown_ticket(client):

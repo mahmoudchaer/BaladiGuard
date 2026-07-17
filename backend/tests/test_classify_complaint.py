@@ -128,6 +128,9 @@ def test_empty_explanation_uses_fallback_but_keeps_category() -> None:
     assert result.explanation == FALLBACK_EXPLANATION, (
         "classify_complaint.empty_explanation: expected FALLBACK_EXPLANATION"
     )
+    assert result.used_fallback is False, (
+        "classify_complaint.empty_explanation: a valid category is not a fallback"
+    )
 
 
 def test_whitespace_category_falls_back() -> None:

@@ -20,6 +20,18 @@ class TicketStore(Protocol):
         updated_at: str,
     ) -> StoredTicket | None: ...
 
+    def claim_ai_processing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+    ) -> StoredTicket | None: ...
+
+    def release_ai_processing_claim(
+        self,
+        ticket_id: str,
+        updated_at: str,
+    ) -> StoredTicket | None: ...
+
     def has_ticket_id(self, ticket_id: str) -> bool: ...
 
     def has_ticket_number(self, ticket_number: str) -> bool: ...
