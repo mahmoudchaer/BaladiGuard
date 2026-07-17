@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Ticket, TicketStatus } from '@/types/ticket';
-import { fetchTicketById, updateTicketStatus } from '@/services/tickets';
+import { fetchTicketById, reviewTicketCategory, updateTicketStatus } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -9,7 +9,12 @@ import { TicketPhoto } from '@/components/TicketPhoto';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
-import { formatCreatedDate, formatStatus } from '@/utils/labels';
+import {
+  formatCategory,
+  formatCreatedDate,
+  formatStatus,
+  SUPPORTED_CATEGORY_OPTIONS,
+} from '@/utils/labels';
 import { formatDepartment } from '@/utils/departments';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
@@ -25,6 +30,9 @@ export function TicketDetailPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [categoryReviewError, setCategoryReviewError] = useState<string | null>(null);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
 
   useEffect(() => {
     if (!ticketId) {
@@ -52,6 +60,7 @@ export function TicketDetailPage() {
         }
 
         setTicket(data);
+        setSelectedCategory(data.ai?.finalCategory ?? data.ai?.aiSuggestedCategory ?? '');
         setLoadState('success');
       } catch (error) {
         if (!cancelled) {
@@ -91,6 +100,40 @@ export function TicketDetailPage() {
       setStatusUpdateError(message);
     } finally {
       setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleCategoryReview = async (finalCategory: string) => {
+    if (!ticket) {
+      return;
+    }
+
+    if (!SUPPORTED_CATEGORY_OPTIONS.some((category) => category === finalCategory)) {
+      setCategoryReviewError('Select a supported category before saving.');
+      return;
+    }
+
+    setSelectedCategory(finalCategory);
+    setIsSavingCategory(true);
+    setCategoryReviewError(null);
+
+    try {
+      const updatedTicket = await reviewTicketCategory(ticket.ticketId, { finalCategory });
+
+      if (!updatedTicket) {
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+
+      setTicket(updatedTicket);
+      setSelectedCategory(updatedTicket.ai?.finalCategory ?? finalCategory);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to save the category review.';
+      setCategoryReviewError(message);
+    } finally {
+      setIsSavingCategory(false);
     }
   };
 
@@ -158,6 +201,126 @@ export function TicketDetailPage() {
                   </h2>
                   <p className="ticket-detail__description">{ticket.description}</p>
                 </div>
+
+                <section
+                  className="ticket-detail__category-review"
+                  aria-labelledby="category-review-heading"
+                >
+                  <div className="ticket-detail__category-review-heading">
+                    <div>
+                      <p className="ticket-detail__eyebrow">Staff review</p>
+                      <h2 id="category-review-heading">AI category recommendation</h2>
+                    </div>
+                    {ticket.ai?.finalCategory && (
+                      <span className="ticket-detail__review-status">Reviewed</span>
+                    )}
+                  </div>
+
+                  {ticket.ai?.aiProcessingStatus === 'pending' && (
+                    <p className="ticket-detail__review-notice" role="status">
+                      AI processing is still in progress. Category review will be available when it
+                      finishes.
+                    </p>
+                  )}
+
+                  {ticket.ai?.aiProcessingStatus === 'failed' && !ticket.ai.aiSuggestedCategory && (
+                    <p
+                      className="ticket-detail__review-notice ticket-detail__review-notice--warning"
+                      role="status"
+                    >
+                      AI could not recommend a category. Select the correct category manually.
+                    </p>
+                  )}
+
+                  {ticket.ai?.aiSuggestedCategory && (
+                    <div className="ticket-detail__suggestion">
+                      <div className="ticket-detail__suggestion-label">AI suggestion</div>
+                      <CategoryBadge category={ticket.ai.aiSuggestedCategory} />
+                      {ticket.ai.aiCategoryExplanation && <p>{ticket.ai.aiCategoryExplanation}</p>}
+                      {ticket.ai.aiConfidence !== undefined && (
+                        <span className="ticket-detail__confidence">
+                          Confidence {Math.round(ticket.ai.aiConfidence * 100)}%
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {ticket.ai?.finalCategory && (
+                    <div className="ticket-detail__review-result" role="status">
+                      <span>Final category</span>
+                      <CategoryBadge category={ticket.ai.finalCategory} />
+                      {ticket.ai.categoryReviewedAt && (
+                        <small>
+                          Reviewed
+                          {ticket.ai.categoryReviewedBy
+                            ? ` by ${ticket.ai.categoryReviewedBy}`
+                            : ''}
+                          {' on '}
+                          <time dateTime={ticket.ai.categoryReviewedAt}>
+                            {formatCreatedDate(ticket.ai.categoryReviewedAt)}
+                          </time>
+                        </small>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="ticket-detail__review-controls">
+                    <label htmlFor="category-review-select">Final category</label>
+                    <select
+                      id="category-review-select"
+                      value={selectedCategory}
+                      onChange={(event) => {
+                        setSelectedCategory(event.target.value);
+                        setCategoryReviewError(null);
+                      }}
+                      disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+                    >
+                      <option value="">Select a category</option>
+                      {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
+                        <option key={category} value={category}>
+                          {formatCategory(category)}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="ticket-detail__review-actions">
+                      {ticket.ai?.aiSuggestedCategory && (
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                          onClick={() =>
+                            void handleCategoryReview(ticket.ai?.aiSuggestedCategory ?? '')
+                          }
+                          disabled={
+                            isSavingCategory ||
+                            ticket.ai.aiProcessingStatus === 'pending' ||
+                            ticket.ai.finalCategory === ticket.ai.aiSuggestedCategory
+                          }
+                        >
+                          Accept AI suggestion
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="ticket-detail__review-button"
+                        onClick={() => void handleCategoryReview(selectedCategory)}
+                        disabled={
+                          isSavingCategory ||
+                          ticket.ai?.aiProcessingStatus === 'pending' ||
+                          !selectedCategory
+                        }
+                      >
+                        {isSavingCategory ? 'Saving category...' : 'Save final category'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {categoryReviewError && (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {categoryReviewError}
+                    </p>
+                  )}
+                </section>
 
                 <div className="ticket-detail__location-card ticket-detail__card--location">
                   <h2 className="ticket-detail__section-title">
