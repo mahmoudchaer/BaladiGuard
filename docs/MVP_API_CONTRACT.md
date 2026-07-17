@@ -572,7 +572,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `department.departmentId` | string | Department identifier. |
 | `department.name` | string | Display name when available. |
 | `ai.originalDescription` | string | Immutable citizen description captured at submission. |
-| `ai.cleanedDescription` | string | AI-normalized description when available. |
+| `ai.cleanedDescription` | string | English-normalized municipal description when available. |
 | `ai.aiSuggestedCategory` | string | AI category suggestion when available. |
 | `ai.aiCategoryExplanation` | string | Short AI explanation for the suggested category. |
 | `ai.aiConfidence` | number | Optional confidence value between `0` and `1` when available. |

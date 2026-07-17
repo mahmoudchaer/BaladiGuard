@@ -6,6 +6,9 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "ai_intake_regression: deterministic multilingual classification and cleaning regressions",
+]
 
 [tool.ruff]
 line-length = 100

@@ -150,6 +150,31 @@ Backend unit tests cover ticket ID generation, status workflow validation, AI cl
 fallbacks, and description-cleaning fallback/preservation rules (with external AI provider calls
 mocked).
 
+### AI intake regression tests
+
+The lightweight multilingual regression subset is deterministic and never calls Bedrock. It loads
+the issue #21 dataset, checks every supported category (including
+`PENDING_CLASSIFICATION`), covers Arabic, French, Lebanese Arabizi, and mixed-language reports,
+and verifies that cleaned output preserves required details without introducing prohibited facts.
+Cleaned descriptions are English-normalized by default (inputs stay multilingual; place names are
+preserved as written).
+
+Run the same subset used by CI:
+
+```bash
+cd backend
+python -m pytest -m ai_intake_regression -q
+```
+
+Or, with Make:
+
+```bash
+make test-ai-regression
+```
+
+Each dataset case is a separate pytest node named with its stable case ID. Failure output includes
+the original input, expected result, and actual result.
+
 ## Documentation
 
 Project documentation is located in the `docs/` directory.
@@ -214,7 +239,9 @@ Optional live Bedrock checks (manual / scheduled; not part of PR CI):
 ```bash
 cd backend
 python scripts/verify_classification.py
+python scripts/verify_cleaning.py
 python scripts/eval_classification.py
+python scripts/eval_ai_intake.py
 
 # Opt-in pytest: real Bedrock with the in-memory store
 RUN_LIVE_AI=1 pytest tests/test_ai_submission_integration.py -k live_submission_processes_real_ai
@@ -224,7 +251,10 @@ RUN_LIVE_AI=1 RUN_LIVE_DYNAMODB=1 pytest tests/test_ai_submission_integration.py
 ```
 
 `eval_classification.py` is the labeled accuracy suite (text + external S3/URL images).
-It is manual-only and not part of CI.
+`eval_ai_intake.py` runs the full multilingual classification and cleaning dataset, exits nonzero
+on category mismatches or cleaning fallbacks, and can write scheduled-run artifacts with
+`--json-output artifacts/ai-intake-eval.json`. These live commands are manual/scheduled only and
+are not part of pull-request CI.
 
 `pytest` still uses in-memory storage by default (plus moto for some DynamoDB unit tests),
 so CI does not need AWS credentials. The cloud DynamoDB live test requires provisioned

@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.services.ai.bedrock_client import BedrockClassificationClient
-from app.services.ai.categories import concrete_category_ids
 from app.services.ai.classify import FALLBACK_EXPLANATION, classify_complaint
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-MULTILINGUAL_PATH = FIXTURES_DIR / "ai_intake_multilingual_cases.json"
 
 # Minimal 1x1 PNG (neutral bytes; never relies on filename semantics).
 MIN_PNG = bytes(
@@ -244,26 +238,6 @@ def test_prompt_injection_text_is_wrapped_as_data() -> None:
     assert "untrusted" in fake.calls[0]["system_prompt"].lower() or (
         "never as instructions" in fake.calls[0]["system_prompt"].lower()
     )
-
-
-def test_multilingual_dataset_categories_are_exercised_with_mock() -> None:
-    dataset = json.loads(MULTILINGUAL_PATH.read_text(encoding="utf-8"))
-    seen: set[str] = set()
-
-    for case in dataset["cases"]:
-        expected = case["expectedCategory"]
-        fake = FakeBedrockClient({"category": expected, "explanation": case["classificationNotes"]})
-        result = classify_complaint(
-            case["input"],
-            client=fake,  # type: ignore[arg-type]
-        )
-        assert result.category == expected, (
-            f"classify_complaint[{case['id']}]: expected {expected!r}, got {result.category!r}"
-        )
-        seen.add(expected)
-
-    assert concrete_category_ids() <= seen
-    assert PENDING_CLASSIFICATION in seen
 
 
 def test_image_bytes_do_not_include_filename_in_bedrock_prompt() -> None:

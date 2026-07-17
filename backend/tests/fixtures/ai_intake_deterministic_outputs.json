@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0",
+  "datasetId": "ai-intake-multilingual-mvp-v1",
+  "outputs": {
+    "ai-multi-001-road-damage-en": {
+      "category": "road_damage",
+      "cleanedDescription": "Large pothole on Bliss Street near AUB main gate is causing traffic impact."
+    },
+    "ai-multi-002-waste-ar": {
+      "category": "waste",
+      "cleanedDescription": "Overflowing bins near the school in Mar Elias have caused a strong odor since yesterday."
+    },
+    "ai-multi-003-street-lighting-fr": {
+      "category": "street_lighting",
+      "cleanedDescription": "Street light outside building 24 on Rue Gouraud has failed for three nights, leaving a very dark street."
+    },
+    "ai-multi-004-water-leak-arabizi": {
+      "category": "water_leak",
+      "cleanedDescription": "A broken pipe near the pharmacy in Verdun is causing water on the road."
+    },
+    "ai-multi-005-noise-mixed": {
+      "category": "noise",
+      "cleanedDescription": "Construction noise after midnight near Sassine Square means residents cannot sleep."
+    },
+    "ai-multi-006-sidewalk-damage-en-typo": {
+      "category": "sidewalk_damage",
+      "cleanedDescription": "Broken raised sidewalk tiles on Hamra Main Street caused a near trip for a person using a walker."
+    },
+    "ai-multi-007-traffic-signal-ar": {
+      "category": "traffic_signal",
+      "cleanedDescription": "Traffic signal at Adlieh intersection has been stuck on red since morning and is causing traffic disorder."
+    },
+    "ai-multi-008-drainage-arabizi-typo": {
+      "category": "drainage",
+      "cleanedDescription": "A blocked drain on airport road is causing flooding after rain, with water reaching nearby shops."
+    },
+    "ai-multi-009-public-facilities-fr": {
+      "category": "public_facilities",
+      "cleanedDescription": "A broken bench in Sanayeh public garden has exposed sharp screws that endanger children."
+    },
+    "ai-multi-010-uncategorized-ar-out-of-scope": {
+      "category": "PENDING_CLASSIFICATION",
+      "cleanedDescription": "The citizen asks about a music event at the waterfront this weekend and its ticket prices."
+    },
+    "ai-multi-011-road-vs-drainage-ambiguous": {
+      "category": "road_damage",
+      "cleanedDescription": "A large hole near curb in Gemmayze fills with water after rain and is surrounded by cracked asphalt."
+    },
+    "ai-multi-012-waste-vs-noise-ambiguous-arabizi": {
+      "category": "waste",
+      "cleanedDescription": "Opened garbage bags near entrance are causing odor; a garbage truck at 5 AM also creates noise."
+    },
+    "ai-multi-013-street-lighting-arabizi-spelling": {
+      "category": "street_lighting",
+      "cleanedDescription": "Street light out near building 12 in Mar Mikhael is causing poor night visibility."
+    },
+    "ai-multi-014-water-vs-drainage-fr-mixed": {
+      "category": "water_leak",
+      "cleanedDescription": "Water from sidewalk near the cafe in Badaro is not rain and may be from a likely broken pipe."
+    },
+    "ai-multi-015-public-facilities-en-informal": {
+      "category": "public_facilities",
+      "cleanedDescription": "The playground slide in the municipal playground has cracked plastic and a sharp edge."
+    }
+  }
+}

@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 from app.schemas.cleaning import MAX_CLEANED_DESCRIPTION_LENGTH
 from app.services.ai.bedrock_client import BedrockClassificationClient, BedrockCleaningError
 from app.services.ai.clean import FALLBACK_MESSAGE, clean_report_description
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-MULTILINGUAL_PATH = FIXTURES_DIR / "ai_intake_multilingual_cases.json"
 
 
 class FakeBedrockClient:
@@ -109,8 +104,9 @@ def test_system_prompt_encodes_preservation_and_no_invention_rules() -> None:
     assert "do not invent" in prompt, (
         "clean_report_description.preserve_rules: system prompt must forbid invented facts"
     )
-    assert "not translation" in prompt or "cleaning, not translation" in prompt, (
-        "clean_report_description.preserve_rules: system prompt must keep original language"
+    assert "english-normalized" in prompt or "professional english" in prompt, (
+        "clean_report_description.preserve_rules: "
+        "system prompt must default to English-normalized output"
     )
 
 
@@ -230,36 +226,6 @@ def test_output_is_trimmed_to_documented_max_length() -> None:
     )
     assert result.cleaned_description is not None
     assert len(result.cleaned_description) <= MAX_CLEANED_DESCRIPTION_LENGTH
-
-
-def test_multilingual_dataset_cases_are_exercised_with_mock() -> None:
-    dataset = json.loads(MULTILINGUAL_PATH.read_text(encoding="utf-8"))
-    language_tags: set[str] = set()
-
-    for case in dataset["cases"]:
-        must_preserve = case["cleaningExpectations"]["mustPreserve"]
-        # Deterministic mock: include mustPreserve tokens so unit tests can assert
-        # preservation-rule handling without calling a live model (#67 / #70 split).
-        cleaned = "Municipal report: " + "; ".join(must_preserve) + "."
-        fake = FakeBedrockClient({"cleanedDescription": cleaned})
-        result = clean_report_description(case["input"], client=fake)  # type: ignore[arg-type]
-        assert result.cleaned_description is not None, (
-            f"clean_report_description.dataset[{case['id']}]: expected cleaned text"
-        )
-        assert result.used_fallback is False, (
-            f"clean_report_description.dataset[{case['id']}]: expected success path"
-        )
-        assert case["input"] in fake.calls[0]["user_text"], (
-            f"clean_report_description.dataset[{case['id']}]: original input must be forwarded"
-        )
-        for token in must_preserve:
-            assert token.lower() in result.cleaned_description.lower(), (
-                f"clean_report_description.dataset[{case['id']}].preserve: "
-                f"missing {token!r} in {result.cleaned_description!r}"
-            )
-        language_tags.update(case["languageTags"])
-
-    assert {"en", "ar", "fr", "arabizi", "mixed"} <= language_tags
 
 
 def test_bedrock_client_clean_description_parses_tool_use_payload() -> None:
