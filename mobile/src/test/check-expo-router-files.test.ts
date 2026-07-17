@@ -74,7 +74,9 @@ describe('validateExpoRouterFiles', () => {
     });
 
     expect(validateExpoRouterFiles(appDir)).toEqual([
-      expect.stringContaining('__tests__/index.tsx: __tests__ directories are not valid inside app/'),
+      expect.stringContaining(
+        '__tests__/index.tsx: __tests__ directories are not valid inside app/',
+      ),
       expect.stringContaining(
         'report/__mocks__/mock.tsx: __mocks__ directories are not valid inside app/',
       ),

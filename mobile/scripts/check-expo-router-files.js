@@ -93,15 +93,12 @@ function isSpecialRouteFile(routeName) {
 function hasDefaultExport(contents) {
   const code = stripJavaScriptComments(contents);
   return (
-    /\bexport\s+default\b/.test(code) ||
-    /\bexport\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(code)
+    /\bexport\s+default\b/.test(code) || /\bexport\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(code)
   );
 }
 
 function stripJavaScriptComments(contents) {
-  return contents
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  return contents.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 if (require.main === module) {
