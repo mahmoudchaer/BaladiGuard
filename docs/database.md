@@ -141,7 +141,8 @@ At least one of `phone` or `email` is required for citizen users.
 Detection is a standalone backend helper (`find_nearby_duplicates`) and does **not** yet
 persist `duplicateGroupId` or create DuplicateGroup rows (staff merge is issue #27).
 
-Inputs: query category + latitude/longitude (+ optional ticket list / exclude id).
+Inputs: query category, latitude/longitude, and a required sequence of tickets to search
+(plus an optional `exclude_ticket_id` so a ticket is not matched against itself).
 
 Behavior:
 - Considers only open tickets: `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`
