@@ -460,7 +460,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `description` | string | Citizen-submitted issue description. |
 | `contact` | `ReportContact` or null | Citizen contact details when available to staff. |
 | `category` | string | Current category value, for example `road_damage` or `PENDING_CLASSIFICATION`. |
-| `priority` | enum or null | `low`, `medium`, or `high`; represents urgency/priority when known. |
+| `priority` | enum or null | `low`, `medium`, or `high`; represents urgency/priority when known. MVP urgency rules also define `critical` (see `docs/urgency-scoring.md`; storage/UI extension tracked in #29). |
 | `status` | `TicketStatus` | Current workflow status. |
 | `location` | `ReportLocation` | Same location object used by ticket submission. |
 | `imageReferences` | array | One or more stable image references for display. |
