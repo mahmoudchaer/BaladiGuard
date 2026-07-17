@@ -245,6 +245,67 @@ Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, and `s
 | `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
 | `INVALID_STATUS_TRANSITION` | 400 | Requested status is not allowed from the ticket's current status. |
 
+## `POST /v1/locations/validate`
+
+Validates a citizen-reported location. Accepts either a readable address or a
+latitude/longitude pair and returns a normalized location suitable for ticket submission.
+
+Uses Amazon Location Service when `LOCATION_PLACE_INDEX_NAME` is configured. When the place
+index is unset, the backend falls back to a curated Beirut local place index for local/CI use.
+
+### Request body (address)
+
+```json
+{
+  "addressText": "AUB Main Gate, Hamra, Beirut"
+}
+```
+
+### Request body (coordinates)
+
+```json
+{
+  "latitude": 33.896112,
+  "longitude": 35.478419
+}
+```
+
+### Request fields
+
+| Field | Type | Required | Notes |
+|---|---|---:|---|
+| `addressText` | string | Conditional | Required when coordinates are not provided. Minimum 3 characters after trim. |
+| `latitude` | number | Conditional | Required with `longitude`. Finite value between `-90` and `90`. |
+| `longitude` | number | Conditional | Required with `latitude`. Finite value between `-180` and `180`. |
+
+Provide either `addressText` or both coordinates. Partial coordinate pairs are rejected.
+
+### Response `200`
+
+```json
+{
+  "success": true,
+  "location": {
+    "latitude": 33.896112,
+    "longitude": 35.478419,
+    "addressText": "Near AUB Main Gate, Hamra, Beirut",
+    "source": "MANUAL"
+  },
+  "message": "Location validated successfully."
+}
+```
+
+`source` is `MANUAL` for address lookup and `GPS` for coordinate reverse lookup.
+
+### Location validation error codes
+
+| Code | Status | Meaning |
+|---|---:|---|
+| `VALIDATION_ERROR` | 400 | Missing address/coordinates or invalid field values. |
+| `LOCATION_NOT_FOUND` | 400 | Provider could not resolve the address/point. |
+| `LOCATION_OUT_OF_SERVICE_AREA` | 400 | Coordinates are outside the supported service area. |
+| `LOCATION_PROVIDER_UNAVAILABLE` | 502 | Amazon Location request failed or returned incomplete data. |
+
 ## `POST /v1/uploads/report-photo`
 
 Uploads one citizen report photo to project storage and returns a stable image object key. The

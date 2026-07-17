@@ -28,6 +28,7 @@
     "react-dom": "19.1.0",
     "react-hook-form": "^7.54.2",
     "react-native": "0.81.5",
+    "react-native-maps": "1.20.1",
     "react-native-paper": "^5.13.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
