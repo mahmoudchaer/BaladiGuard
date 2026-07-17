@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
@@ -12,8 +12,13 @@ router = APIRouter(prefix="/v1", tags=["tickets"])
 
 
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
-def submit_ticket(payload: SubmitTicketRequest) -> SubmitTicketResponse:
-    return ticket_service.submit_ticket(payload)
+def submit_ticket(
+    payload: SubmitTicketRequest,
+    background_tasks: BackgroundTasks,
+) -> SubmitTicketResponse:
+    response = ticket_service.submit_ticket(payload)
+    background_tasks.add_task(ticket_service.process_ticket_ai, response.ticket_id)
+    return response
 
 
 @router.get("/tickets", response_model=list[TicketResponse])

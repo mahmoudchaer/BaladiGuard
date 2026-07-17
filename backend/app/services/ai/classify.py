@@ -95,6 +95,7 @@ def classify_complaint(
             category=PENDING_CLASSIFICATION,
             explanation=explanation,
             used_inputs=used_inputs,
+            used_fallback=True,
         )
 
     if (
@@ -106,6 +107,7 @@ def classify_complaint(
             category=PENDING_CLASSIFICATION,
             explanation="Report text is too short to classify without an image.",
             used_inputs=used_inputs,
+            used_fallback=True,
         )
 
     bedrock = client or bedrock_classification_client
@@ -133,6 +135,7 @@ def classify_complaint(
             category=PENDING_CLASSIFICATION,
             explanation=FALLBACK_EXPLANATION,
             used_inputs=used_inputs,
+            used_fallback=True,
         )
 
 
@@ -225,8 +228,11 @@ def _validated_result(
             category=PENDING_CLASSIFICATION,
             explanation=FALLBACK_EXPLANATION,
             used_inputs=used_inputs,
+            used_fallback=True,
         )
 
+    # A valid category is a successful classification even if the model omitted the
+    # explanation; only default the text, never flag it as a fallback.
     if not explanation:
         explanation = FALLBACK_EXPLANATION
 
@@ -234,4 +240,5 @@ def _validated_result(
         category=category,
         explanation=explanation,
         used_inputs=used_inputs,
+        used_fallback=False,
     )

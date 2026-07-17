@@ -41,7 +41,10 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
         assert stored.status == "SUBMITTED"
         assert stored.category == PENDING_CLASSIFICATION
         assert stored.created_at == body["createdAt"]
-        assert stored.updated_at == body["createdAt"]
+        # AI processing runs after create and refreshes updatedAt.
+        assert stored.updated_at is not None
+        assert stored.updated_at >= body["createdAt"]
+        assert stored.ai_processing_status == "completed"
 
         get_response = client.get(f"/v1/tickets/{body['ticketId']}")
         assert get_response.status_code == 200
@@ -52,7 +55,9 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
         assert retrieved["imageObjectKey"] == VALID_PAYLOAD["imageObjectKey"]
         assert retrieved["imageReferences"][0]["objectKey"] == VALID_PAYLOAD["imageObjectKey"]
         assert retrieved["createdAt"] == body["createdAt"]
-        assert retrieved["updatedAt"] == body["createdAt"]
+        assert retrieved["updatedAt"] is not None
+        assert retrieved["updatedAt"] >= body["createdAt"]
+        assert retrieved["ai"]["aiProcessingStatus"] == "completed"
         assert retrieved["description"] == VALID_PAYLOAD["description"]
     finally:
         ticket_service._store = original_store

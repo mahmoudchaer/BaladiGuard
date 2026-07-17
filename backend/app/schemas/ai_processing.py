@@ -1,3 +1,3 @@
 from typing import Literal
 
-AiProcessingStatus = Literal["pending", "completed", "failed"]
+AiProcessingStatus = Literal["pending", "processing", "completed", "failed"]

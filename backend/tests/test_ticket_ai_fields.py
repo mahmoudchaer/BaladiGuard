@@ -10,20 +10,20 @@ from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
-def test_submit_ticket_sets_original_description_and_pending_ai_status(client):
+def test_submit_ticket_processes_ai_without_overwriting_original_description(client):
     created = create_ticket(client)
 
     stored = ticket_store.get(created["ticketId"])
     assert stored is not None
     assert stored.description == VALID_PAYLOAD["description"]
     assert stored.original_description == VALID_PAYLOAD["description"]
-    assert stored.ai_processing_status == "pending"
-    assert stored.cleaned_description is None
-    assert stored.ai_suggested_category is None
+    assert stored.ai_processing_status == "completed"
+    assert stored.cleaned_description == VALID_PAYLOAD["description"]
+    assert stored.ai_suggested_category == "road_damage"
     assert stored.final_category is None
 
 
-def test_get_ticket_returns_ai_fields_with_pending_status(client):
+def test_get_ticket_returns_completed_ai_fields(client):
     created = create_ticket(client)
 
     response = client.get(f"/v1/tickets/{created['ticketId']}")
@@ -32,9 +32,9 @@ def test_get_ticket_returns_ai_fields_with_pending_status(client):
     body = response.json()
     assert body["description"] == VALID_PAYLOAD["description"]
     assert body["ai"]["originalDescription"] == VALID_PAYLOAD["description"]
-    assert body["ai"]["aiProcessingStatus"] == "pending"
-    assert body["ai"]["cleanedDescription"] is None
-    assert body["ai"]["aiSuggestedCategory"] is None
+    assert body["ai"]["aiProcessingStatus"] == "completed"
+    assert body["ai"]["cleanedDescription"] == VALID_PAYLOAD["description"]
+    assert body["ai"]["aiSuggestedCategory"] == "road_damage"
     assert body["ai"]["finalCategory"] is None
 
 

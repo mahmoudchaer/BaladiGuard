@@ -88,7 +88,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeAiProcessingStatus(value: unknown): AiProcessingStatus | undefined {
-  if (value === 'pending' || value === 'completed' || value === 'failed') {
+  if (
+    value === 'pending' ||
+    value === 'processing' ||
+    value === 'completed' ||
+    value === 'failed'
+  ) {
     return value;
   }
   return undefined;
