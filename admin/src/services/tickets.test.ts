@@ -94,3 +94,79 @@ describe('updateTicketStatus', () => {
     expect(updatedTicket?.ai?.aiModelVersion).toBe('amazon.nova-lite-v1:0');
   });
 });
+
+describe('ticket location normalization', () => {
+  it('normalizes valid coordinates and readable addresses in list responses', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              ...apiTicket,
+              location: {
+                ...apiTicket.location,
+                latitude: 90,
+                longitude: 180,
+                addressText: '  Beirut waterfront  ',
+              },
+            },
+          ]),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    );
+
+    const { fetchTickets } = await import('@/services/tickets');
+    const tickets = await fetchTickets();
+
+    expect(tickets[0].location).toEqual({
+      latitude: 90,
+      longitude: 180,
+      addressText: 'Beirut waterfront',
+      source: 'GPS',
+    });
+  });
+
+  it.each([
+    ['missing latitude', { longitude: 35.5018, addressText: 'Beirut', source: 'GPS' }],
+    [
+      'out-of-range latitude',
+      { latitude: 91, longitude: 35.5018, addressText: 'Beirut', source: 'GPS' },
+    ],
+    [
+      'string longitude',
+      { latitude: 33.8938, longitude: '35.5018', addressText: 'Beirut', source: 'GPS' },
+    ],
+    ['blank address', { latitude: 33.8938, longitude: 35.5018, addressText: ' ', source: 'GPS' }],
+    [
+      'unknown source',
+      { latitude: 33.8938, longitude: 35.5018, addressText: 'Beirut', source: 'UNKNOWN' },
+    ],
+  ])('rejects %s instead of substituting a map coordinate', async (_label, location) => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ...apiTicket, location }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    const { fetchTicketById } = await import('@/services/tickets');
+
+    await expect(fetchTicketById('tkt_123')).rejects.toThrow(
+      'Unexpected ticket location response shape.',
+    );
+  });
+});
