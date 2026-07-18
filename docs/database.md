@@ -151,7 +151,7 @@ Behavior:
 - Uses haversine distance in meters
 - Configurable via `DUPLICATE_DISTANCE_THRESHOLD_M` (default `100`), `DUPLICATE_MIN_SCORE`
   (default `0.4`), and category weight env vars
-- Returns candidate `ticketId`, `distanceMeters`, `score`, `categoryMatch`, and `status`
+- Returns candidate `ticketId`, `distanceMeters`, `score`, `category`, `categoryMatch`, and `status`
 
 ## Relationships
 
