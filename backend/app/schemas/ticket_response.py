@@ -6,7 +6,7 @@ from app.schemas.ai_processing import AiProcessingStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
-TicketPriority = Literal["low", "medium", "high"]
+TicketPriority = Literal["low", "medium", "high", "critical"]
 
 
 class TicketImageReference(BaseModel):
@@ -40,6 +40,7 @@ class TicketAiFields(BaseModel):
     )
     ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
     suggested_category: str | None = Field(default=None, alias="suggestedCategory")
+    urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)
     urgency_reason: str | None = Field(default=None, alias="urgencyReason")
     summary: str | None = None
 

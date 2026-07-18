@@ -74,6 +74,8 @@ describe('updateTicketStatus', () => {
             aiProcessingStatus: 'completed',
             aiModelVersion: 'amazon.nova-lite-v1:0',
             suggestedCategory: 'street_lighting',
+            urgencyScore: 75,
+            urgencyReason: 'Critical (75): immediate safety danger.',
           },
         }),
         {
@@ -92,6 +94,28 @@ describe('updateTicketStatus', () => {
     expect(updatedTicket?.ai?.aiSuggestedCategory).toBe('street_lighting');
     expect(updatedTicket?.ai?.aiProcessingStatus).toBe('completed');
     expect(updatedTicket?.ai?.aiModelVersion).toBe('amazon.nova-lite-v1:0');
+    expect(updatedTicket?.ai?.urgencyScore).toBe(75);
+    expect(updatedTicket?.ai?.urgencyReason).toContain('immediate safety danger');
+  });
+
+  it('preserves critical priorities from the ticket read response shape', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify([{ ...apiTicket, priority: 'critical' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    const { fetchTickets } = await import('@/services/tickets');
+    const tickets = await fetchTickets();
+
+    expect(tickets[0].priority).toBe('critical');
   });
 });
 

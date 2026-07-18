@@ -19,6 +19,9 @@ from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
 from app.services.complaints.ticket_read_mapper import map_ticket_to_response
+from app.services.duplicates import find_nearby_duplicates
+from app.services.duplicates.detect import effective_ticket_category
+from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_status_history_id,
     generate_ticket_id,
@@ -135,6 +138,27 @@ class TicketService:
             # was produced at all. A valid category must never be discarded because
             # cleaning fell back (or vice versa).
             processing_failed = not classification_ok and not cleaning_ok
+            scoring_category = (
+                classification.category if classification_ok else effective_ticket_category(ticket)
+            )
+            scoring_description = (
+                cleaning.cleaned_description
+                if cleaning_ok
+                else ticket.original_description or ticket.description
+            )
+            duplicate_count = self._nearby_duplicate_count(
+                ticket=ticket,
+                category=scoring_category,
+            )
+            urgency = score_urgency(
+                category=scoring_category,
+                description=scoring_description,
+                location=ticket.location,
+                created_at=ticket.created_at,
+                status=ticket.status,
+                duplicate_count=duplicate_count,
+                has_photo=bool(ticket.image_object_key),
+            )
             self.save_ticket_ai_output(
                 ticket_id,
                 SaveTicketAiOutputRequest(
@@ -144,6 +168,9 @@ class TicketService:
                         classification.explanation if classification_ok else None
                     ),
                     aiModelVersion=get_settings().bedrock_model_id,
+                    urgencyScore=urgency.urgency_score,
+                    urgencyReason=urgency.urgency_reason,
+                    priority=urgency.urgency_level,
                     aiProcessingStatus="failed" if processing_failed else "completed",
                 ),
             )
@@ -302,6 +329,9 @@ class TicketService:
             "ai_suggested_category": payload.ai_suggested_category,
             "ai_category_explanation": payload.ai_category_explanation,
             "ai_model_version": payload.ai_model_version,
+            "urgency_score": payload.urgency_score,
+            "urgency_reason": payload.urgency_reason,
+            "priority": payload.priority,
             "ai_processing_status": payload.ai_processing_status,
             "updated_at": updated_at,
         }
@@ -338,6 +368,24 @@ class TicketService:
     def _map_ticket(self, ticket: StoredTicket) -> TicketResponse:
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
         return map_ticket_to_response(ticket, history)
+
+    def _nearby_duplicate_count(self, *, ticket: StoredTicket, category: str) -> int | None:
+        try:
+            result = find_nearby_duplicates(
+                category=category,
+                latitude=ticket.location.latitude,
+                longitude=ticket.location.longitude,
+                tickets=self._store.list(),
+                exclude_ticket_id=ticket.ticket_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Duplicate lookup unavailable while scoring urgency for ticket %s (%s).",
+                ticket.ticket_id,
+                type(exc).__name__,
+            )
+            return None
+        return len(result.matches)
 
     def _record_status_history(
         self,

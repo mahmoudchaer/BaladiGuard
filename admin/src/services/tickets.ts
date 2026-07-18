@@ -126,6 +126,7 @@ function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
     aiModelVersion: typeof data.aiModelVersion === 'string' ? data.aiModelVersion : undefined,
     suggestedCategory:
       typeof data.suggestedCategory === 'string' ? data.suggestedCategory : undefined,
+    urgencyScore: typeof data.urgencyScore === 'number' ? data.urgencyScore : undefined,
     urgencyReason: typeof data.urgencyReason === 'string' ? data.urgencyReason : undefined,
     summary: typeof data.summary === 'string' ? data.summary : undefined,
   };
@@ -232,7 +233,10 @@ function normalizeTicketFromApi(data: unknown): Ticket {
         : 'SUBMITTED',
     category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
     priority:
-      data.priority === 'low' || data.priority === 'medium' || data.priority === 'high'
+      data.priority === 'low' ||
+      data.priority === 'medium' ||
+      data.priority === 'high' ||
+      data.priority === 'critical'
         ? data.priority
         : null,
     createdBy: typeof data.createdBy === 'string' ? data.createdBy : null,

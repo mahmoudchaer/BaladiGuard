@@ -57,6 +57,9 @@ def test_submission_persists_successful_ai_output_and_read_api_returns_it(
     assert stored.ai_category_explanation == ("The report describes a pothole affecting traffic.")
     assert stored.ai_processing_status == "completed"
     assert stored.ai_model_version
+    assert stored.priority == "high"
+    assert stored.urgency_score is not None
+    assert stored.urgency_reason
 
     read_response = client.get(f"/v1/tickets/{ticket_id}")
     assert read_response.status_code == 200
@@ -65,6 +68,8 @@ def test_submission_persists_successful_ai_output_and_read_api_returns_it(
     assert ai["cleanedDescription"] == stored.cleaned_description
     assert ai["aiSuggestedCategory"] == "road_damage"
     assert ai["aiProcessingStatus"] == "completed"
+    assert ai["urgencyScore"] == stored.urgency_score
+    assert ai["urgencyReason"] == stored.urgency_reason
 
 
 def test_provider_timeout_does_not_block_ticket_creation_or_log_report_content(

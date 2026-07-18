@@ -1,0 +1,162 @@
+from datetime import UTC, datetime
+
+import pytest
+
+from app.schemas.ticket import ReportLocation
+from app.services.urgency import score_urgency
+
+NOW = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
+
+
+def location(address: str = "Hamra, Beirut") -> ReportLocation:
+    return ReportLocation(
+        latitude=33.8938,
+        longitude=35.5018,
+        addressText=address,
+        source="GPS",
+    )
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_score", "expected_level"),
+    [
+        (
+            {
+                "category": "road_damage",
+                "description": (
+                    "Small shallow pothole on a quiet residential side street in Achrafieh."
+                ),
+                "location": location("Quiet residential side street, Achrafieh"),
+                "duplicate_count": 0,
+                "created_at": "2026-07-18T06:00:00Z",
+                "has_photo": False,
+            },
+            14,
+            "low",
+        ),
+        (
+            {
+                "category": "road_damage",
+                "description": (
+                    "Deep pothole in the travel lane on a busy Beirut arterial; cars swerve."
+                ),
+                "location": location("Busy Beirut major arterial"),
+                "duplicate_count": 1,
+                "created_at": "2026-07-16T12:00:00Z",
+                "has_photo": True,
+            },
+            62,
+            "high",
+        ),
+        (
+            {
+                "category": "traffic_signal",
+                "description": "Traffic light fully dark at a busy signalized intersection.",
+                "location": location("Busy signalized intersection"),
+                "duplicate_count": 2,
+                "created_at": "2026-07-18T04:00:00Z",
+                "has_photo": True,
+            },
+            75,
+            "critical",
+        ),
+        (
+            {
+                "category": "water_leak",
+                "description": (
+                    "Continuous clean water flooding the sidewalk and curb near a "
+                    "hospital entrance."
+                ),
+                "location": location("Hospital entrance"),
+                "duplicate_count": 0,
+                "created_at": "2026-07-17T12:00:00Z",
+                "has_photo": True,
+            },
+            57,
+            "high",
+        ),
+        (
+            {
+                "category": "waste",
+                "description": (
+                    "Overflowing bins and garbage bags piled on a busy Hamra sidewalk; strong odor."
+                ),
+                "location": location("Hamra Street, Beirut"),
+                "duplicate_count": 4,
+                "created_at": "2026-07-13T12:00:00Z",
+                "has_photo": True,
+            },
+            50,
+            "high",
+        ),
+        (
+            {
+                "category": "street_lighting",
+                "description": "Light not working near my house.",
+                "location": None,
+                "duplicate_count": None,
+                "created_at": "2026-07-15T12:00:00Z",
+                "has_photo": False,
+            },
+            15,
+            "low",
+        ),
+        (
+            {
+                "category": "drainage",
+                "description": "Storm drain blocked; street floods whenever it rains.",
+                "location": location("Busy public road"),
+                "duplicate_count": 2,
+                "created_at": "2026-07-09T12:00:00Z",
+                "has_photo": False,
+            },
+            59,
+            "high",
+        ),
+        (
+            {
+                "category": "public_facilities",
+                "description": (
+                    "Exposed electrical wires hanging from a damaged public light pole "
+                    "beside a school gate."
+                ),
+                "location": location("School gate"),
+                "duplicate_count": 1,
+                "created_at": "2026-07-18T08:00:00Z",
+                "has_photo": True,
+            },
+            75,
+            "critical",
+        ),
+    ],
+)
+def test_score_urgency_matches_documented_examples(payload, expected_score, expected_level):
+    result = score_urgency(status="SUBMITTED", now=NOW, **payload)
+
+    assert result.urgency_level == expected_level
+    assert result.urgency_score == pytest.approx(expected_score, abs=5)
+    assert result.factor_scores.as_dict().keys() == {
+        "safety",
+        "location",
+        "duplicates",
+        "timeOpen",
+        "evidence",
+    }
+
+
+def test_score_urgency_handles_missing_optional_fields():
+    result = score_urgency(
+        category=None,
+        description=None,
+        location=None,
+        created_at=None,
+        status="SUBMITTED",
+        duplicate_count=None,
+        has_photo=False,
+        now=NOW,
+    )
+
+    assert result.urgency_score == 10
+    assert result.urgency_level == "low"
+    assert "duplicates unavailable" in result.urgency_reason
+    assert "location sensitivity uncertain" in result.urgency_reason

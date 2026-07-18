@@ -522,7 +522,8 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
     "categoryReviewedBy": "staff-1",
     "categoryReviewedAt": "2026-08-12T10:00:00Z",
     "suggestedCategory": "road_damage",
-    "urgencyReason": "Traffic disruption and safety risk.",
+    "urgencyScore": 62,
+    "urgencyReason": "High (62): possible injury or collision risk; critical location; strong evidence.",
     "summary": "Road damage near AUB Main Gate."
   },
   "statusHistory": [
@@ -553,7 +554,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `description` | string | Citizen-submitted issue description. |
 | `contact` | `ReportContact` or null | Citizen contact details when available to staff. |
 | `category` | string | Current category value, for example `road_damage` or `PENDING_CLASSIFICATION`. |
-| `priority` | enum or null | `low`, `medium`, or `high`; represents urgency/priority when known. MVP urgency rules also define `critical` (see `docs/urgency-scoring.md`; storage/UI extension tracked in #29). |
+| `priority` | enum or null | `low`, `medium`, `high`, or `critical`; represents urgency/priority when known. |
 | `status` | `TicketStatus` | Current workflow status. |
 | `location` | `ReportLocation` | Same location object used by ticket submission. |
 | `imageReferences` | array | One or more stable image references for display. |
@@ -582,6 +583,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `ai.aiProcessingStatus` | enum | `pending`, `processing`, `completed`, or `failed`. |
 | `ai.aiModelVersion` | string | Bedrock model or processing version identifier when available. |
 | `ai.suggestedCategory` | string | Compatibility alias for `ai.aiSuggestedCategory`. |
+| `ai.urgencyScore` | number | Urgency score from `0` to `100` when available. |
 | `ai.urgencyReason` | string | AI explanation for the urgency/priority when available. |
 | `ai.summary` | string | AI-generated ticket summary when available. |
 | `statusHistory` | array | Optional workflow history returned by detail APIs. |
