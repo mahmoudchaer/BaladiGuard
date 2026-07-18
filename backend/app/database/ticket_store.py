@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
@@ -12,6 +12,12 @@ class TicketStore(Protocol):
     def get(self, ticket_id: str) -> StoredTicket | None: ...
 
     def list(self) -> list[StoredTicket]: ...
+
+    def patch_fields(
+        self,
+        ticket_id: str,
+        fields: dict[str, Any],
+    ) -> StoredTicket | None: ...
 
     def update_status(
         self,

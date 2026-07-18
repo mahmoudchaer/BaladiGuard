@@ -326,8 +326,10 @@ class TicketService:
         if payload.ai_confidence is not None:
             update_fields["ai_confidence"] = payload.ai_confidence
 
-        updated_ticket = ticket.model_copy(update=update_fields)
-        self._store.save(updated_ticket)
+        # Partial update so concurrent staff merges keep duplicateGroupId.
+        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
         return self._map_ticket(updated_ticket)
 
     def review_ticket_category(
@@ -388,15 +390,18 @@ class TicketService:
         )
         self._duplicate_group_store.save(group)
 
-        for ticket in [canonical, *duplicates]:
-            updated = ticket.model_copy(
-                update={
+        # Partial updates avoid races with background AI full-document writes.
+        for ticket_id in member_ids:
+            updated = self._store.patch_fields(
+                ticket_id,
+                {
                     "duplicate_group_id": group_id,
                     "updated_at": created_at,
                     "updated_by": payload.merged_by,
-                }
+                },
             )
-            self._store.save(updated)
+            if updated is None:
+                raise TicketNotFoundError(ticket_id)
 
         updated_canonical = self._store.get(canonical_id)
         if updated_canonical is None:
