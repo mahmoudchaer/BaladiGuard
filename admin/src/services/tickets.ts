@@ -2,6 +2,7 @@ import type {
   AiProcessingStatus,
   Ticket,
   TicketAiFields,
+  TicketDuplicateReference,
   TicketLocation,
   TicketStatus,
 } from '@/types/ticket';
@@ -80,7 +81,23 @@ export async function fetchTickets(): Promise<Ticket[]> {
 
 async function fetchMockTicketById(ticketId: string): Promise<Ticket | null> {
   const tickets = await fetchMockTickets();
-  return tickets.find((ticket) => ticket.ticketId === ticketId) ?? null;
+  const ticket = tickets.find((item) => item.ticketId === ticketId) ?? null;
+  if (!ticket?.duplicateGroupId) {
+    return ticket;
+  }
+
+  const members = tickets.filter((item) => item.duplicateGroupId === ticket.duplicateGroupId);
+  const canonicalTicketId =
+    members.find((item) => item.ticketNumber === 'BG-2026-0002')?.ticketId ?? members[0]?.ticketId;
+
+  return {
+    ...ticket,
+    duplicateGroup: {
+      duplicateGroupId: ticket.duplicateGroupId,
+      ticketIds: members.map((item) => item.ticketId),
+      canonicalTicketId,
+    },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,6 +114,23 @@ function normalizeAiProcessingStatus(value: unknown): AiProcessingStatus | undef
     return value;
   }
   return undefined;
+}
+
+function normalizeDuplicateGroup(data: unknown): TicketDuplicateReference | null {
+  if (!isRecord(data) || typeof data.duplicateGroupId !== 'string') {
+    return null;
+  }
+
+  const ticketIds = Array.isArray(data.ticketIds)
+    ? data.ticketIds.filter((value): value is string => typeof value === 'string')
+    : undefined;
+
+  return {
+    duplicateGroupId: data.duplicateGroupId,
+    ticketIds,
+    canonicalTicketId:
+      typeof data.canonicalTicketId === 'string' ? data.canonicalTicketId : undefined,
+  };
 }
 
 function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
@@ -248,6 +282,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
           }
         : null,
     duplicateGroupId: typeof data.duplicateGroupId === 'string' ? data.duplicateGroupId : null,
+    duplicateGroup: normalizeDuplicateGroup(data.duplicateGroup),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     ai: normalizeTicketAiFields(data.ai),
@@ -400,4 +435,79 @@ export async function reviewTicketCategory(
   }
 
   return reviewTicketCategoryFromApi(ticketId, input);
+}
+
+export type MergeDuplicateTicketsInput = {
+  canonicalTicketId: string;
+  duplicateTicketIds: string[];
+  mergedBy?: string;
+};
+
+async function mergeMockDuplicateTickets(
+  input: MergeDuplicateTicketsInput,
+): Promise<Ticket | null> {
+  const tickets = await fetchMockTickets();
+  const canonical = tickets.find((ticket) => ticket.ticketId === input.canonicalTicketId);
+  if (!canonical) {
+    return null;
+  }
+
+  for (const duplicateId of input.duplicateTicketIds) {
+    if (!tickets.some((ticket) => ticket.ticketId === duplicateId)) {
+      return null;
+    }
+  }
+
+  if (input.duplicateTicketIds.includes(input.canonicalTicketId)) {
+    throw new Error('The main ticket cannot also appear in the duplicate ticket list.');
+  }
+
+  const groupId = `dup_mock_${Date.now()}`;
+  const ticketIds = [input.canonicalTicketId, ...input.duplicateTicketIds];
+  const updatedAt = new Date().toISOString();
+
+  return {
+    ...canonical,
+    duplicateGroupId: groupId,
+    updatedAt,
+    duplicateGroup: {
+      duplicateGroupId: groupId,
+      ticketIds,
+      canonicalTicketId: input.canonicalTicketId,
+    },
+  };
+}
+
+async function mergeDuplicateTicketsFromApi(
+  input: MergeDuplicateTicketsInput,
+): Promise<Ticket | null> {
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/merge`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const message = await readApiErrorMessage(response, 'Unable to merge duplicate tickets.');
+    throw new Error(message);
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function mergeDuplicateTickets(
+  input: MergeDuplicateTicketsInput,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return mergeMockDuplicateTickets(input);
+  }
+
+  return mergeDuplicateTicketsFromApi(input);
 }

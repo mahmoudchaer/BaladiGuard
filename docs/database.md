@@ -134,7 +134,14 @@ At least one of `phone` or `email` is required for citizen users.
 | Attribute | Type | Description |
 | --- | --- | --- |
 | `duplicateGroupId` | string | Primary key. |
+| `canonicalTicketId` | string | Main ticket staff chose for the group. |
+| `ticketIds` | string[] | All linked report IDs (main + duplicates). |
 | `createdAt` | string | ISO 8601 timestamp. |
+| `createdBy` | string, nullable | Staff actor when merge is recorded. |
+
+Staff merge (`POST /v1/tickets/merge`, issue #27) creates a DuplicateGroup row and stamps
+`duplicateGroupId` onto every member ticket. Ticket read responses may also include an enriched
+`duplicateGroup` object with the linked IDs.
 
 ### Nearby duplicate detection (issue #25)
 

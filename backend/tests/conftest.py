@@ -12,6 +12,7 @@ os.environ["DATABASE_BACKEND"] = "memory"
 get_settings.cache_clear()
 
 from app.database.memory import ticket_store  # noqa: E402
+from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
@@ -24,6 +25,7 @@ from app.services.complaints.ticket_service import ticket_service  # noqa: E402
 def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
+    duplicate_group_store.clear()
 
 
 @pytest.fixture(autouse=True)

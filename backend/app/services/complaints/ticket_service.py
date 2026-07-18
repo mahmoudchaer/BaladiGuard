@@ -4,22 +4,34 @@ from datetime import UTC, datetime
 from threading import Lock
 
 from app.config import get_settings
+from app.database.duplicate_group_store import DuplicateGroupStore
 from app.database.status_history_store import StatusHistoryStore
-from app.database.store_factory import get_status_history_store, get_ticket_store
+from app.database.store_factory import (
+    get_duplicate_group_store,
+    get_status_history_store,
+    get_ticket_store,
+)
 from app.database.ticket_store import TicketStore
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.stored_duplicate_group import StoredDuplicateGroup
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
-from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
+from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
+from app.schemas.ticket_response import (
+    TicketDuplicateReference,
+    TicketResponse,
+    UpdateTicketStatusRequest,
+)
 from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
 from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 from app.utils.ticket_ids import (
+    generate_duplicate_group_id,
     generate_status_history_id,
     generate_ticket_id,
     generate_ticket_number,
@@ -43,17 +55,23 @@ class TicketNotFoundError(LookupError):
     pass
 
 
+class DuplicateMergeError(ValueError):
+    pass
+
+
 class TicketService:
     def __init__(
         self,
         store: TicketStore,
         history_store: StatusHistoryStore,
+        duplicate_group_store: DuplicateGroupStore | None = None,
         *,
         classifier: Classifier = classify_complaint,
         description_cleaner: DescriptionCleaner = clean_report_description,
     ) -> None:
         self._store = store
         self._history_store = history_store
+        self._duplicate_group_store = duplicate_group_store or get_duplicate_group_store()
         self._classifier = classifier
         self._description_cleaner = description_cleaner
         self._processing_ticket_ids: set[str] = set()
@@ -335,9 +353,72 @@ class TicketService:
         self._store.save(updated_ticket)
         return self._map_ticket(updated_ticket)
 
+    def merge_duplicate_tickets(
+        self,
+        payload: MergeDuplicateTicketsRequest,
+    ) -> TicketResponse:
+        canonical_id = payload.canonical_ticket_id.strip()
+        duplicate_ids = payload.duplicate_ticket_ids
+
+        if canonical_id in duplicate_ids:
+            raise DuplicateMergeError(
+                "The main ticket cannot also appear in the duplicate ticket list."
+            )
+
+        canonical = self._store.get(canonical_id)
+        if canonical is None:
+            raise TicketNotFoundError(canonical_id)
+
+        duplicates: list[StoredTicket] = []
+        for ticket_id in duplicate_ids:
+            ticket = self._store.get(ticket_id)
+            if ticket is None:
+                raise TicketNotFoundError(ticket_id)
+            duplicates.append(ticket)
+
+        member_ids = [canonical_id, *duplicate_ids]
+        group_id = generate_duplicate_group_id()
+        created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        group = StoredDuplicateGroup(
+            duplicateGroupId=group_id,
+            canonicalTicketId=canonical_id,
+            ticketIds=member_ids,
+            createdAt=created_at,
+            createdBy=payload.merged_by,
+        )
+        self._duplicate_group_store.save(group)
+
+        for ticket in [canonical, *duplicates]:
+            updated = ticket.model_copy(
+                update={
+                    "duplicate_group_id": group_id,
+                    "updated_at": created_at,
+                    "updated_by": payload.merged_by,
+                }
+            )
+            self._store.save(updated)
+
+        updated_canonical = self._store.get(canonical_id)
+        if updated_canonical is None:
+            raise TicketNotFoundError(canonical_id)
+        return self._map_ticket(updated_canonical)
+
     def _map_ticket(self, ticket: StoredTicket) -> TicketResponse:
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
-        return map_ticket_to_response(ticket, history)
+        duplicate_group = None
+        if ticket.duplicate_group_id:
+            stored_group = self._duplicate_group_store.get(ticket.duplicate_group_id)
+            if stored_group is not None:
+                duplicate_group = TicketDuplicateReference(
+                    duplicateGroupId=stored_group.duplicate_group_id,
+                    ticketIds=stored_group.ticket_ids,
+                    canonicalTicketId=stored_group.canonical_ticket_id,
+                )
+            else:
+                duplicate_group = TicketDuplicateReference(
+                    duplicateGroupId=ticket.duplicate_group_id,
+                )
+        return map_ticket_to_response(ticket, history, duplicate_group=duplicate_group)
 
     def _record_status_history(
         self,

@@ -57,6 +57,12 @@ export type TicketAiFields = {
   summary?: string;
 };
 
+export type TicketDuplicateReference = {
+  duplicateGroupId: string;
+  ticketIds?: string[];
+  canonicalTicketId?: string;
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -76,6 +82,7 @@ export type Ticket = {
   departmentName?: string;
   department?: TicketDepartment | null;
   duplicateGroupId: string | null;
+  duplicateGroup?: TicketDuplicateReference | null;
   createdAt: string;
   updatedAt: string | null;
   ai?: TicketAiFields;
@@ -83,5 +90,12 @@ export type Ticket = {
 
 export type TicketListItem = Pick<
   Ticket,
-  'ticketId' | 'ticketNumber' | 'category' | 'location' | 'status' | 'priority' | 'createdAt'
+  | 'ticketId'
+  | 'ticketNumber'
+  | 'category'
+  | 'location'
+  | 'status'
+  | 'priority'
+  | 'createdAt'
+  | 'duplicateGroupId'
 >;
