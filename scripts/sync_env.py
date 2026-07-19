@@ -150,9 +150,7 @@ def apply_preserve_keys(content: str, local_values: dict[str, str]) -> str:
     return updated
 
 
-def normalize_preserve_keys_for_push(
-    content: str, example_values: dict[str, str]
-) -> str:
+def normalize_preserve_keys_for_push(content: str, example_values: dict[str, str]) -> str:
     """Replace machine-specific keys with example defaults before publishing."""
     updated = content
     for key in LOCAL_PRESERVE_KEYS:
@@ -179,9 +177,7 @@ def example_path_for(repo_root: Path, relative: str) -> Path:
 
 def atomic_write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
-    )
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
@@ -283,9 +279,7 @@ def collect_local_file_texts(repo_root: Path) -> dict[str, str]:
             + ". Create them from the matching *.env.example files first, or pull once."
         )
     if not any(parse_env_text(text) for text in files.values()):
-        raise EnvSyncError(
-            "Cannot push — local env files exist but contain no KEY=VALUE entries."
-        )
+        raise EnvSyncError("Cannot push — local env files exist but contain no KEY=VALUE entries.")
     return files
 
 
@@ -323,9 +317,7 @@ def parse_bundle(payload: dict[str, Any]) -> dict[str, str]:
     for relative in ENV_TARGETS:
         entry = files[relative]
         if isinstance(entry, str):
-            parsed[relative] = (
-                entry if entry.endswith("\n") or entry == "" else entry + "\n"
-            )
+            parsed[relative] = entry if entry.endswith("\n") or entry == "" else entry + "\n"
             continue
         if isinstance(entry, dict):
             # Legacy v1 key/value maps — reconstruct a simple file (lossy for comments).
@@ -341,9 +333,7 @@ def parse_bundle(payload: dict[str, Any]) -> dict[str, str]:
                 elif isinstance(value, (str, int, float, bool)):
                     text_value = str(value)
                 else:
-                    raise EnvSyncError(
-                        f"Unsupported value type for '{relative}' / '{key}'."
-                    )
+                    raise EnvSyncError(f"Unsupported value type for '{relative}' / '{key}'.")
                 lines.append(f"{key}={format_env_value(text_value)}")
             lines.append("")
             parsed[relative] = "\n".join(lines)
@@ -355,9 +345,7 @@ def parse_bundle(payload: dict[str, Any]) -> dict[str, str]:
 
 
 def secrets_client(region: str, profile: str | None):
-    boto3, BotoCoreError, _ClientError, NoCredentialsError, ProfileNotFound = (
-        _require_boto3()
-    )
+    boto3, BotoCoreError, _ClientError, NoCredentialsError, ProfileNotFound = _require_boto3()
     session_kwargs: dict[str, str] = {"region_name": region}
     if profile:
         session_kwargs["profile_name"] = profile
@@ -380,13 +368,9 @@ def _client_error_code(exc: Exception) -> str:
     return "ClientError"
 
 
-def fetch_secret_record(
-    client: Any, secret_id: str
-) -> tuple[dict[str, str], str, str | None]:
+def fetch_secret_record(client: Any, secret_id: str) -> tuple[dict[str, str], str, str | None]:
     """Return (files, secret_string, version_id)."""
-    _, BotoCoreError, ClientError, NoCredentialsError, _ProfileNotFound = (
-        _require_boto3()
-    )
+    _, BotoCoreError, ClientError, NoCredentialsError, _ProfileNotFound = _require_boto3()
     try:
         response = client.get_secret_value(SecretId=secret_id)
     except ClientError as exc:
@@ -431,9 +415,7 @@ def put_secret_bundle(
     client: Any, secret_id: str, bundle: dict[str, Any]
 ) -> tuple[str, str, str | None]:
     """Create or update the secret. Returns (action, secret_string, version_id)."""
-    _, BotoCoreError, ClientError, NoCredentialsError, _ProfileNotFound = (
-        _require_boto3()
-    )
+    _, BotoCoreError, ClientError, NoCredentialsError, _ProfileNotFound = _require_boto3()
     body = json.dumps(bundle, ensure_ascii=False, indent=2) + "\n"
     body_bytes = len(body.encode("utf-8"))
     if body_bytes > SECRET_STRING_MAX_BYTES:
@@ -468,9 +450,7 @@ def put_secret_bundle(
                     "Check AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY "
                     "(typo, revoked key, or wrong account)."
                 ) from exc
-            raise EnvSyncError(
-                f"Failed to update secret '{secret_id}' ({code})."
-            ) from exc
+            raise EnvSyncError(f"Failed to update secret '{secret_id}' ({code}).") from exc
 
     try:
         response = client.create_secret(
@@ -707,9 +687,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"OK: pulled env files from {args.secret_id}")
         for relative in written:
             print(f"  - {relative}")
-        print(
-            f"Wrote all {len(ENV_TARGETS)} env targets. Secret values were not printed."
-        )
+        print(f"Wrote all {len(ENV_TARGETS)} env targets. Secret values were not printed.")
         return 0
     except EnvSyncError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
