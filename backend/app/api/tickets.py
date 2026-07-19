@@ -4,9 +4,14 @@ from fastapi.responses import JSONResponse
 from app.core.errors import build_error_response, get_request_id
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest
+from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
 from app.services.complaints.status_workflow import InvalidStatusTransitionError
-from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
+from app.services.complaints.ticket_service import (
+    DuplicateMergeError,
+    TicketNotFoundError,
+    ticket_service,
+)
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
 
@@ -77,4 +82,27 @@ def review_ticket_category(
             message="Ticket was not found.",
             request_id=get_request_id(request),
             status_code=404,
+        )
+
+
+@router.post("/tickets/merge", response_model=TicketResponse)
+def merge_duplicate_tickets(
+    payload: MergeDuplicateTicketsRequest,
+    request: Request,
+) -> TicketResponse | JSONResponse:
+    try:
+        return ticket_service.merge_duplicate_tickets(payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="One or more tickets were not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except DuplicateMergeError as exc:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            request_id=get_request_id(request),
+            status_code=400,
         )

@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Ticket, TicketStatus } from '@/types/ticket';
-import { fetchTicketById, reviewTicketCategory, updateTicketStatus } from '@/services/tickets';
+import {
+  fetchTicketById,
+  fetchTickets,
+  mergeDuplicateTickets,
+  reviewTicketCategory,
+  updateTicketStatus,
+} from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -16,6 +22,7 @@ import {
   SUPPORTED_CATEGORY_OPTIONS,
 } from '@/utils/labels';
 import { formatDepartment } from '@/utils/departments';
+import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
@@ -33,6 +40,10 @@ export function TicketDetailPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categoryReviewError, setCategoryReviewError] = useState<string | null>(null);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [mergeCandidates, setMergeCandidates] = useState<Ticket[]>([]);
+  const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<string[]>([]);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
 
   useEffect(() => {
     if (!ticketId) {
@@ -61,7 +72,30 @@ export function TicketDetailPage() {
 
         setTicket(data);
         setSelectedCategory(data.ai?.finalCategory ?? data.ai?.aiSuggestedCategory ?? '');
+        setSelectedDuplicateIds([]);
+        setMergeError(null);
         setLoadState('success');
+
+        try {
+          // Use the effective category (final -> AI suggestion -> classified
+          // category) so pending tickets never match everything.
+          const ticketCategory = effectiveTicketCategory(data);
+          const tickets = ticketCategory === null ? [] : await fetchTickets();
+          if (!cancelled) {
+            setMergeCandidates(
+              tickets.filter(
+                (candidate) =>
+                  candidate.ticketId !== data.ticketId &&
+                  !candidate.duplicateGroupId &&
+                  effectiveTicketCategory(candidate) === ticketCategory,
+              ),
+            );
+          }
+        } catch {
+          if (!cancelled) {
+            setMergeCandidates([]);
+          }
+        }
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(error instanceof Error ? error.message : 'Unable to load ticket.');
@@ -134,6 +168,52 @@ export function TicketDetailPage() {
       setCategoryReviewError(message);
     } finally {
       setIsSavingCategory(false);
+    }
+  };
+
+  const toggleDuplicateSelection = (candidateId: string) => {
+    setSelectedDuplicateIds((current) =>
+      current.includes(candidateId)
+        ? current.filter((id) => id !== candidateId)
+        : [...current, candidateId],
+    );
+    setMergeError(null);
+  };
+
+  const handleMergeDuplicates = async () => {
+    if (!ticket) {
+      return;
+    }
+
+    if (selectedDuplicateIds.length === 0) {
+      setMergeError('Select at least one duplicate ticket to merge.');
+      return;
+    }
+
+    setIsMerging(true);
+    setMergeError(null);
+
+    try {
+      const updatedTicket = await mergeDuplicateTickets({
+        canonicalTicketId: ticket.ticketId,
+        duplicateTicketIds: selectedDuplicateIds,
+      });
+
+      if (!updatedTicket) {
+        setMergeError('One or more selected tickets were not found.');
+        return;
+      }
+
+      setTicket(updatedTicket);
+      setSelectedDuplicateIds([]);
+      setMergeCandidates((current) =>
+        current.filter((candidate) => !selectedDuplicateIds.includes(candidate.ticketId)),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to merge duplicate tickets.';
+      setMergeError(message);
+    } finally {
+      setIsMerging(false);
     }
   };
 
@@ -432,6 +512,112 @@ export function TicketDetailPage() {
                       </dd>
                     </div>
                   </dl>
+                </div>
+
+                <div className="ticket-detail__meta-card ticket-detail__card--duplicates">
+                  <h2 className="ticket-detail__section-title">
+                    <span className="ticket-detail__section-icon" aria-hidden="true">
+                      <IconDocument />
+                    </span>
+                    Duplicate group
+                  </h2>
+
+                  {ticket.duplicateGroupId && (
+                    <div className="ticket-detail__group-summary" role="status">
+                      <p>
+                        This ticket is grouped
+                        {ticket.duplicateGroup?.canonicalTicketId === ticket.ticketId
+                          ? ' as the main report'
+                          : ''}
+                        .
+                      </p>
+                      {ticket.duplicateGroup?.ticketIds && (
+                        <ul className="ticket-detail__group-links">
+                          {ticket.duplicateGroup.ticketIds.map((memberId) => (
+                            <li key={memberId}>
+                              {memberId === ticket.ticketId ? (
+                                <span>
+                                  {memberId === ticket.duplicateGroup?.canonicalTicketId
+                                    ? 'Main: '
+                                    : ''}
+                                  Current ticket
+                                </span>
+                              ) : (
+                                <Link to={`/tickets/${memberId}`}>
+                                  {memberId === ticket.duplicateGroup?.canonicalTicketId
+                                    ? 'Main: '
+                                    : ''}
+                                  {memberId}
+                                </Link>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {ticket.duplicateGroup?.canonicalTicketId !== ticket.ticketId && (
+                        <p className="ticket-detail__merge-help">
+                          Add further duplicates from the main ticket.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {(!ticket.duplicateGroupId ||
+                    ticket.duplicateGroup?.canonicalTicketId === ticket.ticketId) && (
+                    <div className="ticket-detail__merge-controls">
+                      {effectiveTicketCategory(ticket) === null ? (
+                        <p className="ticket-detail__merge-empty">
+                          This ticket has no reviewed or AI-suggested category yet. Merging is
+                          available once it is classified.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="ticket-detail__merge-help">
+                            {ticket.duplicateGroupId
+                              ? 'Add more same-category tickets to this duplicate group.'
+                              : 'Choose other same-category tickets to link under this main report.'}
+                          </p>
+                          {mergeCandidates.length === 0 ? (
+                            <p className="ticket-detail__merge-empty">
+                              No ungrouped same-category tickets are available to merge.
+                            </p>
+                          ) : (
+                            <ul className="ticket-detail__merge-candidates">
+                              {mergeCandidates.map((candidate) => (
+                                <li key={candidate.ticketId}>
+                                  <label>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedDuplicateIds.includes(candidate.ticketId)}
+                                      onChange={() => toggleDuplicateSelection(candidate.ticketId)}
+                                      disabled={isMerging}
+                                    />
+                                    <span>
+                                      {candidate.ticketNumber}
+                                      <small>{candidate.location.addressText}</small>
+                                    </span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button"
+                            onClick={() => void handleMergeDuplicates()}
+                            disabled={isMerging || mergeCandidates.length === 0}
+                          >
+                            {isMerging ? 'Merging...' : 'Merge selected as duplicates'}
+                          </button>
+                          {mergeError && (
+                            <p className="ticket-detail__status-error" role="alert">
+                              {mergeError}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="ticket-detail__meta-card ticket-detail__card--timeline">

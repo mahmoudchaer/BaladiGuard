@@ -14,6 +14,10 @@ def generate_status_history_id() -> str:
     return f"hist_{uuid4().hex}"
 
 
+def generate_duplicate_group_id() -> str:
+    return f"dup_{uuid4().hex}"
+
+
 def generate_tracking_code(length: int = 6) -> str:
     return "".join(secrets.choice(TRACKING_CODE_ALPHABET) for _ in range(length))
 
