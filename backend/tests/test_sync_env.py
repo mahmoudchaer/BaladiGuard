@@ -29,7 +29,7 @@ sync_env = load_sync_env_module()
 def test_parse_and_render_env_round_trip(tmp_path: Path):
     path = tmp_path / ".env"
     path.write_text(
-        "# comment\nAWS_REGION=us-east-1\nEMPTY=\nQUOTED=\"abc def\"\n",
+        '# comment\nAWS_REGION=us-east-1\nEMPTY=\nQUOTED="abc def"\n',
         encoding="utf-8",
     )
     parsed = sync_env.parse_env_file(path)
@@ -172,6 +172,4 @@ def test_cli_pull_does_not_print_secret_values(
         assert "super-secret-value" not in out
         assert "Secret values were written locally" in out
         # Ensure JSON shape stored is valid without printing it in CLI output.
-        assert "files" in json.dumps(
-            sync_env.build_bundle(sync_env.collect_local_bundle(tmp_path))
-        )
+        assert "files" in json.dumps(sync_env.build_bundle(sync_env.collect_local_bundle(tmp_path)))

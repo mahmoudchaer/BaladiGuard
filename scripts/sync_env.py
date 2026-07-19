@@ -25,7 +25,12 @@ from typing import Any
 
 try:
     import boto3
-    from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError, ProfileNotFound
+    from botocore.exceptions import (
+        BotoCoreError,
+        ClientError,
+        NoCredentialsError,
+        ProfileNotFound,
+    )
 except ImportError:  # pragma: no cover - clear setup error for teammates
     print(
         "ERROR: boto3 is required. From the repo root run:\n"
@@ -74,7 +79,12 @@ def bootstrap_aws_credentials_from_local_env(repo_root: Path) -> None:
     for relative in (".env", "backend/.env"):
         merged.update(parse_env_file(repo_root / relative))
 
-    for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "AWS_DEFAULT_REGION"):
+    for key in (
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+    ):
         value = merged.get(key, "").strip()
         if value and not os.getenv(key):
             os.environ[key] = value
@@ -115,7 +125,9 @@ def render_env_file(values: dict[str, str], *, header: str) -> str:
 
 def atomic_write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
@@ -153,7 +165,9 @@ def collect_local_bundle(repo_root: Path) -> dict[str, dict[str, str]]:
             + ". Create them from the matching *.env.example files first, or pull once."
         )
     if not any(files.values()):
-        raise EnvSyncError("Cannot push — local env files exist but contain no KEY=VALUE entries.")
+        raise EnvSyncError(
+            "Cannot push — local env files exist but contain no KEY=VALUE entries."
+        )
     return files
 
 
@@ -178,7 +192,9 @@ def parse_bundle(payload: dict[str, Any]) -> dict[str, dict[str, str]]:
                 f"Allowed: {', '.join(ENV_TARGETS)}"
             )
         if not isinstance(values, dict):
-            raise EnvSyncError(f"Secret entry for '{relative}' must be an object of KEY=VALUE pairs.")
+            raise EnvSyncError(
+                f"Secret entry for '{relative}' must be an object of KEY=VALUE pairs."
+            )
         cleaned: dict[str, str] = {}
         for key, value in values.items():
             if not isinstance(key, str) or not key.strip():
@@ -188,7 +204,9 @@ def parse_bundle(payload: dict[str, Any]) -> dict[str, dict[str, str]]:
             elif isinstance(value, (str, int, float, bool)):
                 cleaned[key] = str(value)
             else:
-                raise EnvSyncError(f"Unsupported value type for '{relative}' / '{key}'.")
+                raise EnvSyncError(
+                    f"Unsupported value type for '{relative}' / '{key}'."
+                )
         parsed[relative] = cleaned
     return parsed
 
@@ -214,7 +232,10 @@ def fetch_secret_bundle(client: Any, secret_id: str) -> dict[str, dict[str, str]
         response = client.get_secret_value(SecretId=secret_id)
     except ClientError as exc:
         code = exc.response.get("Error", {}).get("Code", "ClientError")
-        if code in {"ResourceNotFoundException", "SecretsManager.ResourceNotFoundException"}:
+        if code in {
+            "ResourceNotFoundException",
+            "SecretsManager.ResourceNotFoundException",
+        }:
             raise EnvSyncError(
                 f"Secret '{secret_id}' was not found. "
                 "Create it once with: python scripts/sync_env.py --push"
@@ -255,13 +276,18 @@ def put_secret_bundle(client: Any, secret_id: str, bundle: dict[str, Any]) -> st
         ) from exc
     except ClientError as exc:
         code = exc.response.get("Error", {}).get("Code", "ClientError")
-        if code not in {"ResourceNotFoundException", "SecretsManager.ResourceNotFoundException"}:
+        if code not in {
+            "ResourceNotFoundException",
+            "SecretsManager.ResourceNotFoundException",
+        }:
             if code in {"AccessDeniedException", "UnrecognizedClientException"}:
                 raise EnvSyncError(
                     f"Access denied writing secret '{secret_id}' ({code}). "
                     "Push requires secretsmanager:PutSecretValue (and CreateSecret the first time)."
                 ) from exc
-            raise EnvSyncError(f"Failed to update secret '{secret_id}' ({code}).") from exc
+            raise EnvSyncError(
+                f"Failed to update secret '{secret_id}' ({code})."
+            ) from exc
 
     try:
         client.create_secret(
