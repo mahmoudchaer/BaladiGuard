@@ -325,6 +325,53 @@
   border-top: 3px solid var(--lb-green);
 }
 
+.ticket-detail__card--duplicates {
+  border-top: 3px solid #2f6fed;
+}
+
+.ticket-detail__group-summary p,
+.ticket-detail__merge-help,
+.ticket-detail__merge-empty {
+  margin: 0 0 0.75rem;
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ticket-detail__group-links,
+.ticket-detail__merge-candidates {
+  margin: 0 0 0.85rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.ticket-detail__group-links a {
+  color: var(--lb-green-dark);
+  font-size: 0.78rem;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.ticket-detail__merge-candidates label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ticket-detail__merge-candidates small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
 .ticket-detail__section-title {
   display: flex;
   align-items: center;
