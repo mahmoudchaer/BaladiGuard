@@ -160,3 +160,42 @@ def test_score_urgency_handles_missing_optional_fields():
     assert result.urgency_level == "low"
     assert "duplicates unavailable" in result.urgency_reason
     assert "location sensitivity uncertain" in result.urgency_reason
+
+
+def test_score_urgency_handles_arabic_safety_and_location_cues():
+    result = score_urgency(
+        category="public_facilities",
+        description="اسلاك كهرباء مكشوفة قرب بوابة مدرسة في بيروت",
+        location=location("بوابة مدرسة"),
+        created_at="2026-07-18T08:00:00Z",
+        status="SUBMITTED",
+        duplicate_count=1,
+        has_photo=True,
+        now=NOW,
+    )
+
+    assert result.urgency_level == "critical"
+    assert result.urgency_score >= 75
+    assert result.factor_scores.safety == 40
+    assert result.factor_scores.location == 20
+
+
+def test_score_urgency_uses_nearby_known_landmarks_for_generic_gps_labels():
+    result = score_urgency(
+        category="road_damage",
+        description="Deep pothole in the travel lane causing cars to swerve.",
+        location=ReportLocation(
+            latitude=33.896112,
+            longitude=35.478419,
+            addressText="Selected map location",
+            source="GPS",
+        ),
+        created_at="2026-07-16T12:00:00Z",
+        status="SUBMITTED",
+        duplicate_count=1,
+        has_photo=True,
+        now=NOW,
+    )
+
+    assert result.factor_scores.location == 20
+    assert result.urgency_level == "high"

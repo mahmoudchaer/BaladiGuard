@@ -93,6 +93,9 @@ def test_provider_timeout_does_not_block_ticket_creation_or_log_report_content(
     assert stored.ai_processing_status == "failed"
     assert stored.cleaned_description is None
     assert stored.ai_suggested_category is None
+    assert stored.priority is not None
+    assert stored.urgency_score is not None
+    assert stored.urgency_reason
     assert ticket_id in caplog.text
     assert "TimeoutError" in caplog.text
     assert VALID_PAYLOAD["description"] not in caplog.text

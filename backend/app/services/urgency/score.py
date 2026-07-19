@@ -8,6 +8,7 @@ from typing import Literal
 
 from app.schemas.ticket import ReportLocation
 from app.schemas.ticket_status import TicketStatus
+from app.services.location.local_place_index import search_local_places_by_position
 
 UrgencyLevel = Literal["low", "medium", "high", "critical"]
 
@@ -123,44 +124,155 @@ def _score_safety(category: str, text: str) -> int:
             "collapsed sidewalk",
             "collapsed road",
             "deep open",
+            "اسلاك مكشوفة",
+            "اسلاك كهرباء",
+            "كهرباء مكشوفة",
+            "خطر كهرباء",
+            "حفرة مفتوحة",
+            "خندق مفتوح",
+            "انهيار رصيف",
+            "خطر حريق",
         ),
     ):
         return 40
 
     if category == "traffic_signal":
-        if _contains_any(text, ("fully dark", "failed", "not working", "busy intersection")):
+        if _contains_any(
+            text,
+            (
+                "fully dark",
+                "failed",
+                "not working",
+                "busy intersection",
+                "اشارة معطلة",
+                "اشارة مطفأة",
+                "اشارة لا تعمل",
+                "تقاطع مزدحم",
+            ),
+        ):
             return 40
         return 25
 
     if category == "road_damage":
-        if _contains_any(text, ("deep", "large", "travel lane", "cars swerve", "major road")):
+        if _contains_any(
+            text,
+            (
+                "deep",
+                "large",
+                "travel lane",
+                "cars swerve",
+                "major road",
+                "حفرة كبيرة",
+                "حفرة عميقة",
+                "وسط الطريق",
+                "السيارات تنحرف",
+                "طريق رئيسي",
+            ),
+        ):
             return 25
         return 10
 
     if category in {"sidewalk_damage", "water_leak", "drainage"}:
-        if _contains_any(text, ("flood", "blocked", "broken", "deep", "hospital", "slip")):
+        if _contains_any(
+            text,
+            (
+                "flood",
+                "blocked",
+                "broken",
+                "deep",
+                "hospital",
+                "slip",
+                "فيضان",
+                "مغمور",
+                "مسدود",
+                "مكسور",
+                "مستشفى",
+                "انزلاق",
+            ),
+        ):
             return 25
         return 10
 
     if category == "street_lighting":
-        if _contains_any(text, ("major", "busy", "pedestrian corridor", "school")):
+        if _contains_any(
+            text,
+            (
+                "major",
+                "busy",
+                "pedestrian corridor",
+                "school",
+                "رئيسي",
+                "مزدحم",
+                "مدرسة",
+            ),
+        ):
             return 25
         return 10
 
     if category == "waste":
-        if _contains_any(text, ("biohazard", "sewage", "medical waste", "public-health")):
+        if _contains_any(
+            text,
+            (
+                "biohazard",
+                "sewage",
+                "medical waste",
+                "public-health",
+                "نفايات طبية",
+                "صرف صحي",
+                "خطر صحي",
+            ),
+        ):
             return 25
-        if _contains_any(text, ("overflowing", "odor", "smell", "garbage bags", "piled")):
+        if _contains_any(
+            text,
+            (
+                "overflowing",
+                "odor",
+                "smell",
+                "garbage bags",
+                "piled",
+                "نفايات",
+                "قمامة",
+                "رائحة",
+                "مكدسة",
+            ),
+        ):
             return 10
         return 0
 
     if category == "public_facilities":
-        if _contains_any(text, ("broken", "damaged", "playground", "injury", "sharp")):
+        if _contains_any(
+            text,
+            (
+                "broken",
+                "damaged",
+                "playground",
+                "injury",
+                "sharp",
+                "مكسور",
+                "متضرر",
+                "حديقة",
+                "اصابة",
+                "حاد",
+            ),
+        ):
             return 25
         return 0
 
     if category == "PENDING_CLASSIFICATION":
-        if _contains_any(text, ("exposed", "electrical", "traffic light", "trench")):
+        if _contains_any(
+            text,
+            (
+                "exposed",
+                "electrical",
+                "traffic light",
+                "trench",
+                "مكشوف",
+                "كهرباء",
+                "اشارة",
+                "خندق",
+            ),
+        ):
             return 40
         return 10
 
@@ -168,7 +280,7 @@ def _score_safety(category: str, text: str) -> int:
 
 
 def _score_location(text: str, location: ReportLocation | None) -> int:
-    location_text = f"{text} {_normalize_text(location.address_text if location else None)}"
+    location_text = _location_text(text, location)
     if _contains_any(
         location_text,
         (
@@ -183,6 +295,12 @@ def _score_location(text: str, location: ReportLocation | None) -> int:
             "transit hub",
             "busy signalized intersection",
             "critical junction",
+            "مدرسة",
+            "مستشفى",
+            "عيادة",
+            "جامعة",
+            "طريق رئيسي",
+            "تقاطع مزدحم",
         ),
     ):
         return 20
@@ -197,10 +315,45 @@ def _score_location(text: str, location: ReportLocation | None) -> int:
             "commercial",
             "public road",
             "sidewalk",
+            "مزدحم",
+            "تجاري",
+            "رصيف",
         ),
     ):
         return 10
     return 0
+
+
+def _location_text(text: str, location: ReportLocation | None) -> str:
+    if location is None:
+        return text
+
+    parts = [text, _normalize_text(location.address_text)]
+    if not _has_generic_location_label(location.address_text):
+        return " ".join(parts)
+
+    nearest = search_local_places_by_position(
+        location.latitude,
+        location.longitude,
+        max_distance_meters=750,
+    )
+    if nearest is not None:
+        parts.extend([nearest.label.lower(), nearest.address_text.lower(), *nearest.aliases])
+    return " ".join(parts)
+
+
+def _has_generic_location_label(address_text: str) -> bool:
+    normalized = _normalize_text(address_text)
+    return not normalized or _contains_any(
+        normalized,
+        (
+            "selected map location",
+            "map point",
+            "gps location",
+            "current location",
+            "coordinates",
+        ),
+    )
 
 
 def _score_duplicates(duplicate_count: int | None) -> int:

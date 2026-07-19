@@ -138,26 +138,10 @@ class TicketService:
             # was produced at all. A valid category must never be discarded because
             # cleaning fell back (or vice versa).
             processing_failed = not classification_ok and not cleaning_ok
-            scoring_category = (
-                classification.category if classification_ok else effective_ticket_category(ticket)
-            )
-            scoring_description = (
-                cleaning.cleaned_description
-                if cleaning_ok
-                else ticket.original_description or ticket.description
-            )
-            duplicate_count = self._nearby_duplicate_count(
+            urgency = self._score_ticket_urgency(
                 ticket=ticket,
-                category=scoring_category,
-            )
-            urgency = score_urgency(
-                category=scoring_category,
-                description=scoring_description,
-                location=ticket.location,
-                created_at=ticket.created_at,
-                status=ticket.status,
-                duplicate_count=duplicate_count,
-                has_photo=bool(ticket.image_object_key),
+                category=classification.category if classification_ok else None,
+                description=cleaning.cleaned_description if cleaning_ok else None,
             )
             self.save_ticket_ai_output(
                 ticket_id,
@@ -195,9 +179,15 @@ class TicketService:
                 type(exc).__name__,
             )
             try:
+                urgency = self._score_ticket_urgency(ticket=ticket)
                 self.save_ticket_ai_output(
                     ticket_id,
-                    SaveTicketAiOutputRequest(aiProcessingStatus="failed"),
+                    SaveTicketAiOutputRequest(
+                        urgencyScore=urgency.urgency_score,
+                        urgencyReason=urgency.urgency_reason,
+                        priority=urgency.urgency_level,
+                        aiProcessingStatus="failed",
+                    ),
                 )
             except Exception as persistence_exc:
                 logger.error(
@@ -368,6 +358,29 @@ class TicketService:
     def _map_ticket(self, ticket: StoredTicket) -> TicketResponse:
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
         return map_ticket_to_response(ticket, history)
+
+    def _score_ticket_urgency(
+        self,
+        *,
+        ticket: StoredTicket,
+        category: str | None = None,
+        description: str | None = None,
+    ):
+        scoring_category = category or effective_ticket_category(ticket)
+        scoring_description = description or ticket.original_description or ticket.description
+        duplicate_count = self._nearby_duplicate_count(
+            ticket=ticket,
+            category=scoring_category,
+        )
+        return score_urgency(
+            category=scoring_category,
+            description=scoring_description,
+            location=ticket.location,
+            created_at=ticket.created_at,
+            status=ticket.status,
+            duplicate_count=duplicate_count,
+            has_photo=bool(ticket.image_object_key),
+        )
 
     def _nearby_duplicate_count(self, *, ticket: StoredTicket, category: str) -> int | None:
         try:

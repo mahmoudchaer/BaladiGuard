@@ -423,6 +423,17 @@ export function TicketDetailPage() {
                         <PriorityBadge priority={ticket.priority} />
                       </dd>
                     </div>
+                    {(ticket.ai?.urgencyScore !== undefined || ticket.ai?.urgencyReason) && (
+                      <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
+                        <dt>Urgency score</dt>
+                        <dd>
+                          {ticket.ai?.urgencyScore !== undefined && (
+                            <strong>{ticket.ai.urgencyScore}/100</strong>
+                          )}
+                          {ticket.ai?.urgencyReason && <span>{ticket.ai.urgencyReason}</span>}
+                        </dd>
+                      </div>
+                    )}
                     <div className="ticket-detail__meta-row">
                       <dt>Department</dt>
                       <dd>
