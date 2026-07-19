@@ -22,6 +22,7 @@ import {
   SUPPORTED_CATEGORY_OPTIONS,
 } from '@/utils/labels';
 import { formatDepartment } from '@/utils/departments';
+import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
@@ -76,14 +77,17 @@ export function TicketDetailPage() {
         setLoadState('success');
 
         try {
-          const tickets = await fetchTickets();
+          // Use the effective category (final -> AI suggestion -> classified
+          // category) so pending tickets never match everything.
+          const ticketCategory = effectiveTicketCategory(data);
+          const tickets = ticketCategory === null ? [] : await fetchTickets();
           if (!cancelled) {
             setMergeCandidates(
               tickets.filter(
                 (candidate) =>
                   candidate.ticketId !== data.ticketId &&
-                  candidate.category === data.category &&
-                  !candidate.duplicateGroupId,
+                  !candidate.duplicateGroupId &&
+                  effectiveTicketCategory(candidate) === ticketCategory,
               ),
             );
           }
@@ -518,7 +522,7 @@ export function TicketDetailPage() {
                     Duplicate group
                   </h2>
 
-                  {ticket.duplicateGroupId ? (
+                  {ticket.duplicateGroupId && (
                     <div className="ticket-detail__group-summary" role="status">
                       <p>
                         This ticket is grouped
@@ -550,48 +554,67 @@ export function TicketDetailPage() {
                           ))}
                         </ul>
                       )}
+                      {ticket.duplicateGroup?.canonicalTicketId !== ticket.ticketId && (
+                        <p className="ticket-detail__merge-help">
+                          Add further duplicates from the main ticket.
+                        </p>
+                      )}
                     </div>
-                  ) : (
+                  )}
+
+                  {(!ticket.duplicateGroupId ||
+                    ticket.duplicateGroup?.canonicalTicketId === ticket.ticketId) && (
                     <div className="ticket-detail__merge-controls">
-                      <p className="ticket-detail__merge-help">
-                        Choose other same-category tickets to link under this main report.
-                      </p>
-                      {mergeCandidates.length === 0 ? (
+                      {effectiveTicketCategory(ticket) === null ? (
                         <p className="ticket-detail__merge-empty">
-                          No ungrouped same-category tickets are available to merge.
+                          This ticket has no reviewed or AI-suggested category yet. Merging is
+                          available once it is classified.
                         </p>
                       ) : (
-                        <ul className="ticket-detail__merge-candidates">
-                          {mergeCandidates.map((candidate) => (
-                            <li key={candidate.ticketId}>
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedDuplicateIds.includes(candidate.ticketId)}
-                                  onChange={() => toggleDuplicateSelection(candidate.ticketId)}
-                                  disabled={isMerging}
-                                />
-                                <span>
-                                  {candidate.ticketNumber}
-                                  <small>{candidate.location.addressText}</small>
-                                </span>
-                              </label>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <button
-                        type="button"
-                        className="ticket-detail__review-button"
-                        onClick={() => void handleMergeDuplicates()}
-                        disabled={isMerging || mergeCandidates.length === 0}
-                      >
-                        {isMerging ? 'Merging...' : 'Merge selected as duplicates'}
-                      </button>
-                      {mergeError && (
-                        <p className="ticket-detail__status-error" role="alert">
-                          {mergeError}
-                        </p>
+                        <>
+                          <p className="ticket-detail__merge-help">
+                            {ticket.duplicateGroupId
+                              ? 'Add more same-category tickets to this duplicate group.'
+                              : 'Choose other same-category tickets to link under this main report.'}
+                          </p>
+                          {mergeCandidates.length === 0 ? (
+                            <p className="ticket-detail__merge-empty">
+                              No ungrouped same-category tickets are available to merge.
+                            </p>
+                          ) : (
+                            <ul className="ticket-detail__merge-candidates">
+                              {mergeCandidates.map((candidate) => (
+                                <li key={candidate.ticketId}>
+                                  <label>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedDuplicateIds.includes(candidate.ticketId)}
+                                      onChange={() => toggleDuplicateSelection(candidate.ticketId)}
+                                      disabled={isMerging}
+                                    />
+                                    <span>
+                                      {candidate.ticketNumber}
+                                      <small>{candidate.location.addressText}</small>
+                                    </span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button"
+                            onClick={() => void handleMergeDuplicates()}
+                            disabled={isMerging || mergeCandidates.length === 0}
+                          >
+                            {isMerging ? 'Merging...' : 'Merge selected as duplicates'}
+                          </button>
+                          {mergeError && (
+                            <p className="ticket-detail__status-error" role="alert">
+                              {mergeError}
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

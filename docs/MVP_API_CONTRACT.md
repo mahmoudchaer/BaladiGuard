@@ -298,6 +298,20 @@ Links one or more duplicate tickets under a staff-chosen main ticket and persist
 | `duplicateTicketIds` | string[] | Yes | One or more other ticket IDs to link. Must not include the main ticket. |
 | `mergedBy` | string | No | Staff actor identifier when available (max 120 characters). |
 
+### Merge rules
+
+- Every ticket (main and duplicates) must share the same **effective category**: the
+  staff-reviewed `finalCategory`, else the AI `aiSuggestedCategory`, else the stored
+  category when already classified. Tickets still pending classification cannot be merged.
+- Duplicate tickets must not already belong to a duplicate group. Regrouping or
+  unlinking existing members is rejected instead of silently shattering groups.
+- If the main ticket already leads a group, the new duplicates are **appended** to that
+  existing group (same `duplicateGroupId`, extended `ticketIds`). Merging from a
+  non-main group member is rejected with a message pointing at the main ticket.
+- Member tickets are stamped before the group row is saved; on failure the stamps are
+  rolled back so no `DuplicateGroup` row is left pointing at unstamped tickets.
+- Unmerge / leave-group is intentionally **out of scope** for issue #27.
+
 ### Response `200`
 
 Returns the updated main ticket `TicketResponse`. `duplicateGroupId` is set on the main ticket and
@@ -308,7 +322,7 @@ every duplicate. `duplicateGroup` includes `ticketIds` and `canonicalTicketId`.
 | Code | Status | Meaning |
 |---|---:|---|
 | `TICKET_NOT_FOUND` | 404 | The main ticket or a duplicate ticket ID does not exist. |
-| `VALIDATION_ERROR` | 400 | Invalid is invalid (for example the main ticket is also listed as a duplicate). |
+| `VALIDATION_ERROR` | 400 | The request violates a merge rule (main ticket listed as duplicate, a duplicate already grouped, categories differ, a ticket is still pending classification, or merging from a non-main group member). |
 
 ## `POST /v1/locations/validate`
 

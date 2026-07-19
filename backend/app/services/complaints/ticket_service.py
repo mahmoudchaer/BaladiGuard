@@ -59,6 +59,22 @@ class DuplicateMergeError(ValueError):
     pass
 
 
+def effective_ticket_category(ticket: StoredTicket) -> str | None:
+    """Staff-reviewed category, else the AI suggestion, else the stored category if classified.
+
+    Returns ``None`` while the ticket is still pending classification so callers
+    can handle unclassified tickets explicitly instead of matching on the
+    ``PENDING_CLASSIFICATION`` placeholder.
+    """
+    if ticket.final_category:
+        return ticket.final_category
+    if ticket.ai_suggested_category:
+        return ticket.ai_suggested_category
+    if ticket.category and ticket.category != PENDING_CLASSIFICATION:
+        return ticket.category
+    return None
+
+
 class TicketService:
     def __init__(
         self,
@@ -287,14 +303,17 @@ class TicketService:
         validate_status_transition(ticket.status, payload.status)
 
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        updated_ticket = ticket.model_copy(
-            update={
+        # Partial update so concurrent merges/AI writes are not overwritten.
+        updated_ticket = self._store.patch_fields(
+            ticket_id,
+            {
                 "status": payload.status,
                 "updated_at": updated_at,
                 "updated_by": payload.updated_by,
-            }
+            },
         )
-        self._store.save(updated_ticket)
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=ticket.status,
@@ -342,17 +361,20 @@ class TicketService:
             raise TicketNotFoundError(ticket_id)
 
         reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        updated_ticket = ticket.model_copy(
-            update={
+        # Partial update so concurrent merges/AI writes are not overwritten.
+        updated_ticket = self._store.patch_fields(
+            ticket_id,
+            {
                 "final_category": payload.final_category,
                 "category": payload.final_category,
                 "category_reviewed_by": payload.category_reviewed_by,
                 "category_reviewed_at": reviewed_at,
                 "updated_at": reviewed_at,
                 "updated_by": payload.category_reviewed_by,
-            }
+            },
         )
-        self._store.save(updated_ticket)
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
         return self._map_ticket(updated_ticket)
 
     def merge_duplicate_tickets(
@@ -376,32 +398,94 @@ class TicketService:
             ticket = self._store.get(ticket_id)
             if ticket is None:
                 raise TicketNotFoundError(ticket_id)
+            if ticket.duplicate_group_id:
+                raise DuplicateMergeError(
+                    f"Ticket {ticket_id} already belongs to a duplicate group. "
+                    "Unlinking or regrouping existing members is not supported."
+                )
             duplicates.append(ticket)
 
-        member_ids = [canonical_id, *duplicate_ids]
-        group_id = generate_duplicate_group_id()
-        created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        group = StoredDuplicateGroup(
-            duplicateGroupId=group_id,
-            canonicalTicketId=canonical_id,
-            ticketIds=member_ids,
-            createdAt=created_at,
-            createdBy=payload.merged_by,
-        )
-        self._duplicate_group_store.save(group)
-
-        # Partial updates avoid races with background AI full-document writes.
-        for ticket_id in member_ids:
-            updated = self._store.patch_fields(
-                ticket_id,
-                {
-                    "duplicate_group_id": group_id,
-                    "updated_at": created_at,
-                    "updated_by": payload.merged_by,
-                },
+        canonical_category = effective_ticket_category(canonical)
+        if canonical_category is None:
+            raise DuplicateMergeError(
+                "The main ticket has no reviewed or AI-suggested category yet. "
+                "Merge is only allowed between classified tickets."
             )
-            if updated is None:
-                raise TicketNotFoundError(ticket_id)
+        for ticket in duplicates:
+            ticket_category = effective_ticket_category(ticket)
+            if ticket_category is None:
+                raise DuplicateMergeError(
+                    f"Ticket {ticket.ticket_id} has no reviewed or AI-suggested category yet. "
+                    "Merge is only allowed between classified tickets."
+                )
+            if ticket_category != canonical_category:
+                raise DuplicateMergeError(
+                    "All merged tickets must share the same category as the main ticket."
+                )
+
+        existing_group: StoredDuplicateGroup | None = None
+        if canonical.duplicate_group_id:
+            existing_group = self._duplicate_group_store.get(canonical.duplicate_group_id)
+            if existing_group is not None and existing_group.canonical_ticket_id != canonical_id:
+                raise DuplicateMergeError(
+                    "This ticket is already grouped under main ticket "
+                    f"{existing_group.canonical_ticket_id}. Merge additional duplicates "
+                    "from the main ticket instead."
+                )
+
+        merged_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        if existing_group is not None:
+            # Append to the staff-chosen main ticket's existing group.
+            group_id = existing_group.duplicate_group_id
+            member_ids = [*existing_group.ticket_ids]
+            new_member_ids = [tid for tid in duplicate_ids if tid not in member_ids]
+            group = existing_group.model_copy(update={"ticket_ids": member_ids + new_member_ids})
+        else:
+            group_id = canonical.duplicate_group_id or generate_duplicate_group_id()
+            new_member_ids = duplicate_ids
+            if not canonical.duplicate_group_id:
+                new_member_ids = [canonical_id, *duplicate_ids]
+            group = StoredDuplicateGroup(
+                duplicateGroupId=group_id,
+                canonicalTicketId=canonical_id,
+                ticketIds=[canonical_id, *duplicate_ids],
+                createdAt=merged_at,
+                createdBy=payload.merged_by,
+            )
+
+        # Stamp members first and persist the group row last so a failure never
+        # leaves a saved group pointing at unstamped tickets. Partial attribute
+        # patches also avoid races with background AI full-document writes.
+        stamped: list[tuple[str, str | None]] = []
+        try:
+            for ticket_id in new_member_ids:
+                previous = canonical.duplicate_group_id if ticket_id == canonical_id else None
+                updated = self._store.patch_fields(
+                    ticket_id,
+                    {
+                        "duplicate_group_id": group_id,
+                        "updated_at": merged_at,
+                        "updated_by": payload.merged_by,
+                    },
+                )
+                if updated is None:
+                    raise TicketNotFoundError(ticket_id)
+                stamped.append((ticket_id, previous))
+
+            self._duplicate_group_store.save(group)
+        except Exception:
+            for ticket_id, previous_group_id in stamped:
+                try:
+                    self._store.patch_fields(
+                        ticket_id,
+                        {"duplicate_group_id": previous_group_id, "updated_at": merged_at},
+                    )
+                except Exception:  # pragma: no cover - best-effort rollback
+                    logger.exception(
+                        "Could not roll back duplicate group stamp for ticket %s.",
+                        ticket_id,
+                    )
+            raise
 
         updated_canonical = self._store.get(canonical_id)
         if updated_canonical is None:

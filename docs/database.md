@@ -141,7 +141,9 @@ At least one of `phone` or `email` is required for citizen users.
 
 Staff merge (`POST /v1/tickets/merge`, issue #27) creates a DuplicateGroup row and stamps
 `duplicateGroupId` onto every member ticket. Ticket read responses may also include an enriched
-`duplicateGroup` object with the linked IDs.
+`duplicateGroup` object with the linked IDs. Merging again from the main ticket appends new
+duplicates to the same group; already-grouped duplicates and cross-category merges are
+rejected, and unmerge is out of scope for issue #27.
 
 ### Nearby duplicate detection (issue #25)
 
