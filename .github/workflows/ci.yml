@@ -32,11 +32,15 @@ jobs:
 
       - name: Run backend lint
         working-directory: backend
-        run: python -m ruff check .
+        run: |
+          python -m ruff check .
+          python -m ruff check ../scripts/sync_env.py
 
       - name: Check backend formatting
         working-directory: backend
-        run: python -m ruff format --check .
+        run: |
+          python -m ruff format --check .
+          python -m ruff format --check ../scripts/sync_env.py
 
       - name: Validate mock ticket data
         working-directory: backend
