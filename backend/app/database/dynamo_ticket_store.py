@@ -6,7 +6,8 @@ from botocore.exceptions import ClientError
 from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
-from app.database.serialization import item_to_ticket, ticket_to_item
+from app.database.serialization import item_to_ticket, prepare_dynamodb_value, ticket_to_item
+from app.database.ticket_patch import build_update_expression
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 
@@ -58,6 +59,31 @@ class DynamoTicketStore:
             scan_kwargs["ExclusiveStartKey"] = last_key
 
         return tickets
+
+    def patch_fields(
+        self,
+        ticket_id: str,
+        fields: dict[str, object],
+    ) -> StoredTicket | None:
+        """Apply a partial attribute update so concurrent writers do not clobber each other."""
+        expression, names, values = build_update_expression(fields)
+        update_kwargs: dict[str, object] = {
+            "Key": {"ticketId": ticket_id},
+            "UpdateExpression": expression,
+            "ConditionExpression": "attribute_exists(ticketId)",
+            "ExpressionAttributeNames": names,
+            "ReturnValues": "ALL_NEW",
+        }
+        if values:
+            update_kwargs["ExpressionAttributeValues"] = prepare_dynamodb_value(values)
+        try:
+            response = self._tickets_table.update_item(**update_kwargs)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+        return item_to_ticket(response["Attributes"])
 
     def update_status(
         self,

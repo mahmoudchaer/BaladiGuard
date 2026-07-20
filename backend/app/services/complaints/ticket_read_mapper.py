@@ -9,6 +9,7 @@ from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
     TicketAiFields,
     TicketDepartment,
+    TicketDuplicateReference,
     TicketImageReference,
     TicketResponse,
     TicketStatusHistoryEntry,
@@ -69,6 +70,8 @@ def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
 def map_ticket_to_response(
     ticket: StoredTicket,
     status_history: list[StoredStatusHistory] | None = None,
+    *,
+    duplicate_group: TicketDuplicateReference | None = None,
 ) -> TicketResponse:
     image_reference = TicketImageReference(
         objectKey=ticket.image_object_key,
@@ -113,4 +116,5 @@ def map_ticket_to_response(
             )
             for entry in (status_history or [])
         ],
+        duplicateGroup=duplicate_group,
     )

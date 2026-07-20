@@ -5,6 +5,9 @@ Docker DynamoDB Local / in-memory storage / mock frontends.
 
 Use this for staging demos and issue #115 end-to-end verification.
 Keep secrets in local `.env` files only — never commit real credentials.
+Prefer syncing those files from AWS Secrets Manager with
+`python scripts/sync_env.py` (see [env-sync.md](./env-sync.md)) instead of sharing
+`.env` files over chat.
 
 ## What “cloud mode” means
 
@@ -32,6 +35,20 @@ Keep secrets in local `.env` files only — never commit real credentials.
   `LOCATION_PLACE_INDEX_NAME` (leave empty to use the curated local Beirut index)
 
 ## 1. Configure environment
+
+**Recommended:** pull the approved team bundle from Secrets Manager:
+
+```bash
+backend\.venv\Scripts\python.exe scripts\sync_env.py
+```
+
+To publish local changes back to the shared secret (no Console required):
+
+```bash
+backend\.venv\Scripts\python.exe scripts\sync_env.py --push
+```
+
+Details: [env-sync.md](./env-sync.md).
 
 You can put shared AWS values in the **repo root** `.env` and backend-specific values in
 `backend/.env`. The backend loads `backend/.env` first, then the root `.env` (root wins on

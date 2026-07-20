@@ -192,6 +192,130 @@ describe('reviewTicketCategory', () => {
   });
 });
 
+describe('mergeDuplicateTickets', () => {
+  it('posts the merge to the real backend and normalizes the group response', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...apiTicket,
+          duplicateGroupId: 'dup_group1',
+          duplicateGroup: {
+            duplicateGroupId: 'dup_group1',
+            ticketIds: ['tkt_123', 'tkt_456'],
+            canonicalTicketId: 'tkt_123',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+    const merged = await mergeDuplicateTickets({
+      canonicalTicketId: 'tkt_123',
+      duplicateTicketIds: ['tkt_456'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canonicalTicketId: 'tkt_123', duplicateTicketIds: ['tkt_456'] }),
+    });
+    expect(merged?.duplicateGroupId).toBe('dup_group1');
+    expect(merged?.duplicateGroup?.ticketIds).toEqual(['tkt_123', 'tkt_456']);
+    expect(merged?.duplicateGroup?.canonicalTicketId).toBe('tkt_123');
+  });
+
+  it('surfaces backend merge validation errors', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { message: 'All merged tickets must share the same category.' },
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+
+    await expect(
+      mergeDuplicateTickets({ canonicalTicketId: 'tkt_123', duplicateTicketIds: ['tkt_456'] }),
+    ).rejects.toThrow('All merged tickets must share the same category.');
+  });
+});
+
+describe('mergeDuplicateTickets (mock mode)', () => {
+  const MOCK_ROAD_MAIN = 'tkt_11111111111111111111111111111111';
+  const MOCK_ROAD_DUP = 'tkt_bbbbbbbb444455556666bbbbbbbbbbbb';
+  const MOCK_LIGHTING = 'tkt_33333333333333333333333333333333';
+  const MOCK_GROUPED_WASTE = 'tkt_22222222222222222222222222222222';
+
+  it('persists the merge for the session on every member ticket', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { mergeDuplicateTickets, fetchTicketById } = await import('@/services/tickets');
+    const merged = await mergeDuplicateTickets({
+      canonicalTicketId: MOCK_ROAD_MAIN,
+      duplicateTicketIds: [MOCK_ROAD_DUP],
+    });
+
+    expect(merged?.duplicateGroupId).toBeTruthy();
+    expect(merged?.duplicateGroup?.canonicalTicketId).toBe(MOCK_ROAD_MAIN);
+
+    // The duplicate must reflect the merge on a fresh read, not just the response.
+    const duplicate = await fetchTicketById(MOCK_ROAD_DUP);
+    expect(duplicate?.duplicateGroupId).toBe(merged?.duplicateGroupId);
+    expect(duplicate?.duplicateGroup?.canonicalTicketId).toBe(MOCK_ROAD_MAIN);
+    expect(duplicate?.duplicateGroup?.ticketIds).toEqual([MOCK_ROAD_MAIN, MOCK_ROAD_DUP]);
+  });
+
+  it('rejects cross-category mock merges like the backend', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+
+    await expect(
+      mergeDuplicateTickets({
+        canonicalTicketId: MOCK_ROAD_MAIN,
+        duplicateTicketIds: [MOCK_LIGHTING],
+      }),
+    ).rejects.toThrow('All merged tickets must share the same category as the main ticket.');
+  });
+
+  it('rejects merging a ticket that already belongs to a group', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+
+    await expect(
+      mergeDuplicateTickets({
+        canonicalTicketId: MOCK_ROAD_MAIN,
+        duplicateTicketIds: [MOCK_GROUPED_WASTE],
+      }),
+    ).rejects.toThrow('already belongs to a duplicate group');
+  });
+
+  it('derives the fixture group canonical from the earliest report instead of hardcoding', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { fetchTicketById } = await import('@/services/tickets');
+    const grouped = await fetchTicketById(MOCK_GROUPED_WASTE);
+
+    // BG-2026-0005 was created before BG-2026-0002, so it is the original report.
+    expect(grouped?.duplicateGroup?.canonicalTicketId).toBe('tkt_55555555555555555555555555555555');
+    expect(grouped?.duplicateGroup?.ticketIds).toHaveLength(2);
+  });
+});
+
 describe('ticket location normalization', () => {
   it('normalizes valid coordinates and readable addresses in list responses', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
