@@ -115,6 +115,20 @@
   font-family: 'Courier New', monospace;
 }
 
+.ticket-table__grouped-badge {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid #b8dcc8;
+  border-radius: 999px;
+  background: var(--lb-green-soft);
+  color: var(--lb-green-dark);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .ticket-table__location {
   display: block;
   max-width: 15rem;

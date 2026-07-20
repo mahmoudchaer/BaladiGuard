@@ -201,7 +201,30 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-2. Copy env examples and fill in real AWS values (never commit secrets):
+2. Sync local env files from AWS Secrets Manager (preferred — issue #124):
+
+```bash
+# Windows
+backend\.venv\Scripts\python.exe scripts\sync_env.py
+
+# macOS / Linux
+backend/.venv/bin/python scripts/sync_env.py
+```
+
+This writes `.env`, `backend/.env`, `mobile/.env`, and `admin/.env` from the shared
+secret `baladiguard/local-dev/env`. See [docs/env-sync.md](docs/env-sync.md).
+
+Owners can update that secret **without the AWS Console** after editing local files:
+
+```bash
+# Windows
+backend\.venv\Scripts\python.exe scripts\sync_env.py --push
+
+# macOS / Linux
+backend/.venv/bin/python scripts/sync_env.py --push
+```
+
+Manual fallback (never commit secrets):
 
 ```bash
 copy backend\.env.example backend\.env

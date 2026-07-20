@@ -1,5 +1,7 @@
 from threading import Lock
+from typing import Any
 
+from app.database.ticket_patch import resolve_ticket_attr_name
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 
@@ -30,6 +32,25 @@ class InMemoryTicketStore:
     def list(self) -> list[StoredTicket]:
         with self._lock:
             return list(self._tickets.values())
+
+    def patch_fields(
+        self,
+        ticket_id: str,
+        fields: dict[str, Any],
+    ) -> StoredTicket | None:
+        if not fields:
+            raise ValueError("At least one field is required for a ticket patch.")
+        # Validate field names early (mirrors DynamoDB path).
+        for field_name in fields:
+            resolve_ticket_attr_name(field_name)
+
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if ticket is None:
+                return None
+            updated_ticket = ticket.model_copy(update=fields)
+            self._tickets[ticket_id] = updated_ticket
+            return updated_ticket
 
     def update_status(
         self,
