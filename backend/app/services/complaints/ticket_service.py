@@ -31,7 +31,6 @@ from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
 from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 from app.services.duplicates import find_nearby_duplicates
-from app.services.duplicates.detect import effective_ticket_category
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_duplicate_group_id,
@@ -552,7 +551,10 @@ class TicketService:
             has_photo=bool(ticket.image_object_key),
         )
 
-    def _nearby_duplicate_count(self, *, ticket: StoredTicket, category: str) -> int | None:
+    def _nearby_duplicate_count(self, *, ticket: StoredTicket, category: str | None) -> int | None:
+        if not category:
+            return None
+
         try:
             result = find_nearby_duplicates(
                 category=category,
