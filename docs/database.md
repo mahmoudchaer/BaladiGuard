@@ -51,7 +51,9 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `categoryReviewedAt` | string, nullable | No | ISO 8601 timestamp when staff reviewed the category. |
 | `aiProcessingStatus` | enum | Yes | `pending`, `processing`, `completed`, or `failed`. Defaults to `pending` at submission. Conditionally moves to `processing` when a worker claims the AI job. Startup recovery only reclaims `processing` tickets whose `updatedAt` is older than `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` (default 300). |
 | `aiModelVersion` | string, nullable | No | Bedrock model or processing version identifier when available. |
-| `priority` | enum | No | `low`, `medium`, or `high`. Set by AI urgency estimation. |
+| `priority` | enum | No | `low`, `medium`, `high`, or `critical`. Set by AI urgency estimation. |
+| `urgencyScore` | number, nullable | No | Urgency score from `0` to `100` when available. |
+| `urgencyReason` | string, nullable | No | Staff-facing explanation for the urgency score when available. |
 | `createdBy` | string | No | User identifier once authentication is wired. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
 | `departmentId` | string | No | Set by AI department recommendation. |
@@ -212,10 +214,10 @@ Allowed transitions (strict workflow):
 low
 medium
 high
+critical
 ```
 
-MVP urgency rules also define a `critical` level (score 75–100). Extending this enum and the
-admin/mobile types is part of urgency implementation (issue #29). See `docs/urgency-scoring.md`.
+Urgency levels map to scores in `docs/urgency-scoring.md`; `critical` covers scores 75-100.
 
 ### Location source
 

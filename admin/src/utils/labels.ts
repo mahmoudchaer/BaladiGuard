@@ -13,6 +13,7 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+  critical: 'Critical',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {

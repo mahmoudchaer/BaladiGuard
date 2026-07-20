@@ -64,6 +64,7 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
                 "aiCategoryExplanation": "Overflowing garbage bins and odor.",
                 "aiProcessingStatus": "completed",
                 "suggestedCategory": "waste",
+                "urgencyScore": 50,
                 "urgencyReason": "Public hygiene concern in a high-traffic area.",
                 "summary": "Waste accumulation on Hamra Street.",
             },
@@ -88,7 +89,39 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
     assert ticket.ai is not None
     assert ticket.ai.ai_suggested_category == "waste"
     assert ticket.ai.suggested_category == "waste"
+    assert ticket.ai.urgency_score == 50
     assert ticket.status_history is not None
     assert ticket.status_history[0].changed_by == "system"
     assert ticket.duplicate_group is not None
     assert ticket.duplicate_group.duplicate_group_id == "99999999-9999-9999-9999-999999999999"
+
+
+def test_ticket_response_accepts_critical_priority():
+    ticket = TicketResponse.model_validate(
+        {
+            "ticketId": "tkt_critical",
+            "trackingCode": "CRIT01",
+            "description": "Exposed electrical wires beside a school gate.",
+            "category": "public_facilities",
+            "priority": "critical",
+            "status": "SUBMITTED",
+            "location": {
+                "latitude": 33.89382,
+                "longitude": 35.5018,
+                "addressText": "School gate, Beirut",
+                "source": "GPS",
+            },
+            "imageReferences": [{"objectKey": "reports/mock/wires.jpg"}],
+            "department": None,
+            "createdAt": "2026-08-12T09:45:00Z",
+            "updatedAt": None,
+            "ai": {
+                "urgencyScore": 75,
+                "urgencyReason": "Critical (75): immediate safety danger; critical location.",
+            },
+        }
+    )
+
+    assert ticket.priority == "critical"
+    assert ticket.ai is not None
+    assert ticket.ai.urgency_score == 75

@@ -6,7 +6,7 @@ from app.schemas.ai_processing import AiProcessingStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
-ReportPriority = Literal["low", "medium", "high"]
+ReportPriority = Literal["low", "medium", "high", "critical"]
 
 PENDING_CLASSIFICATION = "PENDING_CLASSIFICATION"
 
@@ -35,6 +35,8 @@ class StoredTicket(BaseModel):
     )
     ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
     priority: ReportPriority | None = None
+    urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)
+    urgency_reason: str | None = Field(default=None, alias="urgencyReason")
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     department_id: str | None = Field(default=None, alias="departmentId")

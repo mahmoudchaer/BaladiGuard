@@ -468,6 +468,22 @@
   display: flex;
 }
 
+.ticket-detail__meta-row--stacked dd {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  line-height: 1.45;
+}
+
+.ticket-detail__meta-row--stacked strong {
+  color: var(--color-text);
+}
+
+.ticket-detail__meta-row--stacked span {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
 .ticket-detail__mono {
   font-family: 'Courier New', monospace;
   font-size: 0.8rem;

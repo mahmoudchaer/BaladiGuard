@@ -10,7 +10,7 @@
 export type TicketStatus =
   'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
-export type TicketPriority = 'low' | 'medium' | 'high';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type LocationSource = 'GPS' | 'MANUAL' | 'PLACEHOLDER';
 
@@ -53,6 +53,7 @@ export type TicketAiFields = {
   aiProcessingStatus?: AiProcessingStatus;
   aiModelVersion?: string;
   suggestedCategory?: string;
+  urgencyScore?: number;
   urgencyReason?: string;
   summary?: string;
 };

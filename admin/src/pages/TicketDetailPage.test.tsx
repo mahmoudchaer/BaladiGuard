@@ -49,6 +49,8 @@ const ticket: Ticket = {
     aiCategoryExplanation: 'The report describes damage to a public road.',
     aiConfidence: 0.92,
     aiProcessingStatus: 'completed',
+    urgencyScore: 62,
+    urgencyReason: 'High (62): possible injury or collision risk; critical location.',
   },
 };
 
@@ -74,6 +76,10 @@ describe('TicketDetailPage category review', () => {
     expect(await screen.findByText('AI category recommendation')).toBeInTheDocument();
     expect(screen.getByText('The report describes damage to a public road.')).toBeInTheDocument();
     expect(screen.getByText('Confidence 92%')).toBeInTheDocument();
+    expect(screen.getByText('62/100')).toBeInTheDocument();
+    expect(
+      screen.getByText('High (62): possible injury or collision risk; critical location.'),
+    ).toBeInTheDocument();
   });
 
   it('accepts the AI suggestion and immediately shows the review result', async () => {

@@ -37,7 +37,7 @@ export type SubmitTicketResponse = {
 
 export type TicketStatus = 'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED';
 
-export type TicketPriority = 'low' | 'medium' | 'high';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type TicketImageReference = {
   objectKey: string;
@@ -65,6 +65,7 @@ export type TicketAiFields = {
   aiProcessingStatus?: AiProcessingStatus;
   aiModelVersion?: string;
   suggestedCategory?: string;
+  urgencyScore?: number;
   urgencyReason?: string;
   summary?: string;
 };

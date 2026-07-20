@@ -10,6 +10,7 @@ const PRIORITY_CLASS: Record<TicketPriority, string> = {
   low: 'priority-badge--low',
   medium: 'priority-badge--medium',
   high: 'priority-badge--high',
+  critical: 'priority-badge--critical',
 };
 
 export function PriorityBadge({ priority }: PriorityBadgeProps) {

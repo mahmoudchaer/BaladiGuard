@@ -71,7 +71,9 @@ def test_get_ticket_returns_ticket_by_id(client):
     assert body["imageObjectKey"] == stored.image_object_key
     assert body["status"] == "SUBMITTED"
     assert body["category"] == "PENDING_CLASSIFICATION"
-    assert body["priority"] is None
+    assert body["priority"] == stored.priority
+    assert body["ai"]["urgencyScore"] == stored.urgency_score
+    assert body["ai"]["urgencyReason"] == stored.urgency_reason
     assert body["department"] is None
     assert body["departmentId"] is None
     assert body["createdBy"] == stored.created_by

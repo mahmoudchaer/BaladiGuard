@@ -62,6 +62,8 @@ def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
         aiProcessingStatus=ticket.ai_processing_status,
         aiModelVersion=ticket.ai_model_version,
         suggestedCategory=ticket.ai_suggested_category,
+        urgencyScore=ticket.urgency_score,
+        urgencyReason=ticket.urgency_reason,
     )
 
 

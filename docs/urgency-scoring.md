@@ -2,9 +2,9 @@
 
 This document defines the first version of BaladiGuard urgency scoring rules.
 
-It is the contract for issue **#29** (implement the scoring function). This issue (**#28**)
-documents the factors, numeric scale, level mapping, missing-data behavior, and manually scored
-examples. It does not implement runtime scoring.
+It is the contract for issue **#29** (implement the scoring function). The runtime
+implementation now persists `urgencyScore`, `urgencyReason`, and the mapped priority level on
+tickets during AI processing.
 
 BaladiGuard urgency scoring supports municipal prioritization. It is **not** an emergency dispatch
 system. Life-threatening situations should be directed to emergency services outside this product.
@@ -31,12 +31,9 @@ The scoring function must return:
 
 ### Compatibility note
 
-Current ticket storage and UI types only allow `low | medium | high`. Issue **#29** must extend
-backend, admin, and mobile priority enums to include `critical`, and update
-`docs/database.md` / `docs/MVP_API_CONTRACT.md` in the same change set.
-
-Until that lands, do not persist `critical` through the existing `priority` field without the type
-extension.
+Ticket storage and backend/admin/mobile UI contracts now allow `low | medium | high | critical`.
+Keep `docs/database.md` and `docs/MVP_API_CONTRACT.md` aligned with any future urgency contract
+changes.
 
 ## Factor Weights (sum = 100)
 
