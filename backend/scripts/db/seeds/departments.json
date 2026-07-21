@@ -3,48 +3,48 @@
     "departmentId": "d1111111-1111-1111-1111-111111111111",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Road Maintenance",
-    "description": "Road damage, potholes, and sidewalk repairs."
+    "description": "Handles public roadway and sidewalk surface repairs. In scope: potholes, cracked asphalt, damaged road surfaces, broken sidewalk tiles, raised pavement, and pedestrian trip hazards on municipal paths. Out of scope: private driveways, indoor flooring, and stormwater flooding caused primarily by blocked drains (route to Drainage)."
   },
   {
     "departmentId": "d2222222-2222-2222-2222-222222222222",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Waste Management",
-    "description": "Garbage collection, bins, and street cleanliness."
+    "description": "Handles garbage collection, bins, and street cleanliness. In scope: overflowing bins, garbage bags on sidewalks, litter piles, illegal dumping of household trash, and odor from accumulated waste. Out of scope: private indoor trash, hazardous industrial waste requiring specialized handlers, and construction debris that is primarily a road obstruction (may need Road Maintenance coordination)."
   },
   {
     "departmentId": "d3333333-3333-3333-3333-333333333333",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Street Lighting",
-    "description": "Public lighting and electrical infrastructure."
+    "description": "Handles public street and plaza lighting infrastructure. In scope: non-working street lamps, flickering public lights, dark stretches caused by broken municipal fixtures, and damaged light poles for public lighting. Out of scope: private building lights, indoor lighting, and traffic signal lamps (route to Traffic Management)."
   },
   {
     "departmentId": "d4444444-4444-4444-4444-444444444444",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Water Services",
-    "description": "Water leaks and public water infrastructure."
+    "description": "Handles public water infrastructure leaks and related surface water from pipes. In scope: broken public pipes, continuous clean-water flow from pavement when it has not rained, and visible leaks from municipal water infrastructure. Out of scope: private apartment plumbing with no public impact, and rainwater pooling from blocked storm drains (route to Drainage)."
   },
   {
     "departmentId": "d5555555-5555-5555-5555-555555555555",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Noise Control",
-    "description": "Noise complaints and construction disturbances."
+    "description": "Handles recurring public noise disturbances that municipalities can investigate. In scope: late-night construction noise, loud generators in public areas, and recurring outdoor noise disturbances. Out of scope: private indoor neighbor disputes without a public nuisance angle, emergency sirens, and noise that is only secondary to another primary issue (for example trash collection odor → Waste Management)."
   },
   {
     "departmentId": "d6666666-6666-6666-6666-666666666666",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Traffic Management",
-    "description": "Traffic signals and intersection safety."
+    "description": "Handles traffic signals and intersection control devices. In scope: non-working traffic lights, signals stuck on one color, pedestrian crossing signal failures, and damaged signal heads. Out of scope: general road surface damage without a signal issue (route to Road Maintenance), and street lighting that is not a traffic signal (route to Street Lighting)."
   },
   {
     "departmentId": "d7777777-7777-7777-7777-777777777777",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Drainage",
-    "description": "Storm drains and flood prevention."
+    "description": "Handles stormwater drainage and flood prevention assets. In scope: blocked storm drains, clogged drainage channels, rainwater pooling after rain, and street flooding tied to drainage failure. Out of scope: continuous clean-water leaks unrelated to rain (route to Water Services), and cracked asphalt whose primary repair need is road surface work (route to Road Maintenance)."
   },
   {
     "departmentId": "d8888888-8888-8888-8888-888888888888",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Public Facilities",
-    "description": "Parks, benches, and public amenities."
+    "description": "Handles parks, benches, playgrounds, and other public amenities. In scope: broken public benches, damaged playground equipment, unsafe park fixtures, and damaged public amenity structures. Out of scope: private property amenities, roadway pavement (route to Road Maintenance), and waste piled in a park that is primarily a cleanliness issue (route to Waste Management)."
   }
 ]

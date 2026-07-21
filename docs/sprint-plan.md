@@ -63,6 +63,8 @@ This is important because municipalities need to understand where problems are h
 
 This sprint improves decision support. The system should score urgency, explain why a ticket is urgent, suggest the correct department, and let staff manually adjust the assignment if needed.
 
+Department routing is split across issues: **#31** defines authoritative category→department rules and department docs (see `docs/department-mapping.md`); **#33** applies that map after AI classification and saves a suggested department on the ticket; **#34** allows staff override. RAG / vector-DB department matching is deferred.
+
 The goal is to make the platform useful for prioritization, not just reporting.
 
 ### Sprint 6: Citizen Tracking, Notifications, and Security

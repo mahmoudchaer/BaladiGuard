@@ -7,46 +7,55 @@
   {
     "categoryId": "road_damage",
     "label": "Road damage",
-    "description": "Potholes, cracked pavement, and road surface issues."
+    "description": "Potholes, cracked pavement, and road surface issues.",
+    "departmentId": "d1111111-1111-1111-1111-111111111111"
   },
   {
     "categoryId": "waste",
     "label": "Waste",
-    "description": "Overflowing bins, garbage piles, and litter."
+    "description": "Overflowing bins, garbage piles, and litter.",
+    "departmentId": "d2222222-2222-2222-2222-222222222222"
   },
   {
     "categoryId": "street_lighting",
     "label": "Street lighting",
-    "description": "Broken or non-working street lights."
+    "description": "Broken or non-working street lights.",
+    "departmentId": "d3333333-3333-3333-3333-333333333333"
   },
   {
     "categoryId": "water_leak",
     "label": "Water leak",
-    "description": "Leaking pipes and water accumulation."
+    "description": "Leaking pipes and water accumulation.",
+    "departmentId": "d4444444-4444-4444-4444-444444444444"
   },
   {
     "categoryId": "noise",
     "label": "Noise",
-    "description": "Excessive noise from construction or other sources."
+    "description": "Excessive noise from construction or other sources.",
+    "departmentId": "d5555555-5555-5555-5555-555555555555"
   },
   {
     "categoryId": "sidewalk_damage",
     "label": "Sidewalk damage",
-    "description": "Broken tiles, hazards, and accessibility issues."
+    "description": "Broken tiles, hazards, and accessibility issues.",
+    "departmentId": "d1111111-1111-1111-1111-111111111111"
   },
   {
     "categoryId": "traffic_signal",
     "label": "Traffic signal",
-    "description": "Broken or malfunctioning traffic lights."
+    "description": "Broken or malfunctioning traffic lights.",
+    "departmentId": "d6666666-6666-6666-6666-666666666666"
   },
   {
     "categoryId": "drainage",
     "label": "Drainage",
-    "description": "Blocked drains and stormwater issues."
+    "description": "Blocked drains and stormwater issues.",
+    "departmentId": "d7777777-7777-7777-7777-777777777777"
   },
   {
     "categoryId": "public_facilities",
     "label": "Public facilities",
-    "description": "Damaged benches, playgrounds, and public spaces."
+    "description": "Damaged benches, playgrounds, and public spaces.",
+    "departmentId": "d8888888-8888-8888-8888-888888888888"
   }
 ]
