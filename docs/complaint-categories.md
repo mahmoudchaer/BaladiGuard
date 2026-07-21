@@ -70,12 +70,19 @@ Examples:
 | Complaint only says "there is a problem near my house" with no actionable detail. | `PENDING_CLASSIFICATION` | Too ambiguous for category assignment. |
 | Political feedback or general dissatisfaction with municipality service. | `PENDING_CLASSIFICATION` | Not a concrete maintenance ticket. |
 
+## Department Mapping
+
+Category→department routing rules, per-department responsibilities, and the #31 / #33 / RAG scope
+split are documented in [department-mapping.md](./department-mapping.md).
+
 ## Source Of Truth
 
 The current codebase already stores this taxonomy in:
 
-- `backend/scripts/db/seeds/categories.json`
+- `backend/scripts/db/seeds/categories.json` (includes `departmentId` for concrete categories)
 - `backend/scripts/db/seeds/departments.json`
+- `backend/app/services/routing/department_map.py` (runtime category→department map)
+- `docs/department-mapping.md` (department responsibilities and routing rules)
 - `admin/src/utils/labels.ts`
 - `mock_tickets.json`
 
