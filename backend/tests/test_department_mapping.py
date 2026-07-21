@@ -78,8 +78,8 @@ def test_department_name_lookup() -> None:
 
 
 def test_ticket_read_mapper_uses_seed_backed_department_name() -> None:
-    from app.schemas.ticket import ReportContact, ReportLocation
     from app.schemas.stored_ticket import StoredTicket
+    from app.schemas.ticket import ReportContact, ReportLocation
     from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 
     ticket = StoredTicket(
