@@ -159,6 +159,7 @@ piled in a park that is primarily a cleanliness issue → Waste Management.
 | `backend/scripts/db/seeds/categories.json` | Seeded categories with `departmentId` |
 | `backend/scripts/db/seeds/departments.json` | Seeded department list and descriptions |
 | `backend/app/services/routing/department_map.py` | Runtime map loaded from seeds |
+| `backend/app/services/complaints/ticket_read_mapper.py` | Resolves department display names via the routing module |
 
 When adding or removing categories or departments, update this document, the category taxonomy doc,
 and both seed files in the same PR. Runtime consumers (duplicate similarity today; ticket department

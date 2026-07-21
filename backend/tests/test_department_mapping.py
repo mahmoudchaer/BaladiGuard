@@ -75,3 +75,34 @@ def test_seed_files_and_routing_module_stay_consistent() -> None:
 def test_department_name_lookup() -> None:
     assert department_name("d2222222-2222-2222-2222-222222222222") == "Waste Management"
     assert department_name("missing") is None
+
+
+def test_ticket_read_mapper_uses_seed_backed_department_name() -> None:
+    from app.schemas.ticket import ReportContact, ReportLocation
+    from app.schemas.stored_ticket import StoredTicket
+    from app.services.complaints.ticket_read_mapper import map_ticket_to_response
+
+    ticket = StoredTicket(
+        ticketId="tkt_department_name_lookup_00000000000001",
+        ticketNumber="BG-2026-9999",
+        trackingCode="DEPT01",
+        description="Broken street lamp on the corner.",
+        contact=ReportContact(name="Test User", phone="+96170000000"),
+        location=ReportLocation(
+            latitude=33.896112,
+            longitude=35.478419,
+            addressText="Beirut",
+            source="GPS",
+        ),
+        imageObjectKey="reports/mock/street-light.jpg",
+        status="SUBMITTED",
+        category="street_lighting",
+        departmentId="d3333333-3333-3333-3333-333333333333",
+        createdAt="2026-07-21T00:00:00Z",
+        updatedAt="2026-07-21T00:00:00Z",
+    )
+
+    response = map_ticket_to_response(ticket)
+    assert response.department is not None
+    assert response.department.department_id == "d3333333-3333-3333-3333-333333333333"
+    assert response.department.name == "Street Lighting"
