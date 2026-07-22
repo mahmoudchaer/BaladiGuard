@@ -427,6 +427,26 @@
   color: var(--lb-green-dark);
 }
 
+.ticket-detail__maps-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--lb-red);
+  text-decoration: none;
+}
+
+.ticket-detail__maps-link:hover {
+  text-decoration: underline;
+}
+
+.ticket-detail__location-unavailable {
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .ticket-detail__sidebar {
   display: flex;
   flex-direction: column;

@@ -25,6 +25,8 @@ import { formatDepartment } from '@/utils/departments';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
+import { TicketMap } from '@/components/TicketMap';
+import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
 import './TicketDetailPage.css';
 
@@ -417,6 +419,26 @@ export function TicketDetailPage() {
                       · {ticket.location.source}
                     </span>
                   </p>
+                  {isPlottableTicket(ticket) ? (
+                    <>
+                      <a
+                        className="ticket-detail__maps-link"
+                        href={buildGoogleMapsUrl(
+                          ticket.location.latitude,
+                          ticket.location.longitude,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open in Google Maps
+                      </a>
+                      <TicketMap tickets={[ticket]} variant="detail" />
+                    </>
+                  ) : (
+                    <p className="ticket-detail__location-unavailable">
+                      No valid map coordinates are available for this ticket.
+                    </p>
+                  )}
                 </div>
               </section>
 
