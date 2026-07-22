@@ -188,40 +188,38 @@ function normalizeDuplicateSuggestions(data: unknown): TicketDuplicateSuggestion
     return [];
   }
 
-  return data
-    .filter(isRecord)
-    .flatMap((suggestion) => {
-      if (typeof suggestion.ticketId !== 'string' || typeof suggestion.category !== 'string') {
-        return [];
-      }
+  return data.filter(isRecord).flatMap((suggestion) => {
+    if (typeof suggestion.ticketId !== 'string' || typeof suggestion.category !== 'string') {
+      return [];
+    }
 
-      const distanceMeters =
-        typeof suggestion.distanceMeters === 'number' && Number.isFinite(suggestion.distanceMeters)
-          ? suggestion.distanceMeters
-          : null;
-      if (distanceMeters === null) {
-        return [];
-      }
+    const distanceMeters =
+      typeof suggestion.distanceMeters === 'number' && Number.isFinite(suggestion.distanceMeters)
+        ? suggestion.distanceMeters
+        : null;
+    if (distanceMeters === null) {
+      return [];
+    }
 
-      const normalized: TicketDuplicateSuggestion = {
-        ticketId: suggestion.ticketId,
-        distanceMeters,
-        status: normalizeTicketStatus(suggestion.status),
-        category: suggestion.category,
-      };
+    const normalized: TicketDuplicateSuggestion = {
+      ticketId: suggestion.ticketId,
+      distanceMeters,
+      status: normalizeTicketStatus(suggestion.status),
+      category: suggestion.category,
+    };
 
-      if (typeof suggestion.ticketNumber === 'string') {
-        normalized.ticketNumber = suggestion.ticketNumber;
-      }
-      if (typeof suggestion.score === 'number') {
-        normalized.score = suggestion.score;
-      }
-      if (suggestion.categoryMatch === 'same' || suggestion.categoryMatch === 'similar') {
-        normalized.categoryMatch = suggestion.categoryMatch;
-      }
+    if (typeof suggestion.ticketNumber === 'string') {
+      normalized.ticketNumber = suggestion.ticketNumber;
+    }
+    if (typeof suggestion.score === 'number') {
+      normalized.score = suggestion.score;
+    }
+    if (suggestion.categoryMatch === 'same' || suggestion.categoryMatch === 'similar') {
+      normalized.categoryMatch = suggestion.categoryMatch;
+    }
 
-      return [normalized];
-    });
+    return [normalized];
+  });
 }
 
 function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
