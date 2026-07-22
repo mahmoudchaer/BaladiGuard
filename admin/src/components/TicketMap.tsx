@@ -25,13 +25,7 @@ type TicketMapProps = {
   variant?: 'overview' | 'detail';
 };
 
-function FitTicketBounds({
-  tickets,
-  singleZoom,
-}: {
-  tickets: Ticket[];
-  singleZoom: number;
-}) {
+function FitTicketBounds({ tickets, singleZoom }: { tickets: Ticket[]; singleZoom: number }) {
   const map = useMap();
 
   useEffect(() => {
@@ -62,10 +56,7 @@ export function TicketMap({ tickets, variant = 'overview' }: TicketMapProps) {
   const singleZoom = isDetail ? 16 : 14;
 
   return (
-    <div
-      className={`ticket-map${isDetail ? ' ticket-map--detail' : ''}`}
-      data-testid="ticket-map"
-    >
+    <div className={`ticket-map${isDetail ? ' ticket-map--detail' : ''}`} data-testid="ticket-map">
       <MapContainer
         center={[BEIRUT_CENTER.latitude, BEIRUT_CENTER.longitude]}
         zoom={singleZoom}
@@ -78,10 +69,7 @@ export function TicketMap({ tickets, variant = 'overview' }: TicketMapProps) {
         />
         <FitTicketBounds tickets={tickets} singleZoom={singleZoom} />
         {tickets.map((ticket) => {
-          const mapsUrl = buildGoogleMapsUrl(
-            ticket.location.latitude,
-            ticket.location.longitude,
-          );
+          const mapsUrl = buildGoogleMapsUrl(ticket.location.latitude, ticket.location.longitude);
 
           return (
             <Marker

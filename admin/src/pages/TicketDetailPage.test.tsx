@@ -330,10 +330,7 @@ describe('TicketDetailPage location map', () => {
 
     expect(await screen.findByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
     const mapsLink = screen.getByRole('link', { name: 'Open in Google Maps' });
-    expect(mapsLink).toHaveAttribute(
-      'href',
-      'https://www.google.com/maps?q=33.896000,35.478000',
-    );
+    expect(mapsLink).toHaveAttribute('href', 'https://www.google.com/maps?q=33.896000,35.478000');
     expect(mapsLink).toHaveAttribute('target', '_blank');
   });
 });
