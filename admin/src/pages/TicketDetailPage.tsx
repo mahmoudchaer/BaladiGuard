@@ -30,6 +30,14 @@ import './TicketDetailPage.css';
 
 type LoadState = 'loading' | 'success' | 'not-found' | 'error';
 
+function formatDistanceMeters(distanceMeters: number): string {
+  if (distanceMeters >= 1000) {
+    return `${(distanceMeters / 1000).toFixed(1)} km away`;
+  }
+
+  return `${Math.round(distanceMeters)} m away`;
+}
+
 export function TicketDetailPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -532,6 +540,35 @@ export function TicketDetailPage() {
                     </span>
                     Duplicate group
                   </h2>
+
+                  <div className="ticket-detail__suggestions">
+                    <h3 className="ticket-detail__subsection-title">Possible duplicates</h3>
+                    {(ticket.duplicateSuggestions ?? []).length === 0 ? (
+                      <p className="ticket-detail__merge-empty">
+                        No possible duplicate tickets found.
+                      </p>
+                    ) : (
+                      <ul className="ticket-detail__suggestion-list">
+                        {(ticket.duplicateSuggestions ?? []).map((suggestion) => (
+                          <li key={suggestion.ticketId} className="ticket-detail__suggestion-item">
+                            <div className="ticket-detail__suggestion-main">
+                              <Link
+                                to={`/tickets/${suggestion.ticketId}`}
+                                className="ticket-detail__suggestion-link"
+                              >
+                                {suggestion.ticketNumber ?? suggestion.ticketId}
+                              </Link>
+                              <span>{formatDistanceMeters(suggestion.distanceMeters)}</span>
+                            </div>
+                            <div className="ticket-detail__suggestion-meta">
+                              <StatusBadge status={suggestion.status} />
+                              <CategoryBadge category={suggestion.category} />
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
                   {ticket.duplicateGroupId && (
                     <div className="ticket-detail__group-summary" role="status">

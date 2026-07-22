@@ -64,6 +64,16 @@ export type TicketDuplicateReference = {
   canonicalTicketId?: string;
 };
 
+export type TicketDuplicateSuggestion = {
+  ticketId: string;
+  ticketNumber?: string;
+  distanceMeters: number;
+  status: TicketStatus;
+  category: string;
+  score?: number;
+  categoryMatch?: 'same' | 'similar';
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -84,6 +94,7 @@ export type Ticket = {
   department?: TicketDepartment | null;
   duplicateGroupId: string | null;
   duplicateGroup?: TicketDuplicateReference | null;
+  duplicateSuggestions?: TicketDuplicateSuggestion[];
   createdAt: string;
   updatedAt: string | null;
   ai?: TicketAiFields;

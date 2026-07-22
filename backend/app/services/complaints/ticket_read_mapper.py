@@ -10,6 +10,7 @@ from app.schemas.ticket_response import (
     TicketAiFields,
     TicketDepartment,
     TicketDuplicateReference,
+    TicketDuplicateSuggestion,
     TicketImageReference,
     TicketResponse,
     TicketStatusHistoryEntry,
@@ -62,6 +63,7 @@ def map_ticket_to_response(
     status_history: list[StoredStatusHistory] | None = None,
     *,
     duplicate_group: TicketDuplicateReference | None = None,
+    duplicate_suggestions: list[TicketDuplicateSuggestion] | None = None,
 ) -> TicketResponse:
     image_reference = TicketImageReference(
         objectKey=ticket.image_object_key,
@@ -107,4 +109,5 @@ def map_ticket_to_response(
             for entry in (status_history or [])
         ],
         duplicateGroup=duplicate_group,
+        duplicateSuggestions=duplicate_suggestions or [],
     )

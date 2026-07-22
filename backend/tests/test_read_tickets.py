@@ -86,6 +86,55 @@ def test_get_ticket_returns_ticket_by_id(client):
     assert body["ai"]["aiProcessingStatus"] == "completed"
 
 
+def test_get_ticket_returns_duplicate_suggestions(client):
+    main = create_ticket(client, "Overflowing garbage bins near Hamra Street.")
+    duplicate = create_ticket(client, "Garbage bags are piling up beside the same sidewalk.")
+    unrelated = create_ticket(client, "Broken street light on a far road.")
+
+    ticket_store.patch_fields(
+        main["ticketId"],
+        {
+            "category": "waste",
+            "ai_suggested_category": "waste",
+        },
+    )
+    ticket_store.patch_fields(
+        duplicate["ticketId"],
+        {
+            "category": "waste",
+            "ai_suggested_category": "waste",
+            "status": "IN_PROGRESS",
+        },
+    )
+    ticket_store.patch_fields(
+        unrelated["ticketId"],
+        {
+            "category": "street_lighting",
+            "ai_suggested_category": "street_lighting",
+        },
+    )
+
+    response = client.get(f"/v1/tickets/{main['ticketId']}")
+
+    assert response.status_code == 200
+    suggestions = response.json()["duplicateSuggestions"]
+    assert len(suggestions) == 1
+    assert suggestions[0]["ticketId"] == duplicate["ticketId"]
+    assert suggestions[0]["ticketNumber"] == duplicate["ticketNumber"]
+    assert suggestions[0]["distanceMeters"] >= 0
+    assert suggestions[0]["status"] == "IN_PROGRESS"
+    assert suggestions[0]["category"] == "waste"
+
+
+def test_get_ticket_returns_empty_duplicate_suggestions_when_none_exist(client):
+    created = create_ticket(client, "Broken street light near the promenade.")
+
+    response = client.get(f"/v1/tickets/{created['ticketId']}")
+
+    assert response.status_code == 200
+    assert response.json()["duplicateSuggestions"] == []
+
+
 def test_get_ticket_returns_404_for_unknown_ticket(client):
     response = client.get("/v1/tickets/tkt_missing")
 

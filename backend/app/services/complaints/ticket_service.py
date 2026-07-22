@@ -22,6 +22,7 @@ from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicket
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     TicketDuplicateReference,
+    TicketDuplicateSuggestion,
     TicketResponse,
     UpdateTicketStatusRequest,
 )
@@ -526,7 +527,60 @@ class TicketService:
                 duplicate_group = TicketDuplicateReference(
                     duplicateGroupId=ticket.duplicate_group_id,
                 )
-        return map_ticket_to_response(ticket, history, duplicate_group=duplicate_group)
+        return map_ticket_to_response(
+            ticket,
+            history,
+            duplicate_group=duplicate_group,
+            duplicate_suggestions=self._duplicate_suggestions_for_ticket(ticket),
+        )
+
+    def _duplicate_suggestions_for_ticket(
+        self,
+        ticket: StoredTicket,
+    ) -> list[TicketDuplicateSuggestion]:
+        category = effective_ticket_category(ticket)
+        if not category:
+            return []
+
+        try:
+            result = find_nearby_duplicates(
+                category=category,
+                latitude=ticket.location.latitude,
+                longitude=ticket.location.longitude,
+                tickets=self._store.list(),
+                exclude_ticket_id=ticket.ticket_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Duplicate suggestion lookup unavailable for ticket %s (%s).",
+                ticket.ticket_id,
+                type(exc).__name__,
+            )
+            return []
+
+        suggestions: list[TicketDuplicateSuggestion] = []
+        for match in result.matches:
+            candidate = self._store.get(match.ticket_id)
+            if (
+                ticket.duplicate_group_id
+                and candidate is not None
+                and candidate.duplicate_group_id == ticket.duplicate_group_id
+            ):
+                continue
+
+            suggestions.append(
+                TicketDuplicateSuggestion(
+                    ticketId=match.ticket_id,
+                    ticketNumber=candidate.ticket_number if candidate is not None else None,
+                    distanceMeters=match.distance_meters,
+                    status=match.status,
+                    category=match.category,
+                    score=match.score,
+                    categoryMatch=match.category_match,
+                )
+            )
+
+        return suggestions
 
     def _score_ticket_urgency(
         self,
