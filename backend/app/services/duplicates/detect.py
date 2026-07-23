@@ -9,7 +9,7 @@ from app.schemas.duplicate_detection import (
     NearbyDuplicateDetectionResult,
     NearbyDuplicateMatch,
 )
-from app.schemas.stored_ticket import StoredTicket
+from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket_status import TicketStatus
 from app.services.duplicates.category_similarity import category_match_type
 from app.services.duplicates.geo import haversine_meters
@@ -31,6 +31,10 @@ def effective_ticket_category(ticket: StoredTicket) -> str:
     """Prefer the staff-approved category when present."""
     if ticket.final_category:
         return ticket.final_category
+    if ticket.ai_suggested_category:
+        return ticket.ai_suggested_category
+    if ticket.category == PENDING_CLASSIFICATION:
+        return PENDING_CLASSIFICATION
     return ticket.category
 
 

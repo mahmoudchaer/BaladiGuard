@@ -545,7 +545,9 @@ export function TicketDetailPage() {
                     <h3 className="ticket-detail__subsection-title">Possible duplicates</h3>
                     {(ticket.duplicateSuggestions ?? []).length === 0 ? (
                       <p className="ticket-detail__merge-empty">
-                        No possible duplicate tickets found.
+                        {effectiveTicketCategory(ticket) === null
+                          ? 'Duplicate suggestions are available once this ticket is classified.'
+                          : 'No possible duplicate tickets found.'}
                       </p>
                     ) : (
                       <ul className="ticket-detail__suggestion-list">

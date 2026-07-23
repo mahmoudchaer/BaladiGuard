@@ -101,6 +101,20 @@ describe('TicketDetailPage duplicate suggestions', () => {
 
     expect(await screen.findByText('No possible duplicate tickets found.')).toBeInTheDocument();
   });
+
+  it('shows a classification-needed state before duplicate suggestions are available', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      ai: { originalDescription: ticket.description, aiProcessingStatus: 'pending' },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        'Duplicate suggestions are available once this ticket is classified.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('TicketDetailPage category review', () => {

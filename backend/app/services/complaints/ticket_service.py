@@ -306,7 +306,7 @@ class TicketService:
         ticket = self._store.get(ticket_id)
         if ticket is None:
             return None
-        return self._map_ticket(ticket)
+        return self._map_ticket(ticket, include_duplicate_suggestions=True)
 
     def update_ticket_status(
         self,
@@ -512,7 +512,12 @@ class TicketService:
             raise TicketNotFoundError(canonical_id)
         return self._map_ticket(updated_canonical)
 
-    def _map_ticket(self, ticket: StoredTicket) -> TicketResponse:
+    def _map_ticket(
+        self,
+        ticket: StoredTicket,
+        *,
+        include_duplicate_suggestions: bool = False,
+    ) -> TicketResponse:
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
         duplicate_group = None
         if ticket.duplicate_group_id:
@@ -531,7 +536,11 @@ class TicketService:
             ticket,
             history,
             duplicate_group=duplicate_group,
-            duplicate_suggestions=self._duplicate_suggestions_for_ticket(ticket),
+            duplicate_suggestions=(
+                self._duplicate_suggestions_for_ticket(ticket)
+                if include_duplicate_suggestions
+                else []
+            ),
         )
 
     def _duplicate_suggestions_for_ticket(
@@ -543,11 +552,14 @@ class TicketService:
             return []
 
         try:
+            candidate_tickets = [
+                candidate for candidate in self._store.list() if not candidate.duplicate_group_id
+            ]
             result = find_nearby_duplicates(
                 category=category,
                 latitude=ticket.location.latitude,
                 longitude=ticket.location.longitude,
-                tickets=self._store.list(),
+                tickets=candidate_tickets,
                 exclude_ticket_id=ticket.ticket_id,
             )
         except Exception as exc:
@@ -561,11 +573,7 @@ class TicketService:
         suggestions: list[TicketDuplicateSuggestion] = []
         for match in result.matches:
             candidate = self._store.get(match.ticket_id)
-            if (
-                ticket.duplicate_group_id
-                and candidate is not None
-                and candidate.duplicate_group_id == ticket.duplicate_group_id
-            ):
+            if candidate is not None and candidate.duplicate_group_id:
                 continue
 
             suggestions.append(
