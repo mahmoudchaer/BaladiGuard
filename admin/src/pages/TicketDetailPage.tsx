@@ -411,16 +411,19 @@ export function TicketDetailPage() {
                     </span>
                     Location
                   </h2>
-                  <p className="ticket-detail__location-text">{ticket.location.addressText}</p>
-                  <p className="ticket-detail__coordinates">
-                    {ticket.location.latitude.toFixed(5)}, {ticket.location.longitude.toFixed(5)}
-                    <span className="ticket-detail__location-source">
-                      {' '}
-                      · {ticket.location.source}
-                    </span>
+                  <p className="ticket-detail__location-text">
+                    {ticket.location.addressText.trim() || 'No address provided'}
                   </p>
                   {isPlottableTicket(ticket) ? (
                     <>
+                      <p className="ticket-detail__coordinates">
+                        {ticket.location.latitude.toFixed(5)},{' '}
+                        {ticket.location.longitude.toFixed(5)}
+                        <span className="ticket-detail__location-source">
+                          {' '}
+                          · {ticket.location.source}
+                        </span>
+                      </p>
                       <a
                         className="ticket-detail__maps-link"
                         href={buildGoogleMapsUrl(

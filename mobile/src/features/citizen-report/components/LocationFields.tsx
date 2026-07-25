@@ -45,6 +45,8 @@ export function LocationFields({
   // Prevent a late GPS response from overwriting a choice the user already made.
   const userAdjustedRef = useRef(false);
   const autoDetectStartedRef = useRef(false);
+  // Bumps on each GPS request so an older in-flight response cannot win a race.
+  const gpsRequestIdRef = useRef(0);
 
   const markUserAdjusted = () => {
     userAdjustedRef.current = true;
@@ -62,11 +64,14 @@ export function LocationFields({
     setValue('locationSource', location.source, { shouldValidate: true });
   };
 
+  const shouldApplyGpsResult = (requestId: number) =>
+    !userAdjustedRef.current && requestId === gpsRequestIdRef.current;
+
   const applyGpsCoordinates = async (
     coordinates: { latitude: number; longitude: number },
-    options?: { force?: boolean },
+    requestId: number,
   ) => {
-    if (!options?.force && userAdjustedRef.current) {
+    if (!shouldApplyGpsResult(requestId)) {
       return;
     }
 
@@ -80,7 +85,7 @@ export function LocationFields({
         longitude: coordinates.longitude,
       });
 
-      if (!options?.force && userAdjustedRef.current) {
+      if (!shouldApplyGpsResult(requestId)) {
         return;
       }
 
@@ -99,7 +104,7 @@ export function LocationFields({
       }
       setGpsHint('Using your current location. You can move the pin or look up another address.');
     } catch {
-      if (!options?.force && userAdjustedRef.current) {
+      if (!shouldApplyGpsResult(requestId)) {
         return;
       }
       applyValidatedLocation({
@@ -115,10 +120,13 @@ export function LocationFields({
   };
 
   const detectCurrentLocation = async (options?: { force?: boolean }) => {
+    // force only clears a prior override at button press; manual changes during the
+    // in-flight request still block applying the late GPS result.
     if (options?.force) {
       userAdjustedRef.current = false;
     }
 
+    const requestId = ++gpsRequestIdRef.current;
     setIsDetectingGps(true);
     setLocationError(null);
     setGpsHint(null);
@@ -126,13 +134,17 @@ export function LocationFields({
     try {
       const result = await getCurrentDeviceLocation();
       if (!result.ok) {
-        setGpsHint(result.message);
+        if (shouldApplyGpsResult(requestId)) {
+          setGpsHint(result.message);
+        }
         return;
       }
 
-      await applyGpsCoordinates(result.coordinates, options);
+      await applyGpsCoordinates(result.coordinates, requestId);
     } finally {
-      setIsDetectingGps(false);
+      if (requestId === gpsRequestIdRef.current) {
+        setIsDetectingGps(false);
+      }
     }
   };
 
