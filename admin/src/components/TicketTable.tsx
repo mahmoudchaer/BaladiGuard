@@ -60,6 +60,9 @@ export function TicketTable({ tickets }: TicketTableProps) {
                     <div>
                       <span className="ticket-table__ticket-number">{ticket.ticketNumber}</span>
                       <span className="ticket-table__tracking-code">{ticket.trackingCode}</span>
+                      {ticket.duplicateGroupId && (
+                        <span className="ticket-table__grouped-badge">Grouped</span>
+                      )}
                     </div>
                   </div>
                 </td>

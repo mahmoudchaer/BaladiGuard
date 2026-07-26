@@ -1,0 +1,62 @@
+"""Helpers for partial ticket attribute updates (avoids full put_item races)."""
+
+from __future__ import annotations
+
+from typing import Any
+
+# StoredTicket Python field name -> DynamoDB / JSON alias
+TICKET_FIELD_ALIASES: dict[str, str] = {
+    "cleaned_description": "cleanedDescription",
+    "ai_suggested_category": "aiSuggestedCategory",
+    "ai_category_explanation": "aiCategoryExplanation",
+    "ai_confidence": "aiConfidence",
+    "ai_model_version": "aiModelVersion",
+    "ai_processing_status": "aiProcessingStatus",
+    "final_category": "finalCategory",
+    "category": "category",
+    "category_reviewed_by": "categoryReviewedBy",
+    "category_reviewed_at": "categoryReviewedAt",
+    "duplicate_group_id": "duplicateGroupId",
+    "updated_at": "updatedAt",
+    "updated_by": "updatedBy",
+    "status": "status",
+    "priority": "priority",
+    "urgency_score": "urgencyScore",
+    "urgency_reason": "urgencyReason",
+    "department_id": "departmentId",
+}
+
+
+def resolve_ticket_attr_name(field_name: str) -> str:
+    try:
+        return TICKET_FIELD_ALIASES[field_name]
+    except KeyError as exc:
+        raise KeyError(f"Unsupported ticket patch field: {field_name}") from exc
+
+
+def build_update_expression(fields: dict[str, Any]) -> tuple[str, dict[str, str], dict[str, Any]]:
+    """Build a DynamoDB UpdateExpression for SET/REMOVE of ticket attributes."""
+    set_parts: list[str] = []
+    remove_parts: list[str] = []
+    names: dict[str, str] = {}
+    values: dict[str, Any] = {}
+
+    for index, (field_name, value) in enumerate(fields.items()):
+        attr = resolve_ticket_attr_name(field_name)
+        name_key = f"#f{index}"
+        names[name_key] = attr
+        if value is None:
+            remove_parts.append(name_key)
+            continue
+        value_key = f":v{index}"
+        set_parts.append(f"{name_key} = {value_key}")
+        values[value_key] = value
+
+    clauses: list[str] = []
+    if set_parts:
+        clauses.append("SET " + ", ".join(set_parts))
+    if remove_parts:
+        clauses.append("REMOVE " + ", ".join(remove_parts))
+    if not clauses:
+        raise ValueError("At least one field is required for a ticket patch.")
+    return " ".join(clauses), names, values

@@ -325,6 +325,119 @@
   border-top: 3px solid var(--lb-green);
 }
 
+.ticket-detail__card--duplicates {
+  border-top: 3px solid #2f6fed;
+}
+
+.ticket-detail__group-summary p,
+.ticket-detail__merge-help,
+.ticket-detail__merge-empty {
+  margin: 0 0 0.75rem;
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ticket-detail__group-links,
+.ticket-detail__merge-candidates {
+  margin: 0 0 0.85rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.ticket-detail__suggestions {
+  padding-bottom: 0.85rem;
+  margin-bottom: 0.95rem;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.ticket-detail__subsection-title {
+  margin: 0 0 0.55rem;
+  color: var(--color-text);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.ticket-detail__suggestion-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.ticket-detail__suggestion-item {
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.ticket-detail__suggestion-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.ticket-detail__suggestion-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.45rem;
+}
+
+.ticket-detail__suggestion-link {
+  min-width: 0;
+  color: var(--lb-green-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.ticket-detail__suggestion-link:hover {
+  text-decoration: underline;
+}
+
+.ticket-detail__suggestion-main span {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ticket-detail__suggestion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ticket-detail__group-links a {
+  color: var(--lb-green-dark);
+  font-size: 0.78rem;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.ticket-detail__merge-candidates label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ticket-detail__merge-candidates small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
 .ticket-detail__section-title {
   display: flex;
   align-items: center;
@@ -380,6 +493,26 @@
   color: var(--lb-green-dark);
 }
 
+.ticket-detail__maps-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--lb-red);
+  text-decoration: none;
+}
+
+.ticket-detail__maps-link:hover {
+  text-decoration: underline;
+}
+
+.ticket-detail__location-unavailable {
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .ticket-detail__sidebar {
   display: flex;
   flex-direction: column;
@@ -419,6 +552,22 @@
 
 .ticket-detail__meta-row--badge dd {
   display: flex;
+}
+
+.ticket-detail__meta-row--stacked dd {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  line-height: 1.45;
+}
+
+.ticket-detail__meta-row--stacked strong {
+  color: var(--color-text);
+}
+
+.ticket-detail__meta-row--stacked span {
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }
 
 .ticket-detail__mono {

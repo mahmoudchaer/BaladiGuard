@@ -9,21 +9,13 @@ from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
     TicketAiFields,
     TicketDepartment,
+    TicketDuplicateReference,
+    TicketDuplicateSuggestion,
     TicketImageReference,
     TicketResponse,
     TicketStatusHistoryEntry,
 )
-
-DEPARTMENT_NAMES: dict[str, str] = {
-    "d1111111-1111-1111-1111-111111111111": "Road Maintenance",
-    "d2222222-2222-2222-2222-222222222222": "Waste Management",
-    "d3333333-3333-3333-3333-333333333333": "Street Lighting",
-    "d4444444-4444-4444-4444-444444444444": "Water Services",
-    "d5555555-5555-5555-5555-555555555555": "Noise Control",
-    "d6666666-6666-6666-6666-666666666666": "Traffic Management",
-    "d7777777-7777-7777-7777-777777777777": "Drainage",
-    "d8888888-8888-8888-8888-888888888888": "Public Facilities",
-}
+from app.services.routing import department_name
 
 
 @lru_cache
@@ -61,12 +53,17 @@ def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
         aiProcessingStatus=ticket.ai_processing_status,
         aiModelVersion=ticket.ai_model_version,
         suggestedCategory=ticket.ai_suggested_category,
+        urgencyScore=ticket.urgency_score,
+        urgencyReason=ticket.urgency_reason,
     )
 
 
 def map_ticket_to_response(
     ticket: StoredTicket,
     status_history: list[StoredStatusHistory] | None = None,
+    *,
+    duplicate_group: TicketDuplicateReference | None = None,
+    duplicate_suggestions: list[TicketDuplicateSuggestion] | None = None,
 ) -> TicketResponse:
     image_reference = TicketImageReference(
         objectKey=ticket.image_object_key,
@@ -75,7 +72,7 @@ def map_ticket_to_response(
     department = (
         TicketDepartment(
             departmentId=ticket.department_id,
-            name=DEPARTMENT_NAMES.get(ticket.department_id, ticket.department_id),
+            name=department_name(ticket.department_id) or ticket.department_id,
         )
         if ticket.department_id
         else None
@@ -111,4 +108,6 @@ def map_ticket_to_response(
             )
             for entry in (status_history or [])
         ],
+        duplicateGroup=duplicate_group,
+        duplicateSuggestions=duplicate_suggestions or [],
     )

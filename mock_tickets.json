@@ -23,6 +23,17 @@
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "departmentId": "d1111111-1111-1111-1111-111111111111",
     "duplicateGroupId": null,
+    "duplicateSuggestions": [
+      {
+        "ticketId": "tkt_bbbbbbbb444455556666bbbbbbbbbbbb",
+        "ticketNumber": "BG-2026-0011",
+        "distanceMeters": 73.46,
+        "status": "SUBMITTED",
+        "category": "road_damage",
+        "score": 0.94,
+        "categoryMatch": "same"
+      }
+    ],
     "createdAt": "2026-08-12T09:30:00Z",
     "updatedAt": "2026-08-12T09:30:00Z"
   },
@@ -48,7 +59,7 @@
     "createdBy": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "departmentId": "d2222222-2222-2222-2222-222222222222",
-    "duplicateGroupId": null,
+    "duplicateGroupId": "99999999-9999-9999-9999-999999999999",
     "createdAt": "2026-08-12T10:15:00Z",
     "updatedAt": "2026-08-12T11:00:00Z"
   },
@@ -187,7 +198,7 @@
     "ticketId": "tkt_88888888888888888888888888888888",
     "ticketNumber": "BG-2026-0008",
     "trackingCode": "CD56EF",
-    "description": "Traffic signal is not working at a busy intersection.",
+    "description": "Traffic signal is fully dark at a busy signalized intersection.",
     "contact": {
       "name": "Layla Mansour",
       "phone": "+96103123456"
@@ -201,13 +212,19 @@
     "imageObjectKey": "reports/mock/traffic-signal-sodeco.jpg",
     "status": "SUBMITTED",
     "category": "traffic_signal",
-    "priority": "high",
+    "priority": "critical",
     "createdBy": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "departmentId": "d6666666-6666-6666-6666-666666666666",
     "duplicateGroupId": null,
+    "urgencyScore": 75,
+    "urgencyReason": "Critical (75): immediate safety danger; critical location; strong evidence.",
     "createdAt": "2026-08-14T08:25:00Z",
-    "updatedAt": "2026-08-14T08:25:00Z"
+    "updatedAt": "2026-08-14T08:25:00Z",
+    "ai": {
+      "urgencyScore": 75,
+      "urgencyReason": "Critical (75): immediate safety danger; critical location; strong evidence."
+    }
   },
   {
     "ticketId": "tkt_99999999aaaabbbbcccc999999999999",
@@ -261,5 +278,42 @@
     "duplicateGroupId": null,
     "createdAt": "2026-08-15T16:00:00Z",
     "updatedAt": "2026-08-16T09:15:00Z"
+  },
+  {
+    "ticketId": "tkt_bbbbbbbb444455556666bbbbbbbbbbbb",
+    "ticketNumber": "BG-2026-0011",
+    "trackingCode": "QR12ST",
+    "description": "Another deep pothole a block away from the university entrance.",
+    "contact": {
+      "name": "Sara Haddad",
+      "phone": "+96178901234"
+    },
+    "location": {
+      "latitude": 33.8957,
+      "longitude": 35.4791,
+      "addressText": "Bliss Street, Hamra, Beirut",
+      "source": "PLACEHOLDER"
+    },
+    "imageObjectKey": "reports/mock/pothole-bliss-street.jpg",
+    "status": "SUBMITTED",
+    "category": "road_damage",
+    "priority": "medium",
+    "createdBy": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+    "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "departmentId": "d1111111-1111-1111-1111-111111111111",
+    "duplicateGroupId": null,
+    "duplicateSuggestions": [
+      {
+        "ticketId": "tkt_11111111111111111111111111111111",
+        "ticketNumber": "BG-2026-0001",
+        "distanceMeters": 73.46,
+        "status": "SUBMITTED",
+        "category": "road_damage",
+        "score": 0.94,
+        "categoryMatch": "same"
+      }
+    ],
+    "createdAt": "2026-08-15T17:30:00Z",
+    "updatedAt": "2026-08-15T17:30:00Z"
   }
 ]

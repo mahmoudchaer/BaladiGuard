@@ -10,7 +10,7 @@
 export type TicketStatus =
   'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
-export type TicketPriority = 'low' | 'medium' | 'high';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type LocationSource = 'GPS' | 'MANUAL' | 'PLACEHOLDER';
 
@@ -53,8 +53,25 @@ export type TicketAiFields = {
   aiProcessingStatus?: AiProcessingStatus;
   aiModelVersion?: string;
   suggestedCategory?: string;
+  urgencyScore?: number;
   urgencyReason?: string;
   summary?: string;
+};
+
+export type TicketDuplicateReference = {
+  duplicateGroupId: string;
+  ticketIds?: string[];
+  canonicalTicketId?: string;
+};
+
+export type TicketDuplicateSuggestion = {
+  ticketId: string;
+  ticketNumber?: string;
+  distanceMeters: number;
+  status: TicketStatus;
+  category: string;
+  score?: number;
+  categoryMatch?: 'same' | 'similar';
 };
 
 export type Ticket = {
@@ -76,6 +93,8 @@ export type Ticket = {
   departmentName?: string;
   department?: TicketDepartment | null;
   duplicateGroupId: string | null;
+  duplicateGroup?: TicketDuplicateReference | null;
+  duplicateSuggestions?: TicketDuplicateSuggestion[];
   createdAt: string;
   updatedAt: string | null;
   ai?: TicketAiFields;
@@ -83,5 +102,12 @@ export type Ticket = {
 
 export type TicketListItem = Pick<
   Ticket,
-  'ticketId' | 'ticketNumber' | 'category' | 'location' | 'status' | 'priority' | 'createdAt'
+  | 'ticketId'
+  | 'ticketNumber'
+  | 'category'
+  | 'location'
+  | 'status'
+  | 'priority'
+  | 'createdAt'
+  | 'duplicateGroupId'
 >;

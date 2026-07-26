@@ -3,15 +3,28 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { reviewTicketCategory, fetchTicketById } from '@/services/tickets';
+import {
+  reviewTicketCategory,
+  fetchTicketById,
+  fetchTickets,
+  mergeDuplicateTickets,
+} from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
 import type { Ticket } from '@/types/ticket';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
 
 vi.mock('@/services/tickets', () => ({
   fetchTicketById: vi.fn(),
+  fetchTickets: vi.fn(),
+  mergeDuplicateTickets: vi.fn(),
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
+}));
+
+vi.mock('@/components/TicketMap', () => ({
+  TicketMap: ({ tickets }: { tickets: Ticket[] }) => (
+    <div data-testid="ticket-map">Map with {tickets.length} pins</div>
+  ),
 }));
 
 const ticket: Ticket = {
@@ -34,6 +47,7 @@ const ticket: Ticket = {
   municipalityId: null,
   departmentId: null,
   duplicateGroupId: null,
+  duplicateSuggestions: [],
   createdAt: '2026-07-17T08:00:00Z',
   updatedAt: '2026-07-17T08:01:00Z',
   ai: {
@@ -42,6 +56,8 @@ const ticket: Ticket = {
     aiCategoryExplanation: 'The report describes damage to a public road.',
     aiConfidence: 0.92,
     aiProcessingStatus: 'completed',
+    urgencyScore: 62,
+    urgencyReason: 'High (62): possible injury or collision risk; critical location.',
   },
 };
 
@@ -57,6 +73,54 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchTicketById).mockResolvedValue(ticket);
+  vi.mocked(fetchTickets).mockResolvedValue([]);
+});
+
+describe('TicketDetailPage duplicate suggestions', () => {
+  it('shows possible duplicate ticket details and links to the suggested ticket', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      duplicateSuggestions: [
+        {
+          ticketId: 'tkt_duplicate',
+          ticketNumber: 'BG-2026-0201',
+          distanceMeters: 42.4,
+          status: 'IN_PROGRESS',
+          category: 'waste',
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText('Possible duplicates')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'BG-2026-0201' })).toHaveAttribute(
+      'href',
+      '/tickets/tkt_duplicate',
+    );
+    expect(screen.getByText('42 m away')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    expect(screen.getAllByText('Waste').length).toBeGreaterThan(0);
+  });
+
+  it('shows an empty state when no duplicate suggestions exist', async () => {
+    renderPage();
+
+    expect(await screen.findByText('No possible duplicate tickets found.')).toBeInTheDocument();
+  });
+
+  it('shows a classification-needed state before duplicate suggestions are available', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      ai: { originalDescription: ticket.description, aiProcessingStatus: 'pending' },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        'Duplicate suggestions are available once this ticket is classified.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('TicketDetailPage states', () => {
@@ -94,6 +158,10 @@ describe('TicketDetailPage category review', () => {
     expect(await screen.findByText('AI category recommendation')).toBeInTheDocument();
     expect(screen.getByText('The report describes damage to a public road.')).toBeInTheDocument();
     expect(screen.getByText('Confidence 92%')).toBeInTheDocument();
+    expect(screen.getByText('62/100')).toBeInTheDocument();
+    expect(
+      screen.getByText('High (62): possible injury or collision risk; critical location.'),
+    ).toBeInTheDocument();
   });
 
   it('accepts the AI suggestion and immediately shows the review result', async () => {
@@ -203,5 +271,142 @@ describe('TicketDetailPage category review', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to save category review.');
     expect(screen.getByText('AI category recommendation')).toBeInTheDocument();
+  });
+});
+
+function buildCandidate(overrides: Partial<Ticket>): Ticket {
+  return {
+    ...ticket,
+    ticketId: 'tkt_candidate',
+    ticketNumber: 'BG-2026-0099',
+    ...overrides,
+  };
+}
+
+describe('TicketDetailPage duplicate merge', () => {
+  it('only offers ungrouped candidates that share the effective category', async () => {
+    vi.mocked(fetchTickets).mockResolvedValue([
+      buildCandidate({
+        ticketId: 'tkt_same_category',
+        ticketNumber: 'BG-2026-0201',
+        ai: { aiSuggestedCategory: 'road_damage' },
+      }),
+      buildCandidate({
+        ticketId: 'tkt_other_category',
+        ticketNumber: 'BG-2026-0202',
+        ai: { aiSuggestedCategory: 'waste' },
+      }),
+      buildCandidate({
+        ticketId: 'tkt_already_grouped',
+        ticketNumber: 'BG-2026-0203',
+        duplicateGroupId: 'dup_existing',
+        ai: { aiSuggestedCategory: 'road_damage' },
+      }),
+      buildCandidate({
+        ticketId: 'tkt_pending',
+        ticketNumber: 'BG-2026-0204',
+        ai: { aiProcessingStatus: 'pending' },
+      }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByText('BG-2026-0201')).toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0202')).not.toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0203')).not.toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0204')).not.toBeInTheDocument();
+  });
+
+  it('does not offer merge for tickets that are still pending classification', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      ai: { originalDescription: ticket.description, aiProcessingStatus: 'pending' },
+    });
+    renderPage();
+
+    expect(await screen.findByText(/no reviewed or AI-suggested category yet/)).toBeInTheDocument();
+    expect(fetchTickets).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'Merge selected as duplicates' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('merges selected duplicates under the open ticket', async () => {
+    const user = userEvent.setup();
+    const candidate = buildCandidate({
+      ticketId: 'tkt_same_category',
+      ticketNumber: 'BG-2026-0201',
+      ai: { aiSuggestedCategory: 'road_damage' },
+    });
+    vi.mocked(fetchTickets).mockResolvedValue([candidate]);
+    vi.mocked(mergeDuplicateTickets).mockResolvedValue({
+      ...ticket,
+      duplicateGroupId: 'dup_new',
+      duplicateGroup: {
+        duplicateGroupId: 'dup_new',
+        ticketIds: [ticket.ticketId, candidate.ticketId],
+        canonicalTicketId: ticket.ticketId,
+      },
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: 'Merge selected as duplicates' }));
+
+    expect(mergeDuplicateTickets).toHaveBeenCalledWith({
+      canonicalTicketId: ticket.ticketId,
+      duplicateTicketIds: [candidate.ticketId],
+    });
+    expect(await screen.findByText(/grouped as the main report/)).toBeInTheDocument();
+  });
+
+  it('lets the main ticket of a group add more duplicates', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      duplicateGroupId: 'dup_existing',
+      duplicateGroup: {
+        duplicateGroupId: 'dup_existing',
+        ticketIds: [ticket.ticketId, 'tkt_member'],
+        canonicalTicketId: ticket.ticketId,
+      },
+    });
+    renderPage();
+
+    expect(await screen.findByText(/grouped as the main report/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Add more same-category tickets to this duplicate group.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Merge selected as duplicates' }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides merge controls for non-main group members', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      duplicateGroupId: 'dup_existing',
+      duplicateGroup: {
+        duplicateGroupId: 'dup_existing',
+        ticketIds: ['tkt_main', ticket.ticketId],
+        canonicalTicketId: 'tkt_main',
+      },
+    });
+    renderPage();
+
+    expect(await screen.findByText(/This ticket is grouped/)).toBeInTheDocument();
+    expect(screen.getByText('Add further duplicates from the main ticket.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Merge selected as duplicates' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage location map', () => {
+  it('shows a map pin and Google Maps link for the ticket location', async () => {
+    renderPage();
+
+    expect(await screen.findByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
+    const mapsLink = screen.getByRole('link', { name: 'Open in Google Maps' });
+    expect(mapsLink).toHaveAttribute('href', 'https://www.google.com/maps?q=33.896000,35.478000');
+    expect(mapsLink).toHaveAttribute('target', '_blank');
   });
 });

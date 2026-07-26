@@ -51,7 +51,9 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `categoryReviewedAt` | string, nullable | No | ISO 8601 timestamp when staff reviewed the category. |
 | `aiProcessingStatus` | enum | Yes | `pending`, `processing`, `completed`, or `failed`. Defaults to `pending` at submission. Conditionally moves to `processing` when a worker claims the AI job. Startup recovery only reclaims `processing` tickets whose `updatedAt` is older than `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` (default 300). |
 | `aiModelVersion` | string, nullable | No | Bedrock model or processing version identifier when available. |
-| `priority` | enum | No | `low`, `medium`, or `high`. Set by AI urgency estimation. |
+| `priority` | enum | No | `low`, `medium`, `high`, or `critical`. Set by AI urgency estimation. |
+| `urgencyScore` | number, nullable | No | Urgency score from `0` to `100` when available. |
+| `urgencyReason` | string, nullable | No | Staff-facing explanation for the urgency score when available. |
 | `createdBy` | string | No | User identifier once authentication is wired. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
 | `departmentId` | string | No | Set by AI department recommendation. |
@@ -134,7 +136,33 @@ At least one of `phone` or `email` is required for citizen users.
 | Attribute | Type | Description |
 | --- | --- | --- |
 | `duplicateGroupId` | string | Primary key. |
+| `canonicalTicketId` | string | Main ticket staff chose for the group. |
+| `ticketIds` | string[] | All linked report IDs (main + duplicates). |
 | `createdAt` | string | ISO 8601 timestamp. |
+| `createdBy` | string, nullable | Staff actor when merge is recorded. |
+
+Staff merge (`POST /v1/tickets/merge`, issue #27) creates a DuplicateGroup row and stamps
+`duplicateGroupId` onto every member ticket. Ticket read responses may also include an enriched
+`duplicateGroup` object with the linked IDs. Merging again from the main ticket appends new
+duplicates to the same group; already-grouped duplicates and cross-category merges are
+rejected, and unmerge is out of scope for issue #27.
+
+### Nearby duplicate detection (issue #25)
+
+Detection is a standalone backend helper (`find_nearby_duplicates`) and does **not** yet
+persist `duplicateGroupId` or create DuplicateGroup rows (staff merge is issue #27).
+
+Inputs: query category, latitude/longitude, and a required sequence of tickets to search
+(plus an optional `exclude_ticket_id` so a ticket is not matched against itself).
+
+Behavior:
+- Considers only open tickets: `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`
+- Matches the same category, or a similar category that shares a department mapping
+  (today: `road_damage` ↔ `sidewalk_damage`)
+- Uses haversine distance in meters
+- Configurable via `DUPLICATE_DISTANCE_THRESHOLD_M` (default `100`), `DUPLICATE_MIN_SCORE`
+  (default `0.4`), and category weight env vars
+- Returns candidate `ticketId`, `distanceMeters`, `score`, `category`, `categoryMatch`, and `status`
 
 ## Relationships
 
@@ -186,10 +214,10 @@ Allowed transitions (strict workflow):
 low
 medium
 high
+critical
 ```
 
-MVP urgency rules also define a `critical` level (score 75–100). Extending this enum and the
-admin/mobile types is part of urgency implementation (issue #29). See `docs/urgency-scoring.md`.
+Urgency levels map to scores in `docs/urgency-scoring.md`; `critical` covers scores 75-100.
 
 ### Location source
 

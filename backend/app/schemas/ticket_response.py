@@ -6,7 +6,7 @@ from app.schemas.ai_processing import AiProcessingStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
-TicketPriority = Literal["low", "medium", "high"]
+TicketPriority = Literal["low", "medium", "high", "critical"]
 
 
 class TicketImageReference(BaseModel):
@@ -40,6 +40,7 @@ class TicketAiFields(BaseModel):
     )
     ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
     suggested_category: str | None = Field(default=None, alias="suggestedCategory")
+    urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)
     urgency_reason: str | None = Field(default=None, alias="urgencyReason")
     summary: str | None = None
 
@@ -59,6 +60,18 @@ class TicketDuplicateReference(BaseModel):
     duplicate_group_id: str = Field(alias="duplicateGroupId")
     ticket_ids: list[str] | None = Field(default=None, alias="ticketIds")
     canonical_ticket_id: str | None = Field(default=None, alias="canonicalTicketId")
+
+    model_config = {"populate_by_name": True}
+
+
+class TicketDuplicateSuggestion(BaseModel):
+    ticket_id: str = Field(alias="ticketId")
+    ticket_number: str | None = Field(default=None, alias="ticketNumber")
+    distance_meters: float = Field(alias="distanceMeters")
+    status: TicketStatus
+    category: str
+    score: float | None = None
+    category_match: Literal["same", "similar"] | None = Field(default=None, alias="categoryMatch")
 
     model_config = {"populate_by_name": True}
 
@@ -101,6 +114,10 @@ class TicketResponse(BaseModel):
     duplicate_group: TicketDuplicateReference | None = Field(
         default=None,
         alias="duplicateGroup",
+    )
+    duplicate_suggestions: list[TicketDuplicateSuggestion] = Field(
+        default_factory=list,
+        alias="duplicateSuggestions",
     )
 
     model_config = {"populate_by_name": True}

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.stored_ticket import ReportPriority
 from app.services.ai.categories import concrete_category_ids
 
 
@@ -12,6 +13,9 @@ class SaveTicketAiOutputRequest(BaseModel):
     ai_category_explanation: str | None = Field(default=None, alias="aiCategoryExplanation")
     ai_confidence: float | None = Field(default=None, alias="aiConfidence", ge=0, le=1)
     ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
+    urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)
+    urgency_reason: str | None = Field(default=None, alias="urgencyReason")
+    priority: ReportPriority | None = None
     ai_processing_status: AiProcessingStatus = Field(alias="aiProcessingStatus")
 
     model_config = {"populate_by_name": True}

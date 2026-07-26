@@ -74,6 +74,8 @@ describe('updateTicketStatus', () => {
             aiProcessingStatus: 'completed',
             aiModelVersion: 'amazon.nova-lite-v1:0',
             suggestedCategory: 'street_lighting',
+            urgencyScore: 75,
+            urgencyReason: 'Critical (75): immediate safety danger.',
           },
         }),
         {
@@ -92,6 +94,74 @@ describe('updateTicketStatus', () => {
     expect(updatedTicket?.ai?.aiSuggestedCategory).toBe('street_lighting');
     expect(updatedTicket?.ai?.aiProcessingStatus).toBe('completed');
     expect(updatedTicket?.ai?.aiModelVersion).toBe('amazon.nova-lite-v1:0');
+    expect(updatedTicket?.ai?.urgencyScore).toBe(75);
+    expect(updatedTicket?.ai?.urgencyReason).toContain('immediate safety danger');
+  });
+
+  it('preserves critical priorities from the ticket read response shape', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify([{ ...apiTicket, priority: 'critical' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    const { fetchTickets } = await import('@/services/tickets');
+    const tickets = await fetchTickets();
+
+    expect(tickets[0].priority).toBe('critical');
+  });
+
+  it('preserves duplicate suggestions from the ticket read response shape', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...apiTicket,
+            duplicateSuggestions: [
+              {
+                ticketId: 'tkt_456',
+                ticketNumber: 'BG-456',
+                distanceMeters: 18.7,
+                status: 'IN_PROGRESS',
+                category: 'waste',
+                score: 0.91,
+                categoryMatch: 'same',
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    );
+
+    const { fetchTicketById } = await import('@/services/tickets');
+    const ticket = await fetchTicketById('tkt_123');
+
+    expect(ticket?.duplicateSuggestions).toEqual([
+      {
+        ticketId: 'tkt_456',
+        ticketNumber: 'BG-456',
+        distanceMeters: 18.7,
+        status: 'IN_PROGRESS',
+        category: 'waste',
+        score: 0.91,
+        categoryMatch: 'same',
+      },
+    ]);
   });
 });
 
@@ -168,6 +238,130 @@ describe('reviewTicketCategory', () => {
   });
 });
 
+describe('mergeDuplicateTickets', () => {
+  it('posts the merge to the real backend and normalizes the group response', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...apiTicket,
+          duplicateGroupId: 'dup_group1',
+          duplicateGroup: {
+            duplicateGroupId: 'dup_group1',
+            ticketIds: ['tkt_123', 'tkt_456'],
+            canonicalTicketId: 'tkt_123',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+    const merged = await mergeDuplicateTickets({
+      canonicalTicketId: 'tkt_123',
+      duplicateTicketIds: ['tkt_456'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canonicalTicketId: 'tkt_123', duplicateTicketIds: ['tkt_456'] }),
+    });
+    expect(merged?.duplicateGroupId).toBe('dup_group1');
+    expect(merged?.duplicateGroup?.ticketIds).toEqual(['tkt_123', 'tkt_456']);
+    expect(merged?.duplicateGroup?.canonicalTicketId).toBe('tkt_123');
+  });
+
+  it('surfaces backend merge validation errors', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { message: 'All merged tickets must share the same category.' },
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+
+    await expect(
+      mergeDuplicateTickets({ canonicalTicketId: 'tkt_123', duplicateTicketIds: ['tkt_456'] }),
+    ).rejects.toThrow('All merged tickets must share the same category.');
+  });
+});
+
+describe('mergeDuplicateTickets (mock mode)', () => {
+  const MOCK_ROAD_MAIN = 'tkt_11111111111111111111111111111111';
+  const MOCK_ROAD_DUP = 'tkt_bbbbbbbb444455556666bbbbbbbbbbbb';
+  const MOCK_LIGHTING = 'tkt_33333333333333333333333333333333';
+  const MOCK_GROUPED_WASTE = 'tkt_22222222222222222222222222222222';
+
+  it('persists the merge for the session on every member ticket', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { mergeDuplicateTickets, fetchTicketById } = await import('@/services/tickets');
+    const merged = await mergeDuplicateTickets({
+      canonicalTicketId: MOCK_ROAD_MAIN,
+      duplicateTicketIds: [MOCK_ROAD_DUP],
+    });
+
+    expect(merged?.duplicateGroupId).toBeTruthy();
+    expect(merged?.duplicateGroup?.canonicalTicketId).toBe(MOCK_ROAD_MAIN);
+
+    // The duplicate must reflect the merge on a fresh read, not just the response.
+    const duplicate = await fetchTicketById(MOCK_ROAD_DUP);
+    expect(duplicate?.duplicateGroupId).toBe(merged?.duplicateGroupId);
+    expect(duplicate?.duplicateGroup?.canonicalTicketId).toBe(MOCK_ROAD_MAIN);
+    expect(duplicate?.duplicateGroup?.ticketIds).toEqual([MOCK_ROAD_MAIN, MOCK_ROAD_DUP]);
+  });
+
+  it('rejects cross-category mock merges like the backend', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+
+    await expect(
+      mergeDuplicateTickets({
+        canonicalTicketId: MOCK_ROAD_MAIN,
+        duplicateTicketIds: [MOCK_LIGHTING],
+      }),
+    ).rejects.toThrow('All merged tickets must share the same category as the main ticket.');
+  });
+
+  it('rejects merging a ticket that already belongs to a group', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { mergeDuplicateTickets } = await import('@/services/tickets');
+
+    await expect(
+      mergeDuplicateTickets({
+        canonicalTicketId: MOCK_ROAD_MAIN,
+        duplicateTicketIds: [MOCK_GROUPED_WASTE],
+      }),
+    ).rejects.toThrow('already belongs to a duplicate group');
+  });
+
+  it('derives the fixture group canonical from the earliest report instead of hardcoding', async () => {
+    vi.stubEnv('VITE_USE_MOCK_DATA', 'true');
+
+    const { fetchTicketById } = await import('@/services/tickets');
+    const grouped = await fetchTicketById(MOCK_GROUPED_WASTE);
+
+    // BG-2026-0005 was created before BG-2026-0002, so it is the original report.
+    expect(grouped?.duplicateGroup?.canonicalTicketId).toBe('tkt_55555555555555555555555555555555');
+    expect(grouped?.duplicateGroup?.ticketIds).toHaveLength(2);
+  });
+});
+
 describe('ticket location normalization', () => {
   it('normalizes valid coordinates and readable addresses in list responses', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
@@ -208,38 +402,113 @@ describe('ticket location normalization', () => {
   });
 
   it.each([
-    ['missing latitude', { longitude: 35.5018, addressText: 'Beirut', source: 'GPS' }],
+    [
+      'missing latitude',
+      { longitude: 35.5018, addressText: 'Beirut', source: 'GPS' },
+      {
+        latitude: Number.NaN,
+        longitude: 35.5018,
+        addressText: 'Beirut',
+        source: 'GPS' as const,
+      },
+    ],
     [
       'out-of-range latitude',
       { latitude: 91, longitude: 35.5018, addressText: 'Beirut', source: 'GPS' },
+      {
+        latitude: Number.NaN,
+        longitude: 35.5018,
+        addressText: 'Beirut',
+        source: 'GPS' as const,
+      },
     ],
     [
       'string longitude',
       { latitude: 33.8938, longitude: '35.5018', addressText: 'Beirut', source: 'GPS' },
+      {
+        latitude: 33.8938,
+        longitude: Number.NaN,
+        addressText: 'Beirut',
+        source: 'GPS' as const,
+      },
     ],
-    ['blank address', { latitude: 33.8938, longitude: 35.5018, addressText: ' ', source: 'GPS' }],
+    [
+      'blank address',
+      { latitude: 33.8938, longitude: 35.5018, addressText: ' ', source: 'GPS' },
+      {
+        latitude: 33.8938,
+        longitude: 35.5018,
+        addressText: '',
+        source: 'GPS' as const,
+      },
+    ],
     [
       'unknown source',
       { latitude: 33.8938, longitude: 35.5018, addressText: 'Beirut', source: 'UNKNOWN' },
+      {
+        latitude: 33.8938,
+        longitude: 35.5018,
+        addressText: 'Beirut',
+        source: 'PLACEHOLDER' as const,
+      },
     ],
-  ])('rejects %s instead of substituting a map coordinate', async (_label, location) => {
+  ])(
+    'keeps the ticket readable when location has %s',
+    async (_label, location, expectedLocation) => {
+      vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+      vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ ...apiTicket, location }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      );
+
+      const { fetchTicketById } = await import('@/services/tickets');
+      const ticket = await fetchTicketById('tkt_123');
+
+      expect(ticket?.location).toEqual(expectedLocation);
+    },
+  );
+
+  it('keeps list reads working when one ticket has a malformed location', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
     vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ ...apiTicket, location }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify([
+            apiTicket,
+            {
+              ...apiTicket,
+              ticketId: 'tkt_bad',
+              ticketNumber: 'BG-BAD',
+              location: null,
+            },
+          ]),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       ),
     );
 
-    const { fetchTicketById } = await import('@/services/tickets');
+    const { fetchTickets } = await import('@/services/tickets');
+    const tickets = await fetchTickets();
 
-    await expect(fetchTicketById('tkt_123')).rejects.toThrow(
-      'Unexpected ticket location response shape.',
-    );
+    expect(tickets).toHaveLength(2);
+    expect(tickets[0].ticketId).toBe('tkt_123');
+    expect(tickets[1].ticketId).toBe('tkt_bad');
+    expect(Number.isNaN(tickets[1].location.latitude)).toBe(true);
+    expect(Number.isNaN(tickets[1].location.longitude)).toBe(true);
+    expect(tickets[1].location.addressText).toBe('');
+    expect(tickets[1].location.source).toBe('PLACEHOLDER');
   });
 });

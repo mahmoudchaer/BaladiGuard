@@ -48,6 +48,16 @@
   background: var(--lb-red);
 }
 
+.priority-badge--critical {
+  color: #6d121d;
+  background: #fde4e8;
+  border-color: #e7929d;
+}
+
+.priority-badge--critical::before {
+  background: #b91c2d;
+}
+
 .priority-badge--unset {
   color: var(--color-text-muted);
   background: #f4f6f8;

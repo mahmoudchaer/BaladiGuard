@@ -2,11 +2,12 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Chip, HelperText, Text, TextInput } from 'react-native-paper';
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { Controller, useWatch } from 'react-hook-form';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
 
 import { PLACEHOLDER_LOCATIONS } from '@/constants/locations';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
+import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import {
   defaultMapRegion,
   locationSourceForMapPin,
@@ -29,7 +30,9 @@ export function LocationFields({
   onSelectPlaceholder,
 }: LocationFieldsProps) {
   const [isValidating, setIsValidating] = useState(false);
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [gpsHint, setGpsHint] = useState<string | null>(null);
 
   const addressText = useWatch({ control, name: 'addressText' });
   const latitude = useWatch({ control, name: 'latitude' });
@@ -38,6 +41,16 @@ export function LocationFields({
 
   const mapRegion: Region = defaultMapRegion({ latitude, longitude });
   const hasPin = latitude !== undefined && longitude !== undefined;
+
+  // Prevent a late GPS response from overwriting a choice the user already made.
+  const userAdjustedRef = useRef(false);
+  const autoDetectStartedRef = useRef(false);
+  // Bumps on each GPS request so an older in-flight response cannot win a race.
+  const gpsRequestIdRef = useRef(0);
+
+  const markUserAdjusted = () => {
+    userAdjustedRef.current = true;
+  };
 
   const applyValidatedLocation = (location: {
     latitude: number;
@@ -51,6 +64,100 @@ export function LocationFields({
     setValue('locationSource', location.source, { shouldValidate: true });
   };
 
+  const shouldApplyGpsResult = (requestId: number) =>
+    !userAdjustedRef.current && requestId === gpsRequestIdRef.current;
+
+  const applyGpsCoordinates = async (
+    coordinates: { latitude: number; longitude: number },
+    requestId: number,
+  ) => {
+    if (!shouldApplyGpsResult(requestId)) {
+      return;
+    }
+
+    setIsValidating(true);
+    setLocationError(null);
+    onSelectPlaceholder('');
+
+    try {
+      const result = await validateLocation({
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+      });
+
+      if (!shouldApplyGpsResult(requestId)) {
+        return;
+      }
+
+      if (result.success && result.location) {
+        applyValidatedLocation({
+          ...result.location,
+          source: 'GPS',
+        });
+      } else {
+        applyValidatedLocation({
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+          addressText: 'Current location',
+          source: 'GPS',
+        });
+      }
+      setGpsHint('Using your current location. You can move the pin or look up another address.');
+    } catch {
+      if (!shouldApplyGpsResult(requestId)) {
+        return;
+      }
+      applyValidatedLocation({
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        addressText: 'Current location',
+        source: 'GPS',
+      });
+      setGpsHint('Using your current GPS coordinates. You can adjust the pin if needed.');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const detectCurrentLocation = async (options?: { force?: boolean }) => {
+    // force only clears a prior override at button press; manual changes during the
+    // in-flight request still block applying the late GPS result.
+    if (options?.force) {
+      userAdjustedRef.current = false;
+    }
+
+    const requestId = ++gpsRequestIdRef.current;
+    setIsDetectingGps(true);
+    setLocationError(null);
+    setGpsHint(null);
+
+    try {
+      const result = await getCurrentDeviceLocation();
+      if (!result.ok) {
+        if (shouldApplyGpsResult(requestId)) {
+          setGpsHint(result.message);
+        }
+        return;
+      }
+
+      await applyGpsCoordinates(result.coordinates, requestId);
+    } finally {
+      if (requestId === gpsRequestIdRef.current) {
+        setIsDetectingGps(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (autoDetectStartedRef.current) {
+      return;
+    }
+    autoDetectStartedRef.current = true;
+    void detectCurrentLocation();
+    // Auto-detect once when the report form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLookupAddress = async () => {
     const query = addressText?.trim() ?? '';
     if (query.length < 3) {
@@ -58,8 +165,10 @@ export function LocationFields({
       return;
     }
 
+    markUserAdjusted();
     setIsValidating(true);
     setLocationError(null);
+    setGpsHint(null);
     try {
       const result = await validateLocation({ addressText: query });
       if (!result.success || !result.location) {
@@ -83,8 +192,10 @@ export function LocationFields({
 
   const handleMapPress = async (event: MapPressEvent) => {
     const coordinate = event.nativeEvent.coordinate;
+    markUserAdjusted();
     setIsValidating(true);
     setLocationError(null);
+    setGpsHint(null);
     onSelectPlaceholder('');
 
     try {
@@ -110,14 +221,28 @@ export function LocationFields({
     }
   };
 
+  const isBusy = isValidating || isDetectingGps;
+
   return (
     <View style={styles.container}>
       <Text variant="titleMedium" style={styles.label}>
         Location
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        Look up an address, tap the map to drop a pin, or pick a sample Beirut location.
+        We try to use your current location automatically. You can still move the pin, look up an
+        address, or pick a sample Beirut location.
       </Text>
+
+      <Button
+        mode="contained-tonal"
+        onPress={() => {
+          void detectCurrentLocation({ force: true });
+        }}
+        disabled={isBusy}
+        icon="crosshairs-gps"
+      >
+        {isDetectingGps ? 'Detecting location…' : 'Use my current location'}
+      </Button>
 
       <Controller
         control={control}
@@ -129,8 +254,10 @@ export function LocationFields({
             placeholder="e.g. Near AUB Main Gate, Hamra"
             value={value}
             onChangeText={(text) => {
+              markUserAdjusted();
               onChange(text);
               setLocationError(null);
+              setGpsHint(null);
               setValue('latitude', undefined);
               setValue('longitude', undefined);
               setValue('locationSource', 'MANUAL');
@@ -149,10 +276,10 @@ export function LocationFields({
         onPress={() => {
           void handleLookupAddress();
         }}
-        disabled={isValidating}
+        disabled={isBusy}
         icon="map-search"
       >
-        {isValidating ? 'Validating…' : 'Look up address'}
+        {isValidating && !isDetectingGps ? 'Validating…' : 'Look up address'}
       </Button>
 
       <View style={styles.chipRow}>
@@ -161,8 +288,10 @@ export function LocationFields({
             key={location.id}
             selected={selectedPlaceholderId === location.id}
             onPress={() => {
+              markUserAdjusted();
               onSelectPlaceholder(location.id);
               setLocationError(null);
+              setGpsHint(null);
               applyValidatedLocation({
                 latitude: location.latitude,
                 longitude: location.longitude,
@@ -171,6 +300,7 @@ export function LocationFields({
               });
             }}
             style={styles.chip}
+            disabled={isBusy}
           >
             {location.label}
           </Chip>
@@ -181,8 +311,8 @@ export function LocationFields({
         <View style={styles.mapPlaceholder}>
           <Text variant="labelLarge">Map picker</Text>
           <Text variant="bodySmall" style={styles.mapText}>
-            Interactive map pins are available in the iOS/Android app. On web, use address lookup or
-            a sample location.
+            Interactive map pins are available in the iOS/Android app. On web, use current location,
+            address lookup, or a sample location.
           </Text>
           {hasPin ? (
             <Text variant="bodySmall" style={styles.coordinates}>
@@ -217,11 +347,19 @@ export function LocationFields({
         </View>
       )}
 
-      {isValidating ? (
+      {isBusy ? (
         <View style={styles.validatingRow}>
           <ActivityIndicator animating />
-          <Text variant="bodySmall">Checking location…</Text>
+          <Text variant="bodySmall">
+            {isDetectingGps ? 'Detecting your current location…' : 'Checking location…'}
+          </Text>
         </View>
+      ) : null}
+
+      {gpsHint ? (
+        <HelperText type="info" visible>
+          {gpsHint}
+        </HelperText>
       ) : null}
 
       {locationError ? (
