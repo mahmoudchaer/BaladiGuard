@@ -588,7 +588,18 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
       "tkt_55555555555555555555555555555555"
     ],
     "canonicalTicketId": "tkt_22222222222222222222222222222222"
-  }
+  },
+  "duplicateSuggestions": [
+    {
+      "ticketId": "tkt_bbbbbbbb444455556666bbbbbbbbbbbb",
+      "ticketNumber": "BG-2026-0011",
+      "distanceMeters": 73.46,
+      "status": "SUBMITTED",
+      "category": "road_damage",
+      "score": 0.94,
+      "categoryMatch": "same"
+    }
+  ]
 }
 ```
 
@@ -642,6 +653,14 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `duplicateGroup.duplicateGroupId` | string | Duplicate group identifier. |
 | `duplicateGroup.ticketIds` | array | Related ticket IDs when returned. |
 | `duplicateGroup.canonicalTicketId` | string | Primary ticket ID for the group when known. |
+| `duplicateSuggestions` | array | Nearby open, ungrouped duplicate candidates returned by ticket detail APIs; list responses return an empty array. |
+| `duplicateSuggestions[].ticketId` | string | Internal ID of the suggested ticket. |
+| `duplicateSuggestions[].ticketNumber` | string | Citizen-facing number for the suggested ticket when available. |
+| `duplicateSuggestions[].distanceMeters` | number | Approximate distance from the current ticket location. |
+| `duplicateSuggestions[].status` | `TicketStatus` | Current status of the suggested ticket. |
+| `duplicateSuggestions[].category` | string | Effective category used for matching, including AI-suggested categories before staff review. |
+| `duplicateSuggestions[].score` | number | Optional duplicate confidence score from `0` to `1`. |
+| `duplicateSuggestions[].categoryMatch` | string | Optional category relationship, either `same` or `similar`. |
 
 ### Image reference fields
 

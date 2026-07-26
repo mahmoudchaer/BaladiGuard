@@ -47,6 +47,7 @@ const ticket: Ticket = {
   municipalityId: null,
   departmentId: null,
   duplicateGroupId: null,
+  duplicateSuggestions: [],
   createdAt: '2026-07-17T08:00:00Z',
   updatedAt: '2026-07-17T08:01:00Z',
   ai: {
@@ -73,6 +74,53 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchTicketById).mockResolvedValue(ticket);
   vi.mocked(fetchTickets).mockResolvedValue([]);
+});
+
+describe('TicketDetailPage duplicate suggestions', () => {
+  it('shows possible duplicate ticket details and links to the suggested ticket', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      duplicateSuggestions: [
+        {
+          ticketId: 'tkt_duplicate',
+          ticketNumber: 'BG-2026-0201',
+          distanceMeters: 42.4,
+          status: 'IN_PROGRESS',
+          category: 'waste',
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText('Possible duplicates')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'BG-2026-0201' })).toHaveAttribute(
+      'href',
+      '/tickets/tkt_duplicate',
+    );
+    expect(screen.getByText('42 m away')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
+    expect(screen.getAllByText('Waste').length).toBeGreaterThan(0);
+  });
+
+  it('shows an empty state when no duplicate suggestions exist', async () => {
+    renderPage();
+
+    expect(await screen.findByText('No possible duplicate tickets found.')).toBeInTheDocument();
+  });
+
+  it('shows a classification-needed state before duplicate suggestions are available', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      ai: { originalDescription: ticket.description, aiProcessingStatus: 'pending' },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        'Duplicate suggestions are available once this ticket is classified.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe('TicketDetailPage category review', () => {

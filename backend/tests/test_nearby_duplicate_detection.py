@@ -23,6 +23,7 @@ def _ticket(
     longitude: float,
     status: str = "SUBMITTED",
     final_category: str | None = None,
+    ai_suggested_category: str | None = None,
 ) -> StoredTicket:
     return StoredTicket(
         ticketId=ticket_id,
@@ -40,6 +41,7 @@ def _ticket(
         status=status,  # type: ignore[arg-type]
         category=category,
         finalCategory=final_category,
+        aiSuggestedCategory=ai_suggested_category,
         createdAt="2026-07-18T00:00:00Z",
         updatedAt="2026-07-18T00:00:00Z",
     )
@@ -181,6 +183,30 @@ def test_find_nearby_duplicates_uses_final_category_when_present() -> None:
             latitude=33.8938,
             longitude=35.5018,
             status="ASSIGNED",
+        ),
+    ]
+
+    result = find_nearby_duplicates(
+        category="waste",
+        latitude=33.8938,
+        longitude=35.5018,
+        tickets=tickets,
+    )
+
+    assert len(result.matches) == 1
+    assert result.matches[0].category == "waste"
+    assert result.matches[0].category_match == "same"
+
+
+def test_find_nearby_duplicates_uses_ai_suggested_category_when_category_is_pending() -> None:
+    tickets = [
+        _ticket(
+            ticket_id="tkt_ai_suggested",
+            category=PENDING_CLASSIFICATION,
+            ai_suggested_category="waste",
+            latitude=33.8938,
+            longitude=35.5018,
+            status="UNDER_REVIEW",
         ),
     ]
 

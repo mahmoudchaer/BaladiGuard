@@ -83,6 +83,17 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
                 ],
                 "canonicalTicketId": "tkt_22222222222222222222222222222222",
             },
+            "duplicateSuggestions": [
+                {
+                    "ticketId": "tkt_22222222222222222222222222222222",
+                    "ticketNumber": "BG-2026-0002",
+                    "distanceMeters": 7.25,
+                    "status": "IN_PROGRESS",
+                    "category": "waste",
+                    "score": 0.98,
+                    "categoryMatch": "same",
+                }
+            ],
         }
     )
 
@@ -94,6 +105,8 @@ def test_ticket_response_accepts_optional_ai_history_and_duplicate_fields():
     assert ticket.status_history[0].changed_by == "system"
     assert ticket.duplicate_group is not None
     assert ticket.duplicate_group.duplicate_group_id == "99999999-9999-9999-9999-999999999999"
+    assert ticket.duplicate_suggestions[0].ticket_id == "tkt_22222222222222222222222222222222"
+    assert ticket.duplicate_suggestions[0].distance_meters == 7.25
 
 
 def test_ticket_response_accepts_critical_priority():

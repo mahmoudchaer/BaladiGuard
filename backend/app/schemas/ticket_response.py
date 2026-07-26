@@ -64,6 +64,18 @@ class TicketDuplicateReference(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class TicketDuplicateSuggestion(BaseModel):
+    ticket_id: str = Field(alias="ticketId")
+    ticket_number: str | None = Field(default=None, alias="ticketNumber")
+    distance_meters: float = Field(alias="distanceMeters")
+    status: TicketStatus
+    category: str
+    score: float | None = None
+    category_match: Literal["same", "similar"] | None = Field(default=None, alias="categoryMatch")
+
+    model_config = {"populate_by_name": True}
+
+
 class UpdateTicketStatusRequest(BaseModel):
     status: TicketStatus
     updated_by: str | None = Field(default=None, alias="updatedBy", max_length=120)
@@ -102,6 +114,10 @@ class TicketResponse(BaseModel):
     duplicate_group: TicketDuplicateReference | None = Field(
         default=None,
         alias="duplicateGroup",
+    )
+    duplicate_suggestions: list[TicketDuplicateSuggestion] = Field(
+        default_factory=list,
+        alias="duplicateSuggestions",
     )
 
     model_config = {"populate_by_name": True}
