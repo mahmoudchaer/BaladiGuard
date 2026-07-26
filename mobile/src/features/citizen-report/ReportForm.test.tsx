@@ -27,6 +27,14 @@ vi.mock('@/services/api/tickets', () => ({
   submitReport: vi.fn(),
 }));
 
+vi.mock('@/services/deviceLocation', () => ({
+  getCurrentDeviceLocation: vi.fn(async () => ({
+    ok: false,
+    reason: 'unavailable',
+    message: 'Unable to read your current location right now.',
+  })),
+}));
+
 vi.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
   requestMediaLibraryPermissionsAsync: vi.fn(async () => ({ granted: true })),
