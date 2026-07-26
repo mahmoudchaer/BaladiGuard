@@ -21,6 +21,12 @@ vi.mock('@/services/tickets', () => ({
   updateTicketStatus: vi.fn(),
 }));
 
+vi.mock('@/components/TicketMap', () => ({
+  TicketMap: ({ tickets }: { tickets: Ticket[] }) => (
+    <div data-testid="ticket-map">Map with {tickets.length} pins</div>
+  ),
+}));
+
 const ticket: Ticket = {
   ticketId: 'tkt_123',
   ticketNumber: 'BG-2026-0001',
@@ -363,5 +369,16 @@ describe('TicketDetailPage duplicate merge', () => {
     expect(
       screen.queryByRole('button', { name: 'Merge selected as duplicates' }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage location map', () => {
+  it('shows a map pin and Google Maps link for the ticket location', async () => {
+    renderPage();
+
+    expect(await screen.findByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
+    const mapsLink = screen.getByRole('link', { name: 'Open in Google Maps' });
+    expect(mapsLink).toHaveAttribute('href', 'https://www.google.com/maps?q=33.896000,35.478000');
+    expect(mapsLink).toHaveAttribute('target', '_blank');
   });
 });

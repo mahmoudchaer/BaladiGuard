@@ -259,8 +259,15 @@ function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
 }
 
 function normalizeTicketLocation(data: unknown): TicketLocation {
+  // Tolerant for list/detail reads: one malformed ticket must not fail the whole fetch.
+  // Invalid coordinates are filtered later when plotting pins (getPlottableTickets).
   if (!isRecord(data)) {
-    throw new Error('Unexpected ticket location response shape.');
+    return {
+      latitude: Number.NaN,
+      longitude: Number.NaN,
+      addressText: '',
+      source: 'PLACEHOLDER',
+    };
   }
 
   const { latitude, longitude, addressText, source } = data;
@@ -274,15 +281,11 @@ function normalizeTicketLocation(data: unknown): TicketLocation {
   const normalizedAddress = typeof addressText === 'string' ? addressText.trim() : '';
   const hasValidSource = source === 'GPS' || source === 'MANUAL' || source === 'PLACEHOLDER';
 
-  if (!hasValidLatitude || !hasValidLongitude || normalizedAddress.length < 3 || !hasValidSource) {
-    throw new Error('Unexpected ticket location response shape.');
-  }
-
   return {
-    latitude,
-    longitude,
+    latitude: hasValidLatitude ? latitude : Number.NaN,
+    longitude: hasValidLongitude ? longitude : Number.NaN,
     addressText: normalizedAddress,
-    source,
+    source: hasValidSource ? source : 'PLACEHOLDER',
   };
 }
 

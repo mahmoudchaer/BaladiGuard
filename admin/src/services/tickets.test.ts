@@ -402,38 +402,113 @@ describe('ticket location normalization', () => {
   });
 
   it.each([
-    ['missing latitude', { longitude: 35.5018, addressText: 'Beirut', source: 'GPS' }],
+    [
+      'missing latitude',
+      { longitude: 35.5018, addressText: 'Beirut', source: 'GPS' },
+      {
+        latitude: Number.NaN,
+        longitude: 35.5018,
+        addressText: 'Beirut',
+        source: 'GPS' as const,
+      },
+    ],
     [
       'out-of-range latitude',
       { latitude: 91, longitude: 35.5018, addressText: 'Beirut', source: 'GPS' },
+      {
+        latitude: Number.NaN,
+        longitude: 35.5018,
+        addressText: 'Beirut',
+        source: 'GPS' as const,
+      },
     ],
     [
       'string longitude',
       { latitude: 33.8938, longitude: '35.5018', addressText: 'Beirut', source: 'GPS' },
+      {
+        latitude: 33.8938,
+        longitude: Number.NaN,
+        addressText: 'Beirut',
+        source: 'GPS' as const,
+      },
     ],
-    ['blank address', { latitude: 33.8938, longitude: 35.5018, addressText: ' ', source: 'GPS' }],
+    [
+      'blank address',
+      { latitude: 33.8938, longitude: 35.5018, addressText: ' ', source: 'GPS' },
+      {
+        latitude: 33.8938,
+        longitude: 35.5018,
+        addressText: '',
+        source: 'GPS' as const,
+      },
+    ],
     [
       'unknown source',
       { latitude: 33.8938, longitude: 35.5018, addressText: 'Beirut', source: 'UNKNOWN' },
+      {
+        latitude: 33.8938,
+        longitude: 35.5018,
+        addressText: 'Beirut',
+        source: 'PLACEHOLDER' as const,
+      },
     ],
-  ])('rejects %s instead of substituting a map coordinate', async (_label, location) => {
+  ])(
+    'keeps the ticket readable when location has %s',
+    async (_label, location, expectedLocation) => {
+      vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+      vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ ...apiTicket, location }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      );
+
+      const { fetchTicketById } = await import('@/services/tickets');
+      const ticket = await fetchTicketById('tkt_123');
+
+      expect(ticket?.location).toEqual(expectedLocation);
+    },
+  );
+
+  it('keeps list reads working when one ticket has a malformed location', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
     vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ ...apiTicket, location }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify([
+            apiTicket,
+            {
+              ...apiTicket,
+              ticketId: 'tkt_bad',
+              ticketNumber: 'BG-BAD',
+              location: null,
+            },
+          ]),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       ),
     );
 
-    const { fetchTicketById } = await import('@/services/tickets');
+    const { fetchTickets } = await import('@/services/tickets');
+    const tickets = await fetchTickets();
 
-    await expect(fetchTicketById('tkt_123')).rejects.toThrow(
-      'Unexpected ticket location response shape.',
-    );
+    expect(tickets).toHaveLength(2);
+    expect(tickets[0].ticketId).toBe('tkt_123');
+    expect(tickets[1].ticketId).toBe('tkt_bad');
+    expect(Number.isNaN(tickets[1].location.latitude)).toBe(true);
+    expect(Number.isNaN(tickets[1].location.longitude)).toBe(true);
+    expect(tickets[1].location.addressText).toBe('');
+    expect(tickets[1].location.source).toBe('PLACEHOLDER');
   });
 });

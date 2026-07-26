@@ -15,6 +15,12 @@
           "photosPermission": "Allow BaladiGuard to access your photos so you can attach issue images."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow BaladiGuard to use your location to pin the issue where you are."
+        }
+      ],
       "expo-asset",
       "expo-font"
     ],

@@ -25,6 +25,8 @@ import { formatDepartment } from '@/utils/departments';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
+import { TicketMap } from '@/components/TicketMap';
+import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
 import './TicketDetailPage.css';
 
@@ -417,14 +419,37 @@ export function TicketDetailPage() {
                     </span>
                     Location
                   </h2>
-                  <p className="ticket-detail__location-text">{ticket.location.addressText}</p>
-                  <p className="ticket-detail__coordinates">
-                    {ticket.location.latitude.toFixed(5)}, {ticket.location.longitude.toFixed(5)}
-                    <span className="ticket-detail__location-source">
-                      {' '}
-                      · {ticket.location.source}
-                    </span>
+                  <p className="ticket-detail__location-text">
+                    {ticket.location.addressText.trim() || 'No address provided'}
                   </p>
+                  {isPlottableTicket(ticket) ? (
+                    <>
+                      <p className="ticket-detail__coordinates">
+                        {ticket.location.latitude.toFixed(5)},{' '}
+                        {ticket.location.longitude.toFixed(5)}
+                        <span className="ticket-detail__location-source">
+                          {' '}
+                          · {ticket.location.source}
+                        </span>
+                      </p>
+                      <a
+                        className="ticket-detail__maps-link"
+                        href={buildGoogleMapsUrl(
+                          ticket.location.latitude,
+                          ticket.location.longitude,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open in Google Maps
+                      </a>
+                      <TicketMap tickets={[ticket]} variant="detail" />
+                    </>
+                  ) : (
+                    <p className="ticket-detail__location-unavailable">
+                      No valid map coordinates are available for this ticket.
+                    </p>
+                  )}
                 </div>
               </section>
 

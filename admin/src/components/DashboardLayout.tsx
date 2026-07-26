@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { config } from '@/services/config';
 import { IconAnalytics, IconMap, IconTickets } from '@/components/icons';
 import './DashboardLayout.css';
@@ -9,17 +10,41 @@ type DashboardLayoutProps = {
   subtitle?: string;
 };
 
-const NAV_ITEMS = [
-  { id: 'tickets', label: 'Tickets', Icon: IconTickets, active: true },
-  { id: 'map', label: 'Map View', Icon: IconMap, active: false, soon: true },
-  { id: 'analytics', label: 'Analytics', Icon: IconAnalytics, active: false, soon: true },
-] as const;
+type NavItem =
+  | {
+      id: string;
+      label: string;
+      Icon: typeof IconTickets;
+      to: string;
+      soon?: false;
+    }
+  | {
+      id: string;
+      label: string;
+      Icon: typeof IconTickets;
+      soon: true;
+    };
+
+const NAV_ITEMS: NavItem[] = [
+  { id: 'tickets', label: 'Tickets', Icon: IconTickets, to: '/' },
+  { id: 'map', label: 'Map View', Icon: IconMap, to: '/map' },
+  { id: 'analytics', label: 'Analytics', Icon: IconAnalytics, soon: true },
+];
+
+function isNavActive(pathname: string, to: string): boolean {
+  if (to === '/') {
+    return pathname === '/' || pathname.startsWith('/tickets');
+  }
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
 
 export function DashboardLayout({
   children,
   title = 'Ticket Dashboard',
   subtitle = 'Monitor and manage citizen infrastructure reports',
 }: DashboardLayoutProps) {
+  const { pathname } = useLocation();
+
   return (
     <div className="dashboard-layout">
       <aside className="dashboard-sidebar">
@@ -35,21 +60,41 @@ export function DashboardLayout({
         </div>
 
         <nav className="dashboard-sidebar__nav" aria-label="Main navigation">
-          {NAV_ITEMS.map((item) => (
-            <span
-              key={item.id}
-              className={`dashboard-sidebar__link${
-                item.active ? ' dashboard-sidebar__link--active' : ''
-              }${'soon' in item && item.soon ? ' dashboard-sidebar__link--disabled' : ''}`}
-              aria-current={item.active ? 'page' : undefined}
-            >
-              <span className="dashboard-sidebar__link-icon" aria-hidden="true">
-                <item.Icon />
-              </span>
-              {item.label}
-              {'soon' in item && item.soon && <span className="dashboard-sidebar__soon">Soon</span>}
-            </span>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            if (item.soon) {
+              return (
+                <span
+                  key={item.id}
+                  className="dashboard-sidebar__link dashboard-sidebar__link--disabled"
+                >
+                  <span className="dashboard-sidebar__link-icon" aria-hidden="true">
+                    <item.Icon />
+                  </span>
+                  {item.label}
+                  <span className="dashboard-sidebar__soon">Soon</span>
+                </span>
+              );
+            }
+
+            const active = isNavActive(pathname, item.to);
+
+            return (
+              <NavLink
+                key={item.id}
+                to={item.to}
+                end={item.to === '/'}
+                className={`dashboard-sidebar__link${
+                  active ? ' dashboard-sidebar__link--active' : ''
+                }`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <span className="dashboard-sidebar__link-icon" aria-hidden="true">
+                  <item.Icon />
+                </span>
+                {item.label}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="dashboard-sidebar__footer">
