@@ -59,6 +59,34 @@ beforeEach(() => {
   vi.mocked(fetchTicketById).mockResolvedValue(ticket);
 });
 
+describe('TicketDetailPage states', () => {
+  it('shows a loading state while the ticket detail is fetched', () => {
+    vi.mocked(fetchTicketById).mockReturnValue(new Promise(() => undefined));
+
+    renderPage();
+
+    expect(screen.getByText('Loading ticket details…')).toBeInTheDocument();
+  });
+
+  it('shows a not-found state when the ticket does not exist', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue(null);
+
+    renderPage();
+
+    expect(await screen.findByText('Ticket not found')).toBeInTheDocument();
+    expect(screen.getByText(/This ticket may have been removed/)).toBeInTheDocument();
+  });
+
+  it('shows an error state when the ticket detail request fails', async () => {
+    vi.mocked(fetchTicketById).mockRejectedValue(new Error('Ticket service unavailable.'));
+
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load ticket');
+    expect(screen.getByText('Ticket service unavailable.')).toBeInTheDocument();
+  });
+});
+
 describe('TicketDetailPage category review', () => {
   it('shows the stored AI suggestion and explanation', async () => {
     renderPage();
