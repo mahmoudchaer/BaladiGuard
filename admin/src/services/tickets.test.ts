@@ -117,6 +117,52 @@ describe('updateTicketStatus', () => {
 
     expect(tickets[0].priority).toBe('critical');
   });
+
+  it('preserves duplicate suggestions from the ticket read response shape', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...apiTicket,
+            duplicateSuggestions: [
+              {
+                ticketId: 'tkt_456',
+                ticketNumber: 'BG-456',
+                distanceMeters: 18.7,
+                status: 'IN_PROGRESS',
+                category: 'waste',
+                score: 0.91,
+                categoryMatch: 'same',
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    );
+
+    const { fetchTicketById } = await import('@/services/tickets');
+    const ticket = await fetchTicketById('tkt_123');
+
+    expect(ticket?.duplicateSuggestions).toEqual([
+      {
+        ticketId: 'tkt_456',
+        ticketNumber: 'BG-456',
+        distanceMeters: 18.7,
+        status: 'IN_PROGRESS',
+        category: 'waste',
+        score: 0.91,
+        categoryMatch: 'same',
+      },
+    ]);
+  });
 });
 
 describe('reviewTicketCategory', () => {

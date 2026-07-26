@@ -3,6 +3,7 @@ import type {
   Ticket,
   TicketAiFields,
   TicketDuplicateReference,
+  TicketDuplicateSuggestion,
   TicketLocation,
   TicketStatus,
 } from '@/types/ticket';
@@ -167,6 +168,60 @@ function normalizeDuplicateGroup(data: unknown): TicketDuplicateReference | null
   };
 }
 
+function normalizeTicketStatus(value: unknown): TicketStatus {
+  if (
+    value === 'SUBMITTED' ||
+    value === 'UNDER_REVIEW' ||
+    value === 'ASSIGNED' ||
+    value === 'IN_PROGRESS' ||
+    value === 'RESOLVED' ||
+    value === 'CLOSED'
+  ) {
+    return value;
+  }
+
+  return 'SUBMITTED';
+}
+
+function normalizeDuplicateSuggestions(data: unknown): TicketDuplicateSuggestion[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(isRecord).flatMap((suggestion) => {
+    if (typeof suggestion.ticketId !== 'string' || typeof suggestion.category !== 'string') {
+      return [];
+    }
+
+    const distanceMeters =
+      typeof suggestion.distanceMeters === 'number' && Number.isFinite(suggestion.distanceMeters)
+        ? suggestion.distanceMeters
+        : null;
+    if (distanceMeters === null) {
+      return [];
+    }
+
+    const normalized: TicketDuplicateSuggestion = {
+      ticketId: suggestion.ticketId,
+      distanceMeters,
+      status: normalizeTicketStatus(suggestion.status),
+      category: suggestion.category,
+    };
+
+    if (typeof suggestion.ticketNumber === 'string') {
+      normalized.ticketNumber = suggestion.ticketNumber;
+    }
+    if (typeof suggestion.score === 'number') {
+      normalized.score = suggestion.score;
+    }
+    if (suggestion.categoryMatch === 'same' || suggestion.categoryMatch === 'similar') {
+      normalized.categoryMatch = suggestion.categoryMatch;
+    }
+
+    return [normalized];
+  });
+}
+
 function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   if (!isRecord(data)) {
     return undefined;
@@ -290,15 +345,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
       contentType: typeof reference.contentType === 'string' ? reference.contentType : undefined,
       createdAt: typeof reference.createdAt === 'string' ? reference.createdAt : undefined,
     })),
-    status:
-      data.status === 'SUBMITTED' ||
-      data.status === 'UNDER_REVIEW' ||
-      data.status === 'ASSIGNED' ||
-      data.status === 'IN_PROGRESS' ||
-      data.status === 'RESOLVED' ||
-      data.status === 'CLOSED'
-        ? data.status
-        : 'SUBMITTED',
+    status: normalizeTicketStatus(data.status),
     category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
     priority:
       data.priority === 'low' ||
@@ -321,6 +368,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
         : null,
     duplicateGroupId: typeof data.duplicateGroupId === 'string' ? data.duplicateGroupId : null,
     duplicateGroup: normalizeDuplicateGroup(data.duplicateGroup),
+    duplicateSuggestions: normalizeDuplicateSuggestions(data.duplicateSuggestions),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     ai: normalizeTicketAiFields(data.ai),
