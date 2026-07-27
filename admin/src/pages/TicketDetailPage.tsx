@@ -26,6 +26,7 @@ import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { TicketMap } from '@/components/TicketMap';
+import { TicketTimeline } from '@/components/TicketTimeline';
 import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
 import './TicketDetailPage.css';
@@ -711,26 +712,7 @@ export function TicketDetailPage() {
                     </span>
                     Timeline
                   </h2>
-                  <dl className="ticket-detail__meta-list">
-                    <div className="ticket-detail__meta-row">
-                      <dt>Created</dt>
-                      <dd>
-                        <time dateTime={ticket.createdAt}>
-                          {formatCreatedDate(ticket.createdAt)}
-                        </time>
-                      </dd>
-                    </div>
-                    {ticket.updatedAt && (
-                      <div className="ticket-detail__meta-row">
-                        <dt>Updated</dt>
-                        <dd>
-                          <time dateTime={ticket.updatedAt}>
-                            {formatCreatedDate(ticket.updatedAt)}
-                          </time>
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
+                  <TicketTimeline history={ticket.statusHistory} variant="staff" />
                 </div>
               </aside>
             </div>
