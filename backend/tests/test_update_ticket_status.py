@@ -82,6 +82,29 @@ def test_update_ticket_status_closes_from_submitted(client):
     assert body["statusHistory"][-1]["status"] == "CLOSED"
 
 
+def test_update_ticket_status_emits_resolved_event_for_closed(client, monkeypatch):
+    created = create_ticket(client)
+    emitted: list[dict[str, str]] = []
+
+    def capture(**kwargs):
+        emitted.append(kwargs)
+
+    monkeypatch.setattr(
+        "app.services.complaints.ticket_service.ticket_service._emit_notification_safe",
+        capture,
+    )
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/status",
+        json={"status": "CLOSED"},
+    )
+
+    assert response.status_code == 200
+    assert emitted
+    assert emitted[-1]["event"] == "ticket_resolved"
+    assert emitted[-1]["status"] == "CLOSED"
+
+
 def test_update_ticket_status_rejects_transition_from_closed(client):
     created = create_ticket(client)
     client.patch(

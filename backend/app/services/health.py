@@ -20,13 +20,14 @@ def _app_env() -> str:
 def check_database() -> dict[str, Any]:
     """Optionally verify ticket-store connectivity based on configured backend."""
     settings = get_settings()
-    if not settings.use_dynamodb:
-        # Touch the in-memory store so health still exercises the store path.
-        store = get_ticket_store()
-        store.list()
-        return {"backend": "memory", "status": "ok"}
-
+    backend = "dynamodb" if settings.use_dynamodb else "memory"
     try:
+        if not settings.use_dynamodb:
+            # Touch the in-memory store so health still exercises the store path.
+            store = get_ticket_store()
+            store.list()
+            return {"backend": "memory", "status": "ok"}
+
         from app.database.dynamodb import create_dynamodb_resource
 
         resource = create_dynamodb_resource(settings)
@@ -42,7 +43,7 @@ def check_database() -> dict[str, Any]:
             exc,
         )
         return {
-            "backend": "dynamodb",
+            "backend": backend,
             "status": "error",
             "detail": type(exc).__name__,
         }

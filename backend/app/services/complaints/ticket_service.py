@@ -347,7 +347,7 @@ class TicketService:
             note=payload.note,
             created_at=updated_at,
         )
-        event = "ticket_resolved" if payload.status == "RESOLVED" else "ticket_updated"
+        event = "ticket_resolved" if payload.status in {"RESOLVED", "CLOSED"} else "ticket_updated"
         self._emit_notification_safe(
             event=event,
             ticket_id=updated_ticket.ticket_id,

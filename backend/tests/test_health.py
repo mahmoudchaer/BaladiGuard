@@ -68,3 +68,35 @@ def test_emit_ticket_notification_never_raises(monkeypatch, caplog):
     )
 
     assert any("Notification emit failed" in record.message for record in caplog.records)
+
+
+def test_check_database_memory_failure_returns_error(monkeypatch):
+    class BrokenStore:
+        def list(self):
+            raise RuntimeError("store boom")
+
+    monkeypatch.setattr("app.services.health.get_ticket_store", lambda: BrokenStore())
+    result = check_database()
+    assert result["backend"] == "memory"
+    assert result["status"] == "error"
+    assert result["detail"] == "RuntimeError"
+    assert build_health_payload()["status"] == "degraded"
+
+
+def test_unhandled_error_includes_request_id_header():
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    app = create_app()
+
+    @app.get("/__boom")
+    def boom():
+        raise RuntimeError("boom")
+
+    with TestClient(app, raise_server_exceptions=False) as failing_client:
+        response = failing_client.get("/__boom")
+
+    assert response.status_code == 500
+    assert "X-Request-Id" in response.headers
+    assert response.json()["error"]["requestId"] == response.headers["X-Request-Id"]

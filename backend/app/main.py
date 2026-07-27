@@ -32,6 +32,11 @@ LOCAL_CORS_ORIGINS = [
 ]
 
 
+def _with_request_id_header(response: JSONResponse, request_id: str) -> JSONResponse:
+    response.headers["X-Request-Id"] = request_id
+    return response
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging()
@@ -59,7 +64,8 @@ async def validation_exception_handler(
         request_id,
         len(exc.errors()),
     )
-    return await base_validation_exception_handler(request, exc)
+    response = await base_validation_exception_handler(request, exc)
+    return _with_request_id_header(response, request_id)
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
@@ -83,15 +89,16 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         )
 
     if isinstance(exc.detail, dict) and "error" in exc.detail:
-        return JSONResponse(status_code=exc.status_code, content=exc.detail)
-
-    message = exc.detail if isinstance(exc.detail, str) else "Request failed."
-    return build_error_response(
-        code="HTTP_ERROR",
-        message=message,
-        request_id=request_id,
-        status_code=exc.status_code,
-    )
+        response = JSONResponse(status_code=exc.status_code, content=exc.detail)
+    else:
+        message = exc.detail if isinstance(exc.detail, str) else "Request failed."
+        response = build_error_response(
+            code="HTTP_ERROR",
+            message=message,
+            request_id=request_id,
+            status_code=exc.status_code,
+        )
+    return _with_request_id_header(response, request_id)
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -103,12 +110,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         request_id,
         type(exc).__name__,
     )
-    return build_error_response(
+    response = build_error_response(
         code="INTERNAL_ERROR",
         message="An unexpected server error occurred.",
         request_id=request_id,
         status_code=500,
     )
+    return _with_request_id_header(response, request_id)
 
 
 def create_app() -> FastAPI:
@@ -134,8 +142,21 @@ def create_app() -> FastAPI:
         try:
             response = await call_next(request)
         except Exception:
-            # Let the unhandled exception handler format the response after logging.
-            raise
+            # BaseHTTPMiddleware can re-raise past exception handlers; still return
+            # a correlated 500 so clients get X-Request-Id on both body and header.
+            logger.exception(
+                "Unhandled request error method=%s path=%s request_id=%s",
+                request.method,
+                request.url.path,
+                request.state.request_id,
+            )
+            response = build_error_response(
+                code="INTERNAL_ERROR",
+                message="An unexpected server error occurred.",
+                request_id=request.state.request_id,
+                status_code=500,
+            )
+            return _with_request_id_header(response, request.state.request_id)
         response.headers["X-Request-Id"] = request.state.request_id
         if response.status_code >= 500:
             logger.error(
