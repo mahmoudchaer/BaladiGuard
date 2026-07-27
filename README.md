@@ -251,7 +251,36 @@ cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-5. Verify the real cloud path (S3 + DynamoDB + API):
+5. Check backend health (local or deployed):
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected shape:
+
+```json
+{
+  "status": "ok",
+  "service": "baladiguard-api",
+  "env": "local",
+  "database": {
+    "backend": "memory",
+    "status": "ok"
+  }
+}
+```
+
+After deployment, use the same path on the public API host, for example
+`https://<your-api-host>/health`. A `200` response means the app process is up.
+If `status` is `degraded` or `database.status` is `error`, the API is running but
+database connectivity needs attention.
+
+Important request errors, AI processing failures, and notification emit failures are
+written to the backend logs (`LOG_LEVEL`, default `INFO`) and do not roll back a
+successful ticket create/update.
+
+6. Verify the real cloud path (S3 + DynamoDB + API):
 
 ```bash
 cd backend

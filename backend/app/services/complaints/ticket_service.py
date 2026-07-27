@@ -144,6 +144,14 @@ class TicketService:
             created_at=created_at_iso,
         )
 
+        self._emit_notification_safe(
+            event="ticket_created",
+            ticket_id=ticket_id,
+            status="SUBMITTED",
+            tracking_code=tracking_code,
+            ticket_number=ticket_number,
+        )
+
         return SubmitTicketResponse(
             ticketId=ticket_id,
             ticketNumber=ticket_number,
@@ -361,6 +369,14 @@ class TicketService:
             updated_by=payload.updated_by,
             note=payload.note,
             created_at=updated_at,
+        )
+        event = "ticket_resolved" if payload.status in {"RESOLVED", "CLOSED"} else "ticket_updated"
+        self._emit_notification_safe(
+            event=event,
+            ticket_id=updated_ticket.ticket_id,
+            status=payload.status,
+            tracking_code=updated_ticket.tracking_code,
+            ticket_number=updated_ticket.ticket_number,
         )
         return self._map_ticket(updated_ticket)
 
@@ -675,6 +691,33 @@ class TicketService:
             )
             return None
         return len(result.matches)
+
+    def _emit_notification_safe(
+        self,
+        *,
+        event: str,
+        ticket_id: str,
+        status: str,
+        tracking_code: str | None = None,
+        ticket_number: str | None = None,
+    ) -> None:
+        """Best-effort notification emit; never breaks the ticket workflow."""
+        try:
+            from app.services.notifications import emit_ticket_notification
+
+            emit_ticket_notification(
+                event=event,
+                ticket_id=ticket_id,
+                status=status,
+                tracking_code=tracking_code,
+                ticket_number=ticket_number,
+            )
+        except Exception as exc:  # pragma: no cover - defensive outer guard
+            logger.error(
+                "Notification hook failed for ticket %s (%s).",
+                ticket_id,
+                type(exc).__name__,
+            )
 
     def _record_status_history(
         self,
