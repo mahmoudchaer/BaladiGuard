@@ -5,6 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReportForm } from '@/features/citizen-report/ReportForm';
 import { renderWithProviders } from '@/test/render';
 import { submitReport } from '@/services/api/tickets';
+import { getCurrentDeviceLocation } from '@/services/deviceLocation';
+import { validateLocation } from '@/services/api/locations';
+
+const { getCurrentDeviceLocationMock, validateLocationMock } = vi.hoisted(() => ({
+  getCurrentDeviceLocationMock: vi.fn(),
+  validateLocationMock: vi.fn(),
+}));
 
 const submitResponse = {
   ticketId: 'tkt_1234567890abcdef',
@@ -28,11 +35,18 @@ vi.mock('@/services/api/tickets', () => ({
 }));
 
 vi.mock('@/services/deviceLocation', () => ({
-  getCurrentDeviceLocation: vi.fn(async () => ({
-    ok: false,
-    reason: 'unavailable',
-    message: 'Unable to read your current location right now.',
-  })),
+  getCurrentDeviceLocation: getCurrentDeviceLocationMock,
+}));
+
+vi.mock('@/services/api/locations', () => ({
+  validateLocation: validateLocationMock,
+  defaultMapRegion: (location?: { latitude?: number; longitude?: number }) => ({
+    latitude: location?.latitude ?? 33.8938,
+    longitude: location?.longitude ?? 35.5018,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
+  }),
+  locationSourceForMapPin: () => 'GPS',
 }));
 
 vi.mock('expo-image-picker', () => ({
@@ -71,6 +85,23 @@ function hasText(screen: ReturnType<typeof renderWithProviders>, text: string): 
   return screen.root.findAll((node) => node.props.children === text).length > 0;
 }
 
+function textContent(value: React.ReactNode): string {
+  if (Array.isArray(value)) {
+    return value.map(textContent).join('');
+  }
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+}
+
+function hasTextContaining(screen: ReturnType<typeof renderWithProviders>, text: string): boolean {
+  return screen.root.findAll((node) => textContent(node.props.children).includes(text)).length > 0;
+}
+
+async function flushUpdates() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
 async function changeText(
   screen: ReturnType<typeof renderWithProviders>,
   label: string,
@@ -86,6 +117,21 @@ describe('ReportForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(submitReport).mockResolvedValue(submitResponse);
+    vi.mocked(getCurrentDeviceLocation).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+      message: 'Unable to read your current location right now.',
+    });
+    vi.mocked(validateLocation).mockResolvedValue({
+      success: true,
+      location: {
+        latitude: 33.896112,
+        longitude: 35.478419,
+        addressText: 'Near AUB Main Gate, Hamra, Beirut',
+        source: 'GPS',
+      },
+      message: 'Location validated successfully.',
+    });
   });
 
   it('shows validation messages when required report fields are missing', async () => {
@@ -148,6 +194,90 @@ describe('ReportForm', () => {
     expect(hasText(screen, 'BG-2026-0042')).toBe(true);
     expect(hasText(screen, 'tkt_1234567890abcdef')).toBe(true);
     expect(hasText(screen, 'ZX98YU')).toBe(true);
+  });
+
+  it('shows the GPS success state when current location is detected', async () => {
+    vi.mocked(getCurrentDeviceLocation).mockResolvedValue({
+      ok: true,
+      coordinates: {
+        latitude: 33.896112,
+        longitude: 35.478419,
+        accuracyMeters: 12,
+      },
+    });
+    const screen = renderWithProviders(<ReportForm />);
+
+    await flushUpdates();
+    await flushUpdates();
+
+    expect(validateLocation).toHaveBeenCalledWith({
+      latitude: 33.896112,
+      longitude: 35.478419,
+    });
+    expect(
+      hasText(
+        screen,
+        'Using your current location. You can move the pin or look up another address.',
+      ),
+    ).toBe(true);
+    expect(hasTextContaining(screen, 'Coordinates ready (33.89611, 35.47842) · source GPS')).toBe(
+      true,
+    );
+  });
+
+  it('shows the GPS unavailable fallback message when current location cannot be detected', async () => {
+    const screen = renderWithProviders(<ReportForm />);
+
+    await flushUpdates();
+
+    expect(getCurrentDeviceLocation).toHaveBeenCalled();
+    expect(hasText(screen, 'Unable to read your current location right now.')).toBe(true);
+  });
+
+  it('shows submit progress while upload and report creation are in flight', async () => {
+    let resolveSubmit: (value: typeof submitResponse) => void = () => undefined;
+    let reportProgress: ((phase: 'uploading-photo' | 'submitting-report') => void) | undefined;
+    vi.mocked(submitReport).mockImplementation((_values, options) => {
+      reportProgress = options?.onProgress;
+      return new Promise((resolve) => {
+        resolveSubmit = resolve;
+      });
+    });
+    const screen = renderWithProviders(<ReportForm />);
+
+    await changeText(
+      screen,
+      'What is the problem?',
+      'Large pothole near the university gate causing traffic disruption.',
+    );
+    await changeText(screen, 'Phone', '+96170123456');
+    await act(async () => {
+      findButtonByText(screen, 'Choose photo').props.onPress();
+    });
+    const locationChip = screen.root
+      .findAll((node) => String(node.type) === 'Chip')
+      .find((node) => node.props.children === 'AUB Main Gate');
+    await act(async () => {
+      locationChip?.props.onPress();
+    });
+
+    await act(async () => {
+      findButtonByText(screen, 'Submit report').props.onPress();
+    });
+
+    expect(hasText(screen, 'Uploading photo...')).toBe(true);
+
+    await act(async () => {
+      reportProgress?.('submitting-report');
+    });
+
+    expect(hasText(screen, 'Submitting report...')).toBe(true);
+
+    await act(async () => {
+      resolveSubmit(submitResponse);
+    });
+
+    expect(hasText(screen, 'Report submitted')).toBe(true);
   });
 
   it('shows a failure state when report submission fails', async () => {

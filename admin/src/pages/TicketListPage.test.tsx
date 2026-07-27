@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -82,10 +82,11 @@ describe('TicketListPage', () => {
     expect(screen.getByText('Hamra, Beirut')).toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
     expect(screen.getByText('Downtown Beirut')).toBeInTheDocument();
-    expect(screen.getByText('Total Tickets')).toBeInTheDocument();
-    expect(screen.getByText('Open Tickets')).toBeInTheDocument();
-    expect(screen.getByText('High Urgency')).toBeInTheDocument();
-    expect(screen.getAllByText('Resolved').length).toBeGreaterThan(0);
+    const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
+    expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('2');
+    expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('1');
+    expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('1');
+    expect(stats.getByText('Resolved').previousElementSibling).toHaveTextContent('1');
   });
 
   it('filters the rendered ticket list by search text', async () => {
@@ -97,6 +98,47 @@ describe('TicketListPage', () => {
 
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+  });
+
+  it('filters the rendered ticket list by status', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Resolved' }));
+
+    expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+  });
+
+  it('filters the rendered ticket list by category', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.selectOptions(screen.getByLabelText('Category'), 'waste');
+
+    expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+  });
+
+  it('shows a filtered empty state when filters match no tickets', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Closed' }));
+
+    expect(screen.getByText('No matching tickets')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Try adjusting your search, status filter, or category filter to find tickets.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0002')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when the dashboard has no tickets', async () => {
