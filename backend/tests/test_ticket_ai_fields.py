@@ -115,6 +115,59 @@ def test_save_ticket_ai_output_keeps_existing_department_for_manual_override_pat
     assert stored.department_id == "d2222222-2222-2222-2222-222222222222"
 
 
+def test_save_ticket_ai_output_refreshes_auto_department_when_ai_category_changes(client):
+    created = create_ticket(client)
+
+    ticket_service.save_ticket_ai_output(
+        created["ticketId"],
+        SaveTicketAiOutputRequest(
+            aiSuggestedCategory="road_damage",
+            aiProcessingStatus="completed",
+        ),
+    )
+    ticket_service.save_ticket_ai_output(
+        created["ticketId"],
+        SaveTicketAiOutputRequest(
+            aiSuggestedCategory="waste",
+            aiProcessingStatus="completed",
+        ),
+    )
+
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.ai_suggested_category == "waste"
+    assert stored.department_id == "d2222222-2222-2222-2222-222222222222"
+
+
+def test_save_ticket_ai_output_keeps_manual_department_when_ai_category_changes(client):
+    created = create_ticket(client)
+
+    ticket_service.save_ticket_ai_output(
+        created["ticketId"],
+        SaveTicketAiOutputRequest(
+            aiSuggestedCategory="road_damage",
+            aiProcessingStatus="completed",
+        ),
+    )
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {"department_id": "d3333333-3333-3333-3333-333333333333"},
+    )
+
+    ticket_service.save_ticket_ai_output(
+        created["ticketId"],
+        SaveTicketAiOutputRequest(
+            aiSuggestedCategory="waste",
+            aiProcessingStatus="completed",
+        ),
+    )
+
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.ai_suggested_category == "waste"
+    assert stored.department_id == "d3333333-3333-3333-3333-333333333333"
+
+
 def test_save_ticket_ai_output_can_record_failed_processing(client):
     created = create_ticket(client)
 
