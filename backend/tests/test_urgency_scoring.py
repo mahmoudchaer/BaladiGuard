@@ -183,7 +183,11 @@ def test_score_urgency_matches_documented_examples(payload, expected_score, expe
                 "created_at": "2026-07-13T12:00:00Z",
                 "has_photo": True,
             },
-            ("4 nearby open duplicates", "busy public location"),
+            (
+                "public disruption or inconvenience",
+                "busy public location",
+                "4 nearby open duplicates",
+            ),
         ),
         (
             {
@@ -225,6 +229,46 @@ def test_urgency_reason_orders_factors_by_strength():
     assert result.urgency_reason == (
         "High (65): possible injury or collision risk; critical location; strong evidence."
     )
+
+
+def test_urgency_reason_uses_fixed_tie_break_when_factor_scores_match():
+    result = score_urgency(
+        category="waste",
+        description=(
+            "Overflowing bins and garbage bags piled on a busy Hamra sidewalk; strong odor."
+        ),
+        location=location("Hamra Street, Beirut"),
+        duplicate_count=4,
+        created_at="2026-07-13T12:00:00Z",
+        status="SUBMITTED",
+        has_photo=True,
+        now=NOW,
+    )
+
+    # Several factors score 10; prefer safety → location → duplicates over alphabetical order.
+    assert result.urgency_score == 50
+    assert result.urgency_reason == (
+        "High (50): public disruption or inconvenience; busy public location; "
+        "4 nearby open duplicates."
+    )
+
+
+def test_urgency_reason_skips_location_uncertain_when_text_scores_location():
+    result = score_urgency(
+        category="water_leak",
+        description=(
+            "Continuous clean water flooding the sidewalk and curb near a hospital entrance."
+        ),
+        location=None,
+        duplicate_count=0,
+        created_at="2026-07-17T12:00:00Z",
+        status="SUBMITTED",
+        has_photo=True,
+        now=NOW,
+    )
+
+    assert "critical location" in result.urgency_reason
+    assert "location sensitivity uncertain" not in result.urgency_reason
 
 
 def test_urgency_reason_includes_emergency_disclaimer_when_needed():
