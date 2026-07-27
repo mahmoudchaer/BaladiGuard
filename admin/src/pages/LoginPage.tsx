@@ -1,12 +1,10 @@
 import { type FormEvent, useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, type Location, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import './LoginPage.css';
 
 type LoginLocationState = {
-  from?: {
-    pathname?: string;
-  };
+  from?: Pick<Location, 'pathname' | 'search' | 'hash'>;
 };
 
 export function LoginPage() {
@@ -18,7 +16,9 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const state = location.state as LoginLocationState | null;
-  const returnTo = state?.from?.pathname ?? '/';
+  const returnTo = state?.from
+    ? `${state.from.pathname}${state.from.search}${state.from.hash}`
+    : '/';
 
   if (isAuthenticated) {
     return <Navigate to={returnTo} replace />;

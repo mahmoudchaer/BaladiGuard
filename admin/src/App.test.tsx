@@ -40,7 +40,7 @@ const ticket: Ticket = {
 };
 
 function clearSession() {
-  window.localStorage.removeItem('baladiguard.staffSession');
+  window.localStorage?.removeItem('baladiguard.staffSession');
 }
 
 function installLocalStorage() {
@@ -73,6 +73,10 @@ function signInSession() {
   );
 }
 
+function corruptSession(session: unknown) {
+  window.localStorage.setItem('baladiguard.staffSession', JSON.stringify(session));
+}
+
 function renderApp(route = '/') {
   window.history.pushState({}, 'Test page', route);
   return render(<App />);
@@ -87,6 +91,7 @@ describe('App staff authentication', () => {
   });
 
   afterEach(() => {
+    installLocalStorage();
     clearSession();
   });
 
@@ -145,6 +150,21 @@ describe('App staff authentication', () => {
     expect(screen.getByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
   });
 
+  it('preserves the requested route search and hash after sign in', async () => {
+    const user = userEvent.setup();
+
+    renderApp('/map?status=open#north');
+
+    await user.type(screen.getByLabelText('Username'), 'staff');
+    await user.type(screen.getByLabelText('Password'), 'staff-demo-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('heading', { name: 'Map View' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/map');
+    expect(window.location.search).toBe('?status=open');
+    expect(window.location.hash).toBe('#north');
+  });
+
   it('keeps authenticated staff access after refresh through stored session state', async () => {
     signInSession();
 
@@ -154,6 +174,37 @@ describe('App staff authentication', () => {
     expect(
       screen.queryByRole('heading', { name: 'BaladiGuard staff login' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('clears corrupt stored sessions with non-string fields', () => {
+    corruptSession({
+      username: 123,
+      signedInAt: '2026-07-27T08:00:00Z',
+    });
+
+    renderApp();
+
+    expect(screen.getByRole('heading', { name: 'BaladiGuard staff login' })).toBeInTheDocument();
+    expect(window.localStorage.getItem('baladiguard.staffSession')).toBeNull();
+  });
+
+  it('fails login when browser storage is unavailable', async () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: null,
+    });
+    const user = userEvent.setup();
+
+    renderApp();
+
+    await user.type(screen.getByLabelText('Username'), 'staff');
+    await user.type(screen.getByLabelText('Password'), 'staff-demo-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to create a staff session in this browser.',
+    );
+    expect(screen.getByRole('heading', { name: 'BaladiGuard staff login' })).toBeInTheDocument();
   });
 
   it('logs staff out, clears the session, and returns to login', async () => {

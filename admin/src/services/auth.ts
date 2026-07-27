@@ -54,7 +54,7 @@ export function getStoredStaffSession(): StaffSession | null {
   try {
     const session = JSON.parse(storedSession) as Partial<StaffSession>;
 
-    if (!session.username || !session.signedInAt) {
+    if (typeof session.username !== 'string' || typeof session.signedInAt !== 'string') {
       try {
         storage?.removeItem(STAFF_SESSION_KEY);
       } catch {
@@ -91,9 +91,17 @@ export function loginStaff(username: string, password: string): LoginResult {
     username: trimmedUsername,
     signedInAt: new Date().toISOString(),
   };
+  const storage = getBrowserStorage();
+
+  if (!storage) {
+    return {
+      ok: false,
+      error: 'Unable to create a staff session in this browser.',
+    };
+  }
 
   try {
-    getBrowserStorage()?.setItem(STAFF_SESSION_KEY, JSON.stringify(session));
+    storage.setItem(STAFF_SESSION_KEY, JSON.stringify(session));
   } catch {
     return {
       ok: false,
