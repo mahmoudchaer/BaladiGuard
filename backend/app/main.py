@@ -1,17 +1,29 @@
+import logging
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 import app.config  # noqa: F401 - load .env before other app modules
 from app.api.health import router as health_router
 from app.api.locations import router as locations_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
-from app.core.errors import create_request_id, validation_exception_handler
+from app.core.errors import (
+    build_error_response,
+    create_request_id,
+    get_request_id,
+)
+from app.core.errors import (
+    validation_exception_handler as base_validation_exception_handler,
+)
+from app.core.logging import configure_logging
 from app.services.complaints.ticket_service import ticket_service
+
+logger = logging.getLogger(__name__)
 
 LOCAL_CORS_ORIGINS = [
     "http://localhost:5173",
@@ -22,6 +34,8 @@ LOCAL_CORS_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    configure_logging()
+    logger.info("BaladiGuard API starting up.")
     # A worker crash between the 201 response and the terminal AI status leaves
     # tickets stuck in "pending"; sweep them off the request path at startup.
     threading.Thread(
@@ -30,9 +44,75 @@ async def lifespan(_: FastAPI):
         daemon=True,
     ).start()
     yield
+    logger.info("BaladiGuard API shutting down.")
+
+
+async def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    request_id = get_request_id(request)
+    logger.warning(
+        "Request validation failed method=%s path=%s request_id=%s errors=%s",
+        request.method,
+        request.url.path,
+        request_id,
+        len(exc.errors()),
+    )
+    return await base_validation_exception_handler(request, exc)
+
+
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    request_id = get_request_id(request)
+    if exc.status_code >= 500:
+        logger.error(
+            "HTTP error method=%s path=%s status=%s request_id=%s detail=%s",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            request_id,
+            exc.detail,
+        )
+    elif exc.status_code >= 400:
+        logger.info(
+            "HTTP client error method=%s path=%s status=%s request_id=%s",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            request_id,
+        )
+
+    if isinstance(exc.detail, dict) and "error" in exc.detail:
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    message = exc.detail if isinstance(exc.detail, str) else "Request failed."
+    return build_error_response(
+        code="HTTP_ERROR",
+        message=message,
+        request_id=request_id,
+        status_code=exc.status_code,
+    )
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = get_request_id(request)
+    logger.exception(
+        "Unhandled request error method=%s path=%s request_id=%s (%s)",
+        request.method,
+        request.url.path,
+        request_id,
+        type(exc).__name__,
+    )
+    return build_error_response(
+        code="INTERNAL_ERROR",
+        message="An unexpected server error occurred.",
+        request_id=request_id,
+        status_code=500,
+    )
 
 
 def create_app() -> FastAPI:
+    configure_logging()
     app = FastAPI(
         title="BaladiGuard API",
         version="0.1.0",
@@ -51,11 +131,25 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next):
         request.state.request_id = create_request_id()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            # Let the unhandled exception handler format the response after logging.
+            raise
         response.headers["X-Request-Id"] = request.state.request_id
+        if response.status_code >= 500:
+            logger.error(
+                "Request failed method=%s path=%s status=%s request_id=%s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                request.state.request_id,
+            )
         return response
 
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health_router)
     app.include_router(tickets_router)
     app.include_router(locations_router)

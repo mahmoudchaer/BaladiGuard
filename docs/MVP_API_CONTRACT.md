@@ -29,7 +29,10 @@ This document defines the initial MVP API contract for the mobile app and backen
 
 ## `GET /health`
 
-Returns basic API health status.
+Returns API health status, including optional database connectivity.
+
+The process is considered up when this endpoint responds. Inspect `status` and
+`database.status` for dependency health (`ok` or `degraded` / `error`).
 
 ### Response `200`
 
@@ -37,9 +40,17 @@ Returns basic API health status.
 {
   "status": "ok",
   "service": "baladiguard-api",
-  "env": "local"
+  "env": "local",
+  "database": {
+    "backend": "memory",
+    "status": "ok"
+  }
 }
 ```
+
+When DynamoDB is configured and unreachable, `status` is `degraded` and
+`database.status` is `error`, but the endpoint still returns `200` so basic
+liveness checks keep working.
 
 ## `POST /v1/tickets`
 
