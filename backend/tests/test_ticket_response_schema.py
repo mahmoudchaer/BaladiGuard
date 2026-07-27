@@ -1,4 +1,4 @@
-from app.schemas.ticket_response import TicketResponse
+from app.schemas.ticket_response import CitizenTicketResponse, TicketResponse
 
 
 def test_ticket_response_accepts_core_staff_read_shape():
@@ -138,3 +138,39 @@ def test_ticket_response_accepts_critical_priority():
     assert ticket.priority == "critical"
     assert ticket.ai is not None
     assert ticket.ai.urgency_score == 75
+
+
+def test_citizen_ticket_response_serializes_only_public_tracking_fields():
+    ticket = CitizenTicketResponse.model_validate(
+        {
+            "ticketNumber": "BG-2026-0001",
+            "trackingCode": "AB12CD",
+            "status": "IN_PROGRESS",
+            "category": "road_damage",
+            "location": {"addressText": "Near AUB Main Gate, Hamra, Beirut"},
+            "createdAt": "2026-08-12T09:30:00Z",
+            "updatedAt": "2026-08-12T11:30:00Z",
+            "lastUpdatedAt": "2026-08-12T11:30:00Z",
+            "timeline": [
+                {"status": "SUBMITTED", "changedAt": "2026-08-12T09:30:00Z"},
+                {"status": "IN_PROGRESS", "changedAt": "2026-08-12T11:30:00Z"},
+            ],
+        }
+    )
+
+    serialized = ticket.model_dump(by_alias=True)
+
+    assert serialized == {
+        "ticketNumber": "BG-2026-0001",
+        "trackingCode": "AB12CD",
+        "status": "IN_PROGRESS",
+        "category": "road_damage",
+        "location": {"addressText": "Near AUB Main Gate, Hamra, Beirut"},
+        "createdAt": "2026-08-12T09:30:00Z",
+        "updatedAt": "2026-08-12T11:30:00Z",
+        "lastUpdatedAt": "2026-08-12T11:30:00Z",
+        "timeline": [
+            {"status": "SUBMITTED", "changedAt": "2026-08-12T09:30:00Z"},
+            {"status": "IN_PROGRESS", "changedAt": "2026-08-12T11:30:00Z"},
+        ],
+    }

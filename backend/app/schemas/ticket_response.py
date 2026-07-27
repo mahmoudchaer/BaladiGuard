@@ -56,6 +56,35 @@ class TicketStatusHistoryEntry(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class CitizenTicketLocation(BaseModel):
+    address_text: str = Field(alias="addressText")
+
+    model_config = {"populate_by_name": True}
+
+
+class CitizenTicketTimelineEntry(BaseModel):
+    status: TicketStatus
+    changed_at: str = Field(alias="changedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class CitizenTicketResponse(BaseModel):
+    """Citizen-safe ticket tracking response returned by public tracking-code lookup."""
+
+    ticket_number: str | None = Field(default=None, alias="ticketNumber")
+    tracking_code: str = Field(alias="trackingCode")
+    status: TicketStatus
+    category: str | None = None
+    location: CitizenTicketLocation | None = None
+    created_at: str = Field(alias="createdAt")
+    updated_at: str | None = Field(default=None, alias="updatedAt")
+    last_updated_at: str = Field(alias="lastUpdatedAt")
+    timeline: list[CitizenTicketTimelineEntry] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketDuplicateReference(BaseModel):
     duplicate_group_id: str = Field(alias="duplicateGroupId")
     ticket_ids: list[str] | None = Field(default=None, alias="ticketIds")
