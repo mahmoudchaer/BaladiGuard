@@ -2,9 +2,9 @@
 
 This document defines the first version of BaladiGuard urgency scoring rules.
 
-It is the contract for issue **#29** (implement the scoring function). The runtime
-implementation now persists `urgencyScore`, `urgencyReason`, and the mapped priority level on
-tickets during AI processing.
+It is the contract for issue **#29** (scoring function) and issue **#30** (explainable
+`urgencyReason`). The runtime implementation persists `urgencyScore`, `urgencyReason`, and the
+mapped priority level on tickets during AI processing.
 
 BaladiGuard urgency scoring supports municipal prioritization. It is **not** an emergency dispatch
 system. Life-threatening situations should be directed to emergency services outside this product.
@@ -153,17 +153,27 @@ Never fail the whole ticket pipeline solely because optional urgency inputs are 
 
 ## Urgency Reason Format
 
-Keep `urgencyReason` to one or two sentences for staff, naming the top drivers:
+Keep `urgencyReason` to one or two sentences for staff, naming the **strongest scoring
+factors first** (issue **#30**).
 
 ```text
-High (62): possible injury risk from mid-lane pothole on a busy public road; 2 nearby open duplicates; open 2 days.
+High (62): possible injury or collision risk; critical location; strong evidence.
 ```
 
 Template:
 
 ```text
-{Level} ({score}): {primary safety/location driver}; {optional duplicate/time/evidence notes}.
+{Level} ({score}): {strongest factor}; {next strongest}; {optional third / notes}.
 ```
+
+Reason construction rules:
+
+1. Rank positive factor contributions (safety, location, duplicates, time open, strong evidence).
+2. Include up to three strongest drivers, highest points first.
+3. Append missing-data notes when needed (`location sensitivity uncertain`,
+   `duplicates unavailable`, `weak evidence`).
+4. Append `not an emergency channel` when the description asks for police/ambulance/fire help.
+5. Do not list zero-point factors such as "no clear safety risk" when stronger drivers exist.
 
 ## Manually Scored Example Tickets
 
@@ -349,12 +359,15 @@ These examples are the v1 acceptance set for #28. Issue #29 should reproduce the
 
 - Implementing `score_urgency()` / Bedrock prompts → issue **#29**
 - Persisting `urgencyScore` on `AiOutput` or updating ticket `priority` → issue **#29**
+- Explainable strongest-factor `urgencyReason` wording → issue **#30**
 - Nearby duplicate detection algorithm → issue **#25**
 - Department routing → later Sprint 5 issues
 
 ## Source Of Truth
 
 - This file: `docs/urgency-scoring.md`
-- Planned consumers: urgency scoring service (#29), ticket AI fields (`urgencyScore`, `urgencyReason`), admin urgency badges
+- Runtime scoring: `backend/app/services/urgency/score.py`
+- Staff visibility: admin ticket details (`Urgency score` + `Urgency reason`) and ticket read API
 
-When changing weights or rubrics, update this document first, then adjust #29 implementation and its unit tests in the same PR.
+When changing weights or rubrics, update this document first, then adjust the scoring
+implementation and its unit tests in the same PR.
