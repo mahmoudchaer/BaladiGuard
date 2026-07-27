@@ -6,6 +6,7 @@ import type {
   TicketDuplicateSuggestion,
   TicketLocation,
   TicketStatus,
+  TicketStatusHistoryEntry,
 } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { config } from '@/services/config';
@@ -222,6 +223,45 @@ function normalizeDuplicateSuggestions(data: unknown): TicketDuplicateSuggestion
   });
 }
 
+function normalizeStatusHistory(data: unknown): TicketStatusHistoryEntry[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(isRecord).flatMap((entry) => {
+    // Drop invalid statuses instead of coercing them to SUBMITTED.
+    if (
+      entry.status !== 'SUBMITTED' &&
+      entry.status !== 'UNDER_REVIEW' &&
+      entry.status !== 'ASSIGNED' &&
+      entry.status !== 'IN_PROGRESS' &&
+      entry.status !== 'RESOLVED' &&
+      entry.status !== 'CLOSED'
+    ) {
+      return [];
+    }
+
+    const changedAt = typeof entry.changedAt === 'string' ? entry.changedAt.trim() : '';
+    if (!changedAt || Number.isNaN(Date.parse(changedAt))) {
+      return [];
+    }
+
+    const normalized: TicketStatusHistoryEntry = {
+      status: entry.status,
+      changedAt,
+    };
+
+    if (typeof entry.changedBy === 'string' && entry.changedBy.trim().length > 0) {
+      normalized.changedBy = entry.changedBy.trim();
+    }
+    if (typeof entry.note === 'string' && entry.note.trim().length > 0) {
+      normalized.note = entry.note.trim();
+    }
+
+    return [normalized];
+  });
+}
+
 function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   if (!isRecord(data)) {
     return undefined;
@@ -372,6 +412,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     duplicateGroupId: typeof data.duplicateGroupId === 'string' ? data.duplicateGroupId : null,
     duplicateGroup: normalizeDuplicateGroup(data.duplicateGroup),
     duplicateSuggestions: normalizeDuplicateSuggestions(data.duplicateSuggestions),
+    statusHistory: normalizeStatusHistory(data.statusHistory),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     ai: normalizeTicketAiFields(data.ai),
@@ -412,10 +453,21 @@ async function updateMockTicketStatus(
     return null;
   }
 
+  const changedAt = new Date().toISOString();
+  const previousHistory = ticket.statusHistory ?? [];
   return {
     ...ticket,
     status,
-    updatedAt: new Date().toISOString(),
+    updatedAt: changedAt,
+    statusHistory: [
+      ...previousHistory,
+      {
+        status,
+        changedAt,
+        changedBy: 'staff-mock',
+        note: `Status updated to ${status}.`,
+      },
+    ],
   };
 }
 

@@ -21,6 +21,7 @@ from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
+    CitizenTicketResponse,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketResponse,
@@ -30,7 +31,10 @@ from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
-from app.services.complaints.ticket_read_mapper import map_ticket_to_response
+from app.services.complaints.ticket_read_mapper import (
+    map_ticket_to_citizen_response,
+    map_ticket_to_response,
+)
 from app.services.duplicates import find_nearby_duplicates
 from app.services.routing import suggest_department_id
 from app.services.urgency import score_urgency
@@ -319,6 +323,13 @@ class TicketService:
         if ticket is None:
             return None
         return self._map_ticket(ticket, include_duplicate_suggestions=True)
+
+    def get_ticket_by_tracking_code(self, tracking_code: str) -> CitizenTicketResponse | None:
+        ticket = self._store.get_by_tracking_code(tracking_code)
+        if ticket is None:
+            return None
+        history = self._history_store.list_by_ticket_id(ticket.ticket_id)
+        return map_ticket_to_citizen_response(ticket, history)
 
     def update_ticket_status(
         self,

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
 import { IconAnalytics, IconMap, IconTickets } from '@/components/icons';
 import './DashboardLayout.css';
@@ -44,6 +45,13 @@ export function DashboardLayout({
   subtitle = 'Monitor and manage citizen infrastructure reports',
 }: DashboardLayoutProps) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { logout, session } = useStaffAuth();
+
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div className="dashboard-layout">
@@ -100,10 +108,10 @@ export function DashboardLayout({
         <div className="dashboard-sidebar__footer">
           <div className="dashboard-sidebar__staff">
             <span className="dashboard-sidebar__avatar" aria-hidden="true">
-              MS
+              {session?.username.slice(0, 2).toUpperCase() ?? 'MS'}
             </span>
             <div>
-              <p className="dashboard-sidebar__staff-name">Municipality Staff</p>
+              <p className="dashboard-sidebar__staff-name">{session?.username ?? 'Staff'}</p>
               <p className="dashboard-sidebar__staff-role">Administrator</p>
             </div>
           </div>
@@ -126,6 +134,9 @@ export function DashboardLayout({
                 day: 'numeric',
               }).format(new Date())}
             </span>
+            <button className="dashboard-topbar__logout" type="button" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </header>
 

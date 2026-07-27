@@ -34,11 +34,24 @@ Create `admin/.env.local` if needed:
 ```env
 VITE_USE_MOCK_DATA=false
 VITE_API_BASE_URL=http://localhost:8000
+VITE_STAFF_USERNAME=staff
+VITE_STAFF_PASSWORD=staff-demo-password
 ```
 
 Mock fixtures remain available for explicit development and testing by setting
 `VITE_USE_MOCK_DATA=true`. In mock mode, the dashboard loads tickets from the shared root fixture
 `mock_tickets.json` and status changes are not persisted.
+
+## Staff authentication
+
+The Sprint 5 MVP protects the staff dashboard with a Vite-configured username and password. After a
+successful login, the admin app stores a small staff session marker in browser `localStorage` so the
+session survives refresh. Logout removes that marker and returns the user to the login screen.
+
+This is a temporary frontend-only guard for the dashboard shell. Because Vite environment variables
+are bundled into the browser, these credentials are not suitable for production secrets and do not
+replace backend authorization. Public citizen report submission and ticket tracking must stay
+available without staff login. Staff API mutation protection is handled separately by issue #72.
 
 ## Status update verification
 
