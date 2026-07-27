@@ -712,6 +712,26 @@ export function TicketDetailPage() {
                     </span>
                     Timeline
                   </h2>
+                  <dl className="ticket-detail__meta-list ticket-detail__timeline-summary">
+                    <div className="ticket-detail__meta-row">
+                      <dt>Created</dt>
+                      <dd>
+                        <time dateTime={ticket.createdAt}>
+                          {formatCreatedDate(ticket.createdAt)}
+                        </time>
+                      </dd>
+                    </div>
+                    {ticket.updatedAt && (
+                      <div className="ticket-detail__meta-row">
+                        <dt>Updated</dt>
+                        <dd>
+                          <time dateTime={ticket.updatedAt}>
+                            {formatCreatedDate(ticket.updatedAt)}
+                          </time>
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
                   <TicketTimeline history={ticket.statusHistory} variant="staff" />
                 </div>
               </aside>

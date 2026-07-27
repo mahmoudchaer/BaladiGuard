@@ -65,11 +65,12 @@ describe('TicketTimeline', () => {
     expect(screen.getByText('Crew assigned.')).toBeInTheDocument();
   });
 
-  it('hides staff actor details in the citizen variant', () => {
+  it('hides staff actor details and notes in the citizen variant', () => {
     renderWithProviders(<TicketTimeline history={populatedHistory} variant="citizen" />);
 
     expect(screen.queryByText(/Updated by/)).not.toBeInTheDocument();
-    expect(screen.getByText('Accepted for review.')).toBeInTheDocument();
+    expect(screen.queryByText('Accepted for review.')).not.toBeInTheDocument();
+    expect(screen.getByText('Submitted')).toBeInTheDocument();
   });
 
   it('shows an empty state when history is missing', () => {

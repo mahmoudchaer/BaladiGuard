@@ -8,7 +8,10 @@ export type TicketTimelineVariant = 'staff' | 'citizen';
 
 export type TicketTimelineProps = {
   history?: TicketStatusHistoryEntry[] | null;
-  /** Staff view shows actor details; citizen view hides them. */
+  /**
+   * Staff view shows actor and notes.
+   * Citizen view is status + timestamp only (hides staff-only actor/notes).
+   */
   variant?: TicketTimelineVariant;
   emptyMessage?: string;
 };
@@ -35,7 +38,7 @@ export function TicketTimeline({
   emptyMessage = 'No status history is available for this ticket yet.',
 }: TicketTimelineProps) {
   const events = normalizeTimelineEvents(history);
-  const showActor = variant === 'staff';
+  const showStaffDetails = variant === 'staff';
 
   if (events.length === 0) {
     return (
@@ -62,12 +65,12 @@ export function TicketTimeline({
               <Text variant="bodySmall" style={styles.time}>
                 {formatTimelineDate(event.changedAt)}
               </Text>
-              {showActor && event.changedBy ? (
+              {showStaffDetails && event.changedBy ? (
                 <Text variant="bodySmall" style={styles.meta}>
                   Updated by {event.changedBy}
                 </Text>
               ) : null}
-              {event.note ? (
+              {showStaffDetails && event.note ? (
                 <Text variant="bodySmall" style={styles.note}>
                   {event.note}
                 </Text>

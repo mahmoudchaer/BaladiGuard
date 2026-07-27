@@ -229,14 +229,25 @@ function normalizeStatusHistory(data: unknown): TicketStatusHistoryEntry[] {
   }
 
   return data.filter(isRecord).flatMap((entry) => {
-    const status = normalizeTicketStatus(entry.status);
+    // Drop invalid statuses instead of coercing them to SUBMITTED.
+    if (
+      entry.status !== 'SUBMITTED' &&
+      entry.status !== 'UNDER_REVIEW' &&
+      entry.status !== 'ASSIGNED' &&
+      entry.status !== 'IN_PROGRESS' &&
+      entry.status !== 'RESOLVED' &&
+      entry.status !== 'CLOSED'
+    ) {
+      return [];
+    }
+
     const changedAt = typeof entry.changedAt === 'string' ? entry.changedAt.trim() : '';
     if (!changedAt || Number.isNaN(Date.parse(changedAt))) {
       return [];
     }
 
     const normalized: TicketStatusHistoryEntry = {
-      status,
+      status: entry.status,
       changedAt,
     };
 
