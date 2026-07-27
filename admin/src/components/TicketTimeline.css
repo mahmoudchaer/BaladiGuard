@@ -1,0 +1,85 @@
+.ticket-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ticket-timeline__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1rem 1fr;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+}
+
+.ticket-timeline__item:last-child {
+  padding-bottom: 0;
+}
+
+.ticket-timeline__item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: 0.85rem;
+  left: 0.4rem;
+  width: 2px;
+  bottom: 0;
+  background: var(--color-border, #cbd5e1);
+}
+
+.ticket-timeline__marker {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: var(--color-surface, #fff);
+  border: 2px solid var(--color-border-strong, #94a3b8);
+  z-index: 1;
+}
+
+.ticket-timeline__item--latest .ticket-timeline__marker {
+  border-color: var(--color-accent, #0f766e);
+  background: var(--color-accent, #0f766e);
+}
+
+.ticket-timeline__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.ticket-timeline__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.ticket-timeline__time {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+}
+
+.ticket-timeline__actor,
+.ticket-timeline__note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #475569);
+  font-weight: 500;
+}
+
+.ticket-timeline__note {
+  font-style: italic;
+}
+
+.ticket-timeline__empty {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary, #475569);
+}

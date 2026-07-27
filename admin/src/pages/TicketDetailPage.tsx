@@ -26,6 +26,7 @@ import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { TicketMap } from '@/components/TicketMap';
+import { TicketTimeline } from '@/components/TicketTimeline';
 import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
 import './TicketDetailPage.css';
@@ -537,15 +538,24 @@ export function TicketDetailPage() {
                       </dd>
                     </div>
                     {(ticket.ai?.urgencyScore !== undefined || ticket.ai?.urgencyReason) && (
-                      <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
-                        <dt>Urgency score</dt>
-                        <dd>
-                          {ticket.ai?.urgencyScore !== undefined && (
-                            <strong>{ticket.ai.urgencyScore}/100</strong>
-                          )}
-                          {ticket.ai?.urgencyReason && <span>{ticket.ai.urgencyReason}</span>}
-                        </dd>
-                      </div>
+                      <>
+                        {ticket.ai?.urgencyScore !== undefined && (
+                          <div className="ticket-detail__meta-row">
+                            <dt>Urgency score</dt>
+                            <dd>
+                              <strong>{ticket.ai.urgencyScore}/100</strong>
+                            </dd>
+                          </div>
+                        )}
+                        {ticket.ai?.urgencyReason && (
+                          <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
+                            <dt>Urgency reason</dt>
+                            <dd>
+                              <span>{ticket.ai.urgencyReason}</span>
+                            </dd>
+                          </div>
+                        )}
+                      </>
                     )}
                     <div className="ticket-detail__meta-row">
                       <dt>Department</dt>
@@ -702,7 +712,7 @@ export function TicketDetailPage() {
                     </span>
                     Timeline
                   </h2>
-                  <dl className="ticket-detail__meta-list">
+                  <dl className="ticket-detail__meta-list ticket-detail__timeline-summary">
                     <div className="ticket-detail__meta-row">
                       <dt>Created</dt>
                       <dd>
@@ -722,6 +732,7 @@ export function TicketDetailPage() {
                       </div>
                     )}
                   </dl>
+                  <TicketTimeline history={ticket.statusHistory} variant="staff" />
                 </div>
               </aside>
             </div>

@@ -58,6 +58,13 @@ export type TicketAiFields = {
   summary?: string;
 };
 
+export type TicketStatusHistoryEntry = {
+  status: TicketStatus;
+  changedAt: string;
+  changedBy?: string | null;
+  note?: string | null;
+};
+
 export type TicketDuplicateReference = {
   duplicateGroupId: string;
   ticketIds?: string[];
@@ -95,6 +102,7 @@ export type Ticket = {
   duplicateGroupId: string | null;
   duplicateGroup?: TicketDuplicateReference | null;
   duplicateSuggestions?: TicketDuplicateSuggestion[];
+  statusHistory?: TicketStatusHistoryEntry[];
   createdAt: string;
   updatedAt: string | null;
   ai?: TicketAiFields;
