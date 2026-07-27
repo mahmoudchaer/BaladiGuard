@@ -15,6 +15,9 @@ NotificationEvent = Literal["ticket_created", "ticket_updated", "ticket_resolved
 
 TEMPLATE_VERSION = "v1"
 
+# Terminal outcomes belong on `ticket_resolved`, not `ticket_updated`.
+_TERMINAL_STATUSES: frozenset[TicketStatus] = frozenset({"RESOLVED", "CLOSED"})
+
 
 @dataclass(frozen=True)
 class NotificationMessage:
@@ -47,6 +50,13 @@ def status_text_for(status: TicketStatus | str) -> str:
     return str(status).replace("_", " ").title()
 
 
+def _require_known_status(status: TicketStatus | str) -> TicketStatus:
+    """Fail closed: unknown statuses never silently default."""
+    if not is_known_ticket_status(status):
+        raise ValueError(f"Unknown ticket status for notification template: {status!r}")
+    return status  # type: ignore[return-value]
+
+
 def _ticket_reference(*, ticket_id: str, ticket_number: str | None = None) -> str:
     normalized_id = ticket_id.strip()
     if not normalized_id:
@@ -70,9 +80,7 @@ def render_ticket_created(
     tracking_code: str | None = None,
 ) -> NotificationMessage:
     """Template for a newly created ticket."""
-    resolved_status: TicketStatus = (
-        status if is_known_ticket_status(status) else "SUBMITTED"  # type: ignore[assignment]
-    )
+    resolved_status = _require_known_status(status)
     label = status_text_for(resolved_status)
     reference = _ticket_reference(ticket_id=ticket_id, ticket_number=ticket_number)
     body = (
@@ -97,9 +105,13 @@ def render_ticket_updated(
     tracking_code: str | None = None,
 ) -> NotificationMessage:
     """Template for an important ticket status update (non-resolved)."""
-    if not is_known_ticket_status(status):
-        raise ValueError(f"Unknown ticket status for notification template: {status!r}")
-    label = status_text_for(status)
+    resolved_status = _require_known_status(status)
+    if resolved_status in _TERMINAL_STATUSES:
+        raise ValueError(
+            f"Use ticket_resolved for terminal status {resolved_status!r}; "
+            "ticket_updated is for non-resolved changes only."
+        )
+    label = status_text_for(resolved_status)
     reference = _ticket_reference(ticket_id=ticket_id, ticket_number=ticket_number)
     body = (
         f"Your BaladiGuard report {reference} was updated. "
@@ -110,7 +122,7 @@ def render_ticket_updated(
         subject=f"BaladiGuard: ticket {reference} updated",
         body=body,
         ticket_id=ticket_id.strip(),
-        status=status,  # type: ignore[arg-type]
+        status=resolved_status,
         status_text=label,
     )
 
@@ -122,19 +134,22 @@ def render_ticket_resolved(
     ticket_number: str | None = None,
     tracking_code: str | None = None,
 ) -> NotificationMessage:
-    """Template for a resolved ticket."""
-    resolved_status: TicketStatus = (
-        status if is_known_ticket_status(status) else "RESOLVED"  # type: ignore[assignment]
-    )
+    """Template for a resolved or closed ticket outcome."""
+    resolved_status = _require_known_status(status)
+    if resolved_status not in _TERMINAL_STATUSES:
+        raise ValueError(
+            f"ticket_resolved expects RESOLVED or CLOSED, got {resolved_status!r}"
+        )
     label = status_text_for(resolved_status)
     reference = _ticket_reference(ticket_id=ticket_id, ticket_number=ticket_number)
+    outcome = "resolved" if resolved_status == "RESOLVED" else "closed"
     body = (
-        f"Your BaladiGuard report {reference} was resolved. "
+        f"Your BaladiGuard report {reference} was {outcome}. "
         f"Status: {label}.{_tracking_suffix(tracking_code)}"
     )
     return NotificationMessage(
         event="ticket_resolved",
-        subject=f"BaladiGuard: ticket {reference} resolved",
+        subject=f"BaladiGuard: ticket {reference} {outcome}",
         body=body,
         ticket_id=ticket_id.strip(),
         status=resolved_status,

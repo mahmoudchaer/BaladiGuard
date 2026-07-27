@@ -13,7 +13,18 @@ Templates render text only. They do not send SMS/email and do not talk to AWS SN
 | --- | --- | --- |
 | `ticket_created` | After a citizen report is accepted | `SUBMITTED` |
 | `ticket_updated` | After an important non-resolved status change | caller supplies status |
-| `ticket_resolved` | After the ticket reaches a resolved outcome | `RESOLVED` |
+| `ticket_resolved` | After the ticket reaches `RESOLVED` or `CLOSED` | `RESOLVED` |
+
+## Status validation
+
+All render helpers **fail closed** on unknown statuses (`ValueError`). They never
+silently substitute a default status when the caller passes an invalid value.
+
+Additional event rules:
+
+- `ticket_updated` rejects terminal statuses (`RESOLVED`, `CLOSED`) — use
+  `ticket_resolved` instead.
+- `ticket_resolved` accepts only `RESOLVED` and `CLOSED`.
 
 ## Required fields
 
@@ -69,6 +80,13 @@ Body: Your BaladiGuard report {ticketNumber} ({ticketId}) was updated. Status: {
 ```text
 Subject: BaladiGuard: ticket {ticketNumber} ({ticketId}) resolved
 Body: Your BaladiGuard report {ticketNumber} ({ticketId}) was resolved. Status: Resolved.
+```
+
+For `CLOSED`, wording uses “closed” instead of “resolved”:
+
+```text
+Subject: BaladiGuard: ticket {ticketNumber} ({ticketId}) closed
+Body: Your BaladiGuard report {ticketNumber} ({ticketId}) was closed. Status: Closed.
 ```
 
 ## Runtime source of truth
