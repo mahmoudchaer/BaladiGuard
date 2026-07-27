@@ -170,10 +170,12 @@ Reason construction rules:
 
 1. Rank positive factor contributions (safety, location, duplicates, time open, strong evidence).
 2. Include up to three strongest drivers, highest points first.
-3. Append missing-data notes when needed (`location sensitivity uncertain`,
-   `duplicates unavailable`, `weak evidence`).
-4. Append `not an emergency channel` when the description asks for police/ambulance/fire help.
-5. Do not list zero-point factors such as "no clear safety risk" when stronger drivers exist.
+3. When point values tie, prefer a fixed order: safety → location → duplicates → time → evidence.
+4. Append missing-data notes when needed (`duplicates unavailable`, `weak evidence`).
+   Use `location sensitivity uncertain` only when location scored `0` (do not contradict a
+   location driver inferred from description text).
+5. Cap missing-data notes at two, then append `not an emergency channel` when needed.
+6. Do not list zero-point factors such as "no clear safety risk" when stronger drivers exist.
 
 ## Manually Scored Example Tickets
 

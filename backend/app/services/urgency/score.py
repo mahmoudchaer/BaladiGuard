@@ -446,33 +446,37 @@ def _build_reason(
 ) -> str:
     """Build a short staff-facing reason that highlights the strongest factors."""
 
-    drivers: list[tuple[int, str]] = []
+    # Fixed priority for equal scores: safety → location → duplicates → time → evidence.
+    drivers: list[tuple[int, int, str]] = []
     if safety > 0:
-        drivers.append((safety, _safety_reason(safety)))
+        drivers.append((safety, 0, _safety_reason(safety)))
     if location_score == 20:
-        drivers.append((location_score, "critical location"))
+        drivers.append((location_score, 1, "critical location"))
     elif location_score == 10:
-        drivers.append((location_score, "busy public location"))
+        drivers.append((location_score, 1, "busy public location"))
     if duplicates > 0 and duplicate_count is not None and duplicate_count > 0:
         suffix = "s" if duplicate_count != 1 else ""
-        drivers.append((duplicates, f"{duplicate_count} nearby open duplicate{suffix}"))
+        drivers.append((duplicates, 2, f"{duplicate_count} nearby open duplicate{suffix}"))
     if time_open > 0:
-        drivers.append((time_open, _time_reason(time_open)))
+        drivers.append((time_open, 3, _time_reason(time_open)))
     if evidence >= 7:
-        drivers.append((evidence, "strong evidence"))
+        drivers.append((evidence, 4, "strong evidence"))
 
     drivers.sort(key=lambda item: (-item[0], item[1]))
-    top_drivers = [phrase for _, phrase in drivers[:3]]
+    top_drivers = [phrase for _, _, phrase in drivers[:3]]
     if not top_drivers:
         top_drivers = [_safety_reason(safety)]
 
     notes: list[str] = []
-    if location is None:
+    # Only call location uncertain when it did not contribute as a scored driver.
+    if location is None and location_score == 0:
         notes.append("location sensitivity uncertain")
     if duplicate_count is None:
         notes.append("duplicates unavailable")
     if evidence == 0 and len(top_drivers) < 3:
         notes.append("weak evidence")
+    # Keep missing-data notes short; always allow the emergency disclaimer after.
+    notes = notes[:2]
     if _contains_any(
         text,
         ("police", "ambulance", "fire department", "civil defense"),
