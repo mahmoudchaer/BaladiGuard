@@ -84,6 +84,11 @@ describe('updateTicketStatus', () => {
               changedBy: 'system',
             },
             {
+              status: 'TOTALLY_INVALID',
+              changedAt: '2026-07-14T10:02:00Z',
+              changedBy: 'staff-bad',
+            },
+            {
               status: 'UNDER_REVIEW',
               changedAt: '2026-07-14T10:05:00Z',
               changedBy: 'staff-1',

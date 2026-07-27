@@ -51,7 +51,7 @@ describe('normalizeTimelineEvents', () => {
 });
 
 describe('TicketTimeline', () => {
-  it('renders populated history for the citizen variant without actors', () => {
+  it('renders populated history for the citizen variant without actors or notes', () => {
     const screen = renderWithProviders(
       <TicketTimeline history={populatedHistory} variant="citizen" />,
     );
@@ -59,7 +59,7 @@ describe('TicketTimeline', () => {
     expect(screen.root.findByProps({ children: 'Submitted' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Under Review' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'In Progress' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Accepted for review.' })).toBeTruthy();
+    expect(() => screen.root.findByProps({ children: 'Accepted for review.' })).toThrow();
     expect(() => screen.root.findByProps({ children: 'Updated by staff-1' })).toThrow();
   });
 
