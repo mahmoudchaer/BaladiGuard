@@ -137,9 +137,7 @@ def render_ticket_resolved(
     """Template for a resolved or closed ticket outcome."""
     resolved_status = _require_known_status(status)
     if resolved_status not in _TERMINAL_STATUSES:
-        raise ValueError(
-            f"ticket_resolved expects RESOLVED or CLOSED, got {resolved_status!r}"
-        )
+        raise ValueError(f"ticket_resolved expects RESOLVED or CLOSED, got {resolved_status!r}")
     label = status_text_for(resolved_status)
     reference = _ticket_reference(ticket_id=ticket_id, ticket_number=ticket_number)
     outcome = "resolved" if resolved_status == "RESOLVED" else "closed"
