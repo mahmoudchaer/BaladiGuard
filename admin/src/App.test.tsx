@@ -151,7 +151,9 @@ describe('App staff authentication', () => {
     renderApp();
 
     expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'BaladiGuard staff login' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'BaladiGuard staff login' }),
+    ).not.toBeInTheDocument();
   });
 
   it('logs staff out, clears the session, and returns to login', async () => {

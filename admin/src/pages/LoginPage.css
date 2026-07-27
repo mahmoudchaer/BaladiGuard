@@ -4,7 +4,12 @@
   place-items: center;
   padding: 1.5rem;
   background:
-    linear-gradient(90deg, var(--lb-red) 0 33.33%, var(--lb-white) 33.33% 66.66%, var(--lb-green) 66.66% 100%)
+    linear-gradient(
+        90deg,
+        var(--lb-red) 0 33.33%,
+        var(--lb-white) 33.33% 66.66%,
+        var(--lb-green) 66.66% 100%
+      )
       top / 100% 4px no-repeat,
     var(--color-bg);
 }

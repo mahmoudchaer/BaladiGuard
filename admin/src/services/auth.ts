@@ -80,10 +80,7 @@ export function getStoredStaffSession(): StaffSession | null {
 export function loginStaff(username: string, password: string): LoginResult {
   const trimmedUsername = username.trim();
 
-  if (
-    trimmedUsername !== config.staffAuth.username ||
-    password !== config.staffAuth.password
-  ) {
+  if (trimmedUsername !== config.staffAuth.username || password !== config.staffAuth.password) {
     return {
       ok: false,
       error: 'Invalid staff username or password.',

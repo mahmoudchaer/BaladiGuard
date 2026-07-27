@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { StaffAuthContext } from '@/auth/staffAuthState';
-import {
-  getStoredStaffSession,
-  loginStaff,
-  logoutStaff,
-  type StaffSession,
-} from '@/services/auth';
+import { getStoredStaffSession, loginStaff, logoutStaff, type StaffSession } from '@/services/auth';
 
 type StaffAuthProviderProps = {
   children: ReactNode;
