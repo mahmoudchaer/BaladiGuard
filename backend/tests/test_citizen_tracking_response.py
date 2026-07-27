@@ -63,6 +63,22 @@ def test_tracking_code_lookup_returns_citizen_safe_ticket_response(client):
     assert "longitude" not in body["location"]
 
 
+def test_tracking_code_lookup_hides_category_until_staff_approval(client):
+    created = create_ticket(client)
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {
+            "category": "road_damage",
+            "final_category": None,
+        },
+    )
+
+    response = client.get(f"/v1/tickets/track/{created['trackingCode']}")
+
+    assert response.status_code == 200
+    assert response.json()["category"] is None
+
+
 def test_tracking_code_lookup_returns_404_for_unknown_code(client):
     response = client.get("/v1/tickets/track/MISSING")
 

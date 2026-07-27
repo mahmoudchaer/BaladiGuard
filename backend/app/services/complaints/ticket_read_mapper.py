@@ -5,7 +5,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from app.config import get_settings
 from app.schemas.stored_status_history import StoredStatusHistory
-from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
+from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
     CitizenTicketLocation,
     CitizenTicketResponse,
@@ -78,10 +78,7 @@ def map_ticket_to_citizen_response(
         ticketNumber=ticket.ticket_number,
         trackingCode=ticket.tracking_code,
         status=ticket.status,
-        category=(
-            ticket.final_category
-            or (ticket.category if ticket.category != PENDING_CLASSIFICATION else None)
-        ),
+        category=ticket.final_category,
         location=CitizenTicketLocation(addressText=ticket.location.address_text),
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
