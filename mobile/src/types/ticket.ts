@@ -36,12 +36,7 @@ export type SubmitTicketResponse = {
 };
 
 export type TicketStatus =
-  | 'SUBMITTED'
-  | 'UNDER_REVIEW'
-  | 'ASSIGNED'
-  | 'IN_PROGRESS'
-  | 'RESOLVED'
-  | 'CLOSED';
+  'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
