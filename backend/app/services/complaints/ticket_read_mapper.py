@@ -7,6 +7,9 @@ from app.config import get_settings
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
+    CitizenTicketLocation,
+    CitizenTicketResponse,
+    CitizenTicketTimelineEntry,
     TicketAiFields,
     TicketDepartment,
     TicketDuplicateReference,
@@ -55,6 +58,32 @@ def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
         suggestedCategory=ticket.ai_suggested_category,
         urgencyScore=ticket.urgency_score,
         urgencyReason=ticket.urgency_reason,
+    )
+
+
+def map_ticket_to_citizen_response(
+    ticket: StoredTicket,
+    status_history: list[StoredStatusHistory] | None = None,
+) -> CitizenTicketResponse:
+    timeline = [
+        CitizenTicketTimelineEntry(
+            status=entry.new_status,
+            changedAt=entry.created_at,
+        )
+        for entry in (status_history or [])
+    ]
+    last_updated_at = ticket.updated_at or ticket.created_at
+
+    return CitizenTicketResponse(
+        ticketNumber=ticket.ticket_number,
+        trackingCode=ticket.tracking_code,
+        status=ticket.status,
+        category=ticket.final_category,
+        location=CitizenTicketLocation(addressText=ticket.location.address_text),
+        createdAt=ticket.created_at,
+        updatedAt=ticket.updated_at,
+        lastUpdatedAt=last_updated_at,
+        timeline=timeline,
     )
 
 
