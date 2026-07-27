@@ -142,6 +142,104 @@ def test_score_urgency_matches_documented_examples(payload, expected_score, expe
         "timeOpen",
         "evidence",
     }
+    assert result.urgency_reason.startswith(f"{expected_level.title()} ({result.urgency_score}):")
+
+
+@pytest.mark.parametrize(
+    ("payload", "required_phrases"),
+    [
+        (
+            {
+                "category": "road_damage",
+                "description": (
+                    "Deep pothole in the travel lane on a busy Beirut arterial; cars swerve."
+                ),
+                "location": location("Busy Beirut major arterial"),
+                "duplicate_count": 1,
+                "created_at": "2026-07-16T12:00:00Z",
+                "has_photo": True,
+            },
+            ("possible injury or collision risk", "critical location"),
+        ),
+        (
+            {
+                "category": "traffic_signal",
+                "description": "Traffic light fully dark at a busy signalized intersection.",
+                "location": location("Busy signalized intersection"),
+                "duplicate_count": 2,
+                "created_at": "2026-07-18T04:00:00Z",
+                "has_photo": True,
+            },
+            ("immediate safety danger", "critical location"),
+        ),
+        (
+            {
+                "category": "waste",
+                "description": (
+                    "Overflowing bins and garbage bags piled on a busy Hamra sidewalk; strong odor."
+                ),
+                "location": location("Hamra Street, Beirut"),
+                "duplicate_count": 4,
+                "created_at": "2026-07-13T12:00:00Z",
+                "has_photo": True,
+            },
+            ("4 nearby open duplicates", "busy public location"),
+        ),
+        (
+            {
+                "category": "public_facilities",
+                "description": (
+                    "Exposed electrical wires hanging from a damaged public light pole "
+                    "beside a school gate."
+                ),
+                "location": location("School gate"),
+                "duplicate_count": 1,
+                "created_at": "2026-07-18T08:00:00Z",
+                "has_photo": True,
+            },
+            ("immediate safety danger", "critical location"),
+        ),
+    ],
+)
+def test_urgency_reason_references_strongest_scoring_factors(payload, required_phrases):
+    result = score_urgency(status="SUBMITTED", now=NOW, **payload)
+
+    for phrase in required_phrases:
+        assert phrase in result.urgency_reason
+
+
+def test_urgency_reason_orders_factors_by_strength():
+    result = score_urgency(
+        category="road_damage",
+        description="Deep pothole in the travel lane on a busy Beirut arterial; cars swerve.",
+        location=location("Busy Beirut major arterial"),
+        duplicate_count=1,
+        created_at="2026-07-16T12:00:00Z",
+        status="SUBMITTED",
+        has_photo=True,
+        now=NOW,
+    )
+
+    # Safety (25) and location (20) outrank corroborated evidence (10) and duplicates (5).
+    assert result.urgency_score == 65
+    assert result.urgency_reason == (
+        "High (65): possible injury or collision risk; critical location; strong evidence."
+    )
+
+
+def test_urgency_reason_includes_emergency_disclaimer_when_needed():
+    result = score_urgency(
+        category="road_damage",
+        description="Deep pothole blocking the road — call the police and ambulance now.",
+        location=location("Busy Beirut major arterial"),
+        duplicate_count=0,
+        created_at="2026-07-18T10:00:00Z",
+        status="SUBMITTED",
+        has_photo=True,
+        now=NOW,
+    )
+
+    assert "not an emergency channel" in result.urgency_reason
 
 
 def test_score_urgency_handles_missing_optional_fields():

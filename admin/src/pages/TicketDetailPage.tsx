@@ -537,15 +537,24 @@ export function TicketDetailPage() {
                       </dd>
                     </div>
                     {(ticket.ai?.urgencyScore !== undefined || ticket.ai?.urgencyReason) && (
-                      <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
-                        <dt>Urgency score</dt>
-                        <dd>
-                          {ticket.ai?.urgencyScore !== undefined && (
-                            <strong>{ticket.ai.urgencyScore}/100</strong>
-                          )}
-                          {ticket.ai?.urgencyReason && <span>{ticket.ai.urgencyReason}</span>}
-                        </dd>
-                      </div>
+                      <>
+                        {ticket.ai?.urgencyScore !== undefined && (
+                          <div className="ticket-detail__meta-row">
+                            <dt>Urgency score</dt>
+                            <dd>
+                              <strong>{ticket.ai.urgencyScore}/100</strong>
+                            </dd>
+                          </div>
+                        )}
+                        {ticket.ai?.urgencyReason && (
+                          <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
+                            <dt>Urgency reason</dt>
+                            <dd>
+                              <span>{ticket.ai.urgencyReason}</span>
+                            </dd>
+                          </div>
+                        )}
+                      </>
                     )}
                     <div className="ticket-detail__meta-row">
                       <dt>Department</dt>
