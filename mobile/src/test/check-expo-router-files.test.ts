@@ -73,7 +73,10 @@ describe('validateExpoRouterFiles', () => {
       'report/__mocks__/mock.tsx': 'export default function MockRoute() { return null; }',
     });
 
-    expect(validateExpoRouterFiles(appDir)).toEqual(
+    const errors = validateExpoRouterFiles(appDir);
+
+    expect(errors).toHaveLength(2);
+    expect(errors).toEqual(
       expect.arrayContaining([
         expect.stringContaining(
           '__tests__/index.tsx: __tests__ directories are not valid inside app/',
@@ -83,7 +86,6 @@ describe('validateExpoRouterFiles', () => {
         ),
       ]),
     );
-    expect(validateExpoRouterFiles(appDir)).toHaveLength(2);
   });
 
   it('rejects unsupported files inside route directories', () => {
