@@ -55,6 +55,23 @@ def department_id_for_category(category_id: str) -> str | None:
     return category_to_department_map().get(category_id)
 
 
+def suggest_department_id(
+    *,
+    category_id: str | None,
+    urgency_level: str | None = None,
+    urgency_score: int | None = None,
+) -> str | None:
+    """Suggest the responsible department from seeded routing rules.
+
+    Urgency is accepted as part of the processed-ticket context so rule sets can
+    evolve later. The current MVP rule source maps category to department and
+    does not reroute tickets by urgency.
+    """
+    if category_id is None:
+        return None
+    return department_id_for_category(category_id)
+
+
 def department_ids() -> frozenset[str]:
     return frozenset(item["departmentId"] for item in load_department_catalog())
 

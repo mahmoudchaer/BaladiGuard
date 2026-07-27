@@ -6,6 +6,7 @@ from app.services.routing.department_map import (
     department_ids,
     department_name,
     load_department_catalog,
+    suggest_department_id,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "department_ids",
     "department_name",
     "load_department_catalog",
+    "suggest_department_id",
 ]

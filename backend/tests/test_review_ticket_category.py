@@ -62,6 +62,45 @@ def test_staff_can_correct_ai_suggestion_to_another_supported_category(client):
     assert body["category"] == "waste"
     assert body["ai"]["finalCategory"] == "waste"
     assert body["ai"]["aiSuggestedCategory"] == "road_damage"
+    assert body["departmentId"] == "d2222222-2222-2222-2222-222222222222"
+
+
+def test_staff_category_correction_refreshes_ai_suggested_department(client):
+    created = create_ticket(client)
+    seed_ai_suggestion(created["ticketId"], category="road_damage")
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/category",
+        json={"finalCategory": "waste", "categoryReviewedBy": "staff-2"},
+    )
+
+    assert response.status_code == 200
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.category == "waste"
+    assert stored.final_category == "waste"
+    assert stored.department_id == "d2222222-2222-2222-2222-222222222222"
+
+
+def test_staff_category_correction_keeps_manual_department_override(client):
+    created = create_ticket(client)
+    seed_ai_suggestion(created["ticketId"], category="road_damage")
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {"department_id": "d3333333-3333-3333-3333-333333333333"},
+    )
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/category",
+        json={"finalCategory": "waste", "categoryReviewedBy": "staff-2"},
+    )
+
+    assert response.status_code == 200
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.category == "waste"
+    assert stored.final_category == "waste"
+    assert stored.department_id == "d3333333-3333-3333-3333-333333333333"
 
 
 def test_category_review_allows_missing_reviewer_identity(client):
