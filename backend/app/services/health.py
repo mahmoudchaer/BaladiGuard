@@ -14,11 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _app_env() -> str:
-    return (
-        os.getenv("APP_ENV", "").strip()
-        or os.getenv("ENVIRONMENT", "").strip()
-        or "local"
-    )
+    return os.getenv("APP_ENV", "").strip() or os.getenv("ENVIRONMENT", "").strip() or "local"
 
 
 def check_database() -> dict[str, Any]:
