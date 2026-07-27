@@ -60,10 +60,14 @@ def test_submission_persists_successful_ai_output_and_read_api_returns_it(
     assert stored.priority == "high"
     assert stored.urgency_score is not None
     assert stored.urgency_reason
+    assert stored.department_id == "d1111111-1111-1111-1111-111111111111"
 
     read_response = client.get(f"/v1/tickets/{ticket_id}")
     assert read_response.status_code == 200
-    ai = read_response.json()["ai"]
+    read_body = read_response.json()
+    assert read_body["departmentId"] == "d1111111-1111-1111-1111-111111111111"
+    assert read_body["department"]["name"] == "Road Maintenance"
+    ai = read_body["ai"]
     assert ai["originalDescription"] == VALID_PAYLOAD["description"]
     assert ai["cleanedDescription"] == stored.cleaned_description
     assert ai["aiSuggestedCategory"] == "road_damage"
@@ -133,6 +137,7 @@ def test_classification_fallback_keeps_successful_cleaning_as_partial_success(
     assert stored.ai_suggested_category is None
     assert stored.ai_category_explanation is None
     assert stored.category == "PENDING_CLASSIFICATION"
+    assert stored.department_id is None
 
 
 def test_cleaning_fallback_never_discards_a_valid_category(
@@ -165,6 +170,7 @@ def test_cleaning_fallback_never_discards_a_valid_category(
     assert stored.ai_suggested_category == "road_damage"
     assert stored.ai_category_explanation == "The report describes damage to a public road."
     assert stored.cleaned_description is None
+    assert stored.department_id == "d1111111-1111-1111-1111-111111111111"
 
 
 def test_processing_is_failed_only_when_both_sides_fall_back(
@@ -198,6 +204,7 @@ def test_processing_is_failed_only_when_both_sides_fall_back(
     assert stored.cleaned_description is None
     assert stored.ai_suggested_category is None
     assert stored.ai_category_explanation is None
+    assert stored.department_id is None
 
 
 def test_repeated_processing_for_same_ticket_is_a_no_op(monkeypatch):

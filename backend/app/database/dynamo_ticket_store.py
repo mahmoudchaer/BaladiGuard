@@ -45,6 +45,17 @@ class DynamoTicketStore:
             return None
         return item_to_ticket(item)
 
+    def get_by_tracking_code(self, tracking_code: str) -> StoredTicket | None:
+        response = self._tickets_table.query(
+            IndexName="trackingCode-index",
+            KeyConditionExpression=Key("trackingCode").eq(tracking_code.strip().upper()),
+            Limit=1,
+        )
+        items = response.get("Items", [])
+        if not items:
+            return None
+        return item_to_ticket(items[0])
+
     def list(self) -> list[StoredTicket]:
         tickets: list[StoredTicket] = []
         scan_kwargs: dict[str, object] = {}

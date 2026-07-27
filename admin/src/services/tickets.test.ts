@@ -77,6 +77,28 @@ describe('updateTicketStatus', () => {
             urgencyScore: 75,
             urgencyReason: 'Critical (75): immediate safety danger.',
           },
+          statusHistory: [
+            {
+              status: 'SUBMITTED',
+              changedAt: '2026-07-14T10:00:00Z',
+              changedBy: 'system',
+            },
+            {
+              status: 'TOTALLY_INVALID',
+              changedAt: '2026-07-14T10:02:00Z',
+              changedBy: 'staff-bad',
+            },
+            {
+              status: 'UNDER_REVIEW',
+              changedAt: '2026-07-14T10:05:00Z',
+              changedBy: 'staff-1',
+              note: 'Accepted for review.',
+            },
+            {
+              status: 'RESOLVED',
+              changedAt: 'not-a-date',
+            },
+          ],
         }),
         {
           status: 200,
@@ -96,6 +118,19 @@ describe('updateTicketStatus', () => {
     expect(updatedTicket?.ai?.aiModelVersion).toBe('amazon.nova-lite-v1:0');
     expect(updatedTicket?.ai?.urgencyScore).toBe(75);
     expect(updatedTicket?.ai?.urgencyReason).toContain('immediate safety danger');
+    expect(updatedTicket?.statusHistory).toEqual([
+      {
+        status: 'SUBMITTED',
+        changedAt: '2026-07-14T10:00:00Z',
+        changedBy: 'system',
+      },
+      {
+        status: 'UNDER_REVIEW',
+        changedAt: '2026-07-14T10:05:00Z',
+        changedBy: 'staff-1',
+        note: 'Accepted for review.',
+      },
+    ]);
   });
 
   it('preserves critical priorities from the ticket read response shape', async () => {

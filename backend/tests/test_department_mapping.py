@@ -13,6 +13,7 @@ from app.services.routing import (
     department_ids,
     department_name,
     load_department_catalog,
+    suggest_department_id,
 )
 
 SEEDS_DIR = Path(__file__).resolve().parents[1] / "scripts" / "db" / "seeds"
@@ -75,6 +76,19 @@ def test_seed_files_and_routing_module_stay_consistent() -> None:
 def test_department_name_lookup() -> None:
     assert department_name("d2222222-2222-2222-2222-222222222222") == "Waste Management"
     assert department_name("missing") is None
+
+
+def test_department_suggestion_uses_seeded_rules_with_processed_ticket_context() -> None:
+    assert (
+        suggest_department_id(
+            category_id="traffic_signal",
+            urgency_level="critical",
+            urgency_score=88,
+        )
+        == "d6666666-6666-6666-6666-666666666666"
+    )
+    assert suggest_department_id(category_id=PENDING_CLASSIFICATION, urgency_level="high") is None
+    assert suggest_department_id(category_id=None, urgency_score=75) is None
 
 
 def test_ticket_read_mapper_uses_seed_backed_department_name() -> None:

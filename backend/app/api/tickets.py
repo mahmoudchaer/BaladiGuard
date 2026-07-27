@@ -5,7 +5,11 @@ from app.core.errors import build_error_response, get_request_id
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
-from app.schemas.ticket_response import TicketResponse, UpdateTicketStatusRequest
+from app.schemas.ticket_response import (
+    CitizenTicketResponse,
+    TicketResponse,
+    UpdateTicketStatusRequest,
+)
 from app.services.complaints.status_workflow import InvalidStatusTransitionError
 from app.services.complaints.ticket_service import (
     DuplicateMergeError,
@@ -29,6 +33,22 @@ def submit_ticket(
 @router.get("/tickets", response_model=list[TicketResponse])
 def list_tickets() -> list[TicketResponse]:
     return ticket_service.list_tickets()
+
+
+@router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)
+def get_ticket_by_tracking_code(
+    tracking_code: str,
+    request: Request,
+) -> CitizenTicketResponse | JSONResponse:
+    ticket = ticket_service.get_ticket_by_tracking_code(tracking_code)
+    if ticket is None:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    return ticket
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketResponse)

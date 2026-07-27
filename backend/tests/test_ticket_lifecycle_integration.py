@@ -88,7 +88,7 @@ def test_ticket_lifecycle_with_ai_processing_and_staff_review(client, monkeypatc
     assert ticket["priority"] == "medium"
     assert ticket["ai"]["urgencyScore"] == 37
     assert ticket["ai"]["urgencyReason"] == (
-        "Medium (37): public disruption or inconvenience; critical location; strong evidence."
+        "Medium (37): critical location; public disruption or inconvenience; strong evidence."
     )
     assert ticket["ai"]["finalCategory"] is None
     assert [entry["status"] for entry in ticket["statusHistory"]] == ["SUBMITTED"]

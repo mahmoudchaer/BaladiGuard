@@ -29,6 +29,18 @@ class InMemoryTicketStore:
         with self._lock:
             return self._tickets.get(ticket_id)
 
+    def get_by_tracking_code(self, tracking_code: str) -> StoredTicket | None:
+        normalized = tracking_code.strip().upper()
+        with self._lock:
+            return next(
+                (
+                    ticket
+                    for ticket in self._tickets.values()
+                    if ticket.tracking_code.upper() == normalized
+                ),
+                None,
+            )
+
     def list(self) -> list[StoredTicket]:
         with self._lock:
             return list(self._tickets.values())

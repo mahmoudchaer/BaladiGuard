@@ -21,6 +21,7 @@ from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
+    CitizenTicketResponse,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketResponse,
@@ -30,8 +31,12 @@ from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
-from app.services.complaints.ticket_read_mapper import map_ticket_to_response
+from app.services.complaints.ticket_read_mapper import (
+    map_ticket_to_citizen_response,
+    map_ticket_to_response,
+)
 from app.services.duplicates import find_nearby_duplicates
+from app.services.routing import suggest_department_id
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_duplicate_group_id,
@@ -76,6 +81,17 @@ def effective_ticket_category(ticket: StoredTicket) -> str | None:
     if ticket.category and ticket.category != PENDING_CLASSIFICATION:
         return ticket.category
     return None
+
+
+def _should_refresh_suggested_department(
+    *,
+    current_department_id: str | None,
+    previous_category_id: str | None,
+) -> bool:
+    if current_department_id is None:
+        return True
+    previous_department_id = suggest_department_id(category_id=previous_category_id)
+    return current_department_id == previous_department_id
 
 
 class TicketService:
@@ -316,6 +332,13 @@ class TicketService:
             return None
         return self._map_ticket(ticket, include_duplicate_suggestions=True)
 
+    def get_ticket_by_tracking_code(self, tracking_code: str) -> CitizenTicketResponse | None:
+        ticket = self._store.get_by_tracking_code(tracking_code)
+        if ticket is None:
+            return None
+        history = self._history_store.list_by_ticket_id(ticket.ticket_id)
+        return map_ticket_to_citizen_response(ticket, history)
+
     def update_ticket_status(
         self,
         ticket_id: str,
@@ -380,6 +403,16 @@ class TicketService:
         }
         if payload.ai_confidence is not None:
             update_fields["ai_confidence"] = payload.ai_confidence
+        suggested_department_id = suggest_department_id(
+            category_id=payload.ai_suggested_category,
+            urgency_level=payload.priority,
+            urgency_score=payload.urgency_score,
+        )
+        if suggested_department_id is not None and _should_refresh_suggested_department(
+            current_department_id=ticket.department_id,
+            previous_category_id=ticket.ai_suggested_category,
+        ):
+            update_fields["department_id"] = suggested_department_id
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
         updated_ticket = self._store.patch_fields(ticket_id, update_fields)
@@ -397,17 +430,26 @@ class TicketService:
             raise TicketNotFoundError(ticket_id)
 
         reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        update_fields: dict[str, object] = {
+            "final_category": payload.final_category,
+            "category": payload.final_category,
+            "category_reviewed_by": payload.category_reviewed_by,
+            "category_reviewed_at": reviewed_at,
+            "updated_at": reviewed_at,
+            "updated_by": payload.category_reviewed_by,
+        }
+        suggested_department_id = suggest_department_id(category_id=payload.final_category)
+        previous_category_id = effective_ticket_category(ticket)
+        if suggested_department_id is not None and _should_refresh_suggested_department(
+            current_department_id=ticket.department_id,
+            previous_category_id=previous_category_id,
+        ):
+            update_fields["department_id"] = suggested_department_id
+
         # Partial update so concurrent merges/AI writes are not overwritten.
         updated_ticket = self._store.patch_fields(
             ticket_id,
-            {
-                "final_category": payload.final_category,
-                "category": payload.final_category,
-                "category_reviewed_by": payload.category_reviewed_by,
-                "category_reviewed_at": reviewed_at,
-                "updated_at": reviewed_at,
-                "updated_by": payload.category_reviewed_by,
-            },
+            update_fields,
         )
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
