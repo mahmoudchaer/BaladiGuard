@@ -325,6 +325,10 @@
   border-top: 3px solid var(--lb-green);
 }
 
+.ticket-detail__timeline-summary {
+  margin-bottom: 0.85rem;
+}
+
 .ticket-detail__card--duplicates {
   border-top: 3px solid #2f6fed;
 }

@@ -86,6 +86,7 @@ def score_urgency(
         score=score,
         safety=safety,
         location_score=location_score,
+        duplicates=duplicates,
         duplicate_count=duplicate_count,
         time_open=time_open,
         evidence=evidence,
@@ -436,36 +437,53 @@ def _build_reason(
     score: int,
     safety: int,
     location_score: int,
+    duplicates: int,
     duplicate_count: int | None,
     time_open: int,
     evidence: int,
     location: ReportLocation | None,
     text: str,
 ) -> str:
-    parts = [_safety_reason(safety)]
+    """Build a short staff-facing reason that highlights the strongest factors."""
+
+    # Fixed priority for equal scores: safety → location → duplicates → time → evidence.
+    drivers: list[tuple[int, int, str]] = []
+    if safety > 0:
+        drivers.append((safety, 0, _safety_reason(safety)))
     if location_score == 20:
-        parts.append("critical location")
+        drivers.append((location_score, 1, "critical location"))
     elif location_score == 10:
-        parts.append("busy public location")
-    elif location is None:
-        parts.append("location sensitivity uncertain")
-
-    if duplicate_count is None:
-        parts.append("duplicates unavailable")
-    elif duplicate_count > 0:
+        drivers.append((location_score, 1, "busy public location"))
+    if duplicates > 0 and duplicate_count is not None and duplicate_count > 0:
         suffix = "s" if duplicate_count != 1 else ""
-        parts.append(f"{duplicate_count} nearby open duplicate{suffix}")
-
-    if time_open:
-        parts.append(_time_reason(time_open))
+        drivers.append((duplicates, 2, f"{duplicate_count} nearby open duplicate{suffix}"))
+    if time_open > 0:
+        drivers.append((time_open, 3, _time_reason(time_open)))
     if evidence >= 7:
-        parts.append("strong evidence")
-    elif evidence == 0:
-        parts.append("weak evidence")
-    if _contains_any(text, ("police", "ambulance", "fire department", "civil defense")):
-        parts.append("not an emergency channel")
+        drivers.append((evidence, 4, "strong evidence"))
 
-    return f"{level.title()} ({score}): {'; '.join(parts)}."
+    drivers.sort(key=lambda item: (-item[0], item[1]))
+    top_drivers = [phrase for _, _, phrase in drivers[:3]]
+    if not top_drivers:
+        top_drivers = [_safety_reason(safety)]
+
+    notes: list[str] = []
+    # Only call location uncertain when it did not contribute as a scored driver.
+    if location is None and location_score == 0:
+        notes.append("location sensitivity uncertain")
+    if duplicate_count is None:
+        notes.append("duplicates unavailable")
+    if evidence == 0 and len(top_drivers) < 3:
+        notes.append("weak evidence")
+    # Keep missing-data notes short; always allow the emergency disclaimer after.
+    notes = notes[:2]
+    if _contains_any(
+        text,
+        ("police", "ambulance", "fire department", "civil defense"),
+    ):
+        notes.append("not an emergency channel")
+
+    return f"{level.title()} ({score}): {'; '.join(top_drivers + notes)}."
 
 
 def _safety_reason(score: int) -> str:

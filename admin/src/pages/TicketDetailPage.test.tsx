@@ -159,6 +159,7 @@ describe('TicketDetailPage category review', () => {
     expect(screen.getByText('The report describes damage to a public road.')).toBeInTheDocument();
     expect(screen.getByText('Confidence 92%')).toBeInTheDocument();
     expect(screen.getByText('62/100')).toBeInTheDocument();
+    expect(screen.getByText('Urgency reason')).toBeInTheDocument();
     expect(
       screen.getByText('High (62): possible injury or collision risk; critical location.'),
     ).toBeInTheDocument();
