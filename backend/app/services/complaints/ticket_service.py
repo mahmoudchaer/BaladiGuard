@@ -32,6 +32,7 @@ from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
 from app.services.complaints.ticket_read_mapper import map_ticket_to_response
 from app.services.duplicates import find_nearby_duplicates
+from app.services.routing import suggest_department_id
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_duplicate_group_id,
@@ -364,6 +365,13 @@ class TicketService:
         }
         if payload.ai_confidence is not None:
             update_fields["ai_confidence"] = payload.ai_confidence
+        suggested_department_id = suggest_department_id(
+            category_id=payload.ai_suggested_category,
+            urgency_level=payload.priority,
+            urgency_score=payload.urgency_score,
+        )
+        if ticket.department_id is None and suggested_department_id is not None:
+            update_fields["department_id"] = suggested_department_id
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
         updated_ticket = self._store.patch_fields(ticket_id, update_fields)
