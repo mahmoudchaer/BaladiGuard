@@ -65,11 +65,13 @@ def test_save_ticket_ai_output_persists_fields_without_overwriting_original(clie
     assert stored.final_category is None
     assert stored.category == "PENDING_CLASSIFICATION"
     assert stored.department_id == "d1111111-1111-1111-1111-111111111111"
+    assert stored.suggested_department_id == "d1111111-1111-1111-1111-111111111111"
 
     assert updated.ai is not None
     assert updated.department_id == "d1111111-1111-1111-1111-111111111111"
     assert updated.department is not None
     assert updated.department.name == "Road Maintenance"
+    assert updated.ai.suggested_department_id == "d1111111-1111-1111-1111-111111111111"
     assert updated.ai.cleaned_description == stored.cleaned_description
     assert updated.ai.ai_suggested_category == "road_damage"
     assert updated.ai.suggested_category == "road_damage"

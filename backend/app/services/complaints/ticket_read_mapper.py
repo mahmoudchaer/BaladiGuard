@@ -58,6 +58,7 @@ def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
         suggestedCategory=ticket.ai_suggested_category,
         urgencyScore=ticket.urgency_score,
         urgencyReason=ticket.urgency_reason,
+        suggestedDepartmentId=ticket.suggested_department_id,
     )
 
 

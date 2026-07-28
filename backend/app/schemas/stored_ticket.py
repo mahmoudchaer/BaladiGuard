@@ -40,6 +40,7 @@ class StoredTicket(BaseModel):
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     department_id: str | None = Field(default=None, alias="departmentId")
+    suggested_department_id: str | None = Field(default=None, alias="suggestedDepartmentId")
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
