@@ -36,6 +36,7 @@ from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_response,
 )
 from app.services.duplicates import find_nearby_duplicates
+from app.services.notifications.adapters import NotificationRecipient
 from app.services.routing import suggest_department_id
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
@@ -150,6 +151,7 @@ class TicketService:
             status="SUBMITTED",
             tracking_code=tracking_code,
             ticket_number=ticket_number,
+            recipient=NotificationRecipient.from_contact(stored_ticket.contact),
         )
 
         return SubmitTicketResponse(
@@ -377,6 +379,7 @@ class TicketService:
             status=payload.status,
             tracking_code=updated_ticket.tracking_code,
             ticket_number=updated_ticket.ticket_number,
+            recipient=NotificationRecipient.from_contact(updated_ticket.contact),
         )
         return self._map_ticket(updated_ticket)
 
@@ -700,6 +703,7 @@ class TicketService:
         status: str,
         tracking_code: str | None = None,
         ticket_number: str | None = None,
+        recipient: NotificationRecipient | None = None,
     ) -> None:
         """Best-effort notification emit; never breaks the ticket workflow."""
         try:
@@ -711,6 +715,7 @@ class TicketService:
                 status=status,
                 tracking_code=tracking_code,
                 ticket_number=ticket_number,
+                recipient=recipient,
             )
         except Exception as exc:  # pragma: no cover - defensive outer guard
             logger.error(

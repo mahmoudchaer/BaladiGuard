@@ -98,7 +98,7 @@ Body: Your BaladiGuard report {ticketNumber} ({ticketId}) was closed. Status: Cl
 
 ## Out of scope for #40
 
-- Delivery adapters / SNS / SES / SMS providers → issue **#39**
+- Delivery adapters / SNS / SES / SMS providers → issue **#39** (see `docs/notifications.md`)
 - Triggering notifications from ticket create/status endpoints → issue **#39**
 - Idempotency / failure logging around delivery → issue **#39**
 - Multilingual template localization → later sprint
