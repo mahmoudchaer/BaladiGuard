@@ -9,8 +9,8 @@ type StaffAuthProviderProps = {
 export function StaffAuthProvider({ children }: StaffAuthProviderProps) {
   const [session, setSession] = useState<StaffSession | null>(() => getStoredStaffSession());
 
-  const login = useCallback((username: string, password: string) => {
-    const result = loginStaff(username, password);
+  const login = useCallback(async (username: string, password: string) => {
+    const result = await loginStaff(username, password);
 
     if (result.ok) {
       setSession(result.session);

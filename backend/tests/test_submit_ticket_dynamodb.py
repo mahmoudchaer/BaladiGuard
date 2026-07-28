@@ -1,12 +1,10 @@
 """HTTP submit → DynamoDB persist → get-by-ID coverage for issue #9."""
 
-from fastapi.testclient import TestClient
-
 from app.config import Settings
 from app.database.dynamo_ticket_store import DynamoTicketStore
-from app.main import app
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import authenticated_test_client
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
@@ -18,7 +16,7 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
     ticket_service._store = store
 
     try:
-        client = TestClient(app)
+        client = authenticated_test_client()
 
         response = client.post("/v1/tickets", json=VALID_PAYLOAD)
 

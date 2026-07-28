@@ -1,12 +1,10 @@
 """Status update coverage with DynamoDB persistence."""
 
-from fastapi.testclient import TestClient
-
 from app.config import Settings
 from app.database.dynamo_status_history_store import DynamoStatusHistoryStore
 from app.database.dynamo_ticket_store import DynamoTicketStore
-from app.main import app
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import authenticated_test_client
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
@@ -19,7 +17,7 @@ def test_update_ticket_status_persists_history_in_dynamodb(dynamodb_settings: Se
     ticket_service._history_store = history_store
 
     try:
-        client = TestClient(app)
+        client = authenticated_test_client()
         submit_response = client.post("/v1/tickets", json=VALID_PAYLOAD)
         assert submit_response.status_code == 201
         ticket_id = submit_response.json()["ticketId"]
