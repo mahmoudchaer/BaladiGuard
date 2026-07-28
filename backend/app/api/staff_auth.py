@@ -22,7 +22,11 @@ def staff_login(
 ) -> StaffLoginResponse | JSONResponse:
     settings = get_settings()
     try:
-        principal = authenticate_staff_credentials(payload.username, payload.password, settings=settings)
+        principal = authenticate_staff_credentials(
+            payload.username,
+            payload.password,
+            settings=settings,
+        )
     except StaffAuthError:
         return build_error_response(
             code="UNAUTHORIZED",
