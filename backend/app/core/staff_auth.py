@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import time
 from dataclasses import dataclass
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -110,7 +111,10 @@ def authenticate_staff_credentials(
     return StaffPrincipal(username=expected_username)
 
 
-def unauthorized(request: Request, message: str = "Staff authentication required.") -> HTTPException:
+def unauthorized(
+    request: Request,
+    message: str = "Staff authentication required.",
+) -> HTTPException:
     """401 that never includes ticket contents or internal identifiers."""
     from app.core.errors import get_request_id
 
@@ -130,7 +134,10 @@ def unauthorized(request: Request, message: str = "Staff authentication required
 
 def require_staff(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_bearer_scheme),
+    ],
 ) -> StaffPrincipal:
     """FastAPI dependency for staff-only routes (issue #72)."""
     if credentials is None or credentials.scheme.lower() != "bearer" or not credentials.credentials:
@@ -141,3 +148,7 @@ def require_staff(
     except StaffAuthError:
         # Same generic message for missing/invalid/expired — do not leak why.
         raise unauthorized(request) from None
+
+
+# Prefer this alias on route handlers so ruff B008 stays clean with FastAPI Depends.
+StaffDep = Annotated[StaffPrincipal, Depends(require_staff)]
