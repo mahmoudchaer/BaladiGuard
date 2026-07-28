@@ -65,12 +65,9 @@ class Settings:
         # Staff auth (issue #72). Defaults match the admin Vite demo credentials
         # so local/CI work out of the box; override in real environments.
         self.secret_key = os.getenv("SECRET_KEY", "").strip() or None
-        self.staff_username = (
-            os.getenv("STAFF_USERNAME", "staff").strip() or "staff"
-        )
+        self.staff_username = os.getenv("STAFF_USERNAME", "staff").strip() or "staff"
         self.staff_password = (
-            os.getenv("STAFF_PASSWORD", "staff-demo-password").strip()
-            or "staff-demo-password"
+            os.getenv("STAFF_PASSWORD", "staff-demo-password").strip() or "staff-demo-password"
         )
         raw_token_ttl = os.getenv("STAFF_TOKEN_TTL_SECONDS", "43200").strip()
         try:
