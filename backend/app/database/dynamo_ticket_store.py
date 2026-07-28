@@ -10,6 +10,7 @@ from app.database.serialization import item_to_ticket, prepare_dynamodb_value, t
 from app.database.ticket_patch import build_update_expression
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
+from app.utils.ticket_ids import normalize_tracking_code
 
 TICKET_NUMBER_COUNTER_ID = "ticketNumberSequence"
 
@@ -48,7 +49,7 @@ class DynamoTicketStore:
     def get_by_tracking_code(self, tracking_code: str) -> StoredTicket | None:
         response = self._tickets_table.query(
             IndexName="trackingCode-index",
-            KeyConditionExpression=Key("trackingCode").eq(tracking_code.strip().upper()),
+            KeyConditionExpression=Key("trackingCode").eq(normalize_tracking_code(tracking_code)),
             Limit=1,
         )
         items = response.get("Items", [])
@@ -201,7 +202,7 @@ class DynamoTicketStore:
     def has_tracking_code(self, tracking_code: str) -> bool:
         response = self._tickets_table.query(
             IndexName="trackingCode-index",
-            KeyConditionExpression=Key("trackingCode").eq(tracking_code),
+            KeyConditionExpression=Key("trackingCode").eq(normalize_tracking_code(tracking_code)),
             Limit=1,
             ProjectionExpression="ticketId",
         )
