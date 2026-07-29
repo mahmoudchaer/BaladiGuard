@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.api.deps import StaffActorDep
@@ -13,6 +13,7 @@ from app.schemas.ticket_response import (
     UpdateTicketStatusRequest,
 )
 from app.services.complaints.status_workflow import InvalidStatusTransitionError
+from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
     DuplicateMergeError,
     TicketNotFoundError,
@@ -35,9 +36,30 @@ def submit_ticket(
 
 
 @router.get("/tickets", response_model=list[TicketResponse])
-def list_tickets(_: StaffDep) -> list[TicketResponse]:
-    """Staff dashboard ticket list (issue #72)."""
-    return ticket_service.list_tickets()
+def list_tickets(
+    _: StaffDep,
+    request: Request,
+    status: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    urgency: str | None = Query(default=None),
+    department_id: str | None = Query(default=None, alias="departmentId"),
+) -> list[TicketResponse] | JSONResponse:
+    """Staff dashboard ticket list with optional persisted-field filters (issue #142)."""
+    filters, errors = parse_ticket_list_filters(
+        status=status,
+        category=category,
+        urgency=urgency,
+        department_id=department_id,
+    )
+    if errors:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field=error.field, message=error.message) for error in errors],
+            status_code=400,
+        )
+    return ticket_service.list_tickets(filters)
 
 
 @router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)

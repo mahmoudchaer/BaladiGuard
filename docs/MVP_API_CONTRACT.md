@@ -256,7 +256,23 @@ Citizen tracking codes are 6 characters drawn from `A-Z` and `2-9`, excluding am
 
 Staff-only. Requires `Authorization: Bearer <accessToken>`.
 
-Returns all persisted tickets using the ticket record shape, sorted by `createdAt` descending.
+Returns persisted tickets using the ticket record shape, sorted by `createdAt` descending.
+Optional query filters match **persisted** ticket fields and are combined with AND. Omitting a
+parameter leaves that dimension unfiltered. An empty match set returns `[]` (HTTP 200), not an
+error.
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `status` | enum | No | Exact match on ticket `status`. One of `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`. |
+| `category` | string | No | Exact match on ticket `category` (including `PENDING_CLASSIFICATION`). Must be a seeded catalog category ID. |
+| `urgency` | enum | No | Exact match on persisted urgency level stored as ticket `priority`. One of `low`, `medium`, `high`, `critical`. Tickets with `priority: null` do not match. |
+| `departmentId` | string | No | Exact match on assigned `departmentId` (staff override or automatic assignment). Must be a seeded department catalog ID. Does **not** filter on `ai.suggestedDepartmentId`. |
+
+Invalid or blank filter values return `400` with `error.code = VALIDATION_ERROR` and a `details[]`
+entry whose `field` is the query parameter name (`status`, `category`, `urgency`, or
+`departmentId`).
 
 ### Response `200`
 
