@@ -61,6 +61,10 @@ class Settings:
             minimum=0.0,
             maximum=1.0,
         )
+        # mock = log-only delivery; real = provider path (unconfigured until SNS/SES).
+        self.notification_adapter = (
+            os.getenv("NOTIFICATION_ADAPTER", "mock").strip().lower() or "mock"
+        )
 
     @staticmethod
     def _float_setting(
