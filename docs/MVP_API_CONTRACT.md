@@ -226,6 +226,20 @@ fields remain available only through staff `TicketResponse` endpoints where appr
 
 Public. No staff authentication is required.
 
+### Client lookup path (issue #37)
+
+Mobile (and any citizen client) must call this public endpoint **directly** after trimming and
+validating the tracking code on the client. The backend is the only approved resolver (memory or
+DynamoDB lookup by `trackingCode`). Citizens must **not** use staff
+`GET /v1/tickets/{ticketId}` or invent an alternate lookup path.
+
+Client-side validation expectations before the request:
+
+- Reject empty / whitespace-only input without calling the API.
+- Trim and uppercase the code, then require the tracking-code format below.
+- On `404`, show a clear non-sensitive not-found message (do not leak internal IDs or staff fields).
+- Disable submit while a lookup is in flight so repeated taps do not create duplicate requests.
+
 ### Tracking code format
 
 Citizen tracking codes are 6 characters drawn from `A-Z` and `2-9`, excluding ambiguous characters
