@@ -7,10 +7,13 @@ from datetime import UTC, datetime
 from app.utils.ticket_ids import (
     DEFAULT_TICKET_PREFIX,
     TRACKING_CODE_ALPHABET,
+    TRACKING_CODE_LENGTH,
     generate_status_history_id,
     generate_ticket_id,
     generate_ticket_number,
     generate_tracking_code,
+    is_valid_tracking_code,
+    normalize_tracking_code,
 )
 
 AMBIGUOUS_CHARS = set("IO01")
@@ -48,8 +51,9 @@ def test_generate_status_history_id_uses_hist_prefix() -> None:
 
 def test_generate_tracking_code_default_length_and_alphabet() -> None:
     code = generate_tracking_code()
-    assert len(code) == 6, (
-        f"ticket_ids.generate_tracking_code: expected length 6, got {len(code)} ({code!r})"
+    assert len(code) == TRACKING_CODE_LENGTH, (
+        f"ticket_ids.generate_tracking_code: expected length {TRACKING_CODE_LENGTH}, "
+        f"got {len(code)} ({code!r})"
     )
     assert set(code) <= set(TRACKING_CODE_ALPHABET), (
         f"ticket_ids.generate_tracking_code: chars outside alphabet in {code!r}"
@@ -57,6 +61,18 @@ def test_generate_tracking_code_default_length_and_alphabet() -> None:
     assert not (set(code) & AMBIGUOUS_CHARS), (
         f"ticket_ids.generate_tracking_code: ambiguous chars in {code!r}"
     )
+    assert is_valid_tracking_code(code)
+
+
+def test_normalize_and_validate_tracking_code() -> None:
+    assert normalize_tracking_code(" ab12cd ") == "AB12CD"
+    assert is_valid_tracking_code("ab23cd")
+    assert is_valid_tracking_code("  AB23CD  ")
+    assert not is_valid_tracking_code("")
+    assert not is_valid_tracking_code("   ")
+    assert not is_valid_tracking_code("AB12")
+    assert not is_valid_tracking_code("IIIIII")
+    assert not is_valid_tracking_code("AB12O1")
 
 
 def test_generate_tracking_code_custom_length() -> None:
