@@ -14,6 +14,7 @@ from app.schemas.cleaning import CleaningResult
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import ReportContact, ReportLocation, SubmitTicketRequest
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import authenticated_test_client
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
@@ -519,7 +520,7 @@ def test_live_submission_persists_real_ai_to_cloud_dynamodb(monkeypatch):
         if stored.ai_processing_status == "completed":
             assert stored.cleaned_description or stored.ai_suggested_category
 
-        read_response = TestClient(app).get(f"/v1/tickets/{ticket_id}")
+        read_response = authenticated_test_client().get(f"/v1/tickets/{ticket_id}")
         assert read_response.status_code == 200
         ai = read_response.json()["ai"]
         assert ai["originalDescription"] == VALID_PAYLOAD["description"]

@@ -69,6 +69,48 @@ function signInSession() {
     JSON.stringify({
       username: 'staff',
       signedInAt: '2026-07-27T08:00:00Z',
+      accessToken: 'test-staff-token',
+    }),
+  );
+}
+
+function stubStaffLoginFetch() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.includes('/v1/staff/login')) {
+        throw new Error(`Unexpected fetch in App auth tests: ${url}`);
+      }
+
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        username?: string;
+        password?: string;
+      };
+
+      if (body.username === 'staff' && body.password === 'staff-demo-password') {
+        return new Response(
+          JSON.stringify({
+            accessToken: 'test-staff-token',
+            tokenType: 'Bearer',
+            username: 'staff',
+            expiresIn: 43200,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Invalid staff username or password.',
+            details: [],
+            requestId: 'req_test',
+          },
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      );
     }),
   );
 }
@@ -87,12 +129,14 @@ describe('App staff authentication', () => {
     installLocalStorage();
     vi.clearAllMocks();
     clearSession();
+    stubStaffLoginFetch();
     vi.mocked(fetchTickets).mockResolvedValue([ticket]);
   });
 
   afterEach(() => {
     installLocalStorage();
     clearSession();
+    vi.unstubAllGlobals();
   });
 
   it('redirects unauthenticated users from the ticket list to login', () => {
@@ -147,7 +191,7 @@ describe('App staff authentication', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByRole('heading', { name: 'Map View' })).toBeInTheDocument();
-    expect(screen.getByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
+    expect(await screen.findByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
   });
 
   it('preserves the requested route search and hash after sign in', async () => {
@@ -179,6 +223,18 @@ describe('App staff authentication', () => {
   it('clears corrupt stored sessions with non-string fields', () => {
     corruptSession({
       username: 123,
+      signedInAt: '2026-07-27T08:00:00Z',
+    });
+
+    renderApp();
+
+    expect(screen.getByRole('heading', { name: 'BaladiGuard staff login' })).toBeInTheDocument();
+    expect(window.localStorage.getItem('baladiguard.staffSession')).toBeNull();
+  });
+
+  it('clears corrupt stored sessions missing an access token', () => {
+    corruptSession({
+      username: 'staff',
       signedInAt: '2026-07-27T08:00:00Z',
     });
 
