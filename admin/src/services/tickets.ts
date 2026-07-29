@@ -9,6 +9,7 @@ import type {
   TicketStatusHistoryEntry,
 } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
+import { getStaffAuthHeaders } from '@/services/auth';
 import { config } from '@/services/config';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 
@@ -77,7 +78,11 @@ async function fetchMockTickets(): Promise<Ticket[]> {
 }
 
 async function fetchTicketsFromApi(): Promise<Ticket[]> {
-  const response = await fetch(`${config.apiBaseUrl}/v1/tickets`);
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets`, {
+    headers: {
+      ...getStaffAuthHeaders(),
+    },
+  });
 
   if (!response.ok) {
     const message = await readApiErrorMessage(response, 'Unable to load tickets from the server.');
@@ -420,7 +425,11 @@ function normalizeTicketFromApi(data: unknown): Ticket {
 }
 
 async function fetchTicketByIdFromApi(ticketId: string): Promise<Ticket | null> {
-  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}`);
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}`, {
+    headers: {
+      ...getStaffAuthHeaders(),
+    },
+  });
 
   if (response.status === 404) {
     return null;
@@ -481,6 +490,7 @@ async function updateTicketStatusFromApi(
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        ...getStaffAuthHeaders(),
       },
       body: JSON.stringify({ status }),
     },
@@ -549,6 +559,7 @@ async function reviewTicketCategoryFromApi(
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        ...getStaffAuthHeaders(),
       },
       body: JSON.stringify(input),
     },
@@ -667,6 +678,7 @@ async function mergeDuplicateTicketsFromApi(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...getStaffAuthHeaders(),
     },
     body: JSON.stringify(input),
   });

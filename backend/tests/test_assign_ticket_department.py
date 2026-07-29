@@ -151,8 +151,23 @@ def test_assign_department_persists_in_dynamodb(dynamodb_settings: Settings) -> 
         ticket_service._store = original_store
 
 
-def test_staff_actor_dep_is_exported_for_issue_72() -> None:
-    from app.api.deps import StaffActorDep, require_staff_actor
+def test_assign_department_requires_staff_auth(anonymous_client):
+    created = create_ticket(anonymous_client)
 
-    assert callable(require_staff_actor)
-    assert StaffActorDep is not None
+    response = anonymous_client.patch(
+        f"/v1/tickets/{created['ticketId']}/department",
+        json={"departmentId": WASTE_MANAGEMENT},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_staff_actor_dep_resolves_to_real_staff_auth() -> None:
+    from app.api.deps import StaffActorDep, require_staff
+    from app.core.staff_auth import StaffDep
+    from app.core.staff_auth import require_staff as core_require_staff
+
+    assert callable(require_staff)
+    assert require_staff is core_require_staff
+    assert StaffActorDep is StaffDep

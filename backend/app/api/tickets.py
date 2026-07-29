@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.deps import StaffActorDep
 from app.core.errors import ErrorDetail, build_error_response, get_request_id
+from app.core.staff_auth import StaffDep
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
@@ -27,13 +28,15 @@ def submit_ticket(
     payload: SubmitTicketRequest,
     background_tasks: BackgroundTasks,
 ) -> SubmitTicketResponse:
+    """Public citizen submission — no staff auth required."""
     response = ticket_service.submit_ticket(payload)
     background_tasks.add_task(ticket_service.process_ticket_ai, response.ticket_id)
     return response
 
 
 @router.get("/tickets", response_model=list[TicketResponse])
-def list_tickets() -> list[TicketResponse]:
+def list_tickets(_: StaffDep) -> list[TicketResponse]:
+    """Staff dashboard ticket list (issue #72)."""
     return ticket_service.list_tickets()
 
 
@@ -72,7 +75,14 @@ def get_ticket_by_tracking_code(
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketResponse)
-def get_ticket(ticket_id: str, request: Request) -> TicketResponse | JSONResponse:
+def get_ticket(
+    ticket_id: str,
+    request: Request,
+    _: StaffDep,
+) -> TicketResponse | JSONResponse:
+    """Staff ticket detail (issue #72). Auth is checked before any ticket lookup
+    so unauthorized callers never learn whether an ID exists.
+    """
     ticket = ticket_service.get_ticket(ticket_id)
     if ticket is None:
         return build_error_response(
@@ -89,6 +99,7 @@ def update_ticket_status(
     ticket_id: str,
     payload: UpdateTicketStatusRequest,
     request: Request,
+    _: StaffDep,
 ) -> TicketResponse | JSONResponse:
     try:
         return ticket_service.update_ticket_status(ticket_id, payload)
@@ -113,6 +124,7 @@ def review_ticket_category(
     ticket_id: str,
     payload: ReviewTicketCategoryRequest,
     request: Request,
+    _: StaffDep,
 ) -> TicketResponse | JSONResponse:
     try:
         return ticket_service.review_ticket_category(ticket_id, payload)
@@ -148,6 +160,7 @@ def assign_ticket_department(
 def merge_duplicate_tickets(
     payload: MergeDuplicateTicketsRequest,
     request: Request,
+    _: StaffDep,
 ) -> TicketResponse | JSONResponse:
     try:
         return ticket_service.merge_duplicate_tickets(payload)

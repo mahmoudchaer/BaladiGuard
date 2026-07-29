@@ -4,7 +4,7 @@ import type { LoginResult, StaffSession } from '@/services/auth';
 export type StaffAuthContextValue = {
   session: StaffSession | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => LoginResult;
+  login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => void;
 };
 

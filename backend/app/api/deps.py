@@ -1,24 +1,20 @@
-"""Shared FastAPI dependencies.
+"""Shared FastAPI dependencies for staff routes.
 
-Issue #72 replaces ``require_staff_actor`` with real Bearer-token staff auth.
-Staff-only routes should depend on ``StaffActorDep`` so that swap is localized.
+``StaffActorDep`` is the compatibility hook used by issue #141 (department
+assignment). It resolves to the real Bearer-token ``StaffDep`` from issue #72 so
+department assignment cannot remain behind a no-op placeholder after merge.
 """
 
 from __future__ import annotations
 
-from typing import Annotated
+from app.core.staff_auth import StaffDep, StaffPrincipal, require_staff
 
-from fastapi import Depends
+# Alias kept for #141 and any other routes that imported StaffActorDep.
+StaffActorDep = StaffDep
 
-
-def require_staff_actor() -> None:
-    """Staff authorization integration point for issue #72.
-
-    Currently a no-op placeholder so #141 can ship the department endpoint on
-    main before #72 merges. After #72, this dependency (or its callers) should
-    validate ``Authorization: Bearer <token>`` and reject with ``401 UNAUTHORIZED``.
-    """
-    return None
-
-
-StaffActorDep = Annotated[None, Depends(require_staff_actor)]
+__all__ = [
+    "StaffActorDep",
+    "StaffDep",
+    "StaffPrincipal",
+    "require_staff",
+]
