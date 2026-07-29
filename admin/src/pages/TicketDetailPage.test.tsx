@@ -4,6 +4,7 @@ import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  assignTicketDepartment,
   reviewTicketCategory,
   fetchTicketById,
   fetchTickets,
@@ -19,6 +20,7 @@ vi.mock('@/services/tickets', () => ({
   mergeDuplicateTickets: vi.fn(),
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
+  assignTicketDepartment: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -45,7 +47,8 @@ const ticket: Ticket = {
   priority: null,
   createdBy: null,
   municipalityId: null,
-  departmentId: null,
+  departmentId: 'd1111111-1111-1111-1111-111111111111',
+  departmentName: 'Road Maintenance',
   duplicateGroupId: null,
   duplicateSuggestions: [],
   createdAt: '2026-07-17T08:00:00Z',
@@ -56,6 +59,7 @@ const ticket: Ticket = {
     aiCategoryExplanation: 'The report describes damage to a public road.',
     aiConfidence: 0.92,
     aiProcessingStatus: 'completed',
+    suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
     urgencyScore: 62,
     urgencyReason: 'High (62): possible injury or collision risk; critical location.',
   },
@@ -409,5 +413,185 @@ describe('TicketDetailPage location map', () => {
     const mapsLink = screen.getByRole('link', { name: 'Open in Google Maps' });
     expect(mapsLink).toHaveAttribute('href', 'https://www.google.com/maps?q=33.896000,35.478000');
     expect(mapsLink).toHaveAttribute('target', '_blank');
+  });
+});
+
+describe('TicketDetailPage department assignment', () => {
+  it('shows the suggested department only when it differs from the assigned one', async () => {
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      departmentId: 'd3333333-3333-3333-3333-333333333333',
+      departmentName: 'Street Lighting',
+      ai: {
+        ...ticket.ai,
+        suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
+      },
+    });
+    renderPage();
+
+    expect(await screen.findByLabelText('Assigned department')).toHaveValue(
+      'd3333333-3333-3333-3333-333333333333',
+    );
+    expect(document.querySelector('.ticket-detail__department')).toHaveTextContent(
+      'Street Lighting',
+    );
+    expect(screen.getByText(/Suggested:\s*Road Maintenance/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept suggested department' })).toBeInTheDocument();
+  });
+
+  it('hides the suggestion row when suggested and assigned match', async () => {
+    renderPage();
+
+    expect(await screen.findByLabelText('Assigned department')).toBeInTheDocument();
+    expect(screen.queryByText(/Suggested:/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Accept suggested department' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('saves a department override while preserving the suggestion in the UI', async () => {
+    const user = userEvent.setup();
+    vi.mocked(assignTicketDepartment).mockResolvedValue({
+      ...ticket,
+      departmentId: 'd2222222-2222-2222-2222-222222222222',
+      departmentName: 'Waste Management',
+      updatedBy: 'staff',
+      updatedAt: '2026-07-17T09:00:00Z',
+      ai: {
+        ...ticket.ai,
+        suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
+      },
+    });
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      ai: {
+        ...ticket.ai,
+        suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
+      },
+    });
+
+    renderPage();
+
+    const select = await screen.findByLabelText('Assigned department');
+    await user.selectOptions(select, 'd2222222-2222-2222-2222-222222222222');
+    await user.click(screen.getByRole('button', { name: 'Save department' }));
+
+    expect(assignTicketDepartment).toHaveBeenCalledWith('tkt_123', {
+      departmentId: 'd2222222-2222-2222-2222-222222222222',
+      updatedBy: undefined,
+    });
+    expect(await screen.findByText('Department assignment updated.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Assigned department')).toHaveValue(
+      'd2222222-2222-2222-2222-222222222222',
+    );
+    expect(document.querySelector('.ticket-detail__department')).toHaveTextContent(
+      'Waste Management',
+    );
+    expect(screen.getByText(/Suggested:\s*Road Maintenance/)).toBeInTheDocument();
+    expect(screen.getByText(/Last updated by staff/)).toBeInTheDocument();
+  });
+
+  it('accepts the suggested department without changing the suggestion label', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      departmentId: 'd3333333-3333-3333-3333-333333333333',
+      departmentName: 'Street Lighting',
+      ai: {
+        ...ticket.ai,
+        suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
+      },
+    });
+    vi.mocked(assignTicketDepartment).mockResolvedValue({
+      ...ticket,
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      departmentName: 'Road Maintenance',
+      updatedBy: 'staff',
+      ai: {
+        ...ticket.ai,
+        suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
+      },
+    });
+
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Accept suggested department' }));
+
+    expect(assignTicketDepartment).toHaveBeenCalledWith('tkt_123', {
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      updatedBy: undefined,
+    });
+    expect(await screen.findByText('Department assignment updated.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Assigned department')).toHaveValue(
+      'd1111111-1111-1111-1111-111111111111',
+    );
+    expect(screen.queryByText(/Suggested:/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Accept suggested department' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('disables controls while saving and does not double-submit', async () => {
+    const user = userEvent.setup();
+    let resolveSave: ((value: Ticket) => void) | undefined;
+    vi.mocked(assignTicketDepartment).mockImplementationOnce(
+      () =>
+        new Promise<Ticket>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    renderPage();
+
+    const select = await screen.findByLabelText('Assigned department');
+    await user.selectOptions(select, 'd2222222-2222-2222-2222-222222222222');
+    await user.click(screen.getByRole('button', { name: 'Save department' }));
+
+    expect(screen.getByRole('button', { name: 'Saving department...' })).toBeDisabled();
+    expect(screen.getByLabelText('Assigned department')).toBeDisabled();
+    expect(screen.getByText('Saving department assignment...')).toBeInTheDocument();
+    expect(assignTicketDepartment).toHaveBeenCalledTimes(1);
+
+    resolveSave?.({
+      ...ticket,
+      departmentId: 'd2222222-2222-2222-2222-222222222222',
+      departmentName: 'Waste Management',
+    });
+
+    expect(await screen.findByRole('button', { name: 'Save department' })).toBeDisabled();
+  });
+
+  it('shows an error and reverts the select when the API fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(assignTicketDepartment).mockRejectedValue(
+      new Error('Unable to update ticket department.'),
+    );
+
+    renderPage();
+
+    const select = await screen.findByLabelText('Assigned department');
+    expect(select).toHaveValue('d1111111-1111-1111-1111-111111111111');
+    await user.selectOptions(select, 'd2222222-2222-2222-2222-222222222222');
+    await user.click(screen.getByRole('button', { name: 'Save department' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to update ticket department.',
+    );
+    expect(screen.getByLabelText('Assigned department')).toHaveValue(
+      'd1111111-1111-1111-1111-111111111111',
+    );
+    expect(document.querySelector('.ticket-detail__department')).toHaveTextContent(
+      'Road Maintenance',
+    );
+  });
+
+  it('does not call the API when re-saving the current department', async () => {
+    renderPage();
+
+    expect(await screen.findByLabelText('Assigned department')).toHaveValue(
+      'd1111111-1111-1111-1111-111111111111',
+    );
+    expect(screen.getByRole('button', { name: 'Save department' })).toBeDisabled();
+    expect(assignTicketDepartment).not.toHaveBeenCalled();
   });
 });

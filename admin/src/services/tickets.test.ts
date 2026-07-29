@@ -547,3 +547,83 @@ describe('ticket location normalization', () => {
     expect(tickets[1].location.source).toBe('PLACEHOLDER');
   });
 });
+
+describe('assignTicketDepartment', () => {
+  it('sends the department override to the real backend and preserves the suggestion', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ...apiTicket,
+          departmentId: 'd2222222-2222-2222-2222-222222222222',
+          department: {
+            departmentId: 'd2222222-2222-2222-2222-222222222222',
+            name: 'Waste Management',
+          },
+          updatedBy: 'staff-1',
+          ai: {
+            suggestedDepartmentId: 'd1111111-1111-1111-1111-111111111111',
+            aiProcessingStatus: 'completed',
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { assignTicketDepartment } = await import('@/services/tickets');
+    const updatedTicket = await assignTicketDepartment('tkt_123', {
+      departmentId: 'd2222222-2222-2222-2222-222222222222',
+      updatedBy: 'staff-1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets/tkt_123/department', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        departmentId: 'd2222222-2222-2222-2222-222222222222',
+        updatedBy: 'staff-1',
+      }),
+    });
+    expect(updatedTicket?.departmentId).toBe('d2222222-2222-2222-2222-222222222222');
+    expect(updatedTicket?.departmentName).toBe('Waste Management');
+    expect(updatedTicket?.ai?.suggestedDepartmentId).toBe('d1111111-1111-1111-1111-111111111111');
+    expect(updatedTicket?.updatedBy).toBe('staff-1');
+  });
+
+  it('surfaces backend validation messages for unknown departments', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: 'Request validation failed.',
+              details: [{ field: 'departmentId', message: 'Department is not in the catalog.' }],
+            },
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    );
+
+    const { assignTicketDepartment } = await import('@/services/tickets');
+
+    await expect(
+      assignTicketDepartment('tkt_123', { departmentId: 'not-a-department' }),
+    ).rejects.toThrow('Request validation failed. departmentId: Department is not in the catalog.');
+  });
+});

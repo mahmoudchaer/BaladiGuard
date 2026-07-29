@@ -9,6 +9,7 @@ import type {
   TicketStatusHistoryEntry,
 } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
+import { DEPARTMENT_NAMES } from '@/data/departments';
 import { getStaffAuthHeaders } from '@/services/auth';
 import { config } from '@/services/config';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
@@ -294,6 +295,8 @@ function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
     aiModelVersion: typeof data.aiModelVersion === 'string' ? data.aiModelVersion : undefined,
     suggestedCategory:
       typeof data.suggestedCategory === 'string' ? data.suggestedCategory : undefined,
+    suggestedDepartmentId:
+      typeof data.suggestedDepartmentId === 'string' ? data.suggestedDepartmentId : undefined,
     urgencyScore: typeof data.urgencyScore === 'number' ? data.urgencyScore : undefined,
     urgencyReason: typeof data.urgencyReason === 'string' ? data.urgencyReason : undefined,
     summary: typeof data.summary === 'string' ? data.summary : undefined,
@@ -420,6 +423,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     statusHistory: normalizeStatusHistory(data.statusHistory),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+    updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
     ai: normalizeTicketAiFields(data.ai),
   };
 }
@@ -704,4 +708,84 @@ export async function mergeDuplicateTickets(
   }
 
   return mergeDuplicateTicketsFromApi(input);
+}
+
+export type AssignTicketDepartmentInput = {
+  departmentId: string;
+  updatedBy?: string;
+};
+
+async function assignMockTicketDepartment(
+  ticketId: string,
+  input: AssignTicketDepartmentInput,
+): Promise<Ticket | null> {
+  const ticket = await fetchMockTicketById(ticketId);
+
+  if (!ticket) {
+    return null;
+  }
+
+  if (!(input.departmentId in DEPARTMENT_NAMES)) {
+    throw new Error('departmentId: Department is not in the seeded catalog.');
+  }
+
+  const updatedAt = new Date().toISOString();
+  const departmentName = DEPARTMENT_NAMES[input.departmentId];
+
+  return {
+    ...ticket,
+    departmentId: input.departmentId,
+    departmentName,
+    department: {
+      departmentId: input.departmentId,
+      name: departmentName,
+    },
+    updatedAt,
+    updatedBy: input.updatedBy ?? ticket.updatedBy ?? null,
+    ai: {
+      ...ticket.ai,
+      // Preserve the automatic suggestion when staff overrides the assignment.
+      suggestedDepartmentId: ticket.ai?.suggestedDepartmentId,
+    },
+  };
+}
+
+async function assignTicketDepartmentFromApi(
+  ticketId: string,
+  input: AssignTicketDepartmentInput,
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/department`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getStaffAuthHeaders(),
+      },
+      body: JSON.stringify(input),
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const message = await readApiErrorMessage(response, 'Unable to update ticket department.');
+    throw new Error(message);
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function assignTicketDepartment(
+  ticketId: string,
+  input: AssignTicketDepartmentInput,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return assignMockTicketDepartment(ticketId, input);
+  }
+
+  return assignTicketDepartmentFromApi(ticketId, input);
 }

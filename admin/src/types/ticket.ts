@@ -53,6 +53,8 @@ export type TicketAiFields = {
   aiProcessingStatus?: AiProcessingStatus;
   aiModelVersion?: string;
   suggestedCategory?: string;
+  /** Automatic department suggestion; preserved when staff overrides departmentId. */
+  suggestedDepartmentId?: string;
   urgencyScore?: number;
   urgencyReason?: string;
   summary?: string;
@@ -105,6 +107,7 @@ export type Ticket = {
   statusHistory?: TicketStatusHistoryEntry[];
   createdAt: string;
   updatedAt: string | null;
+  updatedBy?: string | null;
   ai?: TicketAiFields;
 };
 
