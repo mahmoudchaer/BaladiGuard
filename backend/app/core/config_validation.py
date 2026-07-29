@@ -22,6 +22,14 @@ ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
+# Common typos / short forms normalize before validation and production checks.
+_ENV_ALIASES = {
+    "prod": "production",
+    "prd": "production",
+    "dev": "development",
+    "develop": "development",
+}
+
 # Known-unsafe placeholders — compared only, never echoed back.
 _UNSAFE_SECRET_PLACEHOLDERS = frozenset(
     {
@@ -59,7 +67,15 @@ class ConfigValidationResult:
 
     @property
     def should_abort_startup(self) -> bool:
-        """Fail closed only in production so local demos stay usable."""
+        """Fail closed for production misconfig and unknown environments.
+
+        Invalid ``APP_ENV`` values (for example ``staging``) must abort so a
+        deploy typo cannot bypass production fail-closed checks. Local /
+        development / test keep starting with soft defaults when formats are
+        otherwise valid.
+        """
+        if any(issue.code == "INVALID_APP_ENV" for issue in self.issues):
+            return True
         return self.env == "production" and not self.ok
 
     def to_health_dict(self) -> dict[str, Any]:
@@ -76,10 +92,16 @@ class ConfigValidationResult:
         }
 
 
+def normalize_app_env(raw: str) -> str:
+    """Normalize env labels; apply known aliases before allow-list checks."""
+    value = raw.strip().lower() or "local"
+    return _ENV_ALIASES.get(value, value)
+
+
 def resolve_app_env(environ: Mapping[str, str] | None = None) -> str:
     env = environ if environ is not None else os.environ
     raw = (env.get("APP_ENV") or env.get("ENVIRONMENT") or "local").strip().lower()
-    return raw or "local"
+    return normalize_app_env(raw or "local")
 
 
 def _raw(env: Mapping[str, str], name: str) -> str | None:

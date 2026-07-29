@@ -43,10 +43,26 @@ def test_invalid_database_backend_is_reported():
     assert any(issue.code == "INVALID_DATABASE_BACKEND" for issue in result.issues)
 
 
-def test_invalid_app_env_is_reported():
+def test_invalid_app_env_is_reported_and_aborts_startup():
     environ = {"APP_ENV": "staging", "AWS_REGION": "us-east-1"}
     result = validate_configuration(_settings_from_env(), environ=environ)
     assert any(issue.code == "INVALID_APP_ENV" for issue in result.issues)
+    assert result.should_abort_startup is True
+
+
+def test_prod_alias_normalizes_to_production_and_applies_rules():
+    environ = {
+        "APP_ENV": "prod",
+        "DATABASE_BACKEND": "memory",
+        "NOTIFICATION_ADAPTER": "mock",
+        "SECRET_KEY": "",
+        "AWS_REGION": "us-east-1",
+    }
+    result = validate_configuration(_settings_from_env(), environ=environ)
+    assert result.env == "production"
+    assert result.should_abort_startup is True
+    assert any(issue.code == "UNSAFE_DATABASE_BACKEND" for issue in result.issues)
+    assert not any(issue.code == "INVALID_APP_ENV" for issue in result.issues)
 
 
 def test_invalid_numeric_settings_are_reported():
@@ -169,11 +185,26 @@ def test_production_startup_aborts_on_unsafe_config(monkeypatch):
     get_settings.cache_clear()
 
     app = create_app()
-    with pytest.raises(RuntimeError, match="Configuration validation failed for production"):
+    with pytest.raises(RuntimeError, match="Configuration validation failed"):
         with TestClient(app):
             pass
 
     # Restore test defaults for later fixtures in this process.
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("DATABASE_BACKEND", "memory")
+    get_settings.cache_clear()
+
+
+def test_invalid_app_env_startup_aborts(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("DATABASE_BACKEND", "memory")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    get_settings.cache_clear()
+
+    app = create_app()
+    with pytest.raises(RuntimeError, match="Configuration validation failed"):
+        with TestClient(app):
+            pass
+
+    monkeypatch.setenv("APP_ENV", "test")
     get_settings.cache_clear()

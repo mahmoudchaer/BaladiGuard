@@ -19,10 +19,17 @@ load_environment()
 class Settings:
     def __init__(self) -> None:
         # APP_ENV preferred; ENVIRONMENT accepted as an alias (issue #147).
+        # Keep aliases in sync with app.core.config_validation._ENV_ALIASES.
         raw_env = (
             os.getenv("APP_ENV", "").strip() or os.getenv("ENVIRONMENT", "").strip() or "local"
-        )
-        self.app_env = raw_env.lower()
+        ).lower()
+        _env_aliases = {
+            "prod": "production",
+            "prd": "production",
+            "dev": "development",
+            "develop": "development",
+        }
+        self.app_env = _env_aliases.get(raw_env, raw_env)
         self.database_backend = os.getenv("DATABASE_BACKEND", "memory").strip().lower()
         self.aws_region = os.getenv("AWS_REGION", "us-east-1").strip()
         self.aws_s3_bucket = os.getenv("AWS_S3_BUCKET", "").strip() or None

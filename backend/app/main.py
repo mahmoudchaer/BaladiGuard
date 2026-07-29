@@ -54,8 +54,8 @@ async def lifespan(_: FastAPI):
     if config_result.should_abort_startup:
         # Message intentionally omits secret values; details are already logged above.
         raise RuntimeError(
-            "Configuration validation failed for production. "
-            "Fix the reported config issues and restart."
+            "Configuration validation failed. "
+            "Fix the reported config issues (including APP_ENV) and restart."
         )
     # A worker crash between the 201 response and the terminal AI status leaves
     # tickets stuck in "pending"; sweep them off the request path at startup.

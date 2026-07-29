@@ -16,7 +16,11 @@ Set `APP_ENV` (preferred) or `ENVIRONMENT` (alias).
 | `test` | Automated tests / CI |
 | `production` | Deployed environments — **no silent development defaults** |
 
-Unknown values fail validation.
+Common short forms are normalized before checks: `prod` / `prd` → `production`,
+`dev` / `develop` → `development`.
+
+Unknown values (for example `staging`) fail validation and **abort startup** so a
+deploy typo cannot bypass production fail-closed rules.
 
 ## Policy
 
