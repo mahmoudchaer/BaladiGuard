@@ -149,7 +149,7 @@ Creates a submitted citizen report ticket.
 {
   "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
   "ticketNumber": "BG-2026-0001",
-  "trackingCode": "AB12CD",
+  "trackingCode": "AB23CD",
   "status": "SUBMITTED",
   "message": "Your report was submitted successfully.",
   "createdAt": "2026-07-03T00:54:15Z"
@@ -178,7 +178,7 @@ frontend field hiding.
 ```json
 {
   "ticketNumber": "BG-2026-0001",
-  "trackingCode": "AB12CD",
+  "trackingCode": "AB23CD",
   "status": "IN_PROGRESS",
   "category": "road_damage",
   "location": {
@@ -222,6 +222,22 @@ references, department identifiers, staff actor IDs, municipality IDs, duplicate
 status notes, authorization data, staff-only controls, or AI/provider implementation details. These
 fields remain available only through staff `TicketResponse` endpoints where appropriate.
 
+### Auth
+
+Public. No staff authentication is required.
+
+### Tracking code format
+
+Citizen tracking codes are 6 characters drawn from `A-Z` and `2-9`, excluding ambiguous characters
+`I`, `O`, `0`, and `1`. Lookups are case-insensitive.
+
+### Tracking lookup error codes
+
+| Code | Status | Meaning |
+|---|---:|---|
+| `VALIDATION_ERROR` | 400 | The tracking code format is invalid (wrong length or alphabet). |
+| `TICKET_NOT_FOUND` | 404 | No ticket exists for a well-formed tracking code. |
+
 ## `GET /v1/tickets`
 
 Staff-only. Requires `Authorization: Bearer <accessToken>`.
@@ -235,7 +251,7 @@ Returns all persisted tickets using the ticket record shape, sorted by `createdA
   {
     "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
     "ticketNumber": "BG-2026-0001",
-    "trackingCode": "AB12CD",
+    "trackingCode": "AB23CD",
     "description": "Large pothole reported near the university gate causing traffic disruption.",
     "contact": {
       "name": "Citizen Name",
@@ -283,7 +299,7 @@ Returns one persisted ticket by ID using the ticket record shape.
 {
   "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
   "ticketNumber": "BG-2026-0001",
-  "trackingCode": "AB12CD",
+  "trackingCode": "AB23CD",
   "description": "Large pothole reported near the university gate causing traffic disruption.",
   "contact": {
     "name": "Citizen Name",
@@ -644,7 +660,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 {
   "ticketId": "tkt_11111111111111111111111111111111",
   "ticketNumber": "BG-2026-0001",
-  "trackingCode": "AB12CD",
+  "trackingCode": "AB23CD",
   "description": "Large pothole causing traffic near the university entrance.",
   "contact": {
     "name": "Ahmad Khoury",

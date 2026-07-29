@@ -4,6 +4,7 @@ from typing import Any
 from app.database.ticket_patch import resolve_ticket_attr_name
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
+from app.utils.ticket_ids import normalize_tracking_code
 
 
 class InMemoryTicketStore:
@@ -30,7 +31,7 @@ class InMemoryTicketStore:
             return self._tickets.get(ticket_id)
 
     def get_by_tracking_code(self, tracking_code: str) -> StoredTicket | None:
-        normalized = tracking_code.strip().upper()
+        normalized = normalize_tracking_code(tracking_code)
         with self._lock:
             return next(
                 (
@@ -131,8 +132,9 @@ class InMemoryTicketStore:
             return ticket_number in self._ticket_numbers
 
     def has_tracking_code(self, tracking_code: str) -> bool:
+        normalized = normalize_tracking_code(tracking_code)
         with self._lock:
-            return tracking_code in self._tracking_codes
+            return any(code.upper() == normalized for code in self._tracking_codes)
 
     def clear(self) -> None:
         with self._lock:

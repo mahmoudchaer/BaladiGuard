@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
-from app.core.errors import build_error_response, get_request_id
+from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.staff_auth import StaffDep
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest
@@ -17,6 +17,7 @@ from app.services.complaints.ticket_service import (
     TicketNotFoundError,
     ticket_service,
 )
+from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
 
@@ -43,7 +44,24 @@ def get_ticket_by_tracking_code(
     tracking_code: str,
     request: Request,
 ) -> CitizenTicketResponse | JSONResponse:
-    """Public citizen tracking lookup — no staff auth required."""
+    """Public citizen tracking lookup (issue #140). No staff auth required."""
+    if not is_valid_tracking_code(tracking_code):
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The tracking code format is invalid.",
+            request_id=get_request_id(request),
+            details=[
+                ErrorDetail(
+                    field="trackingCode",
+                    message=(
+                        "Tracking codes must be 6 characters using A-Z and 2-9, "
+                        "excluding I, O, 0, and 1."
+                    ),
+                )
+            ],
+            status_code=400,
+        )
+
     ticket = ticket_service.get_ticket_by_tracking_code(tracking_code)
     if ticket is None:
         return build_error_response(
