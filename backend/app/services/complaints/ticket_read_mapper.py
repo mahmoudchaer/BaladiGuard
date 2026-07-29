@@ -4,6 +4,7 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.config import get_settings
+from app.schemas.stored_audit_history import StoredAuditHistory
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
@@ -11,6 +12,7 @@ from app.schemas.ticket_response import (
     CitizenTicketResponse,
     CitizenTicketTimelineEntry,
     TicketAiFields,
+    TicketAuditHistoryEntry,
     TicketDepartment,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
@@ -92,6 +94,7 @@ def map_ticket_to_response(
     ticket: StoredTicket,
     status_history: list[StoredStatusHistory] | None = None,
     *,
+    audit_history: list[StoredAuditHistory] | None = None,
     duplicate_group: TicketDuplicateReference | None = None,
     duplicate_suggestions: list[TicketDuplicateSuggestion] | None = None,
 ) -> TicketResponse:
@@ -137,6 +140,17 @@ def map_ticket_to_response(
                 note=entry.note,
             )
             for entry in (status_history or [])
+        ],
+        auditHistory=[
+            TicketAuditHistoryEntry(
+                actionType=entry.action_type,
+                actorId=entry.actor_id,
+                summary=entry.summary,
+                previousValue=entry.previous_value,
+                newValue=entry.new_value,
+                changedAt=entry.created_at,
+            )
+            for entry in (audit_history or [])
         ],
         duplicateGroup=duplicate_group,
         duplicateSuggestions=duplicate_suggestions or [],

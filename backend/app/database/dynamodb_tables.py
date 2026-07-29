@@ -96,6 +96,21 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "ticket-audit-history",
+        "key_schema": [{"AttributeName": "auditId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "auditId", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
         "attribute_definitions": [

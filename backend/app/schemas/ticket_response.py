@@ -57,6 +57,24 @@ class TicketStatusHistoryEntry(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class TicketAuditHistoryEntry(BaseModel):
+    """Staff-only audit entry for ticket mutations (issue #143)."""
+
+    action_type: Literal[
+        "STATUS_CHANGE",
+        "CATEGORY_REVIEW",
+        "DEPARTMENT_ASSIGN",
+        "DUPLICATE_MERGE",
+    ] = Field(alias="actionType")
+    actor_id: str | None = Field(default=None, alias="actorId")
+    summary: str
+    previous_value: str | None = Field(default=None, alias="previousValue")
+    new_value: str | None = Field(default=None, alias="newValue")
+    changed_at: str = Field(alias="changedAt")
+
+    model_config = {"populate_by_name": True}
+
+
 class CitizenTicketLocation(BaseModel):
     address_text: str = Field(alias="addressText")
 
@@ -140,6 +158,10 @@ class TicketResponse(BaseModel):
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,
         alias="statusHistory",
+    )
+    audit_history: list[TicketAuditHistoryEntry] = Field(
+        default_factory=list,
+        alias="auditHistory",
     )
     duplicate_group: TicketDuplicateReference | None = Field(
         default=None,

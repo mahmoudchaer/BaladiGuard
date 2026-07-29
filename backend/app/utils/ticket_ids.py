@@ -15,6 +15,10 @@ def generate_status_history_id() -> str:
     return f"hist_{uuid4().hex}"
 
 
+def generate_audit_history_id() -> str:
+    return f"aud_{uuid4().hex}"
+
+
 def generate_duplicate_group_id() -> str:
     return f"dup_{uuid4().hex}"
 
