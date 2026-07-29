@@ -236,6 +236,9 @@ copy .env.example .env
 empty `DYNAMODB_ENDPOINT_URL`). Put `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
 `AWS_S3_BUCKET` in `.env` / `backend/.env`.
 
+The authoritative environment catalog (required vs optional vars, production rules,
+and what `/health` reports) is [`docs/configuration.md`](docs/configuration.md).
+
 3. Create cloud tables and seed reference data:
 
 ```bash
@@ -250,6 +253,10 @@ python scripts/db/seed.py
 cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+Keep `APP_ENV=local` (or omit it) for local development. With `APP_ENV=production`,
+the API refuses to start if secrets, persistence, or other settings still use
+development-only defaults.
 
 5. Check backend health (local or deployed):
 
@@ -267,14 +274,19 @@ Expected shape:
   "database": {
     "backend": "memory",
     "status": "ok"
+  },
+  "config": {
+    "status": "ok",
+    "issues": []
   }
 }
 ```
 
 After deployment, use the same path on the public API host, for example
 `https://<your-api-host>/health`. A `200` response means the app process is up.
-If `status` is `degraded` or `database.status` is `error`, the API is running but
-database connectivity needs attention.
+If `status` is `degraded`, or `database.status` / `config.status` is `error`, the
+API is running but connectivity or configuration needs attention. Config issue
+messages never include secret values.
 
 Important request errors, AI processing failures, and notification emit failures are
 written to the backend logs (`LOG_LEVEL`, default `INFO`) and do not roll back a

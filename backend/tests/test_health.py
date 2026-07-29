@@ -15,6 +15,8 @@ def test_health_check(client):
     assert body["env"]
     assert body["database"]["backend"] == "memory"
     assert body["database"]["status"] == "ok"
+    assert body["config"]["status"] == "ok"
+    assert body["config"]["issues"] == []
 
 
 def test_check_database_memory_backend():
@@ -23,10 +25,13 @@ def test_check_database_memory_backend():
     assert result == {"backend": "memory", "status": "ok"}
 
 
-def test_build_health_payload_includes_database():
+def test_build_health_payload_includes_database_and_config():
     payload = build_health_payload()
     assert payload["status"] in {"ok", "degraded"}
     assert "database" in payload
+    assert "config" in payload
+    assert payload["config"]["status"] in {"ok", "error"}
+    assert isinstance(payload["config"]["issues"], list)
 
 
 def test_validation_errors_are_logged(client, caplog):

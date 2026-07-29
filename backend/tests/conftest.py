@@ -9,6 +9,7 @@ import app.config  # noqa: F401
 from app.config import Settings, get_settings
 
 os.environ["DATABASE_BACKEND"] = "memory"
+os.environ["APP_ENV"] = "test"
 # Tests must use the curated local place index even when the shared team .env
 # configures a live Amazon Location index.
 os.environ["LOCATION_PLACE_INDEX_NAME"] = ""

@@ -8,8 +8,9 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health_check() -> JSONResponse:
-    """Liveness/readiness probe with optional database connectivity check."""
+    """Liveness/readiness probe with database and configuration checks."""
     payload = build_health_payload()
     # Keep returning 200 when the app process is up so local demos and basic
-    # liveness probes stay usable. Callers can inspect `status` / `database`.
+    # liveness probes stay usable. Callers can inspect `status`, `database`,
+    # and `config` (config issues never include secret values).
     return JSONResponse(status_code=200, content=payload)

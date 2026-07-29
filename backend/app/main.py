@@ -13,6 +13,7 @@ from app.api.locations import router as locations_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
+from app.core.config_validation import validate_configuration
 from app.core.errors import (
     build_error_response,
     create_request_id,
@@ -42,6 +43,21 @@ def _with_request_id_header(response: JSONResponse, request_id: str) -> JSONResp
 async def lifespan(_: FastAPI):
     configure_logging()
     logger.info("BaladiGuard API starting up.")
+    config_result = validate_configuration()
+    for issue in config_result.issues:
+        log = logger.error if issue.severity == "error" else logger.warning
+        log(
+            "Configuration validation code=%s severity=%s message=%s",
+            issue.code,
+            issue.severity,
+            issue.message,
+        )
+    if config_result.should_abort_startup:
+        # Message intentionally omits secret values; details are already logged above.
+        raise RuntimeError(
+            "Configuration validation failed. "
+            "Fix the reported config issues (including APP_ENV) and restart."
+        )
     # A worker crash between the 201 response and the terminal AI status leaves
     # tickets stuck in "pending"; sweep them off the request path at startup.
     threading.Thread(

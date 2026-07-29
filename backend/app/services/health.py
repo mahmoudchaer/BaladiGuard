@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from app.config import get_settings
+from app.core.config_validation import resolve_app_env, validate_configuration
 from app.database.dynamodb_tables import build_table_name
 from app.database.store_factory import get_ticket_store
 
 logger = logging.getLogger(__name__)
-
-
-def _app_env() -> str:
-    return os.getenv("APP_ENV", "").strip() or os.getenv("ENVIRONMENT", "").strip() or "local"
 
 
 def check_database() -> dict[str, Any]:
@@ -49,12 +45,32 @@ def check_database() -> dict[str, Any]:
         }
 
 
+def check_configuration() -> dict[str, Any]:
+    """Report configuration readiness without exposing secret values."""
+    result = validate_configuration()
+    if not result.ok:
+        for issue in result.issues:
+            logger.error(
+                "Configuration issue code=%s severity=%s message=%s",
+                issue.code,
+                issue.severity,
+                issue.message,
+            )
+    return result.to_health_dict()
+
+
 def build_health_payload() -> dict[str, Any]:
     database = check_database()
-    overall = "ok" if database.get("status") == "ok" else "degraded"
+    configuration = check_configuration()
+    overall = (
+        "ok"
+        if database.get("status") == "ok" and configuration.get("status") == "ok"
+        else "degraded"
+    )
     return {
         "status": overall,
         "service": "baladiguard-api",
-        "env": _app_env(),
+        "env": resolve_app_env(),
         "database": database,
+        "config": configuration,
     }
