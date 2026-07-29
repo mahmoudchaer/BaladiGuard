@@ -78,6 +78,7 @@ def test_staff_category_correction_refreshes_ai_suggested_department(client):
     assert stored.category == "waste"
     assert stored.final_category == "waste"
     assert stored.department_id == "d2222222-2222-2222-2222-222222222222"
+    assert stored.suggested_department_id == "d2222222-2222-2222-2222-222222222222"
 
 
 def test_staff_category_correction_keeps_manual_department_override(client):

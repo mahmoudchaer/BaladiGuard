@@ -1,10 +1,11 @@
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
+from app.api.deps import StaffActorDep
 from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.staff_auth import StaffDep
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
-from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest
+from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
@@ -127,6 +128,25 @@ def review_ticket_category(
 ) -> TicketResponse | JSONResponse:
     try:
         return ticket_service.review_ticket_category(ticket_id, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+
+
+@router.patch("/tickets/{ticket_id}/department", response_model=TicketResponse)
+def assign_ticket_department(
+    ticket_id: str,
+    payload: AssignTicketDepartmentRequest,
+    request: Request,
+    _: StaffActorDep,
+) -> TicketResponse | JSONResponse:
+    """Staff department assignment (issue #141). Auth via ``StaffActorDep`` (#72)."""
+    try:
+        return ticket_service.assign_ticket_department(ticket_id, payload)
     except TicketNotFoundError:
         return build_error_response(
             code="TICKET_NOT_FOUND",
