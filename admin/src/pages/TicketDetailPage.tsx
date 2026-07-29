@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Ticket, TicketStatus } from '@/types/ticket';
 import {
+  assignTicketDepartment,
   fetchTicketById,
   fetchTickets,
   mergeDuplicateTickets,
   reviewTicketCategory,
   updateTicketStatus,
 } from '@/services/tickets';
+import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -21,7 +23,7 @@ import {
   formatStatus,
   SUPPORTED_CATEGORY_OPTIONS,
 } from '@/utils/labels';
-import { formatDepartment } from '@/utils/departments';
+import { DEPARTMENT_OPTIONS, formatDepartment, isKnownDepartmentId } from '@/utils/departments';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
@@ -43,6 +45,7 @@ function formatDistanceMeters(distanceMeters: number): string {
 
 export function TicketDetailPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
+  const { session } = useStaffAuth();
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -51,6 +54,10 @@ export function TicketDetailPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categoryReviewError, setCategoryReviewError] = useState<string | null>(null);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
+  const [departmentUpdateError, setDepartmentUpdateError] = useState<string | null>(null);
+  const [departmentUpdateSuccess, setDepartmentUpdateSuccess] = useState<string | null>(null);
+  const [isSavingDepartment, setIsSavingDepartment] = useState(false);
   const [mergeCandidates, setMergeCandidates] = useState<Ticket[]>([]);
   const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<string[]>([]);
   const [mergeError, setMergeError] = useState<string | null>(null);
@@ -83,6 +90,9 @@ export function TicketDetailPage() {
 
         setTicket(data);
         setSelectedCategory(data.ai?.finalCategory ?? data.ai?.aiSuggestedCategory ?? '');
+        setSelectedDepartmentId(data.departmentId ?? '');
+        setDepartmentUpdateError(null);
+        setDepartmentUpdateSuccess(null);
         setSelectedDuplicateIds([]);
         setMergeError(null);
         setLoadState('success');
@@ -173,12 +183,60 @@ export function TicketDetailPage() {
 
       setTicket(updatedTicket);
       setSelectedCategory(updatedTicket.ai?.finalCategory ?? finalCategory);
+      setSelectedDepartmentId(updatedTicket.departmentId ?? '');
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to save the category review.';
       setCategoryReviewError(message);
     } finally {
       setIsSavingCategory(false);
+    }
+  };
+
+  const handleDepartmentAssignment = async (departmentId: string) => {
+    if (!ticket) {
+      return;
+    }
+
+    if (!isKnownDepartmentId(departmentId)) {
+      setDepartmentUpdateError('Select a department from the catalog before saving.');
+      setDepartmentUpdateSuccess(null);
+      return;
+    }
+
+    if (departmentId === ticket.departmentId) {
+      return;
+    }
+
+    const previousDepartmentId = ticket.departmentId ?? '';
+    setSelectedDepartmentId(departmentId);
+    setIsSavingDepartment(true);
+    setDepartmentUpdateError(null);
+    setDepartmentUpdateSuccess(null);
+
+    try {
+      const updatedTicket = await assignTicketDepartment(ticket.ticketId, {
+        departmentId,
+        updatedBy: session?.username,
+      });
+
+      if (!updatedTicket) {
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+
+      setTicket(updatedTicket);
+      setSelectedDepartmentId(updatedTicket.departmentId ?? departmentId);
+      setDepartmentUpdateSuccess('Department assignment updated.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to update the ticket department.';
+      setDepartmentUpdateError(message);
+      setSelectedDepartmentId(previousDepartmentId);
+      setDepartmentUpdateSuccess(null);
+    } finally {
+      setIsSavingDepartment(false);
     }
   };
 
@@ -557,13 +615,102 @@ export function TicketDetailPage() {
                         )}
                       </>
                     )}
-                    <div className="ticket-detail__meta-row">
+                    <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
                       <dt>Department</dt>
                       <dd>
                         <span className="ticket-detail__department">
                           {ticket.departmentName ?? formatDepartment(ticket.departmentId)}
                         </span>
+                        {ticket.ai?.suggestedDepartmentId &&
+                          ticket.ai.suggestedDepartmentId !== ticket.departmentId && (
+                            <small className="ticket-detail__suggested-department">
+                              Suggested:{' '}
+                              {formatDepartment(ticket.ai.suggestedDepartmentId)}
+                            </small>
+                          )}
                       </dd>
+                    </div>
+
+                    <div className="ticket-detail__department-controls">
+                      <label htmlFor="department-assign-select">Assigned department</label>
+                      <select
+                        id="department-assign-select"
+                        value={selectedDepartmentId}
+                        onChange={(event) => {
+                          setSelectedDepartmentId(event.target.value);
+                          setDepartmentUpdateError(null);
+                          setDepartmentUpdateSuccess(null);
+                        }}
+                        disabled={isSavingDepartment}
+                      >
+                        <option value="">Select a department</option>
+                        {DEPARTMENT_OPTIONS.map((department) => (
+                          <option key={department.departmentId} value={department.departmentId}>
+                            {department.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="ticket-detail__review-actions">
+                        {ticket.ai?.suggestedDepartmentId &&
+                          ticket.ai.suggestedDepartmentId !== ticket.departmentId && (
+                            <button
+                              type="button"
+                              className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                              onClick={() =>
+                                void handleDepartmentAssignment(
+                                  ticket.ai?.suggestedDepartmentId ?? '',
+                                )
+                              }
+                              disabled={
+                                isSavingDepartment || !ticket.ai?.suggestedDepartmentId
+                              }
+                            >
+                              Accept suggested department
+                            </button>
+                          )}
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          onClick={() => void handleDepartmentAssignment(selectedDepartmentId)}
+                          disabled={
+                            isSavingDepartment ||
+                            !selectedDepartmentId ||
+                            selectedDepartmentId === (ticket.departmentId ?? '')
+                          }
+                        >
+                          {isSavingDepartment ? 'Saving department...' : 'Save department'}
+                        </button>
+                      </div>
+
+                      {isSavingDepartment && (
+                        <p className="ticket-detail__status-message" role="status">
+                          Saving department assignment...
+                        </p>
+                      )}
+                      {!isSavingDepartment && departmentUpdateSuccess && (
+                        <p className="ticket-detail__status-message" role="status">
+                          {departmentUpdateSuccess}
+                        </p>
+                      )}
+                      {departmentUpdateError && (
+                        <p className="ticket-detail__status-error" role="alert">
+                          {departmentUpdateError}
+                        </p>
+                      )}
+                      {ticket.updatedBy && ticket.departmentId && (
+                        <small className="ticket-detail__department-actor">
+                          Last updated by {ticket.updatedBy}
+                          {ticket.updatedAt ? (
+                            <>
+                              {' on '}
+                              <time dateTime={ticket.updatedAt}>
+                                {formatCreatedDate(ticket.updatedAt)}
+                              </time>
+                            </>
+                          ) : null}
+                        </small>
+                      )}
                     </div>
                   </dl>
                 </div>
