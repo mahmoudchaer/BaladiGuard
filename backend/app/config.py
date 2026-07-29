@@ -77,9 +77,21 @@ class Settings:
         self.notification_adapter = (
             os.getenv("NOTIFICATION_ADAPTER", "mock").strip().lower() or "mock"
         )
-        # Used by auth/signing once #72 lands; validated for production in #147.
-        self.secret_key = os.getenv("SECRET_KEY", "").strip() or None
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
+
+        # Staff auth (issue #72). Defaults match the admin Vite demo credentials
+        # so local/CI work out of the box; override in real environments.
+        # SECRET_KEY is also validated for production in issue #147.
+        self.secret_key = os.getenv("SECRET_KEY", "").strip() or None
+        self.staff_username = os.getenv("STAFF_USERNAME", "staff").strip() or "staff"
+        self.staff_password = (
+            os.getenv("STAFF_PASSWORD", "staff-demo-password").strip() or "staff-demo-password"
+        )
+        raw_token_ttl = os.getenv("STAFF_TOKEN_TTL_SECONDS", "43200").strip()
+        try:
+            self.staff_token_ttl_seconds = max(60, int(raw_token_ttl))
+        except ValueError:
+            self.staff_token_ttl_seconds = 43200
 
     @staticmethod
     def _float_setting(

@@ -49,14 +49,24 @@ Mock fixtures remain available for explicit development and testing by setting
 
 ## Staff authentication
 
-The Sprint 5 MVP protects the staff dashboard with a Vite-configured username and password. After a
-successful login, the admin app stores a small staff session marker in browser `localStorage` so the
-session survives refresh. Logout removes that marker and returns the user to the login screen.
+The Sprint 5 MVP protects the staff dashboard with a login screen. In mock mode
+(`VITE_USE_MOCK_DATA=true`), credentials come from Vite env (`VITE_STAFF_USERNAME` /
+`VITE_STAFF_PASSWORD`). Against the real API, the dashboard calls `POST /v1/staff/login`,
+stores `{ username, signedInAt, accessToken }` in `localStorage`, and sends
+`Authorization: Bearer <accessToken>` on staff ticket API requests. Logout clears the session.
 
-This is a temporary frontend-only guard for the dashboard shell. Because Vite environment variables
-are bundled into the browser, these credentials are not suitable for production secrets and do not
-replace backend authorization. Public citizen report submission and ticket tracking must stay
-available without staff login. Staff API mutation protection is handled separately by issue #72.
+Backend authorization (issue #72) rejects unauthenticated staff actions with `401 UNAUTHORIZED`.
+Public citizen report submission and ticket tracking stay available without staff login.
+
+Demo credentials (local/CI defaults):
+
+```text
+username: staff
+password: staff-demo-password
+```
+
+These are temporary shared credentials, not production secrets. Rotate `SECRET_KEY` and the
+backend staff password before any real deployment.
 
 ## Status update verification
 

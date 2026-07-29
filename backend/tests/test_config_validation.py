@@ -107,6 +107,7 @@ def test_production_rejects_development_defaults():
     assert "UNSAFE_DATABASE_BACKEND" in codes
     assert "UNSAFE_NOTIFICATION_ADAPTER" in codes
     assert "UNSAFE_SECRET_KEY" in codes
+    assert "UNSAFE_STAFF_PASSWORD" in codes
     assert "MISSING_LOCATION_PLACE_INDEX_NAME" in codes
     assert "MISSING_AWS_S3_BUCKET" in codes
     assert "UNSAFE_DYNAMODB_ENDPOINT_URL" in codes
@@ -114,6 +115,7 @@ def test_production_rejects_development_defaults():
     # Secret values must never appear in issue messages.
     serialized = " ".join(issue.message for issue in result.issues).lower()
     assert "changeme" not in serialized
+    assert "staff-demo-password" not in serialized
 
 
 def test_production_valid_configuration_passes():
@@ -122,6 +124,8 @@ def test_production_valid_configuration_passes():
         "DATABASE_BACKEND": "dynamodb",
         "NOTIFICATION_ADAPTER": "real",
         "SECRET_KEY": "prod-rotation-key-not-a-placeholder",
+        "STAFF_USERNAME": "ops",
+        "STAFF_PASSWORD": "rotated-staff-password-not-demo",
         "AWS_REGION": "us-east-1",
         "AWS_S3_BUCKET": "baladiguard-prod-uploads",
         "LOCATION_PLACE_INDEX_NAME": "baladiguard-places",

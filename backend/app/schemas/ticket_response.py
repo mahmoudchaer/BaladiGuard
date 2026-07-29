@@ -43,6 +43,7 @@ class TicketAiFields(BaseModel):
     urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)
     urgency_reason: str | None = Field(default=None, alias="urgencyReason")
     summary: str | None = None
+    suggested_department_id: str | None = Field(default=None, alias="suggestedDepartmentId")
 
     model_config = {"populate_by_name": True}
 

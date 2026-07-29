@@ -29,6 +29,7 @@ deploy typo cannot bypass production fail-closed rules.
 | Persistence | `DATABASE_BACKEND=memory` allowed | Must be `dynamodb` |
 | Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Must be `real` |
 | Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Non-placeholder `SECRET_KEY` required |
+| Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Non-demo `STAFF_PASSWORD` required |
 | Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Real Amazon Location index required |
 | Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | `AWS_S3_BUCKET` required |
 | Dynamo endpoint | Localhost Docker URL allowed | Must not point at localhost |
@@ -61,6 +62,9 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `DUPLICATE_SIMILAR_CATEGORY_WEIGHT` | No | `0.7` | 0..1 |
 | `NOTIFICATION_ADAPTER` | Yes (prod: `real`) | `mock` | `mock` \| `real` |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
+| `STAFF_USERNAME` | No | `staff` | Backend staff login (#72) |
+| `STAFF_PASSWORD` | Production (non-demo) | demo local default | Local demo only; rotate for production |
+| `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` |
 
 Optional eval-only vars (`CLASSIFICATION_EVAL_*`, `OPENAI_API_KEY`) are documented in
@@ -110,11 +114,12 @@ Before deploy (#74):
 2. `DATABASE_BACKEND=dynamodb` with empty `DYNAMODB_ENDPOINT_URL` (real AWS)
 3. `NOTIFICATION_ADAPTER=real`
 4. Strong `SECRET_KEY` (not empty / not a placeholder)
-5. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
-6. `AWS_S3_BUCKET=<bucket>`
-7. `SEED_SAMPLE_TICKETS=false`
-8. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-9. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+5. Non-demo `STAFF_PASSWORD` (not the local demo default)
+6. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
+7. `AWS_S3_BUCKET=<bucket>`
+8. `SEED_SAMPLE_TICKETS=false`
+9. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+10. Confirm process starts (validation aborts on failure) and `/health` is `ok`
 
 ## Health payload
 

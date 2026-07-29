@@ -1,14 +1,12 @@
 """API tests for staff duplicate merge (issue #27)."""
 
-from fastapi.testclient import TestClient
-
 from app.config import Settings
 from app.database.dynamo_duplicate_group_store import DynamoDuplicateGroupStore
 from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory import ticket_store
 from app.database.memory_duplicate_group import duplicate_group_store
-from app.main import app
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import authenticated_test_client
 from tests.test_read_tickets import create_ticket
 
 
@@ -246,7 +244,7 @@ def test_merge_persists_group_in_moto_dynamodb(dynamodb_settings: Settings) -> N
     ticket_service._duplicate_group_store = groups
 
     try:
-        client = TestClient(app)
+        client = authenticated_test_client()
         main = create_ticket(client)
         duplicate = create_ticket(client)
 

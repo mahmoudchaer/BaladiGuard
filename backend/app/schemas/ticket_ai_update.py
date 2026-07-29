@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.schemas.ai_processing import AiProcessingStatus
 from app.schemas.stored_ticket import ReportPriority
 from app.services.ai.categories import concrete_category_ids
+from app.services.routing import department_ids
 
 
 class SaveTicketAiOutputRequest(BaseModel):
@@ -40,4 +41,27 @@ class ReviewTicketCategoryRequest(BaseModel):
         if value not in concrete_category_ids():
             supported = ", ".join(sorted(concrete_category_ids()))
             raise ValueError(f"Category must be one of: {supported}.")
+        return value
+
+
+class AssignTicketDepartmentRequest(BaseModel):
+    """Staff department assignment that preserves the automatic suggestion separately."""
+
+    department_id: str = Field(alias="departmentId", min_length=1)
+    updated_by: str | None = Field(
+        default=None,
+        alias="updatedBy",
+        min_length=1,
+        max_length=120,
+    )
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("department_id")
+    @classmethod
+    def validate_department_id(cls, value: str) -> str:
+        allowed = department_ids()
+        if value not in allowed:
+            supported = ", ".join(sorted(allowed))
+            raise ValueError(f"Department must be one of: {supported}.")
         return value

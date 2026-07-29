@@ -56,7 +56,8 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `urgencyReason` | string, nullable | No | Staff-facing explanation for the urgency score when available. |
 | `createdBy` | string | No | User identifier once authentication is wired. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
-| `departmentId` | string | No | Set by AI department recommendation. |
+| `departmentId` | string | No | Staff-assigned / currently effective department. |
+| `suggestedDepartmentId` | string | No | Automatic department suggestion; preserved when staff overrides `departmentId`. |
 | `duplicateGroupId` | string | No | Set by duplicate detection. |
 | `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
 

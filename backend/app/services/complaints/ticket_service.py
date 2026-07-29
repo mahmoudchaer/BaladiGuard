@@ -18,7 +18,11 @@ from app.schemas.stored_duplicate_group import StoredDuplicateGroup
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
-from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
+from app.schemas.ticket_ai_update import (
+    AssignTicketDepartmentRequest,
+    ReviewTicketCategoryRequest,
+    SaveTicketAiOutputRequest,
+)
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
@@ -84,15 +88,39 @@ def effective_ticket_category(ticket: StoredTicket) -> str | None:
     return None
 
 
-def _should_refresh_suggested_department(
+def _should_apply_department_suggestion(
+    ticket: StoredTicket,
     *,
-    current_department_id: str | None,
     previous_category_id: str | None,
 ) -> bool:
-    if current_department_id is None:
+    """Apply an automatic suggestion to ``department_id`` only when not staff-overridden.
+
+    Prefer comparing against the preserved ``suggested_department_id``. Fall back to the
+    legacy category-map heuristic for tickets created before that field existed.
+    """
+    if ticket.department_id is None:
         return True
+    if ticket.suggested_department_id is not None:
+        return ticket.department_id == ticket.suggested_department_id
     previous_department_id = suggest_department_id(category_id=previous_category_id)
-    return current_department_id == previous_department_id
+    return previous_department_id is not None and ticket.department_id == previous_department_id
+
+
+def _department_suggestion_fields(
+    ticket: StoredTicket,
+    *,
+    suggested_department_id: str | None,
+    previous_category_id: str | None,
+) -> dict[str, object]:
+    if suggested_department_id is None:
+        return {}
+    fields: dict[str, object] = {"suggested_department_id": suggested_department_id}
+    if _should_apply_department_suggestion(
+        ticket,
+        previous_category_id=previous_category_id,
+    ):
+        fields["department_id"] = suggested_department_id
+    return fields
 
 
 class TicketService:
@@ -411,11 +439,13 @@ class TicketService:
             urgency_level=payload.priority,
             urgency_score=payload.urgency_score,
         )
-        if suggested_department_id is not None and _should_refresh_suggested_department(
-            current_department_id=ticket.department_id,
-            previous_category_id=ticket.ai_suggested_category,
-        ):
-            update_fields["department_id"] = suggested_department_id
+        update_fields.update(
+            _department_suggestion_fields(
+                ticket,
+                suggested_department_id=suggested_department_id,
+                previous_category_id=ticket.ai_suggested_category,
+            )
+        )
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
         updated_ticket = self._store.patch_fields(ticket_id, update_fields)
@@ -443,16 +473,41 @@ class TicketService:
         }
         suggested_department_id = suggest_department_id(category_id=payload.final_category)
         previous_category_id = effective_ticket_category(ticket)
-        if suggested_department_id is not None and _should_refresh_suggested_department(
-            current_department_id=ticket.department_id,
-            previous_category_id=previous_category_id,
-        ):
-            update_fields["department_id"] = suggested_department_id
+        update_fields.update(
+            _department_suggestion_fields(
+                ticket,
+                suggested_department_id=suggested_department_id,
+                previous_category_id=previous_category_id,
+            )
+        )
 
         # Partial update so concurrent merges/AI writes are not overwritten.
         updated_ticket = self._store.patch_fields(
             ticket_id,
             update_fields,
+        )
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        return self._map_ticket(updated_ticket)
+
+    def assign_ticket_department(
+        self,
+        ticket_id: str,
+        payload: AssignTicketDepartmentRequest,
+    ) -> TicketResponse:
+        """Persist a staff department assignment without clearing the AI suggestion."""
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated_ticket = self._store.patch_fields(
+            ticket_id,
+            {
+                "department_id": payload.department_id,
+                "updated_at": updated_at,
+                "updated_by": payload.updated_by,
+            },
         )
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)

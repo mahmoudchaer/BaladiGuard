@@ -1,11 +1,9 @@
-from fastapi.testclient import TestClient
-
 from app.config import Settings
 from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory import ticket_store
-from app.main import app
 from app.schemas.ticket_ai_update import SaveTicketAiOutputRequest
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import authenticated_test_client
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -80,6 +78,7 @@ def test_staff_category_correction_refreshes_ai_suggested_department(client):
     assert stored.category == "waste"
     assert stored.final_category == "waste"
     assert stored.department_id == "d2222222-2222-2222-2222-222222222222"
+    assert stored.suggested_department_id == "d2222222-2222-2222-2222-222222222222"
 
 
 def test_staff_category_correction_keeps_manual_department_override(client):
@@ -149,7 +148,7 @@ def test_category_review_persists_in_dynamodb(dynamodb_settings: Settings) -> No
     ticket_service._store = store
 
     try:
-        client = TestClient(app)
+        client = authenticated_test_client()
         created = client.post("/v1/tickets", json=VALID_PAYLOAD)
         assert created.status_code == 201
         ticket_id = created.json()["ticketId"]

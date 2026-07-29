@@ -13,6 +13,11 @@ os.environ["APP_ENV"] = "test"
 # Tests must use the curated local place index even when the shared team .env
 # configures a live Amazon Location index.
 os.environ["LOCATION_PLACE_INDEX_NAME"] = ""
+# Deterministic staff credentials for issue #72 authorization tests.
+os.environ["SECRET_KEY"] = "test-secret-key-for-ci"
+os.environ["STAFF_USERNAME"] = "staff"
+os.environ["STAFF_PASSWORD"] = "staff-demo-password"
+os.environ["STAFF_TOKEN_TTL_SECONDS"] = "43200"
 get_settings.cache_clear()
 
 from app.database.memory import ticket_store  # noqa: E402
@@ -23,6 +28,23 @@ from app.main import app  # noqa: E402
 from app.schemas.classification import ClassificationInputs, ClassificationResult  # noqa: E402
 from app.schemas.cleaning import CleaningResult  # noqa: E402
 from app.services.complaints.ticket_service import ticket_service  # noqa: E402
+
+
+def issue_test_staff_token(client: TestClient) -> str:
+    response = client.post(
+        "/v1/staff/login",
+        json={"username": "staff", "password": "staff-demo-password"},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["accessToken"]
+
+
+def authenticated_test_client() -> TestClient:
+    """Build a staff-authenticated TestClient for tests that construct one manually."""
+    client = TestClient(app)
+    token = issue_test_staff_token(client)
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 @pytest.fixture(autouse=True)
@@ -55,8 +77,23 @@ def deterministic_submission_ai(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def client() -> TestClient:
+def anonymous_client() -> TestClient:
+    """Unauthenticated client for public routes and 401 authorization tests."""
     return TestClient(app)
+
+
+@pytest.fixture
+def client(anonymous_client: TestClient) -> TestClient:
+    """Default client is staff-authenticated so existing ticket tests keep working."""
+    token = issue_test_staff_token(anonymous_client)
+    anonymous_client.headers.update({"Authorization": f"Bearer {token}"})
+    return anonymous_client
+
+
+@pytest.fixture
+def staff_auth_headers(anonymous_client: TestClient) -> dict[str, str]:
+    token = issue_test_staff_token(anonymous_client)
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture

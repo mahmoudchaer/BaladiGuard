@@ -14,6 +14,7 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const state = location.state as LoginLocationState | null;
   const returnTo = state?.from
@@ -24,19 +25,24 @@ export function LoginPage() {
     return <Navigate to={returnTo} replace />;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setIsSubmitting(true);
 
-    const result = login(username, password);
+    try {
+      const result = await login(username, password);
 
-    if (!result.ok) {
-      setPassword('');
-      setError(result.error);
-      return;
+      if (!result.ok) {
+        setPassword('');
+        setError(result.error);
+        return;
+      }
+
+      navigate(returnTo, { replace: true });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    navigate(returnTo, { replace: true });
   }
 
   return (
@@ -83,8 +89,8 @@ export function LoginPage() {
             </p>
           )}
 
-          <button className="login-form__submit" type="submit">
-            Sign in
+          <button className="login-form__submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </section>
