@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { submitReport } from '@/services/api/tickets';
+import {
+  TRACK_LOOKUP_INVALID_MESSAGE,
+  TRACK_LOOKUP_NOT_FOUND_MESSAGE,
+  getTicketByTrackingCode,
+  submitReport,
+} from '@/services/api/tickets';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
 const formValues: ReportFormValues = {
@@ -26,6 +31,18 @@ const mockTicketResponse = {
   createdAt: '2026-07-07T00:00:00Z',
 };
 
+const mockCitizenTicket = {
+  ticketNumber: 'BG-2026-0001',
+  trackingCode: 'AB23CD',
+  status: 'IN_PROGRESS' as const,
+  category: 'road_damage',
+  location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
+  createdAt: '2026-07-07T00:00:00Z',
+  updatedAt: '2026-07-07T02:00:00Z',
+  lastUpdatedAt: '2026-07-07T02:00:00Z',
+  timeline: [{ status: 'SUBMITTED' as const, changedAt: '2026-07-07T00:00:00Z' }],
+};
+
 const { appConfig } = vi.hoisted(() => ({
   appConfig: {
     apiBaseUrl: 'http://localhost:8000/v1',
@@ -44,13 +61,14 @@ vi.mock('@/services/config', () => ({
 
 vi.mock('@/services/api/mockTickets', () => ({
   submitTicketMock: vi.fn(async () => mockTicketResponse),
+  getTicketByTrackingCodeMock: vi.fn(async () => mockCitizenTicket),
 }));
 
 vi.mock('@/services/api/uploads', () => ({
   uploadReportPhoto: vi.fn(async () => 'reports/photos/uploaded.jpg'),
 }));
 
-import { submitTicketMock } from '@/services/api/mockTickets';
+import { getTicketByTrackingCodeMock, submitTicketMock } from '@/services/api/mockTickets';
 import { uploadReportPhoto } from '@/services/api/uploads';
 
 describe('submitReport', () => {
@@ -110,5 +128,55 @@ describe('submitReport', () => {
     await expect(submitReport(formValues)).rejects.toThrow(
       'Your photo was uploaded, but the report could not be saved. Validation failed.',
     );
+  });
+});
+
+describe('getTicketByTrackingCode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appConfig.enableMockApi = false;
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('rejects invalid codes without calling the API', async () => {
+    await expect(getTicketByTrackingCode('AB1OCD')).rejects.toThrow(TRACK_LOOKUP_INVALID_MESSAGE);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('calls the approved public track endpoint with a normalized code', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => mockCitizenTicket,
+    } as Response);
+
+    const result = await getTicketByTrackingCode('  ab23cd  ');
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets/track/AB23CD',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result).toEqual(mockCitizenTicket);
+  });
+
+  it('maps not-found to a fixed non-sensitive message', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({
+        error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
+      }),
+    } as Response);
+
+    await expect(getTicketByTrackingCode('AB23CD')).rejects.toThrow(TRACK_LOOKUP_NOT_FOUND_MESSAGE);
+  });
+
+  it('uses the mock lookup path when mock mode is enabled', async () => {
+    appConfig.enableMockApi = true;
+
+    const result = await getTicketByTrackingCode('AB23CD');
+
+    expect(getTicketByTrackingCodeMock).toHaveBeenCalledWith('AB23CD');
+    expect(result).toEqual(mockCitizenTicket);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

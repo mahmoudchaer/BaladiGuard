@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
-import { Link } from 'expo-router';
+import { Link, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +18,11 @@ export default function HomeScreen() {
         <Link href="/report" asChild>
           <Button mode="contained" icon="clipboard-text-outline" style={styles.button}>
             Report an issue
+          </Button>
+        </Link>
+        <Link href={'/track' as Href} asChild>
+          <Button mode="outlined" icon="magnify" style={styles.button}>
+            Track a report
           </Button>
         </Link>
       </View>
