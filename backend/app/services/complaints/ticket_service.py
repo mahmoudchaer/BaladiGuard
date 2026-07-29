@@ -4,9 +4,11 @@ from datetime import UTC, datetime
 from threading import Lock
 
 from app.config import get_settings
+from app.database.audit_history_store import AuditHistoryStore
 from app.database.duplicate_group_store import DuplicateGroupStore
 from app.database.status_history_store import StatusHistoryStore
 from app.database.store_factory import (
+    get_audit_history_store,
     get_duplicate_group_store,
     get_status_history_store,
     get_ticket_store,
@@ -14,6 +16,7 @@ from app.database.store_factory import (
 from app.database.ticket_store import TicketStore
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.stored_audit_history import AuditActionType, StoredAuditHistory
 from app.schemas.stored_duplicate_group import StoredDuplicateGroup
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
@@ -44,6 +47,7 @@ from app.services.notifications.adapters import NotificationRecipient
 from app.services.routing import suggest_department_id
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
+    generate_audit_history_id,
     generate_duplicate_group_id,
     generate_status_history_id,
     generate_ticket_id,
@@ -129,6 +133,7 @@ class TicketService:
         store: TicketStore,
         history_store: StatusHistoryStore,
         duplicate_group_store: DuplicateGroupStore | None = None,
+        audit_store: AuditHistoryStore | None = None,
         *,
         classifier: Classifier = classify_complaint,
         description_cleaner: DescriptionCleaner = clean_report_description,
@@ -136,6 +141,7 @@ class TicketService:
         self._store = store
         self._history_store = history_store
         self._duplicate_group_store = duplicate_group_store or get_duplicate_group_store()
+        self._audit_store = audit_store or get_audit_history_store()
         self._classifier = classifier
         self._description_cleaner = description_cleaner
         self._processing_ticket_ids: set[str] = set()
@@ -400,6 +406,15 @@ class TicketService:
             note=payload.note,
             created_at=updated_at,
         )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="STATUS_CHANGE",
+            actor_id=payload.updated_by,
+            summary=f"Status changed from {ticket.status} to {payload.status}.",
+            previous_value=ticket.status,
+            new_value=payload.status,
+            created_at=updated_at,
+        )
         event = "ticket_resolved" if payload.status in {"RESOLVED", "CLOSED"} else "ticket_updated"
         self._emit_notification_safe(
             event=event,
@@ -488,6 +503,16 @@ class TicketService:
         )
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
+        previous_category = ticket.final_category or ticket.category
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="CATEGORY_REVIEW",
+            actor_id=payload.category_reviewed_by,
+            summary=f"Category reviewed as {payload.final_category}.",
+            previous_value=previous_category,
+            new_value=payload.final_category,
+            created_at=reviewed_at,
+        )
         return self._map_ticket(updated_ticket)
 
     def assign_ticket_department(
@@ -511,6 +536,18 @@ class TicketService:
         )
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="DEPARTMENT_ASSIGN",
+            actor_id=payload.updated_by,
+            summary=(
+                f"Department assignment changed from "
+                f"{ticket.department_id or 'unassigned'} to {payload.department_id}."
+            ),
+            previous_value=ticket.department_id,
+            new_value=payload.department_id,
+            created_at=updated_at,
+        )
         return self._map_ticket(updated_ticket)
 
     def merge_duplicate_tickets(
@@ -623,6 +660,27 @@ class TicketService:
                     )
             raise
 
+        member_summary = ", ".join(group.ticket_ids)
+        stamped_by_id = {ticket_id: previous for ticket_id, previous in stamped}
+        audit_ticket_ids = [canonical_id, *[tid for tid, _ in stamped if tid != canonical_id]]
+        for ticket_id in audit_ticket_ids:
+            previous_group_id = stamped_by_id.get(ticket_id)
+            if ticket_id == canonical_id and ticket_id not in stamped_by_id:
+                previous_group_id = canonical.duplicate_group_id
+            role = "canonical" if ticket_id == canonical_id else "duplicate"
+            self._record_audit_history(
+                ticket_id=ticket_id,
+                action_type="DUPLICATE_MERGE",
+                actor_id=payload.merged_by,
+                summary=(
+                    f"Ticket marked as {role} in duplicate group {group_id} "
+                    f"(members: {member_summary})."
+                ),
+                previous_value=previous_group_id,
+                new_value=group_id,
+                created_at=merged_at,
+            )
+
         updated_canonical = self._store.get(canonical_id)
         if updated_canonical is None:
             raise TicketNotFoundError(canonical_id)
@@ -635,6 +693,7 @@ class TicketService:
         include_duplicate_suggestions: bool = False,
     ) -> TicketResponse:
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
+        audit_history = self._audit_store.list_by_ticket_id(ticket.ticket_id)
         duplicate_group = None
         if ticket.duplicate_group_id:
             stored_group = self._duplicate_group_store.get(ticket.duplicate_group_id)
@@ -651,6 +710,7 @@ class TicketService:
         return map_ticket_to_response(
             ticket,
             history,
+            audit_history=audit_history,
             duplicate_group=duplicate_group,
             duplicate_suggestions=(
                 self._duplicate_suggestions_for_ticket(ticket)
@@ -799,6 +859,37 @@ class TicketService:
             createdAt=created_at,
         )
         self._history_store.append(entry)
+
+    def _record_audit_history(
+        self,
+        *,
+        ticket_id: str,
+        action_type: AuditActionType,
+        actor_id: str | None,
+        summary: str,
+        previous_value: str | None,
+        new_value: str | None,
+        created_at: str,
+    ) -> None:
+        """Persist a staff audit row without blocking the primary mutation on failure."""
+        entry = StoredAuditHistory(
+            auditId=generate_audit_history_id(),
+            ticketId=ticket_id,
+            actionType=action_type,
+            actorId=actor_id,
+            summary=summary,
+            previousValue=previous_value,
+            newValue=new_value,
+            createdAt=created_at,
+        )
+        try:
+            self._audit_store.append(entry)
+        except Exception:
+            logger.exception(
+                "Audit history write failed for ticket %s action %s; primary mutation kept.",
+                ticket_id,
+                action_type,
+            )
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

@@ -117,6 +117,25 @@ At least one of `phone` or `email` is required for citizen users.
 | `note` | string, nullable | Optional note. |
 | `createdAt` | string | ISO 8601 timestamp. |
 
+## 5a. TicketAuditHistory
+
+Staff-only audit trail for ticket mutations (issue #143). Complements `TicketStatusHistory`
+without replacing it. Persisted in both in-memory and DynamoDB-backed modes
+(`{prefix}ticket-audit-history`, PK `auditId`, GSI `ticketId-index`).
+
+Audit append failures are logged and do **not** roll back a successful primary mutation.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `auditId` | string | Primary key. |
+| `ticketId` | string | Parent ticket. |
+| `actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`. |
+| `actorId` | string, nullable | Staff actor identifier when available. |
+| `summary` | string | Concise human-readable change summary. |
+| `previousValue` | string, nullable | Previous value when applicable. |
+| `newValue` | string, nullable | New value when applicable. |
+| `createdAt` | string | ISO 8601 timestamp. |
+
 ## 6. AiOutput
 
 | Attribute | Type | Description |
@@ -181,6 +200,7 @@ User (1)
 
 Ticket (1)
 ├── TicketStatusHistory (N)
+├── TicketAuditHistory (N)
 ├── AiOutput (1)
 └── DuplicateGroup (N:1)
 ```

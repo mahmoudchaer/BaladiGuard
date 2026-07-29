@@ -14,6 +14,7 @@ STAFF_ONLY_FIELDS = {
     "updatedBy",
     "ai",
     "statusHistory",
+    "auditHistory",
     "duplicateGroup",
     "duplicateSuggestions",
 }

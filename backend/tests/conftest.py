@@ -21,6 +21,7 @@ os.environ["STAFF_TOKEN_TTL_SECONDS"] = "43200"
 get_settings.cache_clear()
 
 from app.database.memory import ticket_store  # noqa: E402
+from app.database.memory_audit_history import audit_history_store  # noqa: E402
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
@@ -51,6 +52,7 @@ def authenticated_test_client() -> TestClient:
 def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
+    audit_history_store.clear()
     duplicate_group_store.clear()
     from app.services.notifications import reset_delivery_ledger
 

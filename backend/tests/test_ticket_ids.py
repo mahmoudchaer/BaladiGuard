@@ -8,6 +8,7 @@ from app.utils.ticket_ids import (
     DEFAULT_TICKET_PREFIX,
     TRACKING_CODE_ALPHABET,
     TRACKING_CODE_LENGTH,
+    generate_audit_history_id,
     generate_status_history_id,
     generate_ticket_id,
     generate_ticket_number,
@@ -46,6 +47,17 @@ def test_generate_status_history_id_uses_hist_prefix() -> None:
     suffix = history_id.removeprefix("hist_")
     assert len(suffix) == 32, (
         f"ticket_ids.generate_status_history_id: expected 32 hex chars, got {len(suffix)}"
+    )
+
+
+def test_generate_audit_history_id_uses_aud_prefix() -> None:
+    audit_id = generate_audit_history_id()
+    assert audit_id.startswith("aud_"), (
+        f"ticket_ids.generate_audit_history_id: expected aud_ prefix, got {audit_id!r}"
+    )
+    suffix = audit_id.removeprefix("aud_")
+    assert len(suffix) == 32, (
+        f"ticket_ids.generate_audit_history_id: expected 32 hex chars, got {len(suffix)}"
     )
 
 
