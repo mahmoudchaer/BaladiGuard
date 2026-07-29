@@ -1,4 +1,13 @@
-import type { SubmitTicketRequest, SubmitTicketResponse } from '@/types/ticket';
+import type {
+  CitizenTicketResponse,
+  SubmitTicketRequest,
+  SubmitTicketResponse,
+} from '@/types/ticket';
+import {
+  TRACKING_CODE_ALPHABET,
+  TRACKING_CODE_LENGTH,
+  normalizeTrackingCode,
+} from '@/utils/trackingCode';
 
 const MOCK_TICKET_PREFIXES = ['RD', 'SL', 'WS', 'WD', 'SW'];
 
@@ -11,10 +20,11 @@ const createMockTicketNumber = () => {
   return `${prefix}-${year}-${sequence}`;
 };
 
-const createTrackingCode = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-};
+const createTrackingCode = () =>
+  Array.from({ length: TRACKING_CODE_LENGTH }, () => {
+    const index = Math.floor(Math.random() * TRACKING_CODE_ALPHABET.length);
+    return TRACKING_CODE_ALPHABET[index];
+  }).join('');
 
 export async function submitTicketMock(
   payload: SubmitTicketRequest,
@@ -30,5 +40,31 @@ export async function submitTicketMock(
     status: 'SUBMITTED',
     message: 'Your report was submitted successfully.',
     createdAt: new Date().toISOString(),
+  };
+}
+
+/** Deterministic mock lookup for local demos when EXPO_PUBLIC_ENABLE_MOCK_API=true. */
+export async function getTicketByTrackingCodeMock(
+  trackingCode: string,
+): Promise<CitizenTicketResponse> {
+  await wait(350);
+  const normalized = normalizeTrackingCode(trackingCode);
+  const createdAt = '2026-07-26T09:00:00Z';
+  const updatedAt = '2026-07-26T11:30:00Z';
+
+  return {
+    ticketNumber: 'BG-2026-0042',
+    trackingCode: normalized,
+    status: 'IN_PROGRESS',
+    category: 'road_damage',
+    location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
+    createdAt,
+    updatedAt,
+    lastUpdatedAt: updatedAt,
+    timeline: [
+      { status: 'SUBMITTED', changedAt: createdAt },
+      { status: 'UNDER_REVIEW', changedAt: '2026-07-26T10:00:00Z' },
+      { status: 'IN_PROGRESS', changedAt: updatedAt },
+    ],
   };
 }
