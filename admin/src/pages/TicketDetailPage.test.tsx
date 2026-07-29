@@ -436,9 +436,7 @@ describe('TicketDetailPage department assignment', () => {
       'Street Lighting',
     );
     expect(screen.getByText(/Suggested:\s*Road Maintenance/)).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Accept suggested department' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept suggested department' })).toBeInTheDocument();
   });
 
   it('hides the suggestion row when suggested and assigned match', async () => {
@@ -482,9 +480,7 @@ describe('TicketDetailPage department assignment', () => {
       departmentId: 'd2222222-2222-2222-2222-222222222222',
       updatedBy: undefined,
     });
-    expect(
-      await screen.findByText('Department assignment updated.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Department assignment updated.')).toBeInTheDocument();
     expect(screen.getByLabelText('Assigned department')).toHaveValue(
       'd2222222-2222-2222-2222-222222222222',
     );
@@ -519,17 +515,13 @@ describe('TicketDetailPage department assignment', () => {
 
     renderPage();
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Accept suggested department' }),
-    );
+    await user.click(await screen.findByRole('button', { name: 'Accept suggested department' }));
 
     expect(assignTicketDepartment).toHaveBeenCalledWith('tkt_123', {
       departmentId: 'd1111111-1111-1111-1111-111111111111',
       updatedBy: undefined,
     });
-    expect(
-      await screen.findByText('Department assignment updated.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Department assignment updated.')).toBeInTheDocument();
     expect(screen.getByLabelText('Assigned department')).toHaveValue(
       'd1111111-1111-1111-1111-111111111111',
     );

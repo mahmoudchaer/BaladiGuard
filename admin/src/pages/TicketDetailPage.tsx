@@ -624,8 +624,7 @@ export function TicketDetailPage() {
                         {ticket.ai?.suggestedDepartmentId &&
                           ticket.ai.suggestedDepartmentId !== ticket.departmentId && (
                             <small className="ticket-detail__suggested-department">
-                              Suggested:{' '}
-                              {formatDepartment(ticket.ai.suggestedDepartmentId)}
+                              Suggested: {formatDepartment(ticket.ai.suggestedDepartmentId)}
                             </small>
                           )}
                       </dd>
@@ -662,9 +661,7 @@ export function TicketDetailPage() {
                                   ticket.ai?.suggestedDepartmentId ?? '',
                                 )
                               }
-                              disabled={
-                                isSavingDepartment || !ticket.ai?.suggestedDepartmentId
-                              }
+                              disabled={isSavingDepartment || !ticket.ai?.suggestedDepartmentId}
                             >
                               Accept suggested department
                             </button>

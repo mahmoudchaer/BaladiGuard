@@ -582,24 +582,19 @@ describe('assignTicketDepartment', () => {
       updatedBy: 'staff-1',
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:8000/v1/tickets/tkt_123/department',
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          departmentId: 'd2222222-2222-2222-2222-222222222222',
-          updatedBy: 'staff-1',
-        }),
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets/tkt_123/department', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({
+        departmentId: 'd2222222-2222-2222-2222-222222222222',
+        updatedBy: 'staff-1',
+      }),
+    });
     expect(updatedTicket?.departmentId).toBe('d2222222-2222-2222-2222-222222222222');
     expect(updatedTicket?.departmentName).toBe('Waste Management');
-    expect(updatedTicket?.ai?.suggestedDepartmentId).toBe(
-      'd1111111-1111-1111-1111-111111111111',
-    );
+    expect(updatedTicket?.ai?.suggestedDepartmentId).toBe('d1111111-1111-1111-1111-111111111111');
     expect(updatedTicket?.updatedBy).toBe('staff-1');
   });
 
@@ -629,8 +624,6 @@ describe('assignTicketDepartment', () => {
 
     await expect(
       assignTicketDepartment('tkt_123', { departmentId: 'not-a-department' }),
-    ).rejects.toThrow(
-      'Request validation failed. departmentId: Department is not in the catalog.',
-    );
+    ).rejects.toThrow('Request validation failed. departmentId: Department is not in the catalog.');
   });
 });
