@@ -53,12 +53,15 @@ def test_emit_ticket_notification_logs_without_raising(caplog):
 def test_emit_ticket_notification_never_raises(monkeypatch, caplog):
     caplog.set_level(logging.ERROR)
 
-    def boom(*_args, **_kwargs):
-        raise RuntimeError("log boom")
+    class BoomAdapter:
+        mode = "mock"
+
+        def deliver(self, *_args, **_kwargs):
+            raise RuntimeError("adapter boom")
 
     monkeypatch.setattr(
-        "app.services.notifications.service.logger.info",
-        boom,
+        "app.services.notifications.service.build_notification_adapter",
+        lambda: BoomAdapter(),
     )
 
     emit_ticket_notification(

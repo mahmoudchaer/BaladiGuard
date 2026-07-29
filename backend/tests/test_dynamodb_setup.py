@@ -38,6 +38,13 @@ def test_dynamo_ticket_store_save_get_and_sequence(dynamodb_settings: Settings) 
     assert loaded.location.address_text == "Hamra, Beirut"
     assert store.has_ticket_number("BG-2026-0099")
     assert store.has_tracking_code("ZX99YW")
+    assert store.has_tracking_code("zx99yw")
+
+    by_tracking = store.get_by_tracking_code("zx99yw")
+    assert by_tracking is not None
+    assert by_tracking.ticket_id == "tkt_test_001"
+    assert by_tracking.tracking_code == "ZX99YW"
+    assert store.get_by_tracking_code("ZZZZZZ") is None
 
     first_sequence = store.next_sequence()
     second_sequence = store.next_sequence()

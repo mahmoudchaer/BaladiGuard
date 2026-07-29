@@ -29,6 +29,9 @@ def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
     duplicate_group_store.clear()
+    from app.services.notifications import reset_delivery_ledger
+
+    reset_delivery_ledger()
 
 
 @pytest.fixture(autouse=True)
