@@ -123,7 +123,9 @@ Staff-only audit trail for ticket mutations (issue #143). Complements `TicketSta
 without replacing it. Persisted in both in-memory and DynamoDB-backed modes
 (`{prefix}ticket-audit-history`, PK `auditId`, GSI `ticketId-index`).
 
-Audit append failures are logged and do **not** roll back a successful primary mutation.
+Audit append and read failures are logged and do **not** roll back a successful primary
+mutation or staff ticket response. When audit history cannot be loaded, staff responses return
+an empty `auditHistory` array.
 
 | Attribute | Type | Description |
 | --- | --- | --- |

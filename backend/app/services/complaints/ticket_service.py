@@ -693,7 +693,7 @@ class TicketService:
         include_duplicate_suggestions: bool = False,
     ) -> TicketResponse:
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
-        audit_history = self._audit_store.list_by_ticket_id(ticket.ticket_id)
+        audit_history = self._list_audit_history_safe(ticket.ticket_id)
         duplicate_group = None
         if ticket.duplicate_group_id:
             stored_group = self._duplicate_group_store.get(ticket.duplicate_group_id)
@@ -890,6 +890,17 @@ class TicketService:
                 ticket_id,
                 action_type,
             )
+
+    def _list_audit_history_safe(self, ticket_id: str) -> list[StoredAuditHistory]:
+        """Load audit rows for staff responses without failing the primary read/mutation."""
+        try:
+            return self._audit_store.list_by_ticket_id(ticket_id)
+        except Exception:
+            logger.exception(
+                "Audit history read failed for ticket %s; returning empty auditHistory.",
+                ticket_id,
+            )
+            return []
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

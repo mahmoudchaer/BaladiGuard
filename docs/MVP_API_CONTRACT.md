@@ -834,7 +834,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `statusHistory[].changedAt` | string | ISO 8601 timestamp for the change. |
 | `statusHistory[].changedBy` | string | Actor identifier when available. |
 | `statusHistory[].note` | string | Human-readable note when available. |
-| `auditHistory` | array | Staff-only mutation audit trail (empty array when none). Not returned on citizen track responses. |
+| `auditHistory` | array | Staff-only mutation audit trail (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
 | `auditHistory[].actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`. |
 | `auditHistory[].actorId` | string | Staff actor identifier when available. |
 | `auditHistory[].summary` | string | Concise change summary. |

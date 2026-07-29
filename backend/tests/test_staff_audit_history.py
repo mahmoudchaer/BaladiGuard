@@ -144,6 +144,31 @@ def test_audit_write_failure_does_not_block_primary_mutation(client, monkeypatch
     assert status_history_store.list_by_ticket_id(created["ticketId"])
 
 
+def test_audit_read_failure_does_not_block_primary_mutation_response(client, monkeypatch):
+    created = create_ticket(client)
+
+    def boom_list(_ticket_id):
+        raise RuntimeError("audit store unavailable")
+
+    monkeypatch.setattr(ticket_service._audit_store, "list_by_ticket_id", boom_list)
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/status",
+        json={"status": "UNDER_REVIEW", "updatedBy": "staff-6"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "UNDER_REVIEW"
+    assert response.json()["auditHistory"] == []
+    # Primary status history still maps successfully.
+    assert response.json()["statusHistory"][-1]["status"] == "UNDER_REVIEW"
+
+    detail = client.get(f"/v1/tickets/{created['ticketId']}")
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "UNDER_REVIEW"
+    assert detail.json()["auditHistory"] == []
+
+
 def test_audit_history_persists_in_dynamodb(dynamodb_settings: Settings) -> None:
     ticket_store = DynamoTicketStore(dynamodb_settings)
     audit_store = DynamoAuditHistoryStore(dynamodb_settings)
