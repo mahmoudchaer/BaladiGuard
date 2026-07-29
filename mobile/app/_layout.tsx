@@ -17,6 +17,13 @@ export default function RootLayout() {
               headerBackTitle: 'Home',
             }}
           />
+          <Stack.Screen
+            name="track/index"
+            options={{
+              title: 'Track a report',
+              headerBackTitle: 'Home',
+            }}
+          />
         </Stack>
       </PaperProvider>
     </SafeAreaProvider>

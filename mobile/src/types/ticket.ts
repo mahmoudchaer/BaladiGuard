@@ -38,6 +38,25 @@ export type SubmitTicketResponse = {
 export type TicketStatus =
   'SUBMITTED' | 'UNDER_REVIEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
+/** Public citizen timeline entry from GET /v1/tickets/track/{trackingCode}. */
+export type CitizenTicketTimelineEntry = {
+  status: TicketStatus;
+  changedAt: string;
+};
+
+/** Public citizen tracking response — never includes staff-only fields. */
+export type CitizenTicketResponse = {
+  ticketNumber: string | null;
+  trackingCode: string;
+  status: TicketStatus;
+  category: string | null;
+  location: { addressText: string } | null;
+  createdAt: string;
+  updatedAt: string | null;
+  lastUpdatedAt: string;
+  timeline: CitizenTicketTimelineEntry[];
+};
+
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type TicketImageReference = {
