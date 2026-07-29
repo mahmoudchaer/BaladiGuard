@@ -38,6 +38,11 @@ VITE_STAFF_USERNAME=staff
 VITE_STAFF_PASSWORD=staff-demo-password
 ```
 
+The full env catalog (backend + admin + mobile) lives in
+[`docs/configuration.md`](../docs/configuration.md). Demo staff credentials are for
+**local development only** — production builds must use unique `VITE_STAFF_*` values
+and must not ship `staff-demo-password`.
+
 Mock fixtures remain available for explicit development and testing by setting
 `VITE_USE_MOCK_DATA=true`. In mock mode, the dashboard loads tickets from the shared root fixture
 `mock_tickets.json` and status changes are not persisted.

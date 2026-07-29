@@ -18,6 +18,11 @@ load_environment()
 
 class Settings:
     def __init__(self) -> None:
+        # APP_ENV preferred; ENVIRONMENT accepted as an alias (issue #147).
+        raw_env = (
+            os.getenv("APP_ENV", "").strip() or os.getenv("ENVIRONMENT", "").strip() or "local"
+        )
+        self.app_env = raw_env.lower()
         self.database_backend = os.getenv("DATABASE_BACKEND", "memory").strip().lower()
         self.aws_region = os.getenv("AWS_REGION", "us-east-1").strip()
         self.aws_s3_bucket = os.getenv("AWS_S3_BUCKET", "").strip() or None
@@ -65,6 +70,9 @@ class Settings:
         self.notification_adapter = (
             os.getenv("NOTIFICATION_ADAPTER", "mock").strip().lower() or "mock"
         )
+        # Used by auth/signing once #72 lands; validated for production in #147.
+        self.secret_key = os.getenv("SECRET_KEY", "").strip() or None
+        self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
     @staticmethod
     def _float_setting(
