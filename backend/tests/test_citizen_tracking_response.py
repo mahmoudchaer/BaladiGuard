@@ -80,7 +80,29 @@ def test_tracking_code_lookup_hides_category_until_staff_approval(client):
 
 
 def test_tracking_code_lookup_returns_404_for_unknown_code(client):
-    response = client.get("/v1/tickets/track/MISSING")
+    # Valid format, unknown value — must not collide with format validation.
+    response = client.get("/v1/tickets/track/ZZZZZZ")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "TICKET_NOT_FOUND"
+
+
+def test_tracking_code_lookup_rejects_invalid_format(client):
+    invalid_codes = [
+        "AB12",  # too short
+        "AB12CDE",  # too long
+        "IIIIII",  # excluded ambiguous letters
+        "AB12O1",  # excluded O/1
+        "AB12!!",  # punctuation
+    ]
+
+    for tracking_code in invalid_codes:
+        response = client.get(f"/v1/tickets/track/{tracking_code}")
+
+        assert response.status_code == 400, tracking_code
+        body = response.json()
+        assert body["error"]["code"] == "VALIDATION_ERROR", tracking_code
+        assert any(detail["field"] == "trackingCode" for detail in body["error"]["details"])
+        # Invalid lookups must not leak ticket payloads.
+        assert STAFF_ONLY_FIELDS.isdisjoint(body)
+        assert "ticketNumber" not in body
