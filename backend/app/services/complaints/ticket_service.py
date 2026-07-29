@@ -35,6 +35,7 @@ from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
 from app.services.complaints.status_workflow import validate_status_transition
+from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
     map_ticket_to_response,
@@ -348,9 +349,9 @@ class TicketService:
         age_seconds = (now - claimed_at.astimezone(UTC)).total_seconds()
         return age_seconds >= get_settings().ai_processing_claim_timeout_seconds
 
-    def list_tickets(self) -> list[TicketResponse]:
+    def list_tickets(self, filters: TicketListFilters | None = None) -> list[TicketResponse]:
         tickets = sorted(
-            self._store.list(),
+            filter_stored_tickets(self._store.list(), filters),
             key=lambda ticket: (ticket.created_at, ticket.ticket_number),
             reverse=True,
         )
