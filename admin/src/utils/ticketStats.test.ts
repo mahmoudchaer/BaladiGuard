@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Ticket } from '@/types/ticket';
-import { computeTicketStats } from '@/utils/ticketStats';
+import { computeTicketStats, filterTickets } from '@/utils/ticketStats';
 
 const baseTicket: Ticket = {
   ticketId: 'tkt_1',
@@ -36,5 +36,53 @@ describe('computeTicketStats', () => {
     ]);
 
     expect(stats.highUrgency).toBe(2);
+  });
+});
+
+describe('filterTickets', () => {
+  it('combines search, status, category, urgency, and department filters', () => {
+    const matching = {
+      ...baseTicket,
+      ticketId: 'tkt_match',
+      ticketNumber: 'BG-35',
+      description: 'Overflowing bins near the market.',
+      status: 'IN_PROGRESS' as const,
+      category: 'waste',
+      priority: 'high' as const,
+      departmentId: 'd2222222-2222-2222-2222-222222222222',
+    };
+
+    const filtered = filterTickets(
+      [
+        matching,
+        {
+          ...matching,
+          ticketId: 'tkt_wrong_department',
+          departmentId: 'd1111111-1111-1111-1111-111111111111',
+        },
+        { ...matching, ticketId: 'tkt_wrong_urgency', priority: 'low' },
+        { ...matching, ticketId: 'tkt_wrong_status', status: 'RESOLVED' },
+      ],
+      'market',
+      'IN_PROGRESS',
+      'waste',
+      'high',
+      'd2222222-2222-2222-2222-222222222222',
+    );
+
+    expect(filtered).toEqual([matching]);
+  });
+
+  it('returns no matches when persisted urgency or department values are missing', () => {
+    const filtered = filterTickets(
+      [{ ...baseTicket, priority: null, departmentId: null }],
+      '',
+      'ALL',
+      'ALL',
+      'critical',
+      'd3333333-3333-3333-3333-333333333333',
+    );
+
+    expect(filtered).toEqual([]);
   });
 });

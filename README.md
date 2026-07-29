@@ -29,7 +29,7 @@ BaladiGuard provides a centralized platform where citizens can submit reports us
 ### Municipality Dashboard
 
 - View submitted complaints
-- Filter by category, urgency, and status
+- Filter by category, urgency, department, and status
 - Assign and update tickets
 - Monitor complaint locations on a map
 

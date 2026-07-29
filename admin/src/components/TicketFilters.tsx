@@ -1,6 +1,13 @@
-import type { TicketStatus } from '@/types/ticket';
-import type { CategoryFilter, CategoryFilterOption, StatusFilter } from '@/utils/ticketStats';
-import { formatCategory, formatStatus } from '@/utils/labels';
+import type { TicketPriority, TicketStatus } from '@/types/ticket';
+import type {
+  CategoryFilter,
+  CategoryFilterOption,
+  DepartmentFilter,
+  StatusFilter,
+  UrgencyFilter,
+} from '@/utils/ticketStats';
+import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
+import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import { IconSearch } from '@/components/icons';
 import './TicketFilters.css';
 
@@ -8,12 +15,16 @@ type TicketFiltersProps = {
   searchQuery: string;
   statusFilter: StatusFilter;
   categoryFilter: CategoryFilter;
+  urgencyFilter: UrgencyFilter;
+  departmentFilter: DepartmentFilter;
   categoryOptions: CategoryFilterOption[];
   resultCount: number;
   totalCount: number;
   onSearchChange: (value: string) => void;
   onStatusChange: (status: StatusFilter) => void;
   onCategoryChange: (category: CategoryFilter) => void;
+  onUrgencyChange: (urgency: UrgencyFilter) => void;
+  onDepartmentChange: (department: DepartmentFilter) => void;
 };
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
@@ -24,16 +35,28 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'CLOSED', label: 'Closed' },
 ];
 
+const URGENCY_OPTIONS: { value: UrgencyFilter; label: string }[] = [
+  { value: 'ALL', label: 'All urgencies' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'critical', label: 'Critical' },
+];
+
 export function TicketFilters({
   searchQuery,
   statusFilter,
   categoryFilter,
+  urgencyFilter,
+  departmentFilter,
   categoryOptions,
   resultCount,
   totalCount,
   onSearchChange,
   onStatusChange,
   onCategoryChange,
+  onUrgencyChange,
+  onDepartmentChange,
 }: TicketFiltersProps) {
   return (
     <div className="ticket-filters">
@@ -77,6 +100,37 @@ export function TicketFilters({
           {categoryOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.value === 'ALL' ? opt.label : formatCategory(opt.value)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="ticket-filters__select-wrap">
+        <span className="ticket-filters__select-label">Urgency</span>
+        <select
+          className="ticket-filters__select"
+          value={urgencyFilter}
+          onChange={(e) => onUrgencyChange(e.target.value as UrgencyFilter)}
+        >
+          {URGENCY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.value === 'ALL' ? opt.label : formatPriority(opt.value as TicketPriority)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="ticket-filters__select-wrap">
+        <span className="ticket-filters__select-label">Department</span>
+        <select
+          className="ticket-filters__select"
+          value={departmentFilter}
+          onChange={(e) => onDepartmentChange(e.target.value as DepartmentFilter)}
+        >
+          <option value="ALL">All departments</option>
+          {DEPARTMENT_OPTIONS.map((department) => (
+            <option key={department.departmentId} value={department.departmentId}>
+              {formatDepartment(department.departmentId)}
             </option>
           ))}
         </select>

@@ -16,6 +16,13 @@ import { effectiveTicketCategory } from '@/utils/ticketCategory';
 
 const MOCK_LOAD_DELAY_MS = 350;
 
+export type FetchTicketsFilters = {
+  status?: TicketStatus | 'ALL';
+  category?: string | 'ALL';
+  urgency?: Ticket['priority'] | 'ALL';
+  departmentId?: string | 'ALL';
+};
+
 /**
  * Session-scoped mock merge state so a mock merge behaves like real
  * persistence: every member ticket reflects the group on subsequent reads.
@@ -66,7 +73,27 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string):
   return typeof message === 'string' ? message : fallbackMessage;
 }
 
-async function fetchMockTickets(): Promise<Ticket[]> {
+function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters): boolean {
+  if (filters.status && filters.status !== 'ALL' && ticket.status !== filters.status) {
+    return false;
+  }
+  if (filters.category && filters.category !== 'ALL' && ticket.category !== filters.category) {
+    return false;
+  }
+  if (filters.urgency && filters.urgency !== 'ALL' && ticket.priority !== filters.urgency) {
+    return false;
+  }
+  if (
+    filters.departmentId &&
+    filters.departmentId !== 'ALL' &&
+    ticket.departmentId !== filters.departmentId
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function fetchMockTickets(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
   await new Promise((resolve) => setTimeout(resolve, MOCK_LOAD_DELAY_MS));
 
   if (!isTicketArray(mockTickets)) {
@@ -75,11 +102,29 @@ async function fetchMockTickets(): Promise<Ticket[]> {
 
   return [...mockTickets]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .map((ticket) => applyMockMergeState(ticket));
+    .map((ticket) => applyMockMergeState(ticket))
+    .filter((ticket) => ticketMatchesFetchFilters(ticket, filters));
 }
 
-async function fetchTicketsFromApi(): Promise<Ticket[]> {
-  const response = await fetch(`${config.apiBaseUrl}/v1/tickets`, {
+function buildTicketListUrl(filters: FetchTicketsFilters): string {
+  const url = new URL(`${config.apiBaseUrl}/v1/tickets`);
+  if (filters.status && filters.status !== 'ALL') {
+    url.searchParams.set('status', filters.status);
+  }
+  if (filters.category && filters.category !== 'ALL') {
+    url.searchParams.set('category', filters.category);
+  }
+  if (filters.urgency && filters.urgency !== 'ALL') {
+    url.searchParams.set('urgency', filters.urgency);
+  }
+  if (filters.departmentId && filters.departmentId !== 'ALL') {
+    url.searchParams.set('departmentId', filters.departmentId);
+  }
+  return url.toString();
+}
+
+async function fetchTicketsFromApi(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
+  const response = await fetch(buildTicketListUrl(filters), {
     headers: {
       ...getStaffAuthHeaders(),
     },
@@ -99,12 +144,12 @@ async function fetchTicketsFromApi(): Promise<Ticket[]> {
   return data.map((ticket) => normalizeTicketFromApi(ticket));
 }
 
-export async function fetchTickets(): Promise<Ticket[]> {
+export async function fetchTickets(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
   if (config.useMockData) {
-    return fetchMockTickets();
+    return fetchMockTickets(filters);
   }
 
-  return fetchTicketsFromApi();
+  return fetchTicketsFromApi(filters);
 }
 
 function buildMockGroupReference(

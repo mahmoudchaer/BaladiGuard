@@ -12,7 +12,9 @@ import {
   filterTickets,
   getCategoryFilterOptions,
   type CategoryFilter,
+  type DepartmentFilter,
   type StatusFilter,
+  type UrgencyFilter,
 } from '@/utils/ticketStats';
 
 type LoadState = 'loading' | 'success' | 'error';
@@ -24,6 +26,8 @@ export function TicketListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
+  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +37,12 @@ export function TicketListPage() {
       setErrorMessage(null);
 
       try {
-        const data = await fetchTickets();
+        const data = await fetchTickets({
+          status: statusFilter,
+          category: categoryFilter,
+          urgency: urgencyFilter,
+          departmentId: departmentFilter,
+        });
         if (!cancelled) {
           setTickets(data);
           setLoadState('success');
@@ -51,14 +60,22 @@ export function TicketListPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [categoryFilter, departmentFilter, statusFilter, urgencyFilter]);
 
   const stats = useMemo(() => computeTicketStats(tickets), [tickets]);
   const categoryOptions = useMemo(() => getCategoryFilterOptions(tickets), [tickets]);
 
   const filteredTickets = useMemo(
-    () => filterTickets(tickets, searchQuery, statusFilter, categoryFilter),
-    [tickets, searchQuery, statusFilter, categoryFilter],
+    () =>
+      filterTickets(
+        tickets,
+        searchQuery,
+        statusFilter,
+        categoryFilter,
+        urgencyFilter,
+        departmentFilter,
+      ),
+    [tickets, searchQuery, statusFilter, categoryFilter, urgencyFilter, departmentFilter],
   );
 
   return (
@@ -80,12 +97,16 @@ export function TicketListPage() {
             searchQuery={searchQuery}
             statusFilter={statusFilter}
             categoryFilter={categoryFilter}
+            urgencyFilter={urgencyFilter}
+            departmentFilter={departmentFilter}
             categoryOptions={categoryOptions}
             resultCount={filteredTickets.length}
             totalCount={tickets.length}
             onSearchChange={setSearchQuery}
             onStatusChange={setStatusFilter}
             onCategoryChange={setCategoryFilter}
+            onUrgencyChange={setUrgencyFilter}
+            onDepartmentChange={setDepartmentFilter}
           />
 
           {tickets.length === 0 && <EmptyState />}
@@ -93,7 +114,7 @@ export function TicketListPage() {
           {tickets.length > 0 && filteredTickets.length === 0 && (
             <EmptyState
               title="No matching tickets"
-              message="Try adjusting your search, status filter, or category filter to find tickets."
+              message="Try adjusting your search, status, category, urgency, or department filters to find tickets."
             />
           )}
 

@@ -30,7 +30,8 @@ const tickets: Ticket[] = [
     priority: 'high',
     createdBy: null,
     municipalityId: null,
-    departmentId: null,
+    departmentId: 'd1111111-1111-1111-1111-111111111111',
+    departmentName: 'Road Maintenance',
     duplicateGroupId: null,
     createdAt: '2026-07-17T08:00:00Z',
     updatedAt: '2026-07-17T08:01:00Z',
@@ -53,7 +54,8 @@ const tickets: Ticket[] = [
     priority: 'medium',
     createdBy: null,
     municipalityId: null,
-    departmentId: null,
+    departmentId: 'd2222222-2222-2222-2222-222222222222',
+    departmentName: 'Waste Management',
     duplicateGroupId: null,
     createdAt: '2026-07-16T08:00:00Z',
     updatedAt: '2026-07-16T10:01:00Z',
@@ -107,6 +109,11 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0001');
     await user.click(screen.getByRole('button', { name: 'Resolved' }));
 
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'RESOLVED' }),
+      ),
+    );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
     expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
@@ -119,9 +126,72 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0001');
     await user.selectOptions(screen.getByLabelText('Category'), 'waste');
 
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(expect.objectContaining({ category: 'waste' })),
+    );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
     expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+  });
+
+  it('filters the rendered ticket list by urgency', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.selectOptions(screen.getByLabelText('Urgency'), 'high');
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(expect.objectContaining({ urgency: 'high' })),
+    );
+    expect(screen.getByText('BG-2026-0001')).toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0002')).not.toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+  });
+
+  it('filters the rendered ticket list by department', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.selectOptions(
+      screen.getByLabelText('Department'),
+      'd2222222-2222-2222-2222-222222222222',
+    );
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ departmentId: 'd2222222-2222-2222-2222-222222222222' }),
+      ),
+    );
+    expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+  });
+
+  it('combines status, category, urgency, and department filters', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Resolved' }));
+    await user.selectOptions(screen.getByLabelText('Category'), 'waste');
+    await user.selectOptions(screen.getByLabelText('Urgency'), 'medium');
+    await user.selectOptions(
+      screen.getByLabelText('Department'),
+      'd2222222-2222-2222-2222-222222222222',
+    );
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith({
+        status: 'RESOLVED',
+        category: 'waste',
+        urgency: 'medium',
+        departmentId: 'd2222222-2222-2222-2222-222222222222',
+      }),
+    );
+    expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
   });
 
   it('shows a filtered empty state when filters match no tickets', async () => {
@@ -134,7 +204,7 @@ describe('TicketListPage', () => {
     expect(screen.getByText('No matching tickets')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Try adjusting your search, status filter, or category filter to find tickets.',
+        'Try adjusting your search, status, category, urgency, or department filters to find tickets.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
