@@ -93,6 +93,7 @@ describe('TrackLookupForm', () => {
     expect(
       screen.root.findAll((node) => node.props?.children === 'In Progress').length,
     ).toBeGreaterThan(0);
+    expect(screen.root.findByProps({ children: 'Road Damage' })).toBeTruthy();
   });
 
   it('shows a clear non-sensitive message when the report is not found', async () => {
@@ -110,6 +111,38 @@ describe('TrackLookupForm', () => {
       }),
     ).toBeTruthy();
     expect(() => screen.root.findByProps({ testID: 'track-lookup-result' })).toThrow();
+  });
+
+  it('shows a retry message when the lookup request fails', async () => {
+    vi.mocked(getTicketByTrackingCode).mockRejectedValueOnce(
+      new Error('Unable to look up that report right now. Please try again.'),
+    );
+    const screen = renderWithProviders(<TrackLookupForm />);
+
+    await submitLookup(screen, 'AB23CD');
+
+    expect(
+      screen.root.findByProps({
+        children: 'Unable to look up that report right now. Please try again.',
+      }),
+    ).toBeTruthy();
+    expect(() => screen.root.findByProps({ testID: 'track-lookup-result' })).toThrow();
+  });
+
+  it('shows an empty timeline state when no status history is available', async () => {
+    vi.mocked(getTicketByTrackingCode).mockResolvedValueOnce({
+      ...citizenTicket,
+      timeline: [],
+    });
+    const screen = renderWithProviders(<TrackLookupForm />);
+
+    await submitLookup(screen, 'AB23CD');
+
+    expect(
+      screen.root.findByProps({
+        children: 'No status updates are available for this report yet.',
+      }),
+    ).toBeTruthy();
   });
 
   it('disables submit while a lookup is in flight and does not duplicate requests', async () => {

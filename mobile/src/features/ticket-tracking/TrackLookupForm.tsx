@@ -30,11 +30,34 @@ const STATUS_LABELS: Record<CitizenTicketResponse['status'], string> = {
   CLOSED: 'Closed',
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  drainage: 'Drainage',
+  noise: 'Noise',
+  public_facilities: 'Public Facilities',
+  road_damage: 'Road Damage',
+  sidewalk_damage: 'Sidewalk Damage',
+  street_lighting: 'Street Lighting',
+  traffic_signal: 'Traffic Signal',
+  waste: 'Waste',
+  water_leak: 'Water Leak',
+};
+
 function formatDisplayDate(isoDate: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
+}
+
+function formatCategory(category: string): string {
+  return (
+    CATEGORY_LABELS[category] ??
+    category
+      .split('_')
+      .filter(Boolean)
+      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+      .join(' ')
+  );
 }
 
 export function TrackLookupForm() {
@@ -89,7 +112,7 @@ export function TrackLookupForm() {
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
           Enter the 6-character tracking code from your submission confirmation. We look it up
-          directly on the BaladiGuard API — no staff login required.
+          directly on the BaladiGuard API. No staff login required.
         </Text>
       </View>
 
@@ -171,7 +194,7 @@ export function TrackLookupForm() {
             {result.category ? (
               <View style={styles.resultRow}>
                 <Text variant="labelLarge">Category</Text>
-                <Text variant="bodyLarge">{result.category}</Text>
+                <Text variant="bodyLarge">{formatCategory(result.category)}</Text>
               </View>
             ) : null}
             {result.location?.addressText ? (
@@ -190,6 +213,7 @@ export function TrackLookupForm() {
             </Text>
             <TicketTimeline
               variant="citizen"
+              emptyMessage="No status updates are available for this report yet."
               history={result.timeline.map((entry) => ({
                 status: entry.status,
                 changedAt: entry.changedAt,
