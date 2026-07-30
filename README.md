@@ -150,6 +150,22 @@ Backend unit tests cover ticket ID generation, status workflow validation, AI cl
 fallbacks, and description-cleaning fallback/preservation rules (with external AI provider calls
 mocked).
 
+### Public Endpoint Abuse Protection
+
+The public citizen ticket endpoints use a lightweight in-memory fixed-window limiter:
+
+- `POST /v1/tickets`: 20 requests per client IP per 60 seconds.
+- `GET /v1/tickets/track/{trackingCode}`: 60 requests per client IP per 60 seconds.
+
+When a client exceeds a limit, the API returns `429` with error code
+`RATE_LIMIT_EXCEEDED` and a `Retry-After` header. Staff-only endpoints remain protected by
+staff authentication and are not rate-limited by this public citizen policy.
+
+This is an MVP, per-process memory control. It is deterministic for local and CI memory runs,
+but each deployed worker maintains its own counters. A multi-worker or horizontally scaled
+deployment should replace or front this with a shared limiter such as an API gateway, WAF,
+load balancer rule, Redis-backed limiter, or equivalent managed service.
+
 ### AI intake regression tests
 
 The lightweight multilingual regression subset is deterministic and never calls Bedrock. It loads
