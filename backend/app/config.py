@@ -77,6 +77,9 @@ class Settings:
         self.notification_adapter = (
             os.getenv("NOTIFICATION_ADAPTER", "mock").strip().lower() or "mock"
         )
+        self.trust_x_forwarded_for = (
+            os.getenv("TRUST_X_FORWARDED_FOR", "false").strip().lower() == "true"
+        )
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
         # Staff auth (issue #72). Defaults match the admin Vite demo credentials

@@ -3,6 +3,12 @@ from fastapi.responses import JSONResponse
 
 from app.api.deps import StaffActorDep
 from app.core.errors import ErrorDetail, build_error_response, get_request_id
+from app.core.rate_limit import (
+    PUBLIC_TICKET_SUBMISSION_POLICY,
+    PUBLIC_TICKET_TRACKING_POLICY,
+    get_client_rate_limit_key,
+    public_ticket_rate_limiter,
+)
 from app.core.staff_auth import StaffDep
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
@@ -24,12 +30,31 @@ from app.utils.ticket_ids import is_valid_tracking_code
 router = APIRouter(prefix="/v1", tags=["tickets"])
 
 
+def _rate_limit_response(request: Request, retry_after_seconds: int) -> JSONResponse:
+    response = build_error_response(
+        code="RATE_LIMIT_EXCEEDED",
+        message="Too many public ticket requests. Please wait before trying again.",
+        request_id=get_request_id(request),
+        status_code=429,
+    )
+    response.headers["Retry-After"] = str(retry_after_seconds)
+    return response
+
+
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
 def submit_ticket(
     payload: SubmitTicketRequest,
     background_tasks: BackgroundTasks,
-) -> SubmitTicketResponse:
+    request: Request,
+) -> SubmitTicketResponse | JSONResponse:
     """Public citizen submission — no staff auth required."""
+    decision = public_ticket_rate_limiter.check(
+        policy=PUBLIC_TICKET_SUBMISSION_POLICY,
+        client_key=get_client_rate_limit_key(request),
+    )
+    if not decision.allowed:
+        return _rate_limit_response(request, decision.retry_after_seconds)
+
     response = ticket_service.submit_ticket(payload)
     background_tasks.add_task(ticket_service.process_ticket_ai, response.ticket_id)
     return response
@@ -68,6 +93,13 @@ def get_ticket_by_tracking_code(
     request: Request,
 ) -> CitizenTicketResponse | JSONResponse:
     """Public citizen tracking lookup (issue #140). No staff auth required."""
+    decision = public_ticket_rate_limiter.check(
+        policy=PUBLIC_TICKET_TRACKING_POLICY,
+        client_key=get_client_rate_limit_key(request),
+    )
+    if not decision.allowed:
+        return _rate_limit_response(request, decision.retry_after_seconds)
+
     if not is_valid_tracking_code(tracking_code):
         return build_error_response(
             code="VALIDATION_ERROR",
