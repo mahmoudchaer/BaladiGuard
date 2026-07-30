@@ -1,4 +1,5 @@
-import type { Ticket, TicketStatus } from '@/types/ticket';
+import type { Ticket, TicketPriority, TicketStatus } from '@/types/ticket';
+import { SUPPORTED_CATEGORY_OPTIONS } from '@/utils/labels';
 
 export type TicketStats = {
   total: number;
@@ -22,6 +23,8 @@ export function computeTicketStats(tickets: Ticket[]): TicketStats {
 
 export type StatusFilter = 'ALL' | TicketStatus;
 export type CategoryFilter = 'ALL' | string;
+export type UrgencyFilter = 'ALL' | TicketPriority;
+export type DepartmentFilter = 'ALL' | string;
 
 export type CategoryFilterOption = {
   value: CategoryFilter;
@@ -29,9 +32,9 @@ export type CategoryFilterOption = {
 };
 
 export function getCategoryFilterOptions(tickets: Ticket[]): CategoryFilterOption[] {
-  const categories = Array.from(new Set(tickets.map((ticket) => ticket.category))).sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const categories = Array.from(
+    new Set([...SUPPORTED_CATEGORY_OPTIONS, ...tickets.map((ticket) => ticket.category)]),
+  ).sort((a, b) => a.localeCompare(b));
 
   return [
     { value: 'ALL', label: 'All categories' },
@@ -47,6 +50,8 @@ export function filterTickets(
   searchQuery: string,
   statusFilter: StatusFilter,
   categoryFilter: CategoryFilter,
+  urgencyFilter: UrgencyFilter = 'ALL',
+  departmentFilter: DepartmentFilter = 'ALL',
 ): Ticket[] {
   const query = searchQuery.trim().toLowerCase();
 
@@ -56,6 +61,14 @@ export function filterTickets(
     }
 
     if (categoryFilter !== 'ALL' && ticket.category !== categoryFilter) {
+      return false;
+    }
+
+    if (urgencyFilter !== 'ALL' && ticket.priority !== urgencyFilter) {
+      return false;
+    }
+
+    if (departmentFilter !== 'ALL' && ticket.departmentId !== departmentFilter) {
       return false;
     }
 

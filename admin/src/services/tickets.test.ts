@@ -20,7 +20,8 @@ const apiTicket: Ticket = {
   priority: 'medium',
   createdBy: null,
   municipalityId: null,
-  departmentId: null,
+  departmentId: 'd2222222-2222-2222-2222-222222222222',
+  departmentName: 'Waste Management',
   duplicateGroupId: null,
   createdAt: '2026-07-14T10:00:00Z',
   updatedAt: '2026-07-14T10:05:00Z',
@@ -30,6 +31,62 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.resetModules();
+});
+
+describe('fetchTickets', () => {
+  it('sends persisted dashboard filters to the real backend list endpoint', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([apiTicket]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchTickets } = await import('@/services/tickets');
+    const tickets = await fetchTickets({
+      status: 'RESOLVED',
+      category: 'waste',
+      urgency: 'high',
+      departmentId: 'd2222222-2222-2222-2222-222222222222',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets?status=RESOLVED&category=waste&urgency=high&departmentId=d2222222-2222-2222-2222-222222222222',
+      {
+        headers: {},
+      },
+    );
+    expect(tickets).toHaveLength(1);
+  });
+
+  it('omits cleared dashboard filters from the real backend list request', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([apiTicket]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchTickets } = await import('@/services/tickets');
+    await fetchTickets({
+      status: 'ALL',
+      category: 'ALL',
+      urgency: 'ALL',
+      departmentId: 'ALL',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets', {
+      headers: {},
+    });
+  });
 });
 
 describe('updateTicketStatus', () => {
