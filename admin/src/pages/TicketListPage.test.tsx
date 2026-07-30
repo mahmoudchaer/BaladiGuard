@@ -11,6 +11,8 @@ vi.mock('@/services/tickets', () => ({
   fetchTickets: vi.fn(),
 }));
 
+type FetchTicketsTestFilters = Parameters<typeof fetchTickets>[0];
+
 const tickets: Ticket[] = [
   {
     ticketId: 'tkt_road',
@@ -62,10 +64,34 @@ const tickets: Ticket[] = [
   },
 ];
 
+function applyFetchFilters(items: Ticket[], filters: FetchTicketsTestFilters = {}) {
+  return items.filter((ticket) => {
+    if (filters.status && filters.status !== 'ALL' && ticket.status !== filters.status) {
+      return false;
+    }
+    if (filters.category && filters.category !== 'ALL' && ticket.category !== filters.category) {
+      return false;
+    }
+    if (filters.urgency && filters.urgency !== 'ALL' && ticket.priority !== filters.urgency) {
+      return false;
+    }
+    if (
+      filters.departmentId &&
+      filters.departmentId !== 'ALL' &&
+      ticket.departmentId !== filters.departmentId
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 describe('TicketListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(fetchTickets).mockResolvedValue(tickets);
+    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
+      applyFetchFilters(tickets, filters),
+    );
   });
 
   it('shows a loading state while tickets are being fetched', () => {
@@ -117,6 +143,30 @@ describe('TicketListPage', () => {
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
     expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+  });
+
+  it('keeps the dashboard visible while filter results refresh', async () => {
+    const user = userEvent.setup();
+    let resolveFilteredTickets: (value: Ticket[]) => void = () => undefined;
+    vi.mocked(fetchTickets)
+      .mockResolvedValueOnce(tickets)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFilteredTickets = resolve;
+        }),
+      );
+
+    renderWithProviders(<TicketListPage />);
+
+    expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Resolved' }));
+
+    expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument();
+    expect(screen.getByText('Updating...')).toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+
+    resolveFilteredTickets([tickets[1]]);
+    await waitFor(() => expect(screen.queryByText('Updating...')).not.toBeInTheDocument());
   });
 
   it('filters the rendered ticket list by category', async () => {
@@ -209,6 +259,20 @@ describe('TicketListPage', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.queryByText('BG-2026-0002')).not.toBeInTheDocument();
+  });
+
+  it('shows a filtered empty state when the server returns no filtered tickets', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTickets).mockResolvedValueOnce(tickets).mockResolvedValueOnce([]);
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Closed' }));
+
+    await waitFor(() => expect(fetchTickets).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('No matching tickets')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 2 tickets');
   });
 
   it('shows an empty state when the dashboard has no tickets', async () => {

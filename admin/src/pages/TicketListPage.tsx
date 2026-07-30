@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket } from '@/types/ticket';
 import { fetchTickets } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -21,19 +21,34 @@ type LoadState = 'loading' | 'success' | 'error';
 
 export function TicketListPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
+  const hasLoadedTickets = useRef(false);
+
+  const hasActiveServerFilters =
+    statusFilter !== 'ALL' ||
+    categoryFilter !== 'ALL' ||
+    urgencyFilter !== 'ALL' ||
+    departmentFilter !== 'ALL';
+  const hasActiveFilters = hasActiveServerFilters || searchQuery.trim().length > 0;
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadTickets() {
-      setLoadState('loading');
+      const isInitialLoad = !hasLoadedTickets.current;
+      if (isInitialLoad) {
+        setLoadState('loading');
+      } else {
+        setIsRefreshing(true);
+      }
       setErrorMessage(null);
 
       try {
@@ -45,12 +60,20 @@ export function TicketListPage() {
         });
         if (!cancelled) {
           setTickets(data);
+          if (!hasActiveServerFilters) {
+            setAllTickets(data);
+          }
+          hasLoadedTickets.current = true;
           setLoadState('success');
+          setIsRefreshing(false);
         }
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
-          setLoadState('error');
+          if (isInitialLoad) {
+            setLoadState('error');
+          }
+          setIsRefreshing(false);
         }
       }
     }
@@ -60,22 +83,14 @@ export function TicketListPage() {
     return () => {
       cancelled = true;
     };
-  }, [categoryFilter, departmentFilter, statusFilter, urgencyFilter]);
+  }, [categoryFilter, departmentFilter, hasActiveServerFilters, statusFilter, urgencyFilter]);
 
-  const stats = useMemo(() => computeTicketStats(tickets), [tickets]);
-  const categoryOptions = useMemo(() => getCategoryFilterOptions(tickets), [tickets]);
+  const stats = useMemo(() => computeTicketStats(allTickets), [allTickets]);
+  const categoryOptions = useMemo(() => getCategoryFilterOptions(allTickets), [allTickets]);
 
   const filteredTickets = useMemo(
-    () =>
-      filterTickets(
-        tickets,
-        searchQuery,
-        statusFilter,
-        categoryFilter,
-        urgencyFilter,
-        departmentFilter,
-      ),
-    [tickets, searchQuery, statusFilter, categoryFilter, urgencyFilter, departmentFilter],
+    () => filterTickets(tickets, searchQuery, 'ALL', 'ALL', 'ALL', 'ALL'),
+    [tickets, searchQuery],
   );
 
   return (
@@ -101,7 +116,8 @@ export function TicketListPage() {
             departmentFilter={departmentFilter}
             categoryOptions={categoryOptions}
             resultCount={filteredTickets.length}
-            totalCount={tickets.length}
+            totalCount={allTickets.length}
+            isRefreshing={isRefreshing}
             onSearchChange={setSearchQuery}
             onStatusChange={setStatusFilter}
             onCategoryChange={setCategoryFilter}
@@ -109,9 +125,16 @@ export function TicketListPage() {
             onDepartmentChange={setDepartmentFilter}
           />
 
-          {tickets.length === 0 && <EmptyState />}
+          {errorMessage && !isRefreshing && (
+            <div className="ticket-list-page__error" role="alert">
+              <h3>Unable to update tickets</h3>
+              <p>{errorMessage}</p>
+            </div>
+          )}
 
-          {tickets.length > 0 && filteredTickets.length === 0 && (
+          {allTickets.length === 0 && !hasActiveFilters && <EmptyState />}
+
+          {hasActiveFilters && filteredTickets.length === 0 && (
             <EmptyState
               title="No matching tickets"
               message="Try adjusting your search, status, category, urgency, or department filters to find tickets."

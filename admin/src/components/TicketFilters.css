@@ -130,6 +130,13 @@
   font-weight: 700;
 }
 
+.ticket-filters__refreshing {
+  display: inline-flex;
+  margin-left: 0.45rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
 @media (max-width: 720px) {
   .ticket-filters__select-wrap {
     width: 100%;

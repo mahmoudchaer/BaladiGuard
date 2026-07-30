@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -116,6 +117,42 @@ describe('MapViewPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('ticket-map')).toBeInTheDocument();
     });
-    expect(screen.getByText('1 pins · 1 without coordinates')).toBeInTheDocument();
+    expect(screen.getByText(/1 without coordinates/)).toBeInTheDocument();
+  });
+
+  it('keeps the map visible while filter results refresh', async () => {
+    const user = userEvent.setup();
+    let resolveFilteredTickets: (value: Ticket[]) => void = () => undefined;
+    vi.mocked(fetchTickets)
+      .mockResolvedValueOnce([baseTicket])
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFilteredTickets = resolve;
+        }),
+      );
+    renderPage();
+
+    expect(await screen.findByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
+    await user.click(screen.getByRole('button', { name: 'Resolved' }));
+
+    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Updating...')).toBeInTheDocument();
+    expect(screen.getByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
+
+    resolveFilteredTickets([]);
+    await waitFor(() => expect(screen.queryByText('Updating...')).not.toBeInTheDocument());
+  });
+
+  it('shows a filtered empty state when the server returns no filtered tickets', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTickets).mockResolvedValueOnce([baseTicket]).mockResolvedValueOnce([]);
+    renderPage();
+
+    expect(await screen.findByTestId('ticket-map')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Resolved' }));
+
+    await waitFor(() => expect(fetchTickets).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('No matching tickets')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 1 tickets');
   });
 });

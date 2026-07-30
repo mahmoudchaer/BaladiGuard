@@ -20,6 +20,7 @@ type TicketFiltersProps = {
   categoryOptions: CategoryFilterOption[];
   resultCount: number;
   totalCount: number;
+  isRefreshing?: boolean;
   onSearchChange: (value: string) => void;
   onStatusChange: (status: StatusFilter) => void;
   onCategoryChange: (category: CategoryFilter) => void;
@@ -52,6 +53,7 @@ export function TicketFilters({
   categoryOptions,
   resultCount,
   totalCount,
+  isRefreshing = false,
   onSearchChange,
   onStatusChange,
   onCategoryChange,
@@ -138,6 +140,7 @@ export function TicketFilters({
 
       <p className="ticket-filters__count" aria-live="polite">
         Showing <strong>{resultCount}</strong> of {totalCount} tickets
+        {isRefreshing && <span className="ticket-filters__refreshing">Updating...</span>}
       </p>
     </div>
   );
