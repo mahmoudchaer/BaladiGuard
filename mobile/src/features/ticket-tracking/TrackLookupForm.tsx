@@ -50,9 +50,10 @@ function formatDisplayDate(isoDate: string): string {
 }
 
 function formatCategory(category: string): string {
+  const normalizedCategory = category.toLowerCase();
   return (
-    CATEGORY_LABELS[category] ??
-    category
+    CATEGORY_LABELS[normalizedCategory] ??
+    normalizedCategory
       .split('_')
       .filter(Boolean)
       .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
@@ -214,7 +215,7 @@ export function TrackLookupForm() {
             <TicketTimeline
               variant="citizen"
               emptyMessage="No status updates are available for this report yet."
-              history={result.timeline.map((entry) => ({
+              history={(result.timeline ?? []).map((entry) => ({
                 status: entry.status,
                 changedAt: entry.changedAt,
               }))}
