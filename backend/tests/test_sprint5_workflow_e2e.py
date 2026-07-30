@@ -84,6 +84,9 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     assert public_body["category"] is None
     assert [entry["status"] for entry in public_body["timeline"]] == ["SUBMITTED"]
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(public_body)
+    assert "ai" not in public_body
+    assert "contact" not in public_body
+    assert VALID_PAYLOAD["contact"]["phone"] not in str(public_body)
 
     _assert_unauthorized(anonymous_client.get("/v1/tickets"))
     _assert_unauthorized(anonymous_client.get(f"/v1/tickets/{ticket_id}"))
@@ -177,9 +180,21 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
         "ASSIGNED",
     ]
 
+    audit_action_types = [entry["actionType"] for entry in final_body["auditHistory"]]
+    assert audit_action_types == [
+        "STATUS_CHANGE",
+        "CATEGORY_REVIEW",
+        "DEPARTMENT_ASSIGN",
+        "STATUS_CHANGE",
+    ]
+    status_audits = [
+        entry for entry in final_body["auditHistory"] if entry["actionType"] == "STATUS_CHANGE"
+    ]
+    assert [(entry["previousValue"], entry["newValue"]) for entry in status_audits] == [
+        ("SUBMITTED", "UNDER_REVIEW"),
+        ("UNDER_REVIEW", "ASSIGNED"),
+    ]
     audits_by_type = {entry["actionType"]: entry for entry in final_body["auditHistory"]}
-    assert audits_by_type["STATUS_CHANGE"]["previousValue"] == "UNDER_REVIEW"
-    assert audits_by_type["STATUS_CHANGE"]["newValue"] == "ASSIGNED"
     assert audits_by_type["CATEGORY_REVIEW"]["newValue"] == "road_damage"
     assert audits_by_type["DEPARTMENT_ASSIGN"]["newValue"] == STREET_LIGHTING
 
@@ -230,6 +245,9 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
         "ASSIGNED",
     ]
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(public_after_body)
+    assert "ai" not in public_after_body
+    assert "contact" not in public_after_body
+    assert VALID_PAYLOAD["contact"]["phone"] not in str(public_after_body)
 
     target_notifications = [
         (message.event, message.status, recipient)
