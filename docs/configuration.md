@@ -61,6 +61,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `DUPLICATE_SAME_CATEGORY_WEIGHT` | No | `1.0` | 0..1 |
 | `DUPLICATE_SIMILAR_CATEGORY_WEIGHT` | No | `0.7` | 0..1 |
 | `NOTIFICATION_ADAPTER` | Yes (prod: `real`) | `mock` | `mock` \| `real` |
+| `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
 | `STAFF_USERNAME` | No | `staff` | Backend staff login (#72) |
 | `STAFF_PASSWORD` | Production (non-demo) | demo local default | Local demo only; rotate for production |

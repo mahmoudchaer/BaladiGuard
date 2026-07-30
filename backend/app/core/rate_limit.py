@@ -6,6 +6,8 @@ from threading import Lock
 
 from fastapi import Request
 
+from app.config import get_settings
+
 
 @dataclass(frozen=True)
 class RateLimitPolicy:
@@ -44,6 +46,7 @@ class InMemoryRateLimiter:
         bucket_key = (policy.name, client_key)
 
         with self._lock:
+            self._prune_expired(current_time)
             bucket = self._buckets.get(bucket_key)
             if bucket is None or current_time >= bucket.reset_at:
                 self._buckets[bucket_key] = _Bucket(
@@ -63,6 +66,15 @@ class InMemoryRateLimiter:
         with self._lock:
             self._buckets.clear()
 
+    def _prune_expired(self, current_time: float) -> None:
+        expired_keys = [
+            bucket_key
+            for bucket_key, bucket in self._buckets.items()
+            if current_time >= bucket.reset_at
+        ]
+        for bucket_key in expired_keys:
+            del self._buckets[bucket_key]
+
 
 PUBLIC_TICKET_SUBMISSION_POLICY = RateLimitPolicy(
     name="public-ticket-submission",
@@ -77,9 +89,18 @@ PUBLIC_TICKET_TRACKING_POLICY = RateLimitPolicy(
 public_ticket_rate_limiter = InMemoryRateLimiter()
 
 
-def get_client_rate_limit_key(request: Request) -> str:
+def get_client_rate_limit_key(
+    request: Request,
+    *,
+    trust_x_forwarded_for: bool | None = None,
+) -> str:
+    should_trust_xff = (
+        get_settings().trust_x_forwarded_for
+        if trust_x_forwarded_for is None
+        else trust_x_forwarded_for
+    )
     forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
+    if should_trust_xff and forwarded_for:
         return forwarded_for.split(",", maxsplit=1)[0].strip() or "unknown"
 
     if request.client and request.client.host:

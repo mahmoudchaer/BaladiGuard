@@ -162,9 +162,15 @@ When a client exceeds a limit, the API returns `429` with error code
 staff authentication and are not rate-limited by this public citizen policy.
 
 This is an MVP, per-process memory control. It is deterministic for local and CI memory runs,
-but each deployed worker maintains its own counters. A multi-worker or horizontally scaled
-deployment should replace or front this with a shared limiter such as an API gateway, WAF,
-load balancer rule, Redis-backed limiter, or equivalent managed service.
+but each deployed worker maintains its own counters. Expired per-client buckets are pruned on
+new limiter checks. A multi-worker or horizontally scaled deployment should replace or front
+this with a shared limiter such as an API gateway, WAF, load balancer rule, Redis-backed
+limiter, or equivalent managed service.
+
+By default, rate limiting keys on the direct client host reported to FastAPI. Set
+`TRUST_X_FORWARDED_FOR=true` only when the API is deployed behind a trusted proxy or gateway
+that strips or overwrites client-supplied `X-Forwarded-For` values; when enabled, the limiter
+uses the leftmost forwarded address as the client key.
 
 ### AI intake regression tests
 
