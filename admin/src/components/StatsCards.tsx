@@ -42,7 +42,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
       <div className="stats-overview__heading">
         <div>
           <p className="stats-overview__eyebrow">Operations overview</p>
-          <h2 id="stats-overview-title">Today’s ticket health</h2>
+          <h2 id="stats-overview-title">Current ticket health</h2>
         </div>
         <p className="stats-overview__caption">Live summary of the current municipal workload</p>
       </div>
