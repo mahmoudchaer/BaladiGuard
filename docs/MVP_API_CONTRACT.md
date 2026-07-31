@@ -187,17 +187,23 @@ Route permissions are explicit:
 | OTP request/verify | Login/signup purpose only | Own phone-change purpose | N/A | N/A |
 | Current profile, logout, and own history | Deny | Own resources | N/A | N/A |
 | `POST /v1/uploads/report-photo` and `POST /v1/tickets` | Deny | Contribution-ready own session | N/A | N/A |
-| Staff ticket list/detail and status/category/department actions | Deny | Deny | Scoped tickets | All tickets |
+| Staff ticket list/detail and all staff ticket mutations, including status/category/department actions and `POST /v1/tickets/merge` | Deny | Deny | Scoped tickets | All tickets |
 | Staff identity/contact fields | Deny | Deny | Authorized operational need and scope only | Authorized administrative need |
 | Staff/role, municipality, and department administration | Deny | Deny | Deny | Allow |
 
 Authentication is checked before authorization. Missing, malformed, expired, revoked, or wrong-audience
-credentials return `401 UNAUTHORIZED`; a valid principal lacking the route permission or staff scope
-returns `403 FORBIDDEN`. Staff scope checks must be enforced server-side from the staff session and
-stored role/scope, never from client-supplied `municipalityId`, `departmentId`, or owner fields. A
-municipal staff request for a ticket outside its municipality/department scope returns `403` without
-revealing whether an out-of-scope ticket exists. Administrator access is audited for identity/contact
-reads and cross-municipality mutations.
+credentials return `401 UNAUTHORIZED`; a valid principal lacking the route permission returns `403
+FORBIDDEN`. Citizen contribution failures retain the named `ACCOUNT_INACTIVE` and
+`CONTRIBUTION_PROFILE_REQUIRED` codes defined above. Staff scope checks must be enforced server-side
+from the staff session and stored role/scope, never from client-supplied `municipalityId`,
+`departmentId`, or owner fields. For ticket resources, authorization occurs after loading the
+resource, and a missing ticket or a ticket outside the caller's scope returns the identical `404
+TICKET_NOT_FOUND` response. This prevents an ID probe from distinguishing nonexistent from
+out-of-scope tickets. Non-resource permission failures continue to return `403 FORBIDDEN`.
+Municipal staff may list and read unassigned tickets (`departmentId = null`) in their municipality
+for triage; they may assign them only through the department-assignment action, after which normal
+department scope applies. Administrator access is audited for identity/contact reads and
+cross-municipality mutations.
 
 ## Staff authentication
 
@@ -239,8 +245,15 @@ Exchanges staff username/password for a Bearer access token.
 ```
 
 `role`, `municipalityId`, and `departmentIds` are server-derived authorization scope. Clients may
-display them but cannot modify or use request-body copies to expand access. Global administrators
-return `role: "administrator"`, `municipalityId: null`, and the effective department scope.
+display them but cannot modify or use request-body copies to expand access. A municipal staff login
+returns its assigned department IDs. A global administrator login returns exactly
+`role: "administrator"`, `municipalityId: null`, and `departmentIds: null`; `null` is the explicit
+all-departments sentinel and is never an empty assignment. The same values are used in staff token
+claims and authorization checks.
+
+`N/A` in the permission matrix means that role is not a valid principal for that route. If a staff
+token is presented to a citizen-only OTP/profile route, the audience check returns `403 FORBIDDEN`;
+it is not treated as a guest request.
 
 ### Response `401`
 

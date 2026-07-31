@@ -177,16 +177,18 @@ by any API. The staff principal used for authorization contains:
 | `staffId` | string | Yes | Stable staff identity key. |
 | `role` | enum | Yes | `municipal_staff` or `administrator`. |
 | `municipalityId` | string, nullable | Conditional | Required for `municipal_staff`; null for global administrators. |
-| `departmentIds` | string[] | Yes | Assigned departments for `municipal_staff`; all departments for administrators. |
+| `departmentIds` | string[] or null | Conditional | Assigned departments for `municipal_staff`; `null` for administrators, meaning all departments. An empty array is not a valid administrator sentinel. |
 | `active` | boolean | Yes | Inactive staff cannot authenticate; deactivation revokes staff sessions. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last update time. |
 
 Staff authorization is derived from the verified staff session and these stored role/scope fields.
 Client-supplied municipality, department, owner, or actor identifiers never expand authority.
-Municipal staff may operate only on tickets in their municipality and assigned departments;
-administrators may operate across municipalities. Identity/contact reads are least-privilege and
-audited. A separate staff persistence/credential table may be introduced by the staff-auth work;
+Municipal staff may list/read unassigned tickets in their municipality for triage, and may assign
+those tickets through the department-assignment action; other ticket mutations require the ticket's
+department to be in their assigned scope. Administrators with `departmentIds = null` may operate
+across municipalities and departments. Identity/contact reads are least-privilege and audited. A
+separate staff persistence/credential table may be introduced by the staff-auth work;
 the citizen `users` table and phone-claim table are not used for staff login.
 
 ## 5. TicketStatusHistory
