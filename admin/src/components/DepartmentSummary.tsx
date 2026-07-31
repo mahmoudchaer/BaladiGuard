@@ -30,14 +30,29 @@ export function DepartmentSummary({ tickets }: DepartmentSummaryProps) {
             <div className="department-summary__item" key={item.departmentId ?? 'unassigned'}>
               <div className="department-summary__item-head">
                 <div className="department-summary__name">
-                  <span className={`department-summary__dot${item.unassigned ? ' department-summary__dot--unassigned' : ''}`} aria-hidden="true" />
+                  <span
+                    className={`department-summary__dot${item.unassigned ? ' department-summary__dot--unassigned' : ''}`}
+                    aria-hidden="true"
+                  />
                   <strong>{item.name}</strong>
-                  {item.unassigned && <span className="department-summary__badge">Needs routing</span>}
+                  {item.unassigned && (
+                    <span className="department-summary__badge">Needs routing</span>
+                  )}
                 </div>
                 <strong className="department-summary__count">{item.count}</strong>
               </div>
-              <div className="department-summary__track" role="meter" aria-label={`${item.name} workload`} aria-valuemin={0} aria-valuemax={maxCount} aria-valuenow={item.count}>
-                <span className={`department-summary__bar${item.unassigned ? ' department-summary__bar--unassigned' : ''}`} style={{ width: `${Math.max((item.count / maxCount) * 100, 3)}%` }} />
+              <div
+                className="department-summary__track"
+                role="meter"
+                aria-label={`${item.name} workload`}
+                aria-valuemin={0}
+                aria-valuemax={maxCount}
+                aria-valuenow={item.count}
+              >
+                <span
+                  className={`department-summary__bar${item.unassigned ? ' department-summary__bar--unassigned' : ''}`}
+                  style={{ width: `${Math.max((item.count / maxCount) * 100, 3)}%` }}
+                />
               </div>
               <div className="department-summary__meta">
                 {item.assignedCount > 0 && <span>{item.assignedCount} assigned</span>}
