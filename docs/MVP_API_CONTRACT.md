@@ -218,6 +218,11 @@ department assignment (issue #141) should reuse the shared `require_staff` depen
 
 ## `POST /v1/staff/login`
 
+The current MVP still uses the shared `STAFF_USERNAME` / `STAFF_PASSWORD` credentials and returns
+the existing staff token shape. The role, municipality, and department scope fields shown below are
+the Sprint 6 target contract; they are not a requirement to expand the current shared-credential
+implementation in this issue.
+
 Exchanges staff username/password for a Bearer access token.
 
 ### Request body
@@ -252,8 +257,8 @@ all-departments sentinel and is never an empty assignment. The same values are u
 claims and authorization checks.
 
 `N/A` in the permission matrix means that role is not a valid principal for that route. If a staff
-token is presented to a citizen-only OTP/profile route, the audience check returns `403 FORBIDDEN`;
-it is not treated as a guest request.
+token is presented to a citizen-only OTP/profile route, the wrong-audience authentication check
+returns `401 UNAUTHORIZED` with `WWW-Authenticate: Bearer`; it is not treated as a guest request.
 
 ### Response `401`
 
