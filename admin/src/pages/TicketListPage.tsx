@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { TicketTable } from '@/components/TicketTable';
 import { StatsCards } from '@/components/StatsCards';
 import { CategoryDistributionChart } from '@/components/CategoryDistributionChart';
+import { DepartmentSummary } from '@/components/DepartmentSummary';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
@@ -110,6 +111,8 @@ export function TicketListPage() {
           <StatsCards stats={stats} />
 
           <CategoryDistributionChart tickets={allTickets} />
+
+          <DepartmentSummary tickets={allTickets} />
 
           <TicketFilters
             searchQuery={searchQuery}
