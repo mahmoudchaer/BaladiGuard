@@ -166,6 +166,29 @@ remain trackable and publicly anonymous. Linking requires verified ownership of 
 snapshot phone plus separate ticket proof, uses a conditional `attribute_not_exists(ownerUserId)`
 update, and writes an audit event. No migration infers ownership from email or contact data alone.
 
+### StaffUser and authorization scope
+
+Staff identities and credentials are separate from `CitizenUser`. Staff may retain the existing
+password-backed MVP authentication; no staff password hash is stored in a citizen record or returned
+by any API. The staff principal used for authorization contains:
+
+| Attribute | Type | Required | Description |
+| --- | --- | --- | --- |
+| `staffId` | string | Yes | Stable staff identity key. |
+| `role` | enum | Yes | `municipal_staff` or `administrator`. |
+| `municipalityId` | string, nullable | Conditional | Required for `municipal_staff`; null for global administrators. |
+| `departmentIds` | string[] | Yes | Assigned departments for `municipal_staff`; all departments for administrators. |
+| `active` | boolean | Yes | Inactive staff cannot authenticate; deactivation revokes staff sessions. |
+| `createdAt` | string | Yes | ISO 8601 creation time. |
+| `updatedAt` | string | Yes | ISO 8601 last update time. |
+
+Staff authorization is derived from the verified staff session and these stored role/scope fields.
+Client-supplied municipality, department, owner, or actor identifiers never expand authority.
+Municipal staff may operate only on tickets in their municipality and assigned departments;
+administrators may operate across municipalities. Identity/contact reads are least-privilege and
+audited. A separate staff persistence/credential table may be introduced by the staff-auth work;
+the citizen `users` table and phone-claim table are not used for staff login.
+
 ## 5. TicketStatusHistory
 
 | Attribute | Type | Description |

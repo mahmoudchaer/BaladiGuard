@@ -167,6 +167,38 @@ phone claim. It may associate an existing `userId`, but it must not create a con
 citizen or mark a phone verified unless the separately approved WhatsApp verification policy provides
 equivalent proof.
 
+### Roles, permissions, and staff scope
+
+The API recognizes three authorization roles. A citizen principal is identified by `userId` and a
+citizen session. Staff principals use a separate staff identity and credential/session system.
+
+| Role | Identity and scope | Allowed actions |
+|---|---|---|
+| `citizen` | Stable `userId`; no municipality/department authority. | Public browsing and tracking; own profile/session/history; contribution-ready ticket and photo submission. A citizen can never read another citizen's profile/history or perform staff mutations. |
+| `municipal_staff` | Staff identity scoped to one `municipalityId` and one or more assigned `departmentId` values. | Read and mutate tickets in that municipality and assigned departments, according to the route's action; view identity/contact only for authorized operational handling. No staff-account or cross-municipality administration. |
+| `administrator` | Staff identity with global municipality/department scope. | All `municipal_staff` actions plus staff/role assignment, municipality and department administration, and cross-scope operational access. |
+
+Route permissions are explicit:
+
+| Route/action | Guest | Citizen | Municipal staff | Administrator |
+|---|---:|---:|---:|---:|
+| Public map/report list/detail and tracking lookup | Allow | Allow | Allow | Allow |
+| `POST /v1/locations/validate` draft validation | Allow | Allow | Allow | Allow |
+| OTP request/verify | Login/signup purpose only | Own phone-change purpose | N/A | N/A |
+| Current profile, logout, and own history | Deny | Own resources | N/A | N/A |
+| `POST /v1/uploads/report-photo` and `POST /v1/tickets` | Deny | Contribution-ready own session | N/A | N/A |
+| Staff ticket list/detail and status/category/department actions | Deny | Deny | Scoped tickets | All tickets |
+| Staff identity/contact fields | Deny | Deny | Authorized operational need and scope only | Authorized administrative need |
+| Staff/role, municipality, and department administration | Deny | Deny | Deny | Allow |
+
+Authentication is checked before authorization. Missing, malformed, expired, revoked, or wrong-audience
+credentials return `401 UNAUTHORIZED`; a valid principal lacking the route permission or staff scope
+returns `403 FORBIDDEN`. Staff scope checks must be enforced server-side from the staff session and
+stored role/scope, never from client-supplied `municipalityId`, `departmentId`, or owner fields. A
+municipal staff request for a ticket outside its municipality/department scope returns `403` without
+revealing whether an out-of-scope ticket exists. Administrator access is audited for identity/contact
+reads and cross-municipality mutations.
+
 ## Staff authentication
 
 Staff credentials are configured on the backend (`STAFF_USERNAME` / `STAFF_PASSWORD`) and signed
@@ -197,10 +229,18 @@ Exchanges staff username/password for a Bearer access token.
 {
   "accessToken": "<signed-token>",
   "tokenType": "Bearer",
+  "staffId": "staff_001",
   "username": "staff",
+  "role": "municipal_staff",
+  "municipalityId": "mun_beirut",
+  "departmentIds": ["dept_roads", "dept_lighting"],
   "expiresIn": 43200
 }
 ```
+
+`role`, `municipalityId`, and `departmentIds` are server-derived authorization scope. Clients may
+display them but cannot modify or use request-body copies to expand access. Global administrators
+return `role: "administrator"`, `municipalityId: null`, and the effective department scope.
 
 ### Response `401`
 
