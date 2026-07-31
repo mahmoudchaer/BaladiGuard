@@ -26,18 +26,29 @@ const CARDS = [
     accent: 'stats-card--amber',
   },
   {
-    key: 'resolved' as const,
-    label: 'Resolved',
+    key: 'completed' as const,
+    label: 'Completed Tickets',
     Icon: IconCheckCircle,
     accent: 'stats-card--green',
   },
 ];
 
 export function StatsCards({ stats }: StatsCardsProps) {
+  const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+  const urgencyRate = stats.total > 0 ? Math.round((stats.highUrgency / stats.total) * 100) : 0;
+
   return (
-    <div className="stats-cards" role="group" aria-label="Ticket summary">
+    <section className="stats-overview" aria-labelledby="stats-overview-title">
+      <div className="stats-overview__heading">
+        <div>
+          <p className="stats-overview__eyebrow">Operations overview</p>
+          <h2 id="stats-overview-title">Today’s ticket health</h2>
+        </div>
+        <p className="stats-overview__caption">Live summary of the current municipal workload</p>
+      </div>
+      <div className="stats-cards" role="group" aria-label="Ticket summary">
       {CARDS.map((card) => (
-        <div key={card.key} className={`stats-card ${card.accent}`}>
+        <article key={card.key} className={`stats-card ${card.accent}`}>
           <div className="stats-card__icon" aria-hidden="true">
             <card.Icon />
           </div>
@@ -45,8 +56,18 @@ export function StatsCards({ stats }: StatsCardsProps) {
             <p className="stats-card__value">{stats[card.key]}</p>
             <p className="stats-card__label">{card.label}</p>
           </div>
-        </div>
+          <span className="stats-card__context">
+            {card.key === 'completed'
+              ? `${completionRate}% of all tickets`
+              : card.key === 'highUrgency'
+                ? `${urgencyRate}% need priority attention`
+                : card.key === 'open'
+                  ? `${stats.total > 0 ? Math.round((stats.open / stats.total) * 100) : 0}% of workload`
+                  : 'Across all statuses'}
+          </span>
+        </article>
       ))}
-    </div>
+      </div>
+    </section>
   );
 }

@@ -28,6 +28,17 @@ const baseTicket: Ticket = {
 };
 
 describe('computeTicketStats', () => {
+  it('counts resolved and closed tickets as completed', () => {
+    const stats = computeTicketStats([
+      { ...baseTicket, ticketId: 'tkt_resolved', status: 'RESOLVED' },
+      { ...baseTicket, ticketId: 'tkt_closed', status: 'CLOSED' },
+      { ...baseTicket, ticketId: 'tkt_open', status: 'IN_PROGRESS' },
+    ]);
+
+    expect(stats.completed).toBe(2);
+    expect(stats.open).toBe(1);
+  });
+
   it('counts high and critical tickets as high urgency', () => {
     const stats = computeTicketStats([
       { ...baseTicket, ticketId: 'tkt_high', priority: 'high' },
