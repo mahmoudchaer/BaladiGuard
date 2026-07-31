@@ -47,26 +47,26 @@ export function StatsCards({ stats }: StatsCardsProps) {
         <p className="stats-overview__caption">Live summary of the current municipal workload</p>
       </div>
       <div className="stats-cards" role="group" aria-label="Ticket summary">
-      {CARDS.map((card) => (
-        <article key={card.key} className={`stats-card ${card.accent}`}>
-          <div className="stats-card__icon" aria-hidden="true">
-            <card.Icon />
-          </div>
-          <div className="stats-card__body">
-            <p className="stats-card__value">{stats[card.key]}</p>
-            <p className="stats-card__label">{card.label}</p>
-          </div>
-          <span className="stats-card__context">
-            {card.key === 'completed'
-              ? `${completionRate}% of all tickets`
-              : card.key === 'highUrgency'
-                ? `${urgencyRate}% need priority attention`
-                : card.key === 'open'
-                  ? `${stats.total > 0 ? Math.round((stats.open / stats.total) * 100) : 0}% of workload`
-                  : 'Across all statuses'}
-          </span>
-        </article>
-      ))}
+        {CARDS.map((card) => (
+          <article key={card.key} className={`stats-card ${card.accent}`}>
+            <div className="stats-card__icon" aria-hidden="true">
+              <card.Icon />
+            </div>
+            <div className="stats-card__body">
+              <p className="stats-card__value">{stats[card.key]}</p>
+              <p className="stats-card__label">{card.label}</p>
+            </div>
+            <span className="stats-card__context">
+              {card.key === 'completed'
+                ? `${completionRate}% of all tickets`
+                : card.key === 'highUrgency'
+                  ? `${urgencyRate}% need priority attention`
+                  : card.key === 'open'
+                    ? `${stats.total > 0 ? Math.round((stats.open / stats.total) * 100) : 0}% of workload`
+                    : 'Across all statuses'}
+            </span>
+          </article>
+        ))}
       </div>
     </section>
   );
