@@ -69,9 +69,31 @@ The goal is to make the platform useful for prioritization, not just reporting.
 
 ### Sprint 6: Citizen Tracking, Notifications, and Security
 
-Sprint 6 was adjusted because it was too light before. It now includes citizen ticket tracking, ticket lookup validation, ticket timeline, notification logic, notification templates, staff authentication, and API authorization checks.
+Sprint 6 uses the phone-first citizen identity and privacy contract in issue #193 and
+`docs/MVP_API_CONTRACT.md`. Public users may browse citizen-safe map/report data without an account,
+but every new contribution requires an active authenticated citizen with a verified canonical phone
+and valid full name. Citizen login is passwordless OTP. Email is optional notification data only;
+citizens have no passwords or email recovery. Public attribution is anonymous by default and is
+shown dynamically only when the citizen opts in. Staff authentication remains separate.
 
 By the end of this sprint, citizens should be able to check ticket progress, and staff-only actions should be protected.
+
+#### Required issue alignment after #193
+
+The following wording is the implementation interpretation for the existing issue bodies. The issue
+bodies should be updated with these replacements before work begins; if they are not yet edited,
+this section and the API/database contracts take precedence over conflicting older text.
+
+| Issue | Replace conflicting wording with this exact requirement |
+|---|---|
+| #168 | “Phone is the canonical citizen identity. Citizens use passwordless phone OTP and opaque server-side sessions; citizen and staff identities/credentials are separate. Public browsing and tracking remain unauthenticated, while contributions require an active citizen with a verified canonical phone and valid full name. Ticket ownership uses stable `userId`; contact is an immutable submission-time snapshot; public-name visibility is dynamic and anonymous by default.” |
+| #169 | “Persist citizen `userId`, canonical phone, `phoneVerifiedAt`, full name, nullable non-unique email, notification preferences, `publicNameVisible`, active state, and timestamps. Enforce phone uniqueness with a transactional phone-claim record; a GSI is not the uniqueness authority. Do not persist citizen password/reset metadata and do not create an email identity index.” |
+| #170 | “Implement phone OTP request/verify, opaque 30-day server-side citizen sessions, logout/revocation, current-user, and safe expiry/error behavior. Replace password signup/login and invalid-password tests with OTP challenge, attempt-limit, single-use, expiry, generic response, session audience, and revocation tests.” |
+| #171 | “Build phone OTP request/verification and first-time full-name collection. Persist the citizen session securely, return to the intended screen, and handle invalid/expired codes, resend, throttling, offline state, session restore, and logout. Do not add citizen password or email-login/recovery screens.” |
+| #172 | “Profile displays verified phone, full name, optional email, notification preferences, and public-name visibility. Phone changes require a newly verified OTP and atomic claim transfer. Email is non-unique and cannot log in or recover the account; public visibility changes apply dynamically to existing reports.” |
+| #173 | “`POST /v1/tickets` requires a contribution-ready citizen, derives immutable `ownerUserId` from the session, and snapshots profile contact at submission. Reject guests and revoked inactive-account sessions with `401`, and active but incomplete citizens with `403`; keep public browse and tracking routes unauthenticated. Never accept a client-supplied owner ID.” |
+| #174 | “Citizen history is protected and derives stable `userId` from the verified session. It returns only citizen-safe fields for that owner. Public list/detail and possession-based tracking remain separate public contracts and expose no account/contact identifiers.” |
+| #178 | “Limit this issue to staff password recovery and staff UI entry points. Citizens are passwordless; email cannot recover a phone identity. Remove citizen forgot-password/reset endpoints, forms, dependencies, and tests unless a separate exceptional-recovery design is approved.” |
 
 ### Sprint 7: Staff Assistant and Analytics
 

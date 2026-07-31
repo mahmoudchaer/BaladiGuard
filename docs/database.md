@@ -16,9 +16,10 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | --- | --- | --- | --- |
 | `description` | string | Yes | Citizen description of the issue. |
 | `contact` | object | Yes | Contact snapshot at submission time. |
-| `contact.name` | string | No | Optional citizen name. |
-| `contact.phone` | string | Conditional | Required if `contact.email` is absent. |
-| `contact.email` | string | Conditional | Required if `contact.phone` is absent. |
+| `contact.name` | string | Yes for account-owned tickets | Immutable submission-time snapshot of the citizen's full name. Private. |
+| `contact.phone` | string | Yes for account-owned tickets | Immutable submission-time snapshot of the citizen's canonical verified E.164 phone. Private. |
+| `contact.email` | string, nullable | No | Immutable submission-time snapshot of optional notification email. Private and non-identifying. |
+| `contact.preferredChannel` | enum, nullable | No | Immutable submission-time notification choice: `SMS`, `EMAIL`, or null when ticket updates are disabled. |
 | `location` | object | Yes | Report location. |
 | `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
 | `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
@@ -31,6 +32,7 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | Attribute | Type | Required | Description |
 | --- | --- | --- | --- |
 | `ticketId` | string | Yes | Primary key. Format: `tkt_<hex>`. |
+| `ownerUserId` | string, nullable | No | Stable citizen owner derived from authentication. Null/absent only for legacy/unlinked tickets. Never accepted from a client. |
 | `ticketNumber` | string | Yes | Citizen-facing ticket number, e.g. `BG-2026-0001`. |
 | `trackingCode` | string | Yes | Citizen-facing tracking code, e.g. `AB12CD`. |
 | `status` | enum | Yes | Initial value: `SUBMITTED`. |
@@ -54,7 +56,7 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `priority` | enum | No | `low`, `medium`, `high`, or `critical`. Set by AI urgency estimation. |
 | `urgencyScore` | number, nullable | No | Urgency score from `0` to `100` when available. |
 | `urgencyReason` | string, nullable | No | Staff-facing explanation for the urgency score when available. |
-| `createdBy` | string | No | User identifier once authentication is wired. |
+| `createdBy` | string | No | Staff/system actor identifier for workflow mutations; citizen ownership uses `ownerUserId`. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
 | `departmentId` | string | No | Staff-assigned / currently effective department. |
 | `suggestedDepartmentId` | string | No | Automatic department suggestion; preserved when staff overrides `departmentId`. |
@@ -68,7 +70,6 @@ These API request fields are accepted at submission time but are not stored on t
 | API field | Reason |
 | --- | --- |
 | `languageHint` | Client default; processed transiently when AI is wired. |
-| `contact.preferredChannel` | Derived by the client from contact details. |
 | `clientMetadata` | Ephemeral client telemetry for the request lifecycle. |
 
 ## 2. Municipality
@@ -90,20 +91,80 @@ These API request fields are accepted at submission time but are not stored on t
 | `name` | string | Department name. |
 | `description` | string | Department responsibilities. |
 
-## 4. User
+## 4. CitizenUser
+
+Citizen identities are separate from staff credential records. A citizen has no password hash,
+password metadata, reset token, or email identity. Staff may continue to use a separate password
+contract and persistence model.
+
+| Attribute | Type | Required | Description |
+| --- | --- | --- | --- |
+| `userId` | string | Yes | Stable primary/ownership key, format `usr_<hex>`. Never changes with profile fields. |
+| `phone` | string | Yes | Canonical verified E.164 phone and login/reconciliation key. |
+| `phoneVerifiedAt` | string | Yes | ISO 8601 time at which the current `phone` was verified. Replaced atomically on phone change. |
+| `fullName` | string | Yes for contribution | Trimmed 1–120 character name. May be temporarily absent only during first verified-phone onboarding. |
+| `email` | string, nullable | No | Optional secondary notification/receipt address. Not unique and never used for identity, login, ownership, or automatic recovery. |
+| `notificationPreferences` | object | Yes | Opt-in channel/event preferences; defaults to no optional communications. SMS service messages required for authentication are not marketing preferences. |
+| `notificationPreferences.ticketUpdates` | enum | Yes | `SMS`, `EMAIL`, `BOTH`, or `NONE`; `EMAIL`/`BOTH` requires non-null email. |
+| `notificationPreferences.announcements` | boolean | Yes | Explicit announcement opt-in; default `false`. |
+| `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. |
+| `active` | boolean | Yes | Default `true`. OTP verification for an inactive account returns `403 ACCOUNT_INACTIVE` without issuing a session; deactivation immediately revokes existing sessions. |
+| `createdAt` | string | Yes | ISO 8601 creation time. |
+| `updatedAt` | string | Yes | ISO 8601 last profile update time. |
+
+`contributionReady` is derived, not stored: `active = true`, `phoneVerifiedAt` is non-null for the
+current phone, and trimmed `fullName` is 1–120 characters. `email` and `publicNameVisible` do not
+affect contribution eligibility.
+
+At ticket creation, `notificationPreferences.ticketUpdates` maps into the immutable singular
+snapshot as follows: `SMS` → `SMS`, `EMAIL` → `EMAIL`, `BOTH` → `SMS` (MVP primary with email as a
+fallback), and `NONE` → null. Profile changes never rewrite this snapshot.
+
+### Phone normalization and atomic uniqueness
+
+The sole canonical representation is E.164 (`+` plus 8–15 digits). Every account, OTP, login,
+lookup, phone change, legacy linking, and future WhatsApp path must use the exact normalization rules
+in [the API contract](./MVP_API_CONTRACT.md#canonical-phone-normalization) before persistence.
+
+A `phone-claims` table provides the uniqueness authority:
 
 | Attribute | Type | Description |
 | --- | --- | --- |
-| `userId` | string | Primary key. |
-| `municipalityId` | string, nullable | Municipality for staff users. |
-| `phone` | string, nullable | Unique when present. |
-| `email` | string, nullable | Unique when present. |
-| `fullName` | string, nullable | Optional display name. |
-| `role` | enum | `citizen` or `municipality_admin`. |
-| `reputationScore` | number | Trust score. Default `0`. |
-| `createdAt` | string | ISO 8601 timestamp. |
+| `phoneKey` | string | Partition key, exact value `PHONE#<canonical E.164>`. |
+| `userId` | string | Owner of the claimed phone. |
+| `createdAt` | string | ISO 8601 claim time. |
 
-At least one of `phone` or `email` is required for citizen users.
+Account creation uses one DynamoDB `TransactWriteItems`: conditionally put the claim with
+`attribute_not_exists(phoneKey)` and put the citizen record with `attribute_not_exists(userId)`.
+Either both succeed or neither does. A phone change first verifies a purpose-bound OTP, then one
+transaction conditionally creates the new claim, conditionally updates the user while the old phone
+still matches, and deletes the old claim only when its `userId` matches. Deactivation retains the
+claim so another person cannot silently inherit the identity; release/reassignment is outside MVP.
+A `phone-index` GSI on users may be retained only as a read optimization/reconciliation aid and is
+never used to enforce uniqueness. There is no `email-index`.
+
+### Citizen sessions and OTP challenges
+
+`citizen-otp-challenges` stores challenge ID, keyed code hash, canonical phone, purpose, expiry,
+attempt count, consumed time, and abuse-control metadata with TTL cleanup. Plain OTP codes are never
+stored. Conditional updates enforce single use and the five-attempt limit.
+
+`citizen-sessions` stores a session ID/partition key, keyed token hash, `userId`, creation/expiry,
+revocation time/reason, and last-seen metadata. Opaque tokens expire absolutely after 30 days.
+Logout and security events revoke server-side records immediately. These records contain no citizen
+password fields or staff credentials.
+
+### Ticket ownership, privacy, and legacy data
+
+`ownerUserId` is immutable ownership; `contact` is the immutable private submission snapshot. Public
+name attribution never reads the snapshot: it dynamically resolves the active owner's current
+`publicNameVisible` and `fullName`, otherwise returns `Anonymous`. Profile changes do not rewrite
+contact snapshots.
+
+Pre-account tickets remain valid with `ownerUserId = null` and their existing contact shape. They
+remain trackable and publicly anonymous. Linking requires verified ownership of the normalized
+snapshot phone plus separate ticket proof, uses a conditional `attribute_not_exists(ownerUserId)`
+update, and writes an audit event. No migration infers ownership from email or contact data alone.
 
 ## 5. TicketStatusHistory
 
@@ -191,13 +252,12 @@ Behavior:
 ```text
 Municipality (1)
 ├── Department (N)
-├── User (N)
 └── Ticket (N)
 
 Department (1)
 └── Ticket (N)
 
-User (1)
+CitizenUser (1)
 └── Ticket (N)
 
 Ticket (1)
@@ -274,7 +334,10 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | Table suffix | Partition key | Notes |
 |---|---|---|
 | `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode` |
-| `users` | `userId` | GSIs on `phone`, `email` |
+| `users` | `userId` | Optional `phone-index` read optimization only; no email index |
+| `phone-claims` | `phoneKey` | Atomic canonical-phone uniqueness authority; no GSI required |
+| `citizen-otp-challenges` | `challengeId` | TTL on expiry; optional abuse-control indexes must not expose code material |
+| `citizen-sessions` | `sessionId` | GSI on `userId` for account-wide revocation; TTL on expiry |
 | `municipalities` | `municipalityId` | |
 | `departments` | `departmentId` | GSI on `municipalityId` |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |

@@ -67,14 +67,19 @@ Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb
 | `make db-seed` | Load municipalities, departments, and categories |
 | `make db-reset` | Delete project tables, recreate them, and seed again |
 
-## Tables created
+## Current tables and Sprint 6 target
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
+Rows marked **#169 target** are contractually required but are not created until that implementation
+lands; they are listed here so the local migration remains aligned with `docs/database.md`.
 
 | Table | Partition key | GSIs |
 |---|---|---|
 | `baladiguard-tickets` | `ticketId` | `ticketNumber-index`, `trackingCode-index` |
-| `baladiguard-users` | `userId` | `phone-index`, `email-index` |
+| `baladiguard-users` | `userId` | Current pre-Sprint-6 schema has `phone-index`, `email-index`; #169 must remove `email-index` and treat `phone-index` as lookup-only per `docs/database.md`. |
+| `baladiguard-phone-claims` | `phoneKey` | **#169 target:** no GSI; transactional phone-uniqueness authority. |
+| `baladiguard-citizen-otp-challenges` | `challengeId` | **#169 target:** TTL on expiry; optional abuse-control indexes. |
+| `baladiguard-citizen-sessions` | `sessionId` | **#169 target:** `userId-index`; TTL on expiry. |
 | `baladiguard-municipalities` | `municipalityId` | — |
 | `baladiguard-departments` | `departmentId` | `municipalityId-index` |
 | `baladiguard-ticket-status-history` | `historyId` | `ticketId-index` |
