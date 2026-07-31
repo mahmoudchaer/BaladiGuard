@@ -7,33 +7,149 @@
   box-shadow: var(--shadow-sm);
 }
 
-.category-chart__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.2rem; }
-.category-chart__eyebrow { margin: 0 0 .15rem; color: var(--lb-green-dark); font-size: .68rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
-.category-chart h2 { margin: 0; font-size: 1.1rem; letter-spacing: -.02em; }
-.category-chart__total { color: var(--color-text-muted); font-size: .75rem; font-weight: 700; }
-.category-chart__rows { display: grid; gap: .9rem; }
-.category-chart__row { display: grid; grid-template-columns: minmax(10rem, 1.2fr) minmax(8rem, 3fr) 3rem; align-items: center; gap: 1rem; }
-.category-chart__label { display: flex; align-items: center; gap: .55rem; min-width: 0; color: var(--color-text-secondary); font-size: .8rem; font-weight: 600; }
-.category-chart__label span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.category-chart__label strong { margin-left: auto; color: var(--color-text); font-size: .85rem; }
-.category-chart__dot { width: .55rem; height: .55rem; flex: 0 0 auto; border-radius: 50%; background: #64748b; }
-.category-chart__track { height: .55rem; overflow: hidden; border-radius: 999px; background: #edf0f3; }
-.category-chart__bar { display: block; height: 100%; min-width: .3rem; border-radius: inherit; background: #64748b; transition: width .35s ease; }
-.category-chart__percentage { color: var(--color-text-muted); font-size: .75rem; font-variant-numeric: tabular-nums; text-align: right; }
-.category-chart__empty { display: grid; justify-items: center; padding: 1.5rem; border: 1px dashed var(--color-border); border-radius: var(--radius-md); color: var(--color-text-muted); text-align: center; }
-.category-chart__empty p { margin: .35rem 0 .1rem; color: var(--color-text-secondary); font-size: .85rem; font-weight: 700; }
-.category-chart__empty span:last-child { font-size: .75rem; }
-.category-chart__empty-mark { color: var(--lb-green); font-size: 1.4rem; font-weight: 700; }
+.category-chart__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+.category-chart__eyebrow {
+  margin: 0 0 0.15rem;
+  color: var(--lb-green-dark);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.category-chart h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+.category-chart__total {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.category-chart__rows {
+  display: grid;
+  gap: 0.9rem;
+}
+.category-chart__row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.2fr) minmax(8rem, 3fr) 3rem;
+  align-items: center;
+  gap: 1rem;
+}
+.category-chart__label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.category-chart__label span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.category-chart__label strong {
+  margin-left: auto;
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+.category-chart__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #64748b;
+}
+.category-chart__track {
+  height: 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf0f3;
+}
+.category-chart__bar {
+  display: block;
+  height: 100%;
+  min-width: 0.3rem;
+  border-radius: inherit;
+  background: #64748b;
+  transition: width 0.35s ease;
+}
+.category-chart__percentage {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.category-chart__empty {
+  display: grid;
+  justify-items: center;
+  padding: 1.5rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+.category-chart__empty p {
+  margin: 0.35rem 0 0.1rem;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.category-chart__empty span:last-child {
+  font-size: 0.75rem;
+}
+.category-chart__empty-mark {
+  color: var(--lb-green);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
 
-.category-chart__dot--waste, .category-chart__bar--waste { background: var(--lb-green); }
-.category-chart__dot--traffic-signal, .category-chart__bar--traffic-signal { background: var(--lb-red); }
-.category-chart__dot--street-lighting, .category-chart__bar--street-lighting { background: #c47d1a; }
-.category-chart__dot--water-leak, .category-chart__bar--water-leak, .category-chart__dot--drainage, .category-chart__bar--drainage { background: #1d5a7a; }
-.category-chart__dot--noise, .category-chart__bar--noise { background: #6b3d6b; }
-.category-chart__dot--sidewalk-damage, .category-chart__bar--sidewalk-damage { background: #7a4a2a; }
-.category-chart__dot--road-damage, .category-chart__bar--road-damage { background: #8b6914; }
-.category-chart__dot--public-facilities, .category-chart__bar--public-facilities { background: #3d5a6b; }
+.category-chart__dot--waste,
+.category-chart__bar--waste {
+  background: var(--lb-green);
+}
+.category-chart__dot--traffic-signal,
+.category-chart__bar--traffic-signal {
+  background: var(--lb-red);
+}
+.category-chart__dot--street-lighting,
+.category-chart__bar--street-lighting {
+  background: #c47d1a;
+}
+.category-chart__dot--water-leak,
+.category-chart__bar--water-leak,
+.category-chart__dot--drainage,
+.category-chart__bar--drainage {
+  background: #1d5a7a;
+}
+.category-chart__dot--noise,
+.category-chart__bar--noise {
+  background: #6b3d6b;
+}
+.category-chart__dot--sidewalk-damage,
+.category-chart__bar--sidewalk-damage {
+  background: #7a4a2a;
+}
+.category-chart__dot--road-damage,
+.category-chart__bar--road-damage {
+  background: #8b6914;
+}
+.category-chart__dot--public-facilities,
+.category-chart__bar--public-facilities {
+  background: #3d5a6b;
+}
 
 @media (max-width: 650px) {
-  .category-chart__row { grid-template-columns: minmax(8rem, 1fr) minmax(5rem, 1.5fr) 2.5rem; gap: .65rem; }
+  .category-chart__row {
+    grid-template-columns: minmax(8rem, 1fr) minmax(5rem, 1.5fr) 2.5rem;
+    gap: 0.65rem;
+  }
 }

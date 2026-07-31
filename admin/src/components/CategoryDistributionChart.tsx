@@ -24,7 +24,9 @@ export function CategoryDistributionChart({ tickets }: CategoryDistributionChart
       </div>
       {distribution.length === 0 ? (
         <div className="category-chart__empty">
-          <span className="category-chart__empty-mark" aria-hidden="true">—</span>
+          <span className="category-chart__empty-mark" aria-hidden="true">
+            —
+          </span>
           <p>No category data yet</p>
           <span>New citizen reports will appear here.</span>
         </div>
@@ -33,12 +35,25 @@ export function CategoryDistributionChart({ tickets }: CategoryDistributionChart
           {distribution.map((item) => (
             <div className="category-chart__row" key={item.category}>
               <div className="category-chart__label">
-                <span className={`category-chart__dot category-chart__dot--${categoryClass(item.category)}`} aria-hidden="true" />
+                <span
+                  className={`category-chart__dot category-chart__dot--${categoryClass(item.category)}`}
+                  aria-hidden="true"
+                />
                 <span>{formatCategory(item.category)}</span>
                 <strong>{item.count}</strong>
               </div>
-              <div className="category-chart__track" role="meter" aria-label={`${formatCategory(item.category)} tickets`} aria-valuemin={0} aria-valuemax={maxCount} aria-valuenow={item.count}>
-                <span className={`category-chart__bar category-chart__bar--${categoryClass(item.category)}`} style={{ width: `${Math.max((item.count / maxCount) * 100, 3)}%` }} />
+              <div
+                className="category-chart__track"
+                role="meter"
+                aria-label={`${formatCategory(item.category)} tickets`}
+                aria-valuemin={0}
+                aria-valuemax={maxCount}
+                aria-valuenow={item.count}
+              >
+                <span
+                  className={`category-chart__bar category-chart__bar--${categoryClass(item.category)}`}
+                  style={{ width: `${Math.max((item.count / maxCount) * 100, 3)}%` }}
+                />
               </div>
               <span className="category-chart__percentage">{item.percentage}%</span>
             </div>
