@@ -74,7 +74,7 @@ All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
 | Table | Partition key | GSIs |
 |---|---|---|
 | `baladiguard-tickets` | `ticketId` | `ticketNumber-index`, `trackingCode-index` |
-| `baladiguard-users` | `userId` | `phone-index`, `email-index` |
+| `baladiguard-users` | `userId` | Current pre-Sprint-6 schema has `phone-index`, `email-index`; #169 must remove `email-index` and treat `phone-index` as lookup-only per `docs/database.md`. |
 | `baladiguard-municipalities` | `municipalityId` | — |
 | `baladiguard-departments` | `departmentId` | `municipalityId-index` |
 | `baladiguard-ticket-status-history` | `historyId` | `ticketId-index` |
