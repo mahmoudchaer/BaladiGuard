@@ -45,8 +45,10 @@ rule below.
   recover an account after phone loss.
 - A citizen is **contribution-ready** only when the session is valid, the account is active,
   `phoneVerifiedAt` is non-null for the account's current phone, and `fullName` is valid after
-  trimming (1–120 Unicode characters). An inactive authenticated account receives `403
-  ACCOUNT_INACTIVE`; an active but incomplete account receives `403 CONTRIBUTION_PROFILE_REQUIRED`.
+  trimming (1–120 Unicode characters). OTP verification for an inactive account returns `403
+  ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions so their next
+  use returns `401 UNAUTHORIZED`. An active but incomplete account receives `403
+  CONTRIBUTION_PROFILE_REQUIRED` on contribution routes.
 - Guests and incomplete citizens may browse public data but may not create tickets or perform any
   other contribution. Clients must never supply `ownerUserId`; protected contribution routes derive
   it from the session.
@@ -71,12 +73,22 @@ service.
 
 | Route | Guest | Authenticated citizen | Contract |
 |---|---:|---:|---|
-| `POST /v1/citizen/auth/otp/request` | Allowed | Allowed | Accepts phone/region and purpose (`LOGIN_OR_SIGNUP` or `CHANGE_PHONE`). Always returns `202` with a generic response. A code is 6 digits, expires after 5 minutes, is single-use, stores only a keyed hash, and is bound to normalized phone, purpose, and challenge ID. At most 5 verification attempts are allowed; resend invalidates prior live codes. Per-phone, per-IP, and per-device throttles apply. |
-| `POST /v1/citizen/auth/otp/verify` | Allowed | Allowed for `CHANGE_PHONE` | Atomically consumes a valid challenge. `LOGIN_OR_SIGNUP` finds or creates the phone identity and returns an opaque citizen Bearer session; first use may also accept `fullName`. Responses do not reveal whether the phone existed before verification. |
+| `POST /v1/citizen/auth/otp/request` | `LOGIN_OR_SIGNUP` only | Allowed | Accepts phone/region and purpose. `CHANGE_PHONE` requires a valid citizen session and applies only to that session's account; a guest request with that purpose returns `401`. Always returns `202` with a generic response after an authorized, valid request. A code is 6 digits, expires after 5 minutes, is single-use, stores only a keyed hash, and is bound to normalized phone, purpose, challenge ID, and—when changing phone—authenticated `userId`. At most 5 verification attempts are allowed; resend invalidates prior live codes. Per-phone, per-IP, per-account, and per-device throttles apply. |
+| `POST /v1/citizen/auth/otp/verify` | `LOGIN_OR_SIGNUP` only | Allowed | Atomically consumes a valid challenge. `LOGIN_OR_SIGNUP` finds or creates the phone identity and returns an opaque citizen Bearer session. An inactive existing account returns `403 ACCOUNT_INACTIVE` after successful phone proof and no session is issued. `CHANGE_PHONE` requires the same authenticated citizen that requested the challenge. Responses before successful phone proof do not reveal whether the phone exists. |
 | `POST /v1/citizen/auth/logout` | No | Allowed | Immediately revokes the presented server-side session and returns `204`. Repeating with a revoked token returns `401`. |
 | `GET /v1/citizen/me` | No | Allowed | Returns the citizen-safe profile and `contributionReady`; never returns OTP material, internal claims, or credentials. |
 | `PATCH /v1/citizen/me` | No | Allowed | Updates supported profile/preferences. A phone change requires a separately verified `CHANGE_PHONE` challenge and an atomic claim transfer. Email changes do not affect identity or sessions. |
 | `GET /v1/citizen/tickets` | No | Allowed | Planned account history; derives `userId` from the session and returns only tickets owned by it. |
+
+Minimal OTP payloads are fixed as follows:
+
+- OTP request accepts `phone`, optional `region` (required for national-format input), and `purpose`.
+  It returns `challengeId`, `expiresIn: 300`, and a generic `message`; it never returns the code.
+- OTP verify accepts `challengeId`, `code`, and, for first-time `LOGIN_OR_SIGNUP`, optional
+  `fullName`. It returns `accessToken`, `tokenType: "Bearer"`, `expiresIn: 2592000`, and the
+  citizen-safe profile.
+- `fullName` may be omitted during first verification. The new account then remains authenticated but
+  not contribution-ready until a valid name is supplied through `PATCH /v1/citizen/me`.
 
 Successful OTP verification returns one cryptographically random, opaque Bearer access token. Only a
 keyed hash is stored in the session record. The MVP session has an absolute 30-day lifetime, does not
@@ -87,7 +99,7 @@ by TTL. OTP verification does not revoke other sessions unless it changes the ph
 a phone is not recoverable through email in the MVP; exceptional recovery requires a separately
 approved design.
 
-Malformed phone/challenge input returns `422 VALIDATION_ERROR`. OTP request throttling and exhausted
+Malformed phone/challenge input returns `400 VALIDATION_ERROR`. OTP request throttling and exhausted
 verification attempts return `429 RATE_LIMITED` (with `Retry-After` where known). An incorrect code
 returns `400 INVALID_OTP`; an expired, consumed, or superseded challenge returns `400 OTP_EXPIRED`.
 These responses are deliberately account-neutral. A successful verify consumes the challenge in the
@@ -106,7 +118,9 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 | `GET /v1/public/reports` | Public | Planned citizen-safe list/map data only. |
 | `GET /v1/public/reports/{ticketNumber}` | Public | Planned citizen-safe report detail only. |
 | `GET /v1/tickets/track/{trackingCode}` | Public, possession-based | Existing citizen-safe tracking response; tracking code is not account authentication. |
-| `POST /v1/tickets` | Contribution-ready citizen | Planned target behavior. Guests receive `401`; incomplete/inactive citizens receive `403`. |
+| `POST /v1/locations/validate` | Public | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply. |
+| `POST /v1/uploads/report-photo` | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`. |
+| `POST /v1/tickets` | Contribution-ready citizen | Planned target behavior. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403`. |
 | `/v1/staff/**` and staff ticket routes | Authorized staff | Identity/contact is returned only when the staff role and municipality/department scope authorize it. |
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, approved
@@ -132,6 +146,11 @@ Ticket ownership and contact have different lifecycles. `ownerUserId` is the imm
 email, full name, and preferred notification channel. Later profile edits do not rewrite it. It is
 used for ticket-specific delivery/audit only and is visible solely to authorized staff; public
 attribution never reads `contact.name`.
+
+The profile's `notificationPreferences.ticketUpdates` maps to the ticket's singular snapshot
+`contact.preferredChannel` as follows: `SMS` → `SMS`, `EMAIL` → `EMAIL`, `BOTH` → `SMS` (MVP primary,
+with email available as delivery fallback), and `NONE` → `null`. The snapshot preserves the selected
+MVP delivery behavior even if the profile preference later changes.
 
 ### Backward compatibility and linking
 
@@ -222,7 +241,8 @@ Creates a submitted citizen report ticket.
 
 Requires a contribution-ready citizen Bearer session. The server derives `ownerUserId` from that
 session and snapshots contact data from the citizen profile; client-supplied ownership is forbidden.
-Missing authentication returns `401`; a valid but inactive or incomplete citizen returns `403`.
+Missing authentication and revoked inactive-account sessions return `401`; an active but incomplete
+citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 Enforcement is implementation work in #194 and is not implemented by this contract ticket.
 
 ### Request body
@@ -257,7 +277,7 @@ Enforcement is implementation work in #194 and is not implemented by this contra
 |---|---|---:|---|
 | `description` | string | Yes | Citizen description of the issue. Minimum 10 characters, maximum 2000 characters. |
 | `languageHint` | string | No | Use `auto` by default. |
-| `contact` | object | Legacy only | Accepted temporarily before #194 for backward compatibility. Under the Sprint 6 target it is ignored/rejected and the server snapshots the authenticated profile. |
+| `contact` | object | Legacy only | Accepted temporarily before #194 for backward compatibility. After #194, clients must omit it; if supplied, the server returns `400 VALIDATION_ERROR` rather than silently ignoring contact data. The server snapshots the authenticated profile. |
 | `contact.name` | string | Legacy only | Replaced by the authenticated citizen's current `fullName` snapshot. |
 | `contact.phone` | string | Legacy only | Replaced by the authenticated citizen's canonical verified phone snapshot. |
 | `contact.email` | string | Legacy only | Replaced by the authenticated citizen's optional email snapshot. |
@@ -663,6 +683,11 @@ ticket also receives a `DUPLICATE_MERGE` `auditHistory` entry.
 Validates a citizen-reported location. Accepts either a readable address or a
 latitude/longitude pair and returns a normalized location suitable for ticket submission.
 
+### Auth (Sprint 6 target)
+
+Public. This is guest-allowed draft assistance because it creates no ticket or other persistent
+contribution. Existing rate limits and provider abuse controls apply.
+
 Uses Amazon Location Service when `LOCATION_PLACE_INDEX_NAME` is configured. When the place
 index is unset, the backend falls back to a curated Beirut local place index for local/CI use.
 
@@ -725,6 +750,11 @@ Uploads one citizen report photo to project storage and returns a stable image o
 returned `imageObjectKey` should be sent later when creating the report ticket.
 
 This endpoint stores only the image file. It does not create or update a ticket record.
+
+### Auth (Sprint 6 target)
+
+Requires a contribution-ready citizen Bearer session because it creates a persistent report artifact.
+Missing authentication returns `401`; an incomplete citizen returns `403`. Enforcement is #194 work.
 
 ### Request body
 
@@ -1035,7 +1065,7 @@ Submitted tickets are persisted using the same JSON field names as this contract
 | `location` | `location` | Yes |
 | `imageObjectKey` | `imageObjectKey` | Yes |
 | `languageHint` | — | No |
-| `contact.preferredChannel` | — | No |
+| `contact.preferredChannel` | `contact.preferredChannel` | Yes (nullable snapshot derived from profile preferences) |
 | `clientMetadata` | — | No |
 
 ### Response → Ticket record

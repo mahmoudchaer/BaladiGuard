@@ -19,7 +19,7 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `contact.name` | string | Yes for account-owned tickets | Immutable submission-time snapshot of the citizen's full name. Private. |
 | `contact.phone` | string | Yes for account-owned tickets | Immutable submission-time snapshot of the citizen's canonical verified E.164 phone. Private. |
 | `contact.email` | string, nullable | No | Immutable submission-time snapshot of optional notification email. Private and non-identifying. |
-| `contact.preferredChannel` | enum | Yes for account-owned tickets | Immutable submission-time notification choice. |
+| `contact.preferredChannel` | enum, nullable | No | Immutable submission-time notification choice: `SMS`, `EMAIL`, or null when ticket updates are disabled. |
 | `location` | object | Yes | Report location. |
 | `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
 | `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
@@ -70,7 +70,6 @@ These API request fields are accepted at submission time but are not stored on t
 | API field | Reason |
 | --- | --- |
 | `languageHint` | Client default; processed transiently when AI is wired. |
-| `contact.preferredChannel` | Derived by the client from contact details. |
 | `clientMetadata` | Ephemeral client telemetry for the request lifecycle. |
 
 ## 2. Municipality
@@ -109,13 +108,17 @@ contract and persistence model.
 | `notificationPreferences.ticketUpdates` | enum | Yes | `SMS`, `EMAIL`, `BOTH`, or `NONE`; `EMAIL`/`BOTH` requires non-null email. |
 | `notificationPreferences.announcements` | boolean | Yes | Explicit announcement opt-in; default `false`. |
 | `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. |
-| `active` | boolean | Yes | Default `true`; inactive users cannot authenticate or contribute. |
+| `active` | boolean | Yes | Default `true`. OTP verification for an inactive account returns `403 ACCOUNT_INACTIVE` without issuing a session; deactivation immediately revokes existing sessions. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last profile update time. |
 
 `contributionReady` is derived, not stored: `active = true`, `phoneVerifiedAt` is non-null for the
 current phone, and trimmed `fullName` is 1–120 characters. `email` and `publicNameVisible` do not
 affect contribution eligibility.
+
+At ticket creation, `notificationPreferences.ticketUpdates` maps into the immutable singular
+snapshot as follows: `SMS` → `SMS`, `EMAIL` → `EMAIL`, `BOTH` → `SMS` (MVP primary with email as a
+fallback), and `NONE` → null. Profile changes never rewrite this snapshot.
 
 ### Phone normalization and atomic uniqueness
 
