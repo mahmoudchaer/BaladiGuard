@@ -5,7 +5,7 @@ export type TicketStats = {
   total: number;
   open: number;
   highUrgency: number;
-  resolved: number;
+  completed: number;
   inProgress: number;
 };
 
@@ -16,7 +16,7 @@ export function computeTicketStats(tickets: Ticket[]): TicketStats {
     total: tickets.length,
     open: tickets.filter((t) => OPEN_STATUSES.includes(t.status)).length,
     highUrgency: tickets.filter((t) => t.priority === 'high' || t.priority === 'critical').length,
-    resolved: tickets.filter((t) => t.status === 'RESOLVED').length,
+    completed: tickets.filter((t) => t.status === 'RESOLVED' || t.status === 'CLOSED').length,
     inProgress: tickets.filter((t) => t.status === 'IN_PROGRESS').length,
   };
 }
