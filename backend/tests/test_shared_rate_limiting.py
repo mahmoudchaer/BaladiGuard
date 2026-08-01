@@ -40,6 +40,8 @@ def test_policies_are_environment_configurable(monkeypatch) -> None:
     assert policies["staff-login"].window_seconds == 120
     assert "citizen-otp-request" in policies
     assert "citizen-otp-verify" in policies
+    assert "staff-password-reset-request" in policies
+    assert "staff-password-reset-confirm" in policies
     get_settings.cache_clear()
 
 

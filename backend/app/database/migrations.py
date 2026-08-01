@@ -40,11 +40,16 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
     for table_name in created_tables:
         wait_for_table(client, table_name)
 
-    # Enable TTL on shared rate-limit buckets (issue #186). Idempotent.
+    # Enable TTL on ephemeral tables. Idempotent.
     rate_limit_table = build_table_name(prefix, "rate-limit-buckets")
     if rate_limit_table not in created_tables:
         wait_for_table(client, rate_limit_table)
     _ensure_ttl(client, rate_limit_table, attribute_name="expiresAt")
+
+    staff_reset_table = build_table_name(prefix, "staff-password-reset-challenges")
+    if staff_reset_table not in created_tables:
+        wait_for_table(client, staff_reset_table)
+    _ensure_ttl(client, staff_reset_table, attribute_name="ttl")
 
     return created_tables
 

@@ -100,6 +100,14 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        "suffix": "staff-password-reset-challenges",
+        "key_schema": [{"AttributeName": "challengeId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "challengeId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "municipalities",
         "key_schema": [{"AttributeName": "municipalityId", "KeyType": "HASH"}],
         "attribute_definitions": [

@@ -287,4 +287,61 @@ describe('App staff authentication', () => {
     });
     expect(window.localStorage.getItem('baladiguard.staffSession')).toBeNull();
   });
+
+  it('exposes forgot-password entry and completes the reset form flow', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/v1/staff/password-reset/request')) {
+        return new Response(
+          JSON.stringify({
+            message: 'If a matching staff account exists, a password reset code has been issued.',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.includes('/v1/staff/password-reset/confirm')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as {
+          username?: string;
+          code?: string;
+          newPassword?: string;
+        };
+        expect(body.username).toBe('staff');
+        expect(body.code).toBe('123456');
+        expect(body.newPassword).toBe('new-staff-password-123');
+        return new Response(
+          JSON.stringify({ message: 'Password updated. Sign in with your new password.' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      throw new Error(`Unexpected fetch in password-reset test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderApp('/login');
+
+    await user.click(screen.getByRole('link', { name: 'Forgot password?' }));
+    expect(await screen.findByRole('heading', { name: 'Forgot password' })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Username'), 'staff');
+    await user.click(screen.getByRole('button', { name: 'Request reset code' }));
+
+    expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Username')).toHaveValue('staff');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'If a matching staff account exists, a password reset code has been issued.',
+    );
+
+    await user.type(screen.getByLabelText('Reset code'), '123456');
+    await user.type(screen.getByLabelText('New password'), 'new-staff-password-123');
+    await user.click(screen.getByRole('button', { name: 'Update password' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'BaladiGuard staff login' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Password updated. Sign in with your new password.',
+    );
+    expect(fetchMock).toHaveBeenCalled();
+  });
 });

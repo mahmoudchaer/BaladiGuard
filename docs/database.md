@@ -392,6 +392,7 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `citizen-sessions` | `sessionId` | GSI on `userId` for account-wide revocation; TTL on expiry |
 | `staff-users` | `staffId` | Staff accounts and hashed credentials (#175) |
 | `staff-username-claims` | `usernameKey` | Atomic username uniqueness authority |
+| `staff-password-reset-challenges` | `challengeId` | Hashed staff reset codes (#178); TTL on `ttl` |
 | `municipalities` | `municipalityId` | |
 | `departments` | `departmentId` | GSI on `municipalityId` |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |

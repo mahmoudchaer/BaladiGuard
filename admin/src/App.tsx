@@ -5,6 +5,8 @@ import { TicketListPage } from '@/pages/TicketListPage';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
 import { MapViewPage } from '@/pages/MapViewPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import '@/pages/TicketListPage.css';
 
 export function App() {
@@ -13,6 +15,8 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/"
             element={

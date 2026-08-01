@@ -27,6 +27,8 @@ the production edge is available; the DynamoDB limiter is the in-repo multi-inst
 | `public-upload-report-photo` | 10 / 60s | `POST /v1/uploads/report-photo` |
 | `public-location-validate` | 30 / 60s | `POST /v1/locations/validate` |
 | `staff-login` | 10 / 300s | `POST /v1/staff/login` |
+| `staff-password-reset-request` | 10 / 300s (shares staff-login knobs) | `POST /v1/staff/password-reset/request` |
+| `staff-password-reset-confirm` | max(staff-login, 20) / 300s | `POST /v1/staff/password-reset/confirm` |
 | `citizen-otp-request` | 5 / 300s | Reserved for citizen OTP request (#170) |
 | `citizen-otp-verify` | 10 / 300s | Reserved for citizen OTP verify (#170) |
 

@@ -297,3 +297,85 @@ export function getStaffAuthHeaders(): Record<string, string> {
     Authorization: `Bearer ${session.accessToken}`,
   };
 }
+
+export type PasswordResetResult =
+  | { ok: true; message: string }
+  | { ok: false; error: string };
+
+function apiErrorMessage(errorBody: unknown, fallback: string): string {
+  if (
+    isRecord(errorBody) &&
+    isRecord(errorBody.error) &&
+    typeof errorBody.error.message === 'string'
+  ) {
+    return errorBody.error.message;
+  }
+  return fallback;
+}
+
+export async function requestStaffPasswordReset(username: string): Promise<PasswordResetResult> {
+  if (config.useMockData) {
+    return {
+      ok: true,
+      message:
+        'If a matching staff account exists, a password reset code has been issued. (Mock mode — use the live API for real recovery.)',
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiBaseUrl}/v1/staff/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username.trim() }),
+    });
+  } catch {
+    return { ok: false, error: 'Unable to reach the staff authentication service.' };
+  }
+
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    return { ok: false, error: apiErrorMessage(body, 'Unable to request a password reset.') };
+  }
+  if (!isRecord(body) || typeof body.message !== 'string') {
+    return { ok: false, error: 'Unexpected password reset response.' };
+  }
+  return { ok: true, message: body.message };
+}
+
+export async function confirmStaffPasswordReset(input: {
+  username: string;
+  code: string;
+  newPassword: string;
+}): Promise<PasswordResetResult> {
+  if (config.useMockData) {
+    return {
+      ok: false,
+      error: 'Password reset requires the live staff API. Disable mock data to continue.',
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${config.apiBaseUrl}/v1/staff/password-reset/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: input.username.trim(),
+        code: input.code.trim(),
+        newPassword: input.newPassword,
+      }),
+    });
+  } catch {
+    return { ok: false, error: 'Unable to reach the staff authentication service.' };
+  }
+
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    return { ok: false, error: apiErrorMessage(body, 'Unable to reset the password.') };
+  }
+  if (!isRecord(body) || typeof body.message !== 'string') {
+    return { ok: false, error: 'Unexpected password reset response.' };
+  }
+  return { ok: true, message: body.message };
+}

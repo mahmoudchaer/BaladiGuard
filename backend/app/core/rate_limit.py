@@ -184,6 +184,16 @@ def build_rate_limit_policies(settings: Settings | None = None) -> dict[str, Rat
             limit=cfg.rate_limit_staff_login_limit,
             window_seconds=cfg.rate_limit_staff_login_window_seconds,
         ),
+        "staff-password-reset-request": RateLimitPolicy(
+            name="staff-password-reset-request",
+            limit=cfg.rate_limit_staff_login_limit,
+            window_seconds=cfg.rate_limit_staff_login_window_seconds,
+        ),
+        "staff-password-reset-confirm": RateLimitPolicy(
+            name="staff-password-reset-confirm",
+            limit=max(cfg.rate_limit_staff_login_limit, 20),
+            window_seconds=cfg.rate_limit_staff_login_window_seconds,
+        ),
         # Reserved for citizen OTP HTTP routes (#170); documented for Sprint 6.
         "citizen-otp-request": RateLimitPolicy(
             name="citizen-otp-request",

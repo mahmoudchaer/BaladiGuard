@@ -16,6 +16,7 @@ def test_backup_scope_covers_persistent_mvp_data():
         "citizen-sessions",
         "staff-users",
         "staff-username-claims",
+        "staff-password-reset-challenges",
         "ticket-status-history",
         "ticket-audit-history",
         "duplicate-groups",

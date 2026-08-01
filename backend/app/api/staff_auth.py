@@ -1,4 +1,4 @@
-"""Staff authentication endpoints (issue #175)."""
+"""Staff authentication and password-reset endpoints (issues #175 / #178)."""
 
 from __future__ import annotations
 
@@ -17,6 +17,16 @@ from app.core.staff_auth import (
     unauthorized,
 )
 from app.schemas.staff_auth import StaffLoginRequest, StaffLoginResponse
+from app.schemas.staff_password_reset import (
+    StaffPasswordResetConfirmRequest,
+    StaffPasswordResetConfirmResponse,
+    StaffPasswordResetRequest,
+    StaffPasswordResetRequestResponse,
+)
+from app.services.staff.password_reset import (
+    StaffPasswordResetError,
+    staff_password_reset_service,
+)
 
 router = APIRouter(prefix="/v1", tags=["staff-auth"])
 
@@ -74,3 +84,66 @@ def staff_logout(
     except StaffAuthError:
         raise unauthorized(request) from None
     return Response(status_code=204)
+
+
+@router.post(
+    "/staff/password-reset/request",
+    response_model=StaffPasswordResetRequestResponse,
+)
+def request_staff_password_reset(
+    payload: StaffPasswordResetRequest,
+    request: Request,
+) -> StaffPasswordResetRequestResponse | JSONResponse:
+    settings = get_settings()
+    limited = enforce_rate_limit(
+        request,
+        "staff-password-reset-request",
+        settings=settings,
+        message="Too many password reset requests. Please wait before trying again.",
+        extra_identity=f"username:{payload.username}",
+    )
+    if limited is not None:
+        return limited
+
+    # Never return challengeId — presence would leak whether the username exists.
+    message, _challenge_id = staff_password_reset_service.request_reset(payload.username)
+    return StaffPasswordResetRequestResponse(message=message)
+
+
+@router.post(
+    "/staff/password-reset/confirm",
+    response_model=StaffPasswordResetConfirmResponse,
+)
+def confirm_staff_password_reset(
+    payload: StaffPasswordResetConfirmRequest,
+    request: Request,
+) -> StaffPasswordResetConfirmResponse | JSONResponse:
+    settings = get_settings()
+    limited = enforce_rate_limit(
+        request,
+        "staff-password-reset-confirm",
+        settings=settings,
+        message="Too many password reset attempts. Please wait before trying again.",
+        extra_identity=f"username:{payload.username}",
+    )
+    if limited is not None:
+        return limited
+
+    try:
+        message = staff_password_reset_service.confirm_reset(
+            username=payload.username,
+            code=payload.code,
+            new_password=payload.new_password,
+        )
+    except StaffPasswordResetError as exc:
+        response = build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+        if exc.status_code == 429:
+            response.headers.setdefault("Retry-After", "60")
+        return response
+
+    return StaffPasswordResetConfirmResponse(message=message)

@@ -19,6 +19,7 @@ def test_staff_tables_are_defined() -> None:
     suffixes = {item["suffix"] for item in TABLE_DEFINITIONS}
     assert "staff-users" in suffixes
     assert "staff-username-claims" in suffixes
+    assert "staff-password-reset-challenges" in suffixes
 
 
 def test_dynamo_staff_get_uses_consistent_read(

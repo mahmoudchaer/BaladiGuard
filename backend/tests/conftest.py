@@ -33,6 +33,7 @@ from app.database.memory_citizen_otp import citizen_otp_store  # noqa: E402
 from app.database.memory_citizen_session import citizen_session_store  # noqa: E402
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
+from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
@@ -40,6 +41,7 @@ from app.schemas.classification import ClassificationInputs, ClassificationResul
 from app.schemas.cleaning import CleaningResult  # noqa: E402
 from app.services.complaints.ticket_service import ticket_service  # noqa: E402
 from app.services.staff.bootstrap import ensure_demo_staff_accounts  # noqa: E402
+from app.services.staff.password_reset import staff_password_reset_service  # noqa: E402
 
 
 def issue_test_staff_token(client: TestClient) -> str:
@@ -69,6 +71,8 @@ def reset_ticket_store() -> None:
     citizen_session_store.clear()
     citizen_otp_store.clear()
     staff_store.clear()
+    staff_password_reset_store.clear()
+    staff_password_reset_service.clear_dev_reset_codes()
     ensure_demo_staff_accounts()
     clear_rate_limiter_cache()
     public_ticket_rate_limiter.reset()
