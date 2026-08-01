@@ -12,7 +12,8 @@ the backend container image.
   findings are reported but do not block until an upstream fix exists.
 - Gitleaks fails on any detected secret. Revoke a secret first; never paste it
   into a workflow log or issue.
-- Bandit fails on medium/high-confidence Python findings. ESLint is the
+- Bandit blocks high-severity/high-confidence Python findings. Medium-confidence
+  findings remain visible in the job log for remediation triage. ESLint is the
   JavaScript/TypeScript baseline; security-sensitive rules belong in the
   relevant ESLint configuration.
 
