@@ -50,7 +50,9 @@ def test_submission_persists_successful_ai_output_and_read_api_returns_it(
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     ticket_id = response.json()["ticketId"]
@@ -99,7 +101,9 @@ def test_provider_timeout_does_not_block_ticket_creation_or_log_report_content(
     monkeypatch.setattr(ticket_service, "_classifier", timeout)
     caplog.set_level(logging.ERROR)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     ticket_id = response.json()["ticketId"]
@@ -138,7 +142,9 @@ def test_classification_fallback_keeps_successful_cleaning_as_partial_success(
     monkeypatch.setattr(ticket_service, "_classifier", fallback_classification)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -173,7 +179,9 @@ def test_cleaning_fallback_never_discards_a_valid_category(
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", fallback_clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -207,7 +215,9 @@ def test_processing_is_failed_only_when_both_sides_fall_back(
     monkeypatch.setattr(ticket_service, "_classifier", fallback_classification)
     monkeypatch.setattr(ticket_service, "_description_cleaner", fallback_clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -404,7 +414,9 @@ def test_submission_ai_output_persists_with_moto_dynamodb(
     ticket_service._store = store
 
     try:
-        response = TestClient(app).post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        response = TestClient(app).post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
 
         assert response.status_code == 201
         stored = store.get(response.json()["ticketId"])
@@ -475,7 +487,9 @@ def test_live_submission_processes_real_ai(client, monkeypatch):
     monkeypatch.setattr(ticket_service, "_classifier", classify_complaint)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean_report_description)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -520,7 +534,9 @@ def test_live_submission_persists_real_ai_to_cloud_dynamodb(monkeypatch):
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean_report_description)
 
     try:
-        response = TestClient(app).post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        response = TestClient(app).post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert response.status_code == 201
         ticket_id = response.json()["ticketId"]
 

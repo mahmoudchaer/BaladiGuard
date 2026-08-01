@@ -172,8 +172,18 @@ def test_smoke_token_raises_quota_without_disabling_limits(monkeypatch) -> None:
 
     # Without the token, the normal low limit still applies independently.
     clear_rate_limiter_cache()
-    assert client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()).status_code == 201
-    assert client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()).status_code == 429
+    assert (
+        client.post(
+            "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+        ).status_code
+        == 429
+    )
 
     get_settings.cache_clear()
     clear_rate_limiter_cache()

@@ -6,9 +6,9 @@ from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory_audit_history import audit_history_store
 from app.database.memory_status_history import status_history_store
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
-from tests.conftest import contribution_ready_auth_headers
 
 ROAD_MAINTENANCE = "d1111111-1111-1111-1111-111111111111"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"

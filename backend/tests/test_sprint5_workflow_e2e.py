@@ -7,8 +7,8 @@ coverage is out of scope here because it needs real credentials and endpoints.
 
 from app.database.memory import ticket_store
 from app.services.notifications.adapters import MockNotificationAdapter
-from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
 from tests.conftest import contribution_ready_auth_headers
+from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
 
 STREET_LIGHTING = "d3333333-3333-3333-3333-333333333333"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"

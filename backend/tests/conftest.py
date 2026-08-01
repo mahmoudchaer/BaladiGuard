@@ -36,13 +36,12 @@ from app.database.memory_staff import staff_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
+from app.schemas.citizen import CitizenProfileUpdateRequest, StoredCitizenUser  # noqa: E402
 from app.schemas.classification import ClassificationInputs, ClassificationResult  # noqa: E402
 from app.schemas.cleaning import CleaningResult  # noqa: E402
-from app.schemas.citizen import CitizenProfileUpdateRequest, StoredCitizenUser  # noqa: E402
 from app.services.citizens.service import citizen_service  # noqa: E402
 from app.services.complaints.ticket_service import ticket_service  # noqa: E402
 from app.services.staff.bootstrap import ensure_demo_staff_accounts  # noqa: E402
-
 
 DEFAULT_CITIZEN_PHONE = "+96170123456"
 DEFAULT_CITIZEN_FULL_NAME = "Citizen Name"

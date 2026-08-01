@@ -149,7 +149,9 @@ def test_category_review_persists_in_dynamodb(dynamodb_settings: Settings) -> No
 
     try:
         client = authenticated_test_client()
-        created = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        created = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert created.status_code == 201
         ticket_id = created.json()["ticketId"]
         seed_ai_suggestion(ticket_id)

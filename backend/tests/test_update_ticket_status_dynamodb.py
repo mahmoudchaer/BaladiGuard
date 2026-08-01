@@ -18,7 +18,9 @@ def test_update_ticket_status_persists_history_in_dynamodb(dynamodb_settings: Se
 
     try:
         client = authenticated_test_client()
-        submit_response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        submit_response = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert submit_response.status_code == 201
         ticket_id = submit_response.json()["ticketId"]
 

@@ -3,9 +3,9 @@ from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory import ticket_store
 from app.schemas.ticket_ai_update import SaveTicketAiOutputRequest
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
-from tests.conftest import contribution_ready_auth_headers
 
 ROAD_MAINTENANCE = "d1111111-1111-1111-1111-111111111111"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"
@@ -131,7 +131,9 @@ def test_assign_department_persists_in_dynamodb(dynamodb_settings: Settings) -> 
     try:
         client = _test_client()
 
-        created = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        created = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert created.status_code == 201
         ticket_id = created.json()["ticketId"]
         seed_ai_suggestion(ticket_id, category="road_damage")

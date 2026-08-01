@@ -1,8 +1,8 @@
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.services.uploads.photo_upload_service import photo_upload_service
-from tests.test_upload_report_photo import FakeS3Client, set_aws_env
 from tests.conftest import contribution_ready_auth_headers
+from tests.test_upload_report_photo import FakeS3Client, set_aws_env
 
 TICKET_PAYLOAD = {
     "description": "Large pothole reported near the university gate causing traffic disruption.",

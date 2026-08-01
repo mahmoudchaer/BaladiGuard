@@ -18,7 +18,9 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
     try:
         client = authenticated_test_client()
 
-        response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        response = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
 
         assert response.status_code == 201
         body = response.json()

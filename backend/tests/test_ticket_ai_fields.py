@@ -260,7 +260,9 @@ def test_ticket_ai_fields_persist_in_dynamodb(dynamodb_settings: Settings) -> No
 
     try:
         client = authenticated_test_client()
-        response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
+        response = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert response.status_code == 201
         ticket_id = response.json()["ticketId"]
 
