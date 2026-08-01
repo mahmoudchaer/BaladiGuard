@@ -81,9 +81,7 @@ export function getStoredStaffSession(): StaffSession | null {
   try {
     const session = JSON.parse(storedSession) as Partial<StaffSession>;
     const departmentIds =
-      session.departmentIds === undefined
-        ? null
-        : parseDepartmentIds(session.departmentIds);
+      session.departmentIds === undefined ? null : parseDepartmentIds(session.departmentIds);
 
     if (
       typeof session.username !== 'string' ||
