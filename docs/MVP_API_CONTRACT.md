@@ -69,7 +69,9 @@ Examples: `+961 70 123 456` and national `70 123 456` with `region: "LB"` both n
 trunk `0` is not stored). The canonical value is never renormalized differently by a downstream
 service.
 
-### Planned citizen OTP and session routes
+### Citizen OTP and session routes
+
+Implemented by issue #170 (except `GET /v1/citizen/tickets`, which remains planned for #174).
 
 | Route | Guest | Authenticated citizen | Contract |
 |---|---:|---:|---|

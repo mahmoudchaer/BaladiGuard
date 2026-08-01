@@ -1,4 +1,4 @@
-"""Citizen account persistence and profile service (issue #169)."""
+"""Citizen account persistence, profile, and OTP session service (issues #169 / #170)."""
 
 from __future__ import annotations
 
@@ -27,14 +27,20 @@ from app.schemas.citizen import (
     NotificationPreferences,
     StoredCitizenUser,
 )
-from app.schemas.citizen_session import StoredCitizenOtpChallenge
+from app.schemas.citizen_auth import CitizenOtpVerifyResponse
+from app.schemas.citizen_session import OtpPurpose, StoredCitizenOtpChallenge
 from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
 
 OTP_TTL_SECONDS = 5 * 60
 OTP_MAX_ATTEMPTS = 5
-CHANGE_PHONE_PURPOSE = "CHANGE_PHONE"
+LOGIN_OR_SIGNUP_PURPOSE: OtpPurpose = "LOGIN_OR_SIGNUP"
+CHANGE_PHONE_PURPOSE: OtpPurpose = "CHANGE_PHONE"
+GENERIC_OTP_MESSAGE = "If the request is valid, a verification code has been sent."
+
+# Local/test-only plaintext OTP peek. Never returned by HTTP responses.
+_dev_otp_codes: dict[str, str] = {}
 
 
 class CitizenStorePort(Protocol):
@@ -60,6 +66,14 @@ class CitizenSessionStorePort(Protocol):
 
     def get(self, session_id: str) -> Any: ...
 
+    def revoke(
+        self,
+        session_id: str,
+        *,
+        revoked_at: str,
+        reason: str,
+    ) -> Any: ...
+
     def revoke_all_for_user(
         self,
         user_id: str,
@@ -75,6 +89,15 @@ class CitizenOtpStorePort(Protocol):
     def get(self, challenge_id: str) -> StoredCitizenOtpChallenge | None: ...
 
     def save(self, challenge: StoredCitizenOtpChallenge) -> StoredCitizenOtpChallenge: ...
+
+    def consume(
+        self,
+        challenge_id: str,
+        *,
+        consumed_at: str,
+    ) -> StoredCitizenOtpChallenge | None: ...
+
+    def increment_attempt(self, challenge_id: str) -> StoredCitizenOtpChallenge | None: ...
 
 
 class CitizenServiceError(Exception):
@@ -236,6 +259,75 @@ class CitizenService:
         )
         return token
 
+    def peek_dev_otp_code(self, challenge_id: str) -> str | None:
+        """Return plaintext OTP only in local/test/development environments."""
+        env = self._settings_or_default().app_env.lower()
+        if env not in {"local", "test", "development"}:
+            return None
+        return _dev_otp_codes.get(challenge_id)
+
+    def clear_dev_otp_codes(self) -> None:
+        _dev_otp_codes.clear()
+
+    def request_otp(
+        self,
+        *,
+        phone: str,
+        region: str | None = None,
+        purpose: OtpPurpose = LOGIN_OR_SIGNUP_PURPOSE,
+        authenticated_user_id: str | None = None,
+        now: datetime | None = None,
+        code: str | None = None,
+    ) -> tuple[str, int, str]:
+        """Create a purpose-bound OTP challenge.
+
+        Returns ``(challenge_id, expires_in_seconds, plaintext_code)``. The plaintext
+        code must never be included in HTTP responses; it is for delivery adapters
+        and local/test peeks only.
+        """
+        if purpose == CHANGE_PHONE_PURPOSE:
+            if not authenticated_user_id:
+                raise CitizenServiceError(
+                    "UNAUTHORIZED",
+                    "Citizen authentication required.",
+                    status_code=401,
+                )
+            challenge_id, otp_code = self.create_change_phone_challenge(
+                user_id=authenticated_user_id,
+                phone=phone,
+                region=region,
+                now=now,
+                code=code,
+            )
+            return challenge_id, OTP_TTL_SECONDS, otp_code
+
+        if purpose != LOGIN_OR_SIGNUP_PURPOSE:
+            raise CitizenServiceError("VALIDATION_ERROR", "Unsupported OTP purpose.")
+
+        try:
+            canonical = normalize_phone(phone, region)
+        except PhoneNormalizationError as exc:
+            raise CitizenServiceError("VALIDATION_ERROR", str(exc)) from exc
+
+        moment = now or _utcnow()
+        expires = moment + timedelta(seconds=OTP_TTL_SECONDS)
+        otp_code = code or f"{secrets.randbelow(1_000_000):06d}"
+        challenge = StoredCitizenOtpChallenge(
+            challengeId=f"chl_{secrets.token_hex(12)}",
+            codeHash=_hash_otp_code(otp_code, settings=self._settings_or_default()),
+            phone=canonical,
+            purpose=LOGIN_OR_SIGNUP_PURPOSE,
+            userId=None,
+            createdAt=_iso(moment),
+            expiresAt=_iso(expires),
+            ttl=int(expires.timestamp()),
+        )
+        self._resolved_otp().create(challenge)
+        self._remember_dev_otp(challenge.challenge_id, otp_code)
+        # Never log the plaintext code. Phone is account-sensitive; keep logs generic.
+        logger.info("Citizen OTP challenge created purpose=%s", purpose)
+        return challenge.challenge_id, OTP_TTL_SECONDS, otp_code
+
     def create_change_phone_challenge(
         self,
         *,
@@ -248,8 +340,7 @@ class CitizenService:
         """Create a purpose-bound CHANGE_PHONE challenge.
 
         Returns ``(challenge_id, code)``. The plaintext code is never persisted and
-        must not be logged. Public OTP request/verify HTTP routes belong to #170;
-        this method is the persistence foundation used by profile phone changes.
+        must not be logged.
         """
         user = self._resolved_store().get(user_id)
         if user is None or not user.active:
@@ -280,7 +371,260 @@ class CitizenService:
             ttl=int(expires.timestamp()),
         )
         self._resolved_otp().create(challenge)
+        self._remember_dev_otp(challenge.challenge_id, otp_code)
         return challenge.challenge_id, otp_code
+
+    def verify_otp(
+        self,
+        *,
+        challenge_id: str,
+        code: str,
+        full_name: str | None = None,
+        authenticated_user_id: str | None = None,
+        now: datetime | None = None,
+    ) -> CitizenOtpVerifyResponse:
+        """Atomically consume a challenge and establish an authenticated citizen session."""
+        moment = now or _utcnow()
+        challenge = self._resolved_otp().get(challenge_id.strip())
+        if challenge is None:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+
+        if challenge.purpose == LOGIN_OR_SIGNUP_PURPOSE:
+            self._consume_otp_challenge(
+                challenge=challenge,
+                expected_purpose=LOGIN_OR_SIGNUP_PURPOSE,
+                expected_user_id=None,
+                expected_phone=challenge.phone,
+                code=code,
+                now=moment,
+            )
+            return self._complete_login_or_signup(
+                phone=challenge.phone,
+                full_name=full_name,
+                now=moment,
+            )
+
+        if challenge.purpose == CHANGE_PHONE_PURPOSE:
+            if not authenticated_user_id:
+                raise CitizenServiceError(
+                    "UNAUTHORIZED",
+                    "Citizen authentication required.",
+                    status_code=401,
+                )
+            if challenge.user_id != authenticated_user_id:
+                raise CitizenServiceError(
+                    "OTP_EXPIRED", "The verification challenge is no longer valid."
+                )
+            return self._complete_change_phone_verify(
+                user_id=authenticated_user_id,
+                phone=challenge.phone,
+                challenge_id=challenge.challenge_id,
+                code=code,
+                now=moment,
+            )
+
+        raise CitizenServiceError("VALIDATION_ERROR", "Unsupported OTP purpose.")
+
+    def logout_session(self, session_id: str, *, now: datetime | None = None) -> None:
+        moment = now or _utcnow()
+        revoked = self._resolved_sessions().revoke(
+            session_id,
+            revoked_at=_iso(moment),
+            reason="logout",
+        )
+        if revoked is None:
+            raise CitizenServiceError(
+                "UNAUTHORIZED",
+                "Citizen authentication required.",
+                status_code=401,
+            )
+
+    def _remember_dev_otp(self, challenge_id: str, code: str) -> None:
+        env = self._settings_or_default().app_env.lower()
+        if env in {"local", "test", "development"}:
+            _dev_otp_codes[challenge_id] = code
+
+    def _complete_login_or_signup(
+        self,
+        *,
+        phone: str,
+        full_name: str | None,
+        now: datetime,
+    ) -> CitizenOtpVerifyResponse:
+        store = self._resolved_store()
+        user = store.get_by_phone(phone)
+        if user is None:
+            try:
+                user = self.create_citizen(phone=phone, full_name=full_name, now=now)
+            except CitizenServiceError as exc:
+                if exc.code != "PHONE_UNAVAILABLE":
+                    raise
+                # Concurrent create: the winner already owns the phone.
+                user = store.get_by_phone(phone)
+                if user is None:
+                    raise
+
+        if not user.active:
+            raise CitizenServiceError(
+                "ACCOUNT_INACTIVE",
+                "This account is inactive.",
+                status_code=403,
+            )
+
+        # First-time name may be supplied on verify; ignore if the account already has one.
+        if full_name and not _valid_full_name(user.full_name):
+            updated = user.model_copy(
+                update={"full_name": full_name.strip(), "updated_at": _iso(now)}
+            )
+            try:
+                user = store.update(updated)
+            except CitizenNotFoundError as exc:
+                raise CitizenServiceError(
+                    "UNAUTHORIZED", "Citizen authentication required.", 401
+                ) from exc
+
+        token = self.issue_session(user.user_id, now=now)
+        profile = to_profile_response(user)
+        return CitizenOtpVerifyResponse.from_session(
+            access_token=token,
+            expires_in=CITIZEN_SESSION_TTL_SECONDS,
+            profile=profile,
+        )
+
+    def _complete_change_phone_verify(
+        self,
+        *,
+        user_id: str,
+        phone: str,
+        challenge_id: str,
+        code: str,
+        now: datetime,
+    ) -> CitizenOtpVerifyResponse:
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+
+        stamped = _iso(now)
+        projected = user.model_copy(
+            update={
+                "phone": phone,
+                "phone_verified_at": stamped,
+                "updated_at": stamped,
+                "session_epoch": user.session_epoch + 1,
+            }
+        )
+        prior_challenge = self._consume_change_phone_challenge(
+            user_id=user_id,
+            phone=phone,
+            challenge_id=challenge_id,
+            code=code,
+            now=now,
+        )
+        try:
+            updated = store.change_phone(
+                user_id=user_id,
+                old_phone=user.phone,
+                updated_user=projected,
+            )
+        except PhoneClaimConflictError as exc:
+            self._restore_change_phone_challenge(prior_challenge)
+            raise CitizenServiceError(
+                "PHONE_UNAVAILABLE",
+                "Unable to update phone number.",
+                status_code=409,
+            ) from exc
+        except (CitizenNotFoundError, CitizenPhoneMismatchError) as exc:
+            self._restore_change_phone_challenge(prior_challenge)
+            raise CitizenServiceError(
+                "CONFLICT",
+                "Unable to update phone number.",
+                status_code=409,
+            ) from exc
+
+        self._resolved_sessions().revoke_all_for_user(
+            user_id,
+            revoked_at=stamped,
+            reason="phone_change",
+        )
+        token = self.issue_session(updated.user_id, now=now)
+        return CitizenOtpVerifyResponse.from_session(
+            access_token=token,
+            expires_in=CITIZEN_SESSION_TTL_SECONDS,
+            profile=to_profile_response(updated),
+        )
+
+    def _consume_otp_challenge(
+        self,
+        *,
+        challenge: StoredCitizenOtpChallenge,
+        expected_purpose: OtpPurpose,
+        expected_user_id: str | None,
+        expected_phone: str,
+        code: str,
+        now: datetime,
+    ) -> StoredCitizenOtpChallenge:
+        """Consume a challenge; returns the pre-consume snapshot."""
+        otp_store = self._resolved_otp()
+        if (
+            challenge.purpose != expected_purpose
+            or challenge.user_id != expected_user_id
+            or challenge.phone != expected_phone
+            or challenge.consumed_at is not None
+            or challenge.superseded_at is not None
+        ):
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+
+        try:
+            expires_at = datetime.fromisoformat(challenge.expires_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            ) from exc
+
+        if now >= expires_at:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+
+        if challenge.attempt_count >= OTP_MAX_ATTEMPTS:
+            raise CitizenServiceError(
+                "RATE_LIMITED",
+                "Too many verification attempts. Request a new code.",
+                status_code=429,
+            )
+
+        expected = challenge.code_hash
+        actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
+        if not hmac.compare_digest(expected, actual):
+            updated = otp_store.increment_attempt(challenge.challenge_id)
+            if updated is None:
+                raise CitizenServiceError(
+                    "OTP_EXPIRED", "The verification challenge is no longer valid."
+                )
+            if updated.attempt_count >= OTP_MAX_ATTEMPTS:
+                raise CitizenServiceError(
+                    "RATE_LIMITED",
+                    "Too many verification attempts. Request a new code.",
+                    status_code=429,
+                )
+            raise CitizenServiceError("INVALID_OTP", "The verification code is incorrect.")
+
+        # Compare-and-set consume: only one concurrent verify can mark the challenge spent.
+        consumed = otp_store.consume(
+            challenge.challenge_id,
+            consumed_at=_iso(now),
+        )
+        if consumed is None:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+        _dev_otp_codes.pop(challenge.challenge_id, None)
+        return challenge
 
     def get_profile(self, user_id: str) -> CitizenProfileResponse:
         user = self._resolved_store().get(user_id)
@@ -460,64 +804,19 @@ class CitizenService:
         now: datetime,
     ) -> StoredCitizenOtpChallenge:
         """Consume the challenge and return the pre-consume snapshot for restore."""
-        otp_store = self._resolved_otp()
-        challenge = otp_store.get(challenge_id)
+        challenge = self._resolved_otp().get(challenge_id)
         if challenge is None:
             raise CitizenServiceError(
                 "OTP_EXPIRED", "The verification challenge is no longer valid."
             )
-
-        if (
-            challenge.purpose != CHANGE_PHONE_PURPOSE
-            or challenge.user_id != user_id
-            or challenge.phone != phone
-            or challenge.consumed_at is not None
-            or challenge.superseded_at is not None
-        ):
-            raise CitizenServiceError(
-                "OTP_EXPIRED", "The verification challenge is no longer valid."
-            )
-
-        try:
-            expires_at = datetime.fromisoformat(challenge.expires_at.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise CitizenServiceError(
-                "OTP_EXPIRED", "The verification challenge is no longer valid."
-            ) from exc
-
-        if now >= expires_at:
-            raise CitizenServiceError(
-                "OTP_EXPIRED", "The verification challenge is no longer valid."
-            )
-
-        if challenge.attempt_count >= OTP_MAX_ATTEMPTS:
-            raise CitizenServiceError(
-                "RATE_LIMITED",
-                "Too many verification attempts. Request a new code.",
-                status_code=429,
-            )
-
-        expected = challenge.code_hash
-        actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
-        if not hmac.compare_digest(expected, actual):
-            updated = challenge.model_copy(update={"attempt_count": challenge.attempt_count + 1})
-            otp_store.save(updated)
-            if updated.attempt_count >= OTP_MAX_ATTEMPTS:
-                raise CitizenServiceError(
-                    "RATE_LIMITED",
-                    "Too many verification attempts. Request a new code.",
-                    status_code=429,
-                )
-            raise CitizenServiceError("INVALID_OTP", "The verification code is incorrect.")
-
-        consumed = challenge.model_copy(
-            update={
-                "consumed_at": _iso(now),
-                "attempt_count": challenge.attempt_count + 1,
-            }
+        return self._consume_otp_challenge(
+            challenge=challenge,
+            expected_purpose=CHANGE_PHONE_PURPOSE,
+            expected_user_id=user_id,
+            expected_phone=phone,
+            code=code,
+            now=now,
         )
-        otp_store.save(consumed)
-        return challenge
 
     def _restore_change_phone_challenge(self, prior: StoredCitizenOtpChallenge) -> None:
         """Undo a consume when the subsequent phone-claim transaction fails."""
@@ -546,6 +845,11 @@ citizen_service = CitizenService()
 # Re-export helpers useful for tests without pulling OTP plaintext into API responses.
 __all__ = [
     "CITIZEN_SESSION_TTL_SECONDS",
+    "CHANGE_PHONE_PURPOSE",
+    "GENERIC_OTP_MESSAGE",
+    "LOGIN_OR_SIGNUP_PURPOSE",
+    "OTP_MAX_ATTEMPTS",
+    "OTP_TTL_SECONDS",
     "CitizenService",
     "CitizenServiceError",
     "citizen_service",
