@@ -36,9 +36,8 @@ def main() -> int:
         )
     if not re.fullmatch(r"[A-Za-z0-9!_.*'()/-]+", args.target_prefix):
         raise SystemExit("Target prefix contains unsupported characters.")
-    if not args.target_prefix.rstrip("/").startswith("restore-tests/") and args.target_prefix.rstrip(
-        "/"
-    ) != "restore-tests":
+    normalized_prefix = args.target_prefix.rstrip("/")
+    if not normalized_prefix.startswith("restore-tests/") and normalized_prefix != "restore-tests":
         raise SystemExit("Target prefix must be inside restore-tests/.")
     if not args.bucket:
         raise SystemExit("AWS_S3_BUCKET or --bucket is required.")
