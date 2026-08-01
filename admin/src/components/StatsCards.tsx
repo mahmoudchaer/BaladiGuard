@@ -44,7 +44,9 @@ export function StatsCards({ stats }: StatsCardsProps) {
           <p className="stats-overview__eyebrow">Operations overview</p>
           <h2 id="stats-overview-title">Current ticket health</h2>
         </div>
-        <p className="stats-overview__caption">Live summary of the current municipal workload</p>
+        <p className="stats-overview__caption">
+          Live summary of the current municipal workload across all tickets
+        </p>
       </div>
       <div className="stats-cards" role="group" aria-label="Ticket summary">
         {CARDS.map((card) => (
