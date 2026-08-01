@@ -59,6 +59,13 @@ def _s3_lifecycle() -> dict[str, Any]:
     }
 
 
+def _merged_s3_lifecycle(existing_rules: list[dict[str, Any]]) -> dict[str, Any]:
+    desired = _s3_lifecycle()["Rules"][0]
+    rules = [rule for rule in existing_rules if rule.get("ID") != desired["ID"]]
+    rules.append(desired)
+    return {"Rules": rules}
+
+
 def audit(dynamodb, s3, prefix: str, bucket: str) -> dict[str, Any]:
     tables = []
     existing = set(dynamodb.list_tables().get("TableNames", []))
@@ -123,6 +130,13 @@ def audit(dynamodb, s3, prefix: str, bucket: str) -> dict[str, Any]:
                 )
             ),
             "lifecycleRules": len(lifecycle),
+            "photoLifecycle": any(
+                rule.get("ID") == "ReportPhotoVersionRetention"
+                and rule.get("Status") == "Enabled"
+                and rule.get("Filter", {}).get("Prefix") == "reports/photos/"
+                and rule.get("NoncurrentVersionExpiration", {}).get("NoncurrentDays") == 90
+                for rule in lifecycle
+            ),
         },
     }
 
@@ -150,7 +164,16 @@ def apply(dynamodb, s3, report: dict[str, Any], bucket: str) -> None:
             "RestrictPublicBuckets": True,
         },
     )
-    s3.put_bucket_lifecycle_configuration(Bucket=bucket, LifecycleConfiguration=_s3_lifecycle())
+    try:
+        existing_rules = s3.get_bucket_lifecycle_configuration(Bucket=bucket).get("Rules", [])
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "NoSuchLifecycleConfiguration":
+            existing_rules = []
+        else:
+            raise
+    s3.put_bucket_lifecycle_configuration(
+        Bucket=bucket, LifecycleConfiguration=_merged_s3_lifecycle(existing_rules)
+    )
 
 
 def main() -> int:
@@ -178,6 +201,7 @@ def main() -> int:
     healthy = healthy and all(
         report["s3"][key] for key in ("versioning", "encryption", "publicAccessBlock")
     )
+    healthy = healthy and report["s3"]["photoLifecycle"]
     return 0 if healthy else 2
 
 

@@ -38,13 +38,13 @@ Dry-run first, then execute with a unique target:
 ```bash
 python scripts/backup/restore_isolated.py \
   --source-table baladiguard-tickets \
-  --target-table baladiguard-restore-20260801 \
+  --target-table isolated-tickets-20260801-restore \
   --bucket "$AWS_S3_BUCKET" \
   --target-prefix restore-tests 
 
 python scripts/backup/restore_isolated.py \
   --source-table baladiguard-tickets \
-  --target-table baladiguard-restore-20260801 \
+  --target-table isolated-tickets-20260801-restore \
   --bucket "$AWS_S3_BUCKET" \
   --target-prefix restore-tests \
   --execute | tee backup-evidence/restore-20260801.json
@@ -76,7 +76,9 @@ operator role is separate and should contain only:
   `PutPublicAccessBlock`, and `PutLifecycleConfiguration` on the report-photo
   bucket.
 - `s3:ListBucket`, `s3:GetObjectVersion`, and `s3:PutObject` limited to
-  `restore-tests/*` for restore validation.
+  `reports/photos/*` for source reads and `restore-tests/*` for isolated restore
+  writes. Replace the `${AWS::Region}` and `${REPORT_PHOTO_BUCKET}` placeholders
+  in `infra/backup/backup-operator-policy.json` before attaching it.
 
 Do not grant `dynamodb:DeleteTable`, `s3:DeleteBucket`, or broad object deletion
 to the backup operator role. Keep the latest JSON audit and restore evidence in

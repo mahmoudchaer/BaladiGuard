@@ -32,9 +32,22 @@
       "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}"
     },
     {
-      "Sid": "RestorePhotoVersionsIntoIsolatedPrefix",
+      "Sid": "ReadSourcePhotoVersions",
       "Effect": "Allow",
-      "Action": ["s3:GetObjectVersion", "s3:PutObject"],
+      "Action": ["s3:GetObjectVersion"],
+      "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}/reports/photos/*"
+    },
+    {
+      "Sid": "ListSourcePhotoVersions",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}",
+      "Condition": {"StringLike": {"s3:prefix": ["reports/photos/*"]}}
+    },
+    {
+      "Sid": "WriteRestoredPhotoVersions",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject"],
       "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}/restore-tests/*"
     }
   ]

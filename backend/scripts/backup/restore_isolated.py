@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import time
 import uuid
 from datetime import UTC, datetime
 
@@ -29,9 +30,16 @@ def main() -> int:
     if args.target_table.startswith(production_prefix) or not args.target_table.endswith(
         "-restore"
     ):
-        raise SystemExit("Target table must be a non-production name ending in '-restore'.")
+        raise SystemExit(
+            "Target table must not start with the production prefix and must end in '-restore' "
+            "(for example, isolated-tickets-20260801-restore)."
+        )
     if not re.fullmatch(r"[A-Za-z0-9!_.*'()/-]+", args.target_prefix):
         raise SystemExit("Target prefix contains unsupported characters.")
+    if not args.target_prefix.rstrip("/").startswith("restore-tests/") and args.target_prefix.rstrip(
+        "/"
+    ) != "restore-tests":
+        raise SystemExit("Target prefix must be inside restore-tests/.")
     if not args.bucket:
         raise SystemExit("AWS_S3_BUCKET or --bucket is required.")
 
@@ -66,6 +74,17 @@ def main() -> int:
         TargetTableName=args.target_table,
         UseLatestRestorableTime=True,
     )
+    dynamodb.get_waiter("table_exists").wait(TableName=args.target_table)
+    deadline = time.monotonic() + 1800
+    while True:
+        status = dynamodb.describe_table(TableName=args.target_table)["Table"]["TableStatus"]
+        if status == "ACTIVE":
+            break
+        if status in {"DELETING", "ARCHIVING", "INACCESSIBLE_ENCRYPTION_CREDENTIALS"}:
+            raise SystemExit(f"Isolated restore entered unexpected status: {status}.")
+        if time.monotonic() >= deadline:
+            raise SystemExit("Timed out waiting for the isolated restore table to become ACTIVE.")
+        time.sleep(5)
     paginator = s3.get_paginator("list_object_versions")
     copied = 0
     for page in paginator.paginate(Bucket=args.bucket, Prefix="reports/photos/"):
