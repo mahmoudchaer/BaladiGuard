@@ -251,5 +251,3 @@ def test_reset_revokes_existing_staff_sessions(anonymous_client: TestClient) -> 
         headers={"Authorization": f"Bearer {token}"},
     )
     assert stale.status_code == 401
-
-
