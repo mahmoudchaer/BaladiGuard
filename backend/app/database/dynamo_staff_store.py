@@ -60,18 +60,21 @@ class DynamoStaffStore:
         self._client = self._resource.meta.client
 
     def _transact_write(self, items: list[dict[str, Any]]) -> None:
+        """Run TransactWriteItems with native document types (see DynamoCitizenStore)."""
         try:
-            self._client.transact_write_items(TransactItems=_to_wire_transact_items(items))
+            self._client.transact_write_items(TransactItems=items)
             return
         except ClientError as error:
             reasons = error.response.get("CancellationReasons") or []
-            moto_type_error = any(
-                reason.get("Code") == "TypeError" or "unhashable" in str(reason.get("Message", ""))
+            needs_wire = any(
+                reason.get("Code") == "TypeError"
+                or "unhashable" in str(reason.get("Message", ""))
+                or "serialized" in str(reason.get("Message", "")).lower()
                 for reason in reasons
             )
-            if not moto_type_error:
+            if not needs_wire:
                 raise
-        self._client.transact_write_items(TransactItems=items)
+        self._client.transact_write_items(TransactItems=_to_wire_transact_items(items))
 
     def create(self, user: StoredStaffUser) -> StoredStaffUser:
         claim_key = staff_username_claim_key(user.username)
@@ -100,7 +103,9 @@ class DynamoStaffStore:
             )
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == "TransactionCanceledException":
-                raise StaffUsernameConflictError("Username is already claimed.") from error
+                reasons = error.response.get("CancellationReasons") or []
+                if any(reason.get("Code") == "ConditionalCheckFailed" for reason in reasons):
+                    raise StaffUsernameConflictError("Username is already claimed.") from error
             raise
         return user
 
