@@ -224,6 +224,53 @@ class DynamoCitizenStore:
             raise
         return updated_user
 
+    def anonymize(
+        self,
+        *,
+        user_id: str,
+        current_phone: str,
+        anonymized_user: StoredCitizenUser,
+    ) -> StoredCitizenUser:
+        if anonymized_user.user_id != user_id:
+            raise CitizenPhoneMismatchError("Updated userId does not match.")
+        existing = self.get(user_id)
+        if existing is None:
+            raise CitizenNotFoundError("Citizen not found.")
+        if existing.phone != current_phone:
+            raise CitizenPhoneMismatchError("Current phone no longer matches.")
+
+        transact_items: list[dict[str, Any]] = [
+            {
+                "Put": {
+                    "TableName": self._users_table.name,
+                    "Item": _user_to_item(anonymized_user),
+                    "ConditionExpression": "attribute_exists(userId) AND phone = :currentPhone",
+                    "ExpressionAttributeValues": {":currentPhone": current_phone},
+                }
+            }
+        ]
+        if not current_phone.startswith("ANON:"):
+            claim_key = phone_claim_key(current_phone)
+            transact_items.append(
+                {
+                    "Delete": {
+                        "TableName": self._claims_table.name,
+                        "Key": {"phoneKey": claim_key},
+                        "ConditionExpression": "userId = :userId",
+                        "ExpressionAttributeValues": {":userId": user_id},
+                    }
+                }
+            )
+
+        try:
+            self._transact_write(transact_items)
+        except ClientError as error:
+            code = error.response.get("Error", {}).get("Code")
+            if code == "TransactionCanceledException":
+                raise CitizenPhoneMismatchError("Unable to anonymize citizen account.") from error
+            raise
+        return anonymized_user
+
     def clear(self) -> None:
         message = "DynamoCitizenStore does not support clear(). Use db-reset for local dev."
         raise NotImplementedError(message)

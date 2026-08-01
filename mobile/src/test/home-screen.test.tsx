@@ -11,5 +11,6 @@ describe('HomeScreen', () => {
     expect(screen.root.findByProps({ children: 'BaladiGuard' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Track a report' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Privacy notice' })).toBeTruthy();
   });
 });

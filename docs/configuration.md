@@ -33,7 +33,7 @@ deploy typo cannot bypass production fail-closed rules.
 | Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Real Amazon Location index required |
 | Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | `AWS_S3_BUCKET` required |
 | Dynamo endpoint | Localhost Docker URL allowed | Must not point at localhost |
-| Sample seed | Optional | `SEED_SAMPLE_TICKETS=false` |
+| Sample seed | Optional synthetic mocks only | `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
 
 Backend **startup aborts** when `APP_ENV=production` and validation finds errors.
 In other environments, the process still starts and `/health` reports `config.status`.

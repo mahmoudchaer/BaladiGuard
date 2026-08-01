@@ -80,6 +80,8 @@ Implemented by issue #170 (except `GET /v1/citizen/tickets`, which remains plann
 | `POST /v1/citizen/auth/logout` | No | Allowed | Immediately revokes the presented server-side session and returns `204`. Repeating with a revoked token returns `401`. |
 | `GET /v1/citizen/me` | No | Allowed | Returns the citizen-safe profile and `contributionReady`; never returns OTP material, internal claims, or credentials. |
 | `PATCH /v1/citizen/me` | No | Allowed | Updates supported profile/preferences. A phone change requires a separately verified `CHANGE_PHONE` challenge and an atomic claim transfer. Email changes do not affect identity or sessions. |
+| `GET /v1/citizen/me/export` | No | Allowed | Returns a JSON export of the authenticated citizen's profile and owned-ticket summaries (`ownerUserId` match only). Staff tokens and other citizens receive `401` / cross-user denial. See `docs/privacy-lifecycle.md`. |
+| `POST /v1/citizen/me/delete` | No | Allowed | Anonymizes the authenticated citizen account: releases the phone claim, redacts profile PII, sets `active=false`, bumps `sessionEpoch`, and revokes sessions. Returns `200` with deletion acknowledgement. Municipal ticket/audit rows remain. See `docs/privacy-lifecycle.md`. |
 | `GET /v1/citizen/tickets` | No | Allowed | Planned account history; derives `userId` from the session and returns only tickets owned by it. |
 
 Citizen-safe profile shape for `GET` / `PATCH /v1/citizen/me` (issue #169):
@@ -107,6 +109,10 @@ Citizen-safe profile shape for `GET` / `PATCH /v1/citizen/me` (issue #169):
 `notificationPreferences`, `publicNameVisible`, and—for phone changes—`phone`, optional
 `region`, `phoneChangeChallengeId`, and `phoneChangeCode`. Phone changes revoke all sessions for
 the account after the atomic claim transfer. Staff tokens on these routes return `401`.
+
+Account deletion (`POST /v1/citizen/me/delete`) and export (`GET /v1/citizen/me/export`) follow the
+privacy lifecycle in `docs/privacy-lifecycle.md`. Deletion keeps `ownerUserId` and immutable ticket
+`contact` snapshots for municipal integrity while clearing live profile PII.
 
 Minimal OTP payloads are fixed as follows:
 

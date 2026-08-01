@@ -24,6 +24,13 @@ export default function RootLayout() {
               headerBackTitle: 'Home',
             }}
           />
+          <Stack.Screen
+            name="privacy/index"
+            options={{
+              title: 'Privacy notice',
+              headerBackTitle: 'Home',
+            }}
+          />
         </Stack>
       </PaperProvider>
     </SafeAreaProvider>
