@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /admin
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      admin-production: { dependency-type: production }
+      admin-development: { dependency-type: development }
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      mobile-production: { dependency-type: production }
+      mobile-development: { dependency-type: development }
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      backend-dependencies: { patterns: ["*"] }
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3

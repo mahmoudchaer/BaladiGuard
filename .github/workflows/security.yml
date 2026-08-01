@@ -1,0 +1,94 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  dependency-scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test npm audit policy gate
+        run: node --test scripts/check-npm-audit.test.mjs
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install pip-audit
+        run: python -m pip install --disable-pip-version-check pip-audit
+      - name: Audit pinned Python dependencies
+        run: pip-audit -r backend/requirements.lock --strict --vulnerability-service osv
+      - name: Audit admin production dependencies
+        working-directory: admin
+        run: |
+          npm ci --ignore-scripts
+          npm audit --omit=dev --json > /tmp/admin-audit.json || true
+          node ../scripts/check-npm-audit.mjs /tmp/admin-audit.json ../security/audit-exceptions.json admin
+      - name: Audit mobile production dependencies
+        working-directory: mobile
+        run: |
+          npm ci --ignore-scripts
+          npm audit --omit=dev --json > /tmp/mobile-audit.json || true
+          node ../scripts/check-npm-audit.mjs /tmp/mobile-audit.json ../security/audit-exceptions.json mobile
+
+  secret-scan:
+    name: Repository secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sast:
+    name: Static security analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install Bandit
+        run: python -m pip install --disable-pip-version-check bandit[toml]
+      - name: Scan Python source
+        run: bandit -r backend/app backend/scripts -lll -iii
+      - name: Install Semgrep
+        run: python -m pip install --disable-pip-version-check semgrep
+      - name: Scan Python and TypeScript/JavaScript source
+        run: semgrep scan --config p/python --config p/typescript --error backend/app backend/scripts admin/src mobile/src
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci --ignore-scripts
+      - name: Run admin static checks
+        working-directory: admin
+        run: npm run lint
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci --ignore-scripts
+      - name: Run mobile static checks
+        working-directory: mobile
+        run: npm run lint
+
+  container-scan:
+    name: Backend container scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build --tag baladiguard-backend:security-${{ github.sha }} backend
+      - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: baladiguard-backend:security-${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
