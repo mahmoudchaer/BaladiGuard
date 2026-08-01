@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AuditAndEnableDynamoBackups",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTable",
+        "dynamodb:ListTables",
+        "dynamodb:RestoreTableToPointInTime",
+        "dynamodb:UpdateContinuousBackups"
+      ],
+      "Resource": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/baladiguard-*"
+    },
+    {
+      "Sid": "AuditAndConfigurePhotoBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketEncryption",
+        "s3:GetBucketLifecycleConfiguration",
+        "s3:GetBucketLocation",
+        "s3:GetBucketVersioning",
+        "s3:GetLifecycleConfiguration",
+        "s3:GetPublicAccessBlock",
+        "s3:ListBucket",
+        "s3:PutBucketEncryption",
+        "s3:PutBucketLifecycleConfiguration",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutBucketVersioning"
+      ],
+      "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}"
+    },
+    {
+      "Sid": "ReadSourcePhotoVersions",
+      "Effect": "Allow",
+      "Action": ["s3:GetObjectVersion"],
+      "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}/reports/photos/*"
+    },
+    {
+      "Sid": "ListSourcePhotoVersions",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}",
+      "Condition": {"StringLike": {"s3:prefix": ["reports/photos/*"]}}
+    },
+    {
+      "Sid": "WriteRestoredPhotoVersions",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject"],
+      "Resource": "arn:aws:s3:::${REPORT_PHOTO_BUCKET}/restore-tests/*"
+    }
+  ]
+}
