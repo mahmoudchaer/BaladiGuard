@@ -51,10 +51,7 @@ export const profileEditSchema = z
       }
     }
 
-    if (
-      (data.ticketUpdates === 'EMAIL' || data.ticketUpdates === 'BOTH') &&
-      !trimmedEmail
-    ) {
+    if ((data.ticketUpdates === 'EMAIL' || data.ticketUpdates === 'BOTH') && !trimmedEmail) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: TICKET_UPDATES_EMAIL_REQUIRED_MESSAGE,

@@ -8,11 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type {
-  CitizenProfile,
-  CitizenProfileUpdatePayload,
-  CitizenSession,
-} from '@/types/citizen';
+import type { CitizenProfile, CitizenProfileUpdatePayload, CitizenSession } from '@/types/citizen';
 import {
   getCitizenMe,
   logoutCitizen,
@@ -21,10 +17,7 @@ import {
   verifyCitizenOtp,
   type CitizenAuthApiError,
 } from '@/services/api/citizenAuth';
-import {
-  setCitizenAccessTokenProvider,
-  setCitizenUnauthorizedHandler,
-} from '@/services/api/http';
+import { setCitizenAccessTokenProvider, setCitizenUnauthorizedHandler } from '@/services/api/http';
 import {
   buildCitizenSession,
   clearCitizenSession,

@@ -14,12 +14,10 @@ export const OTP_NETWORK_MESSAGE =
 export const OTP_GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
 export const OTP_INVALID_MESSAGE = 'The verification code is incorrect.';
 export const OTP_EXPIRED_MESSAGE = 'The verification challenge is no longer valid.';
-export const OTP_RATE_LIMITED_MESSAGE =
-  'Too many attempts. Please wait before trying again.';
+export const OTP_RATE_LIMITED_MESSAGE = 'Too many attempts. Please wait before trying again.';
 export const ACCOUNT_INACTIVE_MESSAGE = 'This account is inactive and cannot sign in.';
 export const SESSION_UNAUTHORIZED_MESSAGE = 'Your session has expired. Please sign in again.';
-export const PHONE_UNAVAILABLE_MESSAGE =
-  'This phone number is already linked to another account.';
+export const PHONE_UNAVAILABLE_MESSAGE = 'This phone number is already linked to another account.';
 export const PROFILE_UPDATE_SUCCESS_MESSAGE = 'Your profile was updated.';
 
 export class CitizenAuthApiError extends Error {

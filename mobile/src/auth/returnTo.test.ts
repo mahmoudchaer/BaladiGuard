@@ -17,4 +17,3 @@ describe('returnTo helpers', () => {
     expect(buildLoginHref('/profile')).toBe('/login?returnTo=%2Fprofile');
   });
 });
-

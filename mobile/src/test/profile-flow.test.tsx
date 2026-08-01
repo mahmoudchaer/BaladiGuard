@@ -5,12 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HomeScreen from '../../app/index';
 import ProfileScreen from '../../app/profile/index';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
-import {
-  __getRouterMockState,
-  __resetExpoRouterMock,
-} from '@/test/mocks/expo-router';
+import { __getRouterMockState, __resetExpoRouterMock } from '@/test/mocks/expo-router';
 import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
-import { saveCitizenSession, buildCitizenSession, loadCitizenSession } from '@/services/citizenSession';
+import {
+  saveCitizenSession,
+  buildCitizenSession,
+  loadCitizenSession,
+} from '@/services/citizenSession';
 import type { CitizenProfile } from '@/types/citizen';
 import {
   CitizenAuthApiError,
@@ -96,9 +97,7 @@ describe('citizen profile flows', () => {
     expect(findByTestId(screen, 'profile-full-name').props.children).toBe('Ada Citizen');
     expect(findByTestId(screen, 'profile-phone').props.children).toBe('+96170123456');
     expect(findByTestId(screen, 'profile-email').props.children).toBe('Not set');
-    expect(findByTestId(screen, 'profile-public-name').props.children).toBe(
-      'Hidden (Anonymous)',
-    );
+    expect(findByTestId(screen, 'profile-public-name').props.children).toBe('Hidden (Anonymous)');
     const statusChildren = findByTestId(screen, 'profile-status').props.children;
     const statusText = Array.isArray(statusChildren)
       ? statusChildren.join('')
@@ -178,9 +177,7 @@ describe('citizen profile flows', () => {
       findByTestId(screen, 'edit-profile-button').props.onPress();
     });
 
-    expect(findByTestId(screen, 'edit-email-help').props.children).toContain(
-      'not used to sign in',
-    );
+    expect(findByTestId(screen, 'edit-email-help').props.children).toContain('not used to sign in');
 
     await act(async () => {
       findByTestId(screen, 'edit-email-input').props.onChangeText('');

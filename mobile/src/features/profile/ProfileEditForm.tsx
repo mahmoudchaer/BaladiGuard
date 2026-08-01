@@ -12,10 +12,7 @@ import {
   profileToEditValues,
   type ProfileEditValues,
 } from '@/schemas/citizenProfileSchema';
-import {
-  CitizenAuthApiError,
-  PROFILE_UPDATE_SUCCESS_MESSAGE,
-} from '@/services/api/citizenAuth';
+import { CitizenAuthApiError, PROFILE_UPDATE_SUCCESS_MESSAGE } from '@/services/api/citizenAuth';
 import type { CitizenProfile, CitizenProfileUpdatePayload } from '@/types/citizen';
 
 type ProfileEditFormProps = {
@@ -182,11 +179,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         render={({ field: { value, onChange } }) => (
           <View style={styles.switchRow}>
             <Text variant="bodyLarge">Municipality announcements</Text>
-            <Switch
-              value={value}
-              onValueChange={onChange}
-              testID="edit-announcements-switch"
-            />
+            <Switch value={value} onValueChange={onChange} testID="edit-announcements-switch" />
           </View>
         )}
       />
@@ -198,11 +191,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
           <View style={styles.switchBlock}>
             <View style={styles.switchRow}>
               <Text variant="bodyLarge">Show my name on reports</Text>
-              <Switch
-                value={value}
-                onValueChange={onChange}
-                testID="edit-public-name-switch"
-              />
+              <Switch value={value} onValueChange={onChange} testID="edit-public-name-switch" />
             </View>
             <HelperText type="info" visible testID="edit-public-name-help">
               {PUBLIC_NAME_VISIBLE_HELP}

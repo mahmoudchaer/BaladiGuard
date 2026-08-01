@@ -58,9 +58,11 @@ describe('citizenProfileSchema', () => {
       ticketUpdates: 'BOTH',
     });
     expect(emailRequired.success).toBe(false);
-    expect(emailRequired.error?.issues.some((issue) => issue.message === TICKET_UPDATES_EMAIL_REQUIRED_MESSAGE)).toBe(
-      true,
-    );
+    expect(
+      emailRequired.error?.issues.some(
+        (issue) => issue.message === TICKET_UPDATES_EMAIL_REQUIRED_MESSAGE,
+      ),
+    ).toBe(true);
   });
 
   it('maps profile defaults with publicNameVisible off', () => {

@@ -39,17 +39,32 @@ export default function HomeScreen() {
               }`}
             </Text>
             <Link href={'/profile' as Href} asChild>
-              <Button mode="text" icon="account" style={styles.button} testID="profile-entry-button">
+              <Button
+                mode="text"
+                icon="account"
+                style={styles.button}
+                testID="profile-entry-button"
+              >
                 Profile
               </Button>
             </Link>
-            <Button mode="text" onPress={() => void logout()} style={styles.button} testID="logout-button">
+            <Button
+              mode="text"
+              onPress={() => void logout()}
+              style={styles.button}
+              testID="logout-button"
+            >
               Sign out
             </Button>
           </View>
         ) : (
           <Link href={buildLoginHref('/') as Href} asChild>
-            <Button mode="text" icon="cellphone-message" style={styles.button} testID="sign-in-button">
+            <Button
+              mode="text"
+              icon="cellphone-message"
+              style={styles.button}
+              testID="sign-in-button"
+            >
               Sign in with phone
             </Button>
           </Link>

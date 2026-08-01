@@ -26,10 +26,7 @@ export function renderWithProviders(ui: ReactElement, options?: TestRendererOpti
   return screen as ReturnType<typeof create>;
 }
 
-export async function renderWithProvidersAsync(
-  ui: ReactElement,
-  options?: TestRendererOptions,
-) {
+export async function renderWithProvidersAsync(ui: ReactElement, options?: TestRendererOptions) {
   let screen: ReturnType<typeof create> | undefined;
 
   await act(async () => {
