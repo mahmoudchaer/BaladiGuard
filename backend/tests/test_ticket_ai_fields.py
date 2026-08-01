@@ -3,7 +3,7 @@ from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory import ticket_store
 from app.schemas.ticket_ai_update import ReviewTicketCategoryRequest, SaveTicketAiOutputRequest
 from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
-from tests.conftest import authenticated_test_client
+from tests.conftest import authenticated_test_client, contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -260,7 +260,7 @@ def test_ticket_ai_fields_persist_in_dynamodb(dynamodb_settings: Settings) -> No
 
     try:
         client = authenticated_test_client()
-        response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+        response = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers())
         assert response.status_code == 201
         ticket_id = response.json()["ticketId"]
 

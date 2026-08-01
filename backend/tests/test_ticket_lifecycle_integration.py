@@ -2,16 +2,11 @@ from app.database.memory import ticket_store
 from app.schemas.classification import ClassificationInputs, ClassificationResult
 from app.schemas.cleaning import CleaningResult
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import contribution_ready_auth_headers
 
 VALID_LIFECYCLE_PAYLOAD = {
     "description": "Large pothole reported near the university gate causing traffic disruption.",
     "languageHint": "auto",
-    "contact": {
-        "name": "Citizen Name",
-        "phone": "+96170123456",
-        "email": "citizen@example.com",
-        "preferredChannel": "SMS",
-    },
     "location": {
         "latitude": 33.896112,
         "longitude": 35.478419,
@@ -62,7 +57,11 @@ def test_ticket_lifecycle_with_ai_processing_and_staff_review(client, monkeypatc
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    create_response = client.post("/v1/tickets", json=payload)
+    create_response = client.post(
+        "/v1/tickets",
+        json=payload,
+        headers=contribution_ready_auth_headers(),
+    )
 
     assert create_response.status_code == 201
     created = create_response.json()

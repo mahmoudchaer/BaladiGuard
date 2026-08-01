@@ -3,6 +3,7 @@ import logging
 from app.config import get_settings
 from app.services.health import build_health_payload, check_database
 from app.services.notifications.service import emit_ticket_notification
+from tests.conftest import contribution_ready_auth_headers
 
 
 def test_health_check(client):
@@ -36,7 +37,11 @@ def test_build_health_payload_includes_database_and_config():
 
 def test_validation_errors_are_logged(client, caplog):
     caplog.set_level(logging.WARNING)
-    response = client.post("/v1/tickets", json={})
+    response = client.post(
+        "/v1/tickets",
+        json={},
+        headers=contribution_ready_auth_headers(),
+    )
 
     assert response.status_code == 400
     assert any("Request validation failed" in record.message for record in caplog.records)

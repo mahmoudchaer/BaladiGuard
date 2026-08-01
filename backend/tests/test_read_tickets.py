@@ -1,11 +1,16 @@
 from app.database.memory import ticket_store
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
 def create_ticket(client, description: str = VALID_PAYLOAD["description"]) -> dict:
     payload = {**VALID_PAYLOAD, "description": description}
-    response = client.post("/v1/tickets", json=payload)
-    assert response.status_code == 201
+    response = client.post(
+        "/v1/tickets",
+        json=payload,
+        headers=contribution_ready_auth_headers(),
+    )
+    assert response.status_code == 201, response.text
     return response.json()
 
 
