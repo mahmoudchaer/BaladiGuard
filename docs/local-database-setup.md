@@ -67,19 +67,20 @@ Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb
 | `make db-seed` | Load municipalities, departments, and categories |
 | `make db-reset` | Delete project tables, recreate them, and seed again |
 
-## Current tables and Sprint 6 target
+## Current tables (including Sprint 6 citizen persistence)
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
-Rows marked **#169 target** are contractually required but are not created until that implementation
-lands; they are listed here so the local migration remains aligned with `docs/database.md`.
+Citizen account tables are created by `make db-migrate` (issue #169). Public OTP
+request/verify HTTP routes remain #170; the challenge/session tables are the shared
+persistence foundation.
 
 | Table | Partition key | GSIs |
 |---|---|---|
 | `baladiguard-tickets` | `ticketId` | `ticketNumber-index`, `trackingCode-index` |
-| `baladiguard-users` | `userId` | Current pre-Sprint-6 schema has `phone-index`, `email-index`; #169 must remove `email-index` and treat `phone-index` as lookup-only per `docs/database.md`. |
-| `baladiguard-phone-claims` | `phoneKey` | **#169 target:** no GSI; transactional phone-uniqueness authority. |
-| `baladiguard-citizen-otp-challenges` | `challengeId` | **#169 target:** TTL on expiry; optional abuse-control indexes. |
-| `baladiguard-citizen-sessions` | `sessionId` | **#169 target:** `userId-index`; TTL on expiry. |
+| `baladiguard-users` | `userId` | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
+| `baladiguard-phone-claims` | `phoneKey` | No GSI; transactional phone-uniqueness authority. |
+| `baladiguard-citizen-otp-challenges` | `challengeId` | TTL on `ttl`; plain OTP codes are never stored. |
+| `baladiguard-citizen-sessions` | `sessionId` | `userId-index` for account-wide revocation; TTL on `ttl`. |
 | `baladiguard-municipalities` | `municipalityId` | — |
 | `baladiguard-departments` | `departmentId` | `municipalityId-index` |
 | `baladiguard-ticket-status-history` | `historyId` | `ticketId-index` |
@@ -87,6 +88,19 @@ lands; they are listed here so the local migration remains aligned with `docs/da
 | `baladiguard-duplicate-groups` | `duplicateGroupId` | — |
 | `baladiguard-categories` | `categoryId` | — |
 | `baladiguard-counters` | `counterId` | — (ticket number sequence) |
+
+### Legacy `users` table migration
+
+Environments created before #169 may still have an `email-index` GSI on `users`.
+Email is no longer an identity key; new migrations create `users` without that index
+and add `phone-claims`, `citizen-otp-challenges`, and `citizen-sessions`.
+
+- **Local DynamoDB:** run `make db-reset` (delete + recreate + seed).
+- **Cloud / shared:** recreate or replace the `users` table definition (delete
+  `email-index`, keep optional `phone-index`), then create the three new tables.
+  Do not rely on `email-index` for lookups. Existing citizen rows (if any) must be
+  backfilled into `phone-claims` with `phoneKey = PHONE#<E.164>` before uniqueness
+  can be enforced; empty environments need no backfill.
 
 Report images are stored on the ticket as `imageObjectKey` (no separate images table in MVP).
 

@@ -20,6 +20,9 @@ from botocore.exceptions import ClientError
 DEFAULT_TABLE_SUFFIXES = (
     "tickets",
     "users",
+    "phone-claims",
+    "citizen-otp-challenges",
+    "citizen-sessions",
     "ticket-status-history",
     "ticket-audit-history",
     "ai-outputs",

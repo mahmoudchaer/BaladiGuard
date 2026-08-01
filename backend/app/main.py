@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.config  # noqa: F401 - load .env before other app modules
+from app.api.citizen import router as citizen_router
 from app.api.health import router as health_router
 from app.api.locations import router as locations_router
 from app.api.staff_auth import router as staff_auth_router
@@ -115,6 +116,10 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             request_id=request_id,
             status_code=exc.status_code,
         )
+    # Preserve auth challenge headers (e.g. WWW-Authenticate on 401).
+    if exc.headers:
+        for header_name, header_value in exc.headers.items():
+            response.headers[header_name] = header_value
     return _with_request_id_header(response, request_id)
 
 
@@ -190,6 +195,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health_router)
     app.include_router(staff_auth_router)
+    app.include_router(citizen_router)
     app.include_router(tickets_router)
     app.include_router(locations_router)
     app.include_router(uploads_router)

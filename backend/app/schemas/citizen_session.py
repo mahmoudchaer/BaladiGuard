@@ -1,0 +1,38 @@
+"""Citizen session and OTP challenge persistence models (issue #169 foundation)."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+OtpPurpose = Literal["LOGIN_OR_SIGNUP", "CHANGE_PHONE"]
+
+
+class StoredCitizenSession(BaseModel):
+    session_id: str = Field(alias="sessionId")
+    token_hash: str = Field(alias="tokenHash")
+    user_id: str = Field(alias="userId")
+    created_at: str = Field(alias="createdAt")
+    expires_at: str = Field(alias="expiresAt")
+    revoked_at: str | None = Field(default=None, alias="revokedAt")
+    revoke_reason: str | None = Field(default=None, alias="revokeReason")
+    ttl: int | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class StoredCitizenOtpChallenge(BaseModel):
+    challenge_id: str = Field(alias="challengeId")
+    code_hash: str = Field(alias="codeHash")
+    phone: str
+    purpose: OtpPurpose
+    user_id: str | None = Field(default=None, alias="userId")
+    created_at: str = Field(alias="createdAt")
+    expires_at: str = Field(alias="expiresAt")
+    attempt_count: int = Field(default=0, alias="attemptCount")
+    consumed_at: str | None = Field(default=None, alias="consumedAt")
+    superseded_at: str | None = Field(default=None, alias="supersededAt")
+    ttl: int | None = None
+
+    model_config = {"populate_by_name": True}

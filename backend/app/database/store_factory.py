@@ -1,8 +1,12 @@
 from app.config import Settings, get_settings
 from app.database.audit_history_store import AuditHistoryStore
+from app.database.citizen_store import CitizenStore
 from app.database.duplicate_group_store import DuplicateGroupStore
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
+from app.database.memory_citizen import citizen_store
+from app.database.memory_citizen_otp import citizen_otp_store
+from app.database.memory_citizen_session import citizen_session_store
 from app.database.memory_duplicate_group import duplicate_group_store
 from app.database.memory_status_history import status_history_store
 from app.database.status_history_store import StatusHistoryStore
@@ -45,6 +49,33 @@ def build_duplicate_group_store(settings: Settings | None = None) -> DuplicateGr
     return duplicate_group_store
 
 
+def build_citizen_store(settings: Settings | None = None) -> CitizenStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_citizen_store import DynamoCitizenStore
+
+        return DynamoCitizenStore(settings)
+    return citizen_store
+
+
+def build_citizen_session_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_citizen_session import DynamoCitizenSessionStore
+
+        return DynamoCitizenSessionStore(settings)
+    return citizen_session_store
+
+
+def build_citizen_otp_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_citizen_otp import DynamoCitizenOtpStore
+
+        return DynamoCitizenOtpStore(settings)
+    return citizen_otp_store
+
+
 def get_ticket_store() -> TicketStore:
     return build_ticket_store(get_settings())
 
@@ -59,3 +90,15 @@ def get_audit_history_store() -> AuditHistoryStore:
 
 def get_duplicate_group_store() -> DuplicateGroupStore:
     return build_duplicate_group_store(get_settings())
+
+
+def get_citizen_store() -> CitizenStore:
+    return build_citizen_store(get_settings())
+
+
+def get_citizen_session_store():
+    return build_citizen_session_store(get_settings())
+
+
+def get_citizen_otp_store():
+    return build_citizen_otp_store(get_settings())

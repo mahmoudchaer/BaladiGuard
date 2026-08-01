@@ -143,6 +143,23 @@ claim so another person cannot silently inherit the identity; release/reassignme
 A `phone-index` GSI on users may be retained only as a read optimization/reconciliation aid and is
 never used to enforce uniqueness. There is no `email-index`.
 
+#### Legacy migration (pre-#169 `users` table)
+
+Older local/cloud stacks created `users` with both `phone-index` and `email-index`. Issue #169
+removes `email-index` from the authoritative table definition and introduces `phone-claims`,
+`citizen-otp-challenges`, and `citizen-sessions`.
+
+Migration behavior:
+
+1. New environments (`make db-migrate` / fresh cloud stack) create the final schema directly.
+2. Existing local stacks should `make db-reset` so tables match the definition.
+3. Existing cloud stacks must delete or recreate `users` without `email-index` (or explicitly
+   delete that GSI), create the three citizen tables, and—if any citizen rows already exist—
+   backfill one `phone-claims` item per canonical phone (`phoneKey = PHONE#<E.164>`, `userId`,
+   `createdAt`) before serving writes. Empty pre-account environments need no row backfill.
+4. Email values on citizen records remain optional non-unique contact data and are never promoted
+   to an identity index again.
+
 ### Citizen sessions and OTP challenges
 
 `citizen-otp-challenges` stores challenge ID, keyed code hash, canonical phone, purpose, expiry,
