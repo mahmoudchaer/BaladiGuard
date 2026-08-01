@@ -31,11 +31,18 @@ export default function HomeScreen() {
           </Button>
         </Link>
 
-        {!isLoading && isAuthenticated && contributionReady ? (
+        {!isLoading && isAuthenticated ? (
           <View style={styles.sessionBlock}>
             <Text variant="bodyMedium" style={styles.sessionText}>
-              {`Signed in as ${profile?.fullName ?? profile?.phone}`}
+              {`Signed in as ${profile?.fullName ?? profile?.phone}${
+                !contributionReady ? ' · Finish setup in Profile' : ''
+              }`}
             </Text>
+            <Link href={'/profile' as Href} asChild>
+              <Button mode="text" icon="account" style={styles.button} testID="profile-entry-button">
+                Profile
+              </Button>
+            </Link>
             <Button mode="text" onPress={() => void logout()} style={styles.button} testID="logout-button">
               Sign out
             </Button>

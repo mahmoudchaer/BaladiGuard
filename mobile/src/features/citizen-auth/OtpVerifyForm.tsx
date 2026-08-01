@@ -14,13 +14,14 @@ import {
   requestCitizenOtp,
   verifyCitizenOtp,
 } from '@/services/api/citizenAuth';
-import type { CitizenOtpVerifyResponse } from '@/types/citizen';
+import type { CitizenOtpPurpose, CitizenOtpVerifyResponse } from '@/types/citizen';
 
 type OtpVerifyFormProps = {
   challengeId: string;
   expiresIn: number;
   phone: string;
   region?: string;
+  purpose?: CitizenOtpPurpose;
   onChallengeReplaced: (next: { challengeId: string; expiresIn: number }) => void;
   onVerified: (response: CitizenOtpVerifyResponse) => void;
 };
@@ -36,6 +37,7 @@ export function OtpVerifyForm({
   expiresIn,
   phone,
   region,
+  purpose = 'LOGIN_OR_SIGNUP',
   onChallengeReplaced,
   onVerified,
 }: OtpVerifyFormProps) {
@@ -119,7 +121,7 @@ export function OtpVerifyForm({
       const response = await requestCitizenOtp({
         phone,
         region,
-        purpose: 'LOGIN_OR_SIGNUP',
+        purpose,
       });
       onChallengeReplaced({
         challengeId: response.challengeId,

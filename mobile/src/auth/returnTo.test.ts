@@ -8,11 +8,13 @@ describe('returnTo helpers', () => {
     expect(sanitizeReturnTo(encodeURIComponent('/track'))).toBe('/track');
     expect(sanitizeReturnTo('https://evil.example')).toBe('/');
     expect(sanitizeReturnTo('//evil.example')).toBe('/');
-    expect(sanitizeReturnTo('/profile')).toBe('/');
+    expect(sanitizeReturnTo('/profile')).toBe('/profile');
   });
 
   it('builds login hrefs with returnTo', () => {
     expect(buildLoginHref('/')).toBe('/login');
     expect(buildLoginHref('/report')).toBe('/login?returnTo=%2Freport');
+    expect(buildLoginHref('/profile')).toBe('/login?returnTo=%2Fprofile');
   });
 });
+

@@ -50,3 +50,15 @@ export type CitizenSession = {
   expiresAt: number;
   profile: CitizenProfile;
 };
+
+export type CitizenProfileUpdatePayload = {
+  fullName?: string;
+  /** Omit to leave unchanged; `null` clears the optional email. */
+  email?: string | null;
+  notificationPreferences?: Partial<NotificationPreferences>;
+  publicNameVisible?: boolean;
+  phone?: string;
+  region?: string;
+  phoneChangeChallengeId?: string;
+  phoneChangeCode?: string;
+};

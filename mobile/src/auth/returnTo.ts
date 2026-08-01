@@ -20,7 +20,12 @@ export function sanitizeReturnTo(returnTo: string | string[] | undefined | null)
   }
 
   const pathOnly = decoded.split('?')[0] ?? '/';
-  if (pathOnly === '/' || pathOnly.startsWith('/report') || pathOnly.startsWith('/track')) {
+  if (
+    pathOnly === '/' ||
+    pathOnly.startsWith('/report') ||
+    pathOnly.startsWith('/track') ||
+    pathOnly.startsWith('/profile')
+  ) {
     return pathOnly;
   }
 

@@ -33,6 +33,13 @@ export default function RootLayout() {
                 headerBackTitle: 'Home',
               }}
             />
+            <Stack.Screen
+              name="profile/index"
+              options={{
+                title: 'Profile',
+                headerBackTitle: 'Home',
+              }}
+            />
           </Stack>
         </CitizenAuthProvider>
       </PaperProvider>

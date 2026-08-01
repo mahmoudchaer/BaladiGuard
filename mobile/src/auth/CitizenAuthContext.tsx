@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { CitizenProfile, CitizenSession } from '@/types/citizen';
+import type {
+  CitizenProfile,
+  CitizenProfileUpdatePayload,
+  CitizenSession,
+} from '@/types/citizen';
 import {
   getCitizenMe,
   logoutCitizen,
@@ -36,8 +40,10 @@ type CitizenAuthContextValue = {
   contributionReady: boolean;
   accessToken: string | null;
   restoreSession: () => Promise<void>;
+  refreshProfile: () => Promise<CitizenProfile | null>;
   applyVerifyResponse: (response: Awaited<ReturnType<typeof verifyCitizenOtp>>) => Promise<void>;
   completeFullName: (fullName: string) => Promise<CitizenProfile>;
+  updateProfile: (patch: CitizenProfileUpdatePayload) => Promise<CitizenProfile>;
   logout: () => Promise<void>;
   clearSessionLocally: () => Promise<void>;
 };
@@ -111,12 +117,11 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const completeFullName = useCallback(
-    async (fullName: string) => {
+  const applyProfileToSession = useCallback(
+    async (profile: CitizenProfile) => {
       if (!session?.accessToken) {
-        throw new Error('Sign in before updating your name.');
+        throw new Error('Sign in before updating your profile.');
       }
-      const profile = await updateCitizenProfile(session.accessToken, { fullName });
       const next: CitizenSession = {
         ...session,
         profile,
@@ -127,6 +132,46 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
     },
     [session],
   );
+
+  const completeFullName = useCallback(
+    async (fullName: string) => {
+      if (!session?.accessToken) {
+        throw new Error('Sign in before updating your name.');
+      }
+      const profile = await updateCitizenProfile(session.accessToken, { fullName });
+      return applyProfileToSession(profile);
+    },
+    [session, applyProfileToSession],
+  );
+
+  const updateProfile = useCallback(
+    async (patch: CitizenProfileUpdatePayload) => {
+      if (!session?.accessToken) {
+        throw new Error('Sign in before updating your profile.');
+      }
+      const profile = await updateCitizenProfile(session.accessToken, patch);
+      return applyProfileToSession(profile);
+    },
+    [session, applyProfileToSession],
+  );
+
+  const refreshProfile = useCallback(async () => {
+    if (!session?.accessToken) {
+      return null;
+    }
+    try {
+      const profile = await getCitizenMe(session.accessToken);
+      await applyProfileToSession(profile);
+      return profile;
+    } catch (error) {
+      const authError = error as CitizenAuthApiError;
+      if (authError?.status === 401 || authError?.code === 'UNAUTHORIZED') {
+        await clearSessionLocally();
+        return null;
+      }
+      throw error;
+    }
+  }, [session, applyProfileToSession, clearSessionLocally]);
 
   const logout = useCallback(async () => {
     const token = session?.accessToken;
@@ -149,8 +194,10 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       contributionReady: Boolean(session?.profile?.contributionReady),
       accessToken: session?.accessToken ?? null,
       restoreSession,
+      refreshProfile,
       applyVerifyResponse,
       completeFullName,
+      updateProfile,
       logout,
       clearSessionLocally,
     }),
@@ -158,8 +205,10 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       session,
       isLoading,
       restoreSession,
+      refreshProfile,
       applyVerifyResponse,
       completeFullName,
+      updateProfile,
       logout,
       clearSessionLocally,
     ],
