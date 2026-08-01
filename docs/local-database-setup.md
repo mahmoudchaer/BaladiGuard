@@ -81,6 +81,8 @@ persistence foundation.
 | `baladiguard-phone-claims` | `phoneKey` | No GSI; transactional phone-uniqueness authority. |
 | `baladiguard-citizen-otp-challenges` | `challengeId` | TTL on `ttl`; plain OTP codes are never stored. |
 | `baladiguard-citizen-sessions` | `sessionId` | `userId-index` for account-wide revocation; TTL on `ttl`. |
+| `baladiguard-staff-users` | `staffId` | Staff accounts (#175); password hashes never returned. |
+| `baladiguard-staff-username-claims` | `usernameKey` | Transactional username uniqueness (`USERNAME#…`). |
 | `baladiguard-municipalities` | `municipalityId` | — |
 | `baladiguard-departments` | `departmentId` | `municipalityId-index` |
 | `baladiguard-ticket-status-history` | `historyId` | `ticketId-index` |
@@ -112,6 +114,8 @@ Default seed loads:
 - **8 departments** — roads, waste, lighting, water, noise, traffic, drainage, public facilities
 - **10 categories** — including `PENDING_CLASSIFICATION`; see
   [Complaint Categories](complaint-categories.md) for stable keys, labels, examples, and department mappings
+- **Demo staff accounts** (when `SEED_DEMO_STAFF=true`): `admin` (administrator) and `staff`
+  (municipal_staff for Beirut roads + lighting), password from `DEMO_STAFF_PASSWORD`
 
 Optional sample tickets from `mock_tickets.json`:
 

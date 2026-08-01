@@ -73,6 +73,15 @@ def run_seed(settings: Settings | None = None) -> None:
     print(f"Seeded departments: {department_count}")
     print(f"Seeded categories: {category_count}")
 
+    from app.database.dynamo_staff_store import DynamoStaffStore
+    from app.services.staff.bootstrap import ensure_demo_staff_accounts
+
+    staff_created = ensure_demo_staff_accounts(
+        DynamoStaffStore(settings),
+        settings=settings,
+    )
+    print(f"Seeded demo staff accounts created: {staff_created}")
+
     counter_seed_value = 0
     if settings.seed_sample_tickets:
         sample_tickets = json.loads(MOCK_TICKETS_PATH.read_text(encoding="utf-8"))

@@ -38,6 +38,8 @@ def test_staff_login_returns_bearer_token(anonymous_client):
     body = response.json()
     assert body["tokenType"] == "Bearer"
     assert body["username"] == "staff"
+    assert body["staffId"]
+    assert body["role"] in {"municipal_staff", "administrator"}
     assert body["expiresIn"] == get_settings().staff_token_ttl_seconds
     assert isinstance(body["accessToken"], str) and len(body["accessToken"]) > 20
 
@@ -198,10 +200,15 @@ def test_invalid_bearer_token_is_rejected(anonymous_client):
 
 
 def test_expired_bearer_token_is_rejected(anonymous_client):
+    from app.core.staff_auth import principal_from_user
+    from app.database.memory_staff import staff_store
+
     settings = get_settings()
+    user = staff_store.get_by_username("staff")
+    assert user is not None
     # Issue a token that already expired one hour ago.
     token = issue_staff_access_token(
-        "staff",
+        principal_from_user(user),
         settings=settings,
         now=int(time.time()) - settings.staff_token_ttl_seconds - 3600,
     )

@@ -401,6 +401,22 @@ Open [http://localhost:5173](http://localhost:5173). By default the dashboard ta
 local backend API (`VITE_USE_MOCK_DATA=false`). Set `VITE_USE_MOCK_DATA=true` only when you
 intentionally want mock fixtures.
 
+#### Staff login (local)
+
+The shared env-credential staff login has been replaced with individual staff accounts.
+When `SEED_DEMO_STAFF=true` (default for local/test), the backend bootstraps:
+
+| Username | Role | Password |
+|---|---|---|
+| `admin` | `administrator` (global scope) | `DEMO_STAFF_PASSWORD` (default `staff-demo-password`) |
+| `staff` | `municipal_staff` (Beirut roads + lighting) | same demo password |
+
+Memory mode creates these accounts on API startup. DynamoDB Local creates them via
+`make db-seed`. Passwords are stored as PBKDF2 hashes only. Use `POST /v1/staff/logout`
+(or the dashboard Logout button) to revoke the current account's outstanding tokens.
+See `docs/configuration.md` and `docs/MVP_API_CONTRACT.md` for production guidance
+(`SEED_DEMO_STAFF=false`).
+
 ## Contributors
 
 - Mahmoud Chaer

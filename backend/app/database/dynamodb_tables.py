@@ -84,6 +84,22 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "staff-users",
+        "key_schema": [{"AttributeName": "staffId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "staffId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "staff-username-claims",
+        "key_schema": [{"AttributeName": "usernameKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "usernameKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "municipalities",
         "key_schema": [{"AttributeName": "municipalityId", "KeyType": "HASH"}],
         "attribute_definitions": [

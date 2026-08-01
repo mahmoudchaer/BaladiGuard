@@ -23,6 +23,8 @@ DEFAULT_TABLE_SUFFIXES = (
     "phone-claims",
     "citizen-otp-challenges",
     "citizen-sessions",
+    "staff-users",
+    "staff-username-claims",
     "ticket-status-history",
     "ticket-audit-history",
     "ai-outputs",

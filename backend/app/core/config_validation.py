@@ -271,24 +271,29 @@ def validate_configuration(
                 )
             )
 
-        staff_password = _raw(env_map, "STAFF_PASSWORD")
-        effective_staff_password = (
-            staff_password if staff_password is not None else cfg.staff_password
-        )
-        if (
-            effective_staff_password is None
-            or effective_staff_password.strip() == ""
-            or effective_staff_password.strip() == "staff-demo-password"
-        ):
-            result.issues.append(
-                ConfigIssue(
-                    code="UNSAFE_STAFF_PASSWORD",
-                    message=(
-                        "Production requires a non-demo STAFF_PASSWORD "
-                        "(do not use empty or local development defaults)."
-                    ),
-                )
+        # Shared env-credential login was removed in #175. Demo passwords may only
+        # be used when explicitly seeding local-style demo staff accounts.
+        if cfg.seed_demo_staff:
+            demo_password = (
+                _raw(env_map, "DEMO_STAFF_PASSWORD")
+                or _raw(env_map, "STAFF_PASSWORD")
+                or cfg.demo_staff_password
             )
+            if (
+                demo_password is None
+                or demo_password.strip() == ""
+                or demo_password.strip() == "staff-demo-password"
+            ):
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_STAFF_PASSWORD",
+                        message=(
+                            "Production must not seed demo staff with the default "
+                            "password. Set SEED_DEMO_STAFF=false or provide a strong "
+                            "DEMO_STAFF_PASSWORD."
+                        ),
+                    )
+                )
 
         raw_ttl = _raw(env_map, "STAFF_TOKEN_TTL_SECONDS")
         if raw_ttl is not None and raw_ttl.strip():
