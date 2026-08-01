@@ -110,7 +110,7 @@ def test_upload_rate_limit_is_stricter_than_default_submit(
             files={"file": ("x.jpg", BytesIO(b"not-a-real-image"), "image/jpeg")},
         )
 
-    # Rate limit runs before upload processing; any non-429 counts against the budget.
+    # Pre-body middleware rate limit; any non-429 counts against the budget.
     assert _post().status_code != 429
     assert _post().status_code != 429
     limited = _post()

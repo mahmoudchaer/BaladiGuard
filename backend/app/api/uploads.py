@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.errors import build_error_response, get_request_id
-from app.core.rate_limit import enforce_rate_limit
 from app.services.uploads.photo_upload_service import (
     InvalidUploadError,
     S3UploadError,
@@ -23,14 +22,8 @@ async def upload_report_photo(
     request: Request,
     file: UploadFile | None = REPORT_PHOTO_FILE,
 ) -> ReportPhotoUploadResponse | JSONResponse:
-    limited = enforce_rate_limit(
-        request,
-        "public-upload-report-photo",
-        message="Too many upload requests. Please wait before trying again.",
-    )
-    if limited is not None:
-        return limited
-
+    # Rate limit + Content-Length guards run in HTTP middleware (upload_abuse)
+    # before multipart parsing; do not re-check here (would double-count).
     if file is None:
         return build_error_response(
             code="MISSING_FILE",

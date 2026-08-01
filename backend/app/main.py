@@ -24,6 +24,7 @@ from app.core.errors import (
     validation_exception_handler as base_validation_exception_handler,
 )
 from app.core.logging import configure_logging
+from app.core.upload_abuse import reject_upload_abuse_early
 from app.services.complaints.ticket_service import ticket_service
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,11 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next):
         request.state.request_id = create_request_id()
+        # Upload abuse checks must run before call_next so FastAPI never spools
+        # multipart bodies for over-limit / over-quota report-photo requests.
+        early_upload_rejection = reject_upload_abuse_early(request)
+        if early_upload_rejection is not None:
+            return _with_request_id_header(early_upload_rejection, request.state.request_id)
         try:
             response = await call_next(request)
         except Exception:

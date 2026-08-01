@@ -3,6 +3,12 @@
 ## Overview
 
 BaladiGuard enforces aligned fixed-window rate limits on abuse-sensitive HTTP routes.
+
+Public photo upload (`POST /v1/uploads/report-photo`) is additionally guarded in HTTP
+middleware **before** `call_next` / multipart parsing: a `Content-Length` ceiling
+(5MB file + framing allowance) and the upload rate-limit policy both short-circuit so
+bursty or oversized bodies are not spooled into `UploadFile`.
+
 Counters are:
 
 - **In-memory** when `DATABASE_BACKEND=memory` (local/CI).
