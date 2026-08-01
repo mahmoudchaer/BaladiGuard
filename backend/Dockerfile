@@ -9,7 +9,10 @@ WORKDIR /app
 RUN addgroup --system app && adduser --system --ingroup app app
 
 COPY requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock
+RUN pip install --no-cache-dir -r requirements.lock \
+    && pip install --no-cache-dir --upgrade \
+        'wheel>=0.46.2'
+RUN pip uninstall --yes jaraco.context || true
 
 COPY app ./app
 COPY scripts ./scripts
