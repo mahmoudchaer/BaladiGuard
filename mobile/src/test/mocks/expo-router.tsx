@@ -44,7 +44,9 @@ export function useRouter() {
   };
 }
 
-export function useLocalSearchParams<T extends Record<string, unknown> = Record<string, unknown>>() {
+export function useLocalSearchParams<
+  T extends Record<string, unknown> = Record<string, unknown>,
+>() {
   return routerState.searchParams as T;
 }
 

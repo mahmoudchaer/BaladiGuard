@@ -7,8 +7,7 @@
  */
 
 export const PHONE_REQUIRED_MESSAGE = 'Phone number is required.';
-export const REGION_REQUIRED_MESSAGE =
-  'National-format phone numbers require an explicit region.';
+export const REGION_REQUIRED_MESSAGE = 'National-format phone numbers require an explicit region.';
 export const REGION_INVALID_MESSAGE = 'Region must be an ISO 3166-1 alpha-2 code.';
 export const PHONE_PARSE_MESSAGE = 'Phone number could not be parsed.';
 export const PHONE_INVALID_MESSAGE = 'Phone number is not a valid number.';
@@ -18,8 +17,7 @@ const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 const DIGITS_ONLY = /^\d+$/;
 
 export type PhoneValidationResult =
-  | { ok: true; phone: string; region?: string }
-  | { ok: false; message: string };
+  { ok: true; phone: string; region?: string } | { ok: false; message: string };
 
 export function normalizeRegion(region: string | null | undefined): string | undefined {
   if (region == null) {
@@ -40,10 +38,7 @@ export function isValidRegionCode(region: string | undefined): boolean {
  * Validate and lightly normalize phone input before OTP request.
  * Returns the trimmed phone and optional uppercase region for the API payload.
  */
-export function validatePhoneInput(
-  phone: string,
-  region?: string | null,
-): PhoneValidationResult {
+export function validatePhoneInput(phone: string, region?: string | null): PhoneValidationResult {
   const raw = phone?.trim() ?? '';
   if (!raw) {
     return { ok: false, message: PHONE_REQUIRED_MESSAGE };
@@ -70,7 +65,11 @@ export function validatePhoneInput(
   }
 
   const nationalDigits = raw.replace(/[\s()-]/g, '');
-  if (!DIGITS_ONLY.test(nationalDigits) || nationalDigits.length < 6 || nationalDigits.length > 15) {
+  if (
+    !DIGITS_ONLY.test(nationalDigits) ||
+    nationalDigits.length < 6 ||
+    nationalDigits.length > 15
+  ) {
     return { ok: false, message: PHONE_INVALID_MESSAGE };
   }
 
