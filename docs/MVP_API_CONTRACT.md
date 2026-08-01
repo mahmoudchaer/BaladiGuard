@@ -80,6 +80,32 @@ service.
 | `PATCH /v1/citizen/me` | No | Allowed | Updates supported profile/preferences. A phone change requires a separately verified `CHANGE_PHONE` challenge and an atomic claim transfer. Email changes do not affect identity or sessions. |
 | `GET /v1/citizen/tickets` | No | Allowed | Planned account history; derives `userId` from the session and returns only tickets owned by it. |
 
+Citizen-safe profile shape for `GET` / `PATCH /v1/citizen/me` (issue #169):
+
+```json
+{
+  "userId": "usr_…",
+  "phone": "+96170123456",
+  "phoneVerifiedAt": "2026-08-01T12:00:00Z",
+  "fullName": "Ada Citizen",
+  "email": null,
+  "notificationPreferences": {
+    "ticketUpdates": "NONE",
+    "announcements": false
+  },
+  "publicNameVisible": false,
+  "active": true,
+  "contributionReady": true,
+  "createdAt": "2026-08-01T12:00:00Z",
+  "updatedAt": "2026-08-01T12:00:00Z"
+}
+```
+
+`PATCH` accepts a partial body with any of `fullName`, `email` (nullable),
+`notificationPreferences`, `publicNameVisible`, and—for phone changes—`phone`, optional
+`region`, `phoneChangeChallengeId`, and `phoneChangeCode`. Phone changes revoke all sessions for
+the account after the atomic claim transfer. Staff tokens on these routes return `401`.
+
 Minimal OTP payloads are fixed as follows:
 
 - OTP request accepts `phone`, optional `region` (required for national-format input), and `purpose`.

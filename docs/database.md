@@ -109,6 +109,7 @@ contract and persistence model.
 | `notificationPreferences.announcements` | boolean | Yes | Explicit announcement opt-in; default `false`. |
 | `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. |
 | `active` | boolean | Yes | Default `true`. OTP verification for an inactive account returns `403 ACCOUNT_INACTIVE` without issuing a session; deactivation immediately revokes existing sessions. |
+| `sessionEpoch` | number | Yes | Monotonic account-wide session generation. Phone change and other security revocations increment it; authentication rejects any session whose stored epoch does not match. This is the strongly consistent revocation authority (GSI session scans are best-effort cleanup only). Auth must read the citizen row with DynamoDB `ConsistentRead=True`. Not returned from profile APIs. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last profile update time. |
 
@@ -142,6 +143,23 @@ still matches, and deletes the old claim only when its `userId` matches. Deactiv
 claim so another person cannot silently inherit the identity; release/reassignment is outside MVP.
 A `phone-index` GSI on users may be retained only as a read optimization/reconciliation aid and is
 never used to enforce uniqueness. There is no `email-index`.
+
+#### Legacy migration (pre-#169 `users` table)
+
+Older local/cloud stacks created `users` with both `phone-index` and `email-index`. Issue #169
+removes `email-index` from the authoritative table definition and introduces `phone-claims`,
+`citizen-otp-challenges`, and `citizen-sessions`.
+
+Migration behavior:
+
+1. New environments (`make db-migrate` / fresh cloud stack) create the final schema directly.
+2. Existing local stacks should `make db-reset` so tables match the definition.
+3. Existing cloud stacks must delete or recreate `users` without `email-index` (or explicitly
+   delete that GSI), create the three citizen tables, and—if any citizen rows already exist—
+   backfill one `phone-claims` item per canonical phone (`phoneKey = PHONE#<E.164>`, `userId`,
+   `createdAt`) before serving writes. Empty pre-account environments need no row backfill.
+4. Email values on citizen records remain optional non-unique contact data and are never promoted
+   to an identity index again.
 
 ### Citizen sessions and OTP challenges
 

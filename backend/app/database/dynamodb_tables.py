@@ -42,17 +42,43 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "userId", "AttributeType": "S"},
             {"AttributeName": "phone", "AttributeType": "S"},
-            {"AttributeName": "email", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
+                # Read/reconciliation aid only — phone-claims is the uniqueness authority.
                 "IndexName": "phone-index",
                 "KeySchema": [{"AttributeName": "phone", "KeyType": "HASH"}],
                 "Projection": {"ProjectionType": "ALL"},
             },
+        ],
+    },
+    {
+        "suffix": "phone-claims",
+        "key_schema": [{"AttributeName": "phoneKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "phoneKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "citizen-otp-challenges",
+        "key_schema": [{"AttributeName": "challengeId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "challengeId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "citizen-sessions",
+        "key_schema": [{"AttributeName": "sessionId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "sessionId", "AttributeType": "S"},
+            {"AttributeName": "userId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
             {
-                "IndexName": "email-index",
-                "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
+                "IndexName": "userId-index",
+                "KeySchema": [{"AttributeName": "userId", "KeyType": "HASH"}],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],

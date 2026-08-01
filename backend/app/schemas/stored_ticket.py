@@ -21,6 +21,8 @@ class StoredTicket(BaseModel):
     contact: ReportContact
     location: ReportLocation
     image_object_key: str = Field(alias="imageObjectKey")
+    # Stable citizen owner; null/absent for legacy unowned tickets. Never OTP/session data.
+    owner_user_id: str | None = Field(default=None, alias="ownerUserId")
     status: TicketStatus
     category: str = PENDING_CLASSIFICATION
     ai_suggested_category: str | None = Field(default=None, alias="aiSuggestedCategory")
