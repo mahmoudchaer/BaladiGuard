@@ -9,7 +9,10 @@ WORKDIR /app
 RUN addgroup --system app && adduser --system --ingroup app app
 
 COPY requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock \
+RUN find /usr/local/lib/python3.11/site-packages -maxdepth 1 \
+        \( -name 'wheel-*.dist-info' -o -name 'jaraco_context-*.dist-info' \) \
+        -exec rm -rf {} + \
+    && pip install --no-cache-dir -r requirements.lock \
     && pip install --no-cache-dir --upgrade --force-reinstall \
         'jaraco.context>=6.1.0' \
         'wheel>=0.46.2' \
