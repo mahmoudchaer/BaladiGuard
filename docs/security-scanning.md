@@ -23,8 +23,10 @@ text only, never credential values.
 
 ## Exceptions and ownership
 
-An exception requires a linked issue, owner, affected package/rule, rationale,
-compensating control, and expiry no more than 30 days away. Backend owners handle
+An exception requires a linked GitHub issue, owner, affected package/rule,
+rationale, compensating control, creation date, and expiry within 30 days of
+creation. The npm audit gate validates these fields and fails closed when npm
+reports a high/critical finding without a parseable advisory ID. Backend owners handle
 Python/container findings; web/mobile owners handle npm findings; the repository
 owner handles secret incidents. Expired exceptions fail review.
 
@@ -42,3 +44,7 @@ critical finding, expired exception, or unexpected high-severity advisory.
 
 The weekly scheduled workflow catches vulnerabilities disclosed after merge.
 Retain the workflow URL and approved exception issue in the release handoff.
+
+The `main` branch ruleset requires the dependency, secret, static-analysis, and
+backend-container Security checks, in addition to the existing backend and mobile
+checks. A failed Security job therefore blocks merging.

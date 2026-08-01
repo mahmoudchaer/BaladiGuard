@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Test npm audit policy gate
+        run: node --test scripts/check-npm-audit.test.mjs
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - name: Install pip-audit
@@ -44,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -83,7 +85,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build backend image
         run: docker build --tag baladiguard-backend:security-${{ github.sha }} backend
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: baladiguard-backend:security-${{ github.sha }}
           format: table
