@@ -298,9 +298,7 @@ export function getStaffAuthHeaders(): Record<string, string> {
   };
 }
 
-export type PasswordResetResult =
-  | { ok: true; message: string }
-  | { ok: false; error: string };
+export type PasswordResetResult = { ok: true; message: string } | { ok: false; error: string };
 
 function apiErrorMessage(errorBody: unknown, fallback: string): string {
   if (
