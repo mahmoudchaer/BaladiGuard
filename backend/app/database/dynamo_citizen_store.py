@@ -70,22 +70,25 @@ class DynamoCitizenStore:
     def _transact_write(self, items: list[dict[str, Any]]) -> None:
         """Run TransactWriteItems.
 
-        Real DynamoDB requires AttributeValue wire format. moto's
-        TransactWriteItems currently mishandles pre-serialized items and expects
-        native document types, so fall back when that specific failure appears.
+        boto3's low-level client already serializes native Python values to
+        AttributeValue wire format. Pre-serializing first double-wraps values
+        (strings become maps) and real DynamoDB rejects them with ValidationError.
+        Some moto versions still expect pre-serialized items, so fall back.
         """
         try:
-            self._client.transact_write_items(TransactItems=_to_wire_transact_items(items))
+            self._client.transact_write_items(TransactItems=items)
             return
         except ClientError as error:
             reasons = error.response.get("CancellationReasons") or []
-            moto_type_error = any(
-                reason.get("Code") == "TypeError" or "unhashable" in str(reason.get("Message", ""))
+            needs_wire = any(
+                reason.get("Code") == "TypeError"
+                or "unhashable" in str(reason.get("Message", ""))
+                or "serialized" in str(reason.get("Message", "")).lower()
                 for reason in reasons
             )
-            if not moto_type_error:
+            if not needs_wire:
                 raise
-        self._client.transact_write_items(TransactItems=items)
+        self._client.transact_write_items(TransactItems=_to_wire_transact_items(items))
 
     def create(self, user: StoredCitizenUser) -> StoredCitizenUser:
         claim_key = phone_claim_key(user.phone)
@@ -114,7 +117,9 @@ class DynamoCitizenStore:
             )
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == "TransactionCanceledException":
-                raise PhoneClaimConflictError("Phone number is already claimed.") from error
+                reasons = error.response.get("CancellationReasons") or []
+                if any(reason.get("Code") == "ConditionalCheckFailed" for reason in reasons):
+                    raise PhoneClaimConflictError("Phone number is already claimed.") from error
             raise
         return user
 
