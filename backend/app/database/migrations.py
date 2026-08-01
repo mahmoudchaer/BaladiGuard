@@ -40,7 +40,30 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
     for table_name in created_tables:
         wait_for_table(client, table_name)
 
+    # Enable TTL on shared rate-limit buckets (issue #186). Idempotent.
+    rate_limit_table = build_table_name(prefix, "rate-limit-buckets")
+    if rate_limit_table not in created_tables:
+        wait_for_table(client, rate_limit_table)
+    _ensure_ttl(client, rate_limit_table, attribute_name="expiresAt")
+
     return created_tables
+
+
+def _ensure_ttl(client, table_name: str, *, attribute_name: str) -> None:
+    try:
+        client.update_time_to_live(
+            TableName=table_name,
+            TimeToLiveSpecification={
+                "Enabled": True,
+                "AttributeName": attribute_name,
+            },
+        )
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "")
+        # Already enabled / unsupported in some local emulators — non-fatal.
+        if code in {"ValidationException", "ResourceNotFoundException"}:
+            return
+        raise
 
 
 def delete_tables(prefix: str, settings: Settings | None = None) -> None:

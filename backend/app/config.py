@@ -80,6 +80,57 @@ class Settings:
         self.trust_x_forwarded_for = (
             os.getenv("TRUST_X_FORWARDED_FOR", "false").strip().lower() == "true"
         )
+        # Shared rate limiting (issue #186). Limits are enforced in-process for
+        # memory backends and via DynamoDB ``rate-limit-buckets`` when using DynamoDB.
+        self.rate_limit_ticket_submit_limit = self._int_setting(
+            "RATE_LIMIT_TICKET_SUBMIT_LIMIT", default=20, minimum=1
+        )
+        self.rate_limit_ticket_submit_window_seconds = self._int_setting(
+            "RATE_LIMIT_TICKET_SUBMIT_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_ticket_track_limit = self._int_setting(
+            "RATE_LIMIT_TICKET_TRACK_LIMIT", default=60, minimum=1
+        )
+        self.rate_limit_ticket_track_window_seconds = self._int_setting(
+            "RATE_LIMIT_TICKET_TRACK_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_upload_limit = self._int_setting(
+            "RATE_LIMIT_UPLOAD_LIMIT", default=10, minimum=1
+        )
+        self.rate_limit_upload_window_seconds = self._int_setting(
+            "RATE_LIMIT_UPLOAD_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_location_validate_limit = self._int_setting(
+            "RATE_LIMIT_LOCATION_VALIDATE_LIMIT", default=30, minimum=1
+        )
+        self.rate_limit_location_validate_window_seconds = self._int_setting(
+            "RATE_LIMIT_LOCATION_VALIDATE_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_staff_login_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_LOGIN_LIMIT", default=10, minimum=1
+        )
+        self.rate_limit_staff_login_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_LOGIN_WINDOW_SECONDS", default=300, minimum=1
+        )
+        self.rate_limit_citizen_otp_request_limit = self._int_setting(
+            "RATE_LIMIT_CITIZEN_OTP_REQUEST_LIMIT", default=5, minimum=1
+        )
+        self.rate_limit_citizen_otp_request_window_seconds = self._int_setting(
+            "RATE_LIMIT_CITIZEN_OTP_REQUEST_WINDOW_SECONDS", default=300, minimum=1
+        )
+        self.rate_limit_citizen_otp_verify_limit = self._int_setting(
+            "RATE_LIMIT_CITIZEN_OTP_VERIFY_LIMIT", default=10, minimum=1
+        )
+        self.rate_limit_citizen_otp_verify_window_seconds = self._int_setting(
+            "RATE_LIMIT_CITIZEN_OTP_VERIFY_WINDOW_SECONDS", default=300, minimum=1
+        )
+        # Optional smoke-test token: raises the matched client's quota, never disables limits.
+        self.rate_limit_smoke_bypass_token = (
+            os.getenv("RATE_LIMIT_SMOKE_BYPASS_TOKEN", "").strip() or None
+        )
+        self.rate_limit_smoke_limit = self._int_setting(
+            "RATE_LIMIT_SMOKE_LIMIT", default=1000, minimum=1
+        )
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
         # Staff auth (issue #175). Individual staff accounts are persisted;
@@ -127,6 +178,15 @@ class Settings:
         if maximum is not None:
             value = min(maximum, value)
         return value
+
+    @staticmethod
+    def _int_setting(name: str, *, default: int, minimum: int = 1) -> int:
+        raw = os.getenv(name, str(default)).strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            return default
+        return max(minimum, value)
 
     @property
     def use_dynamodb(self) -> bool:

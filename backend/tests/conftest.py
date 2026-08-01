@@ -20,9 +20,12 @@ os.environ["STAFF_PASSWORD"] = "staff-demo-password"
 os.environ["DEMO_STAFF_PASSWORD"] = "staff-demo-password"
 os.environ["SEED_DEMO_STAFF"] = "true"
 os.environ["STAFF_TOKEN_TTL_SECONDS"] = "43200"
+# Keep staff login usable across suite helpers; production defaults stay stricter.
+os.environ["RATE_LIMIT_STAFF_LOGIN_LIMIT"] = "1000"
+os.environ["RATE_LIMIT_STAFF_LOGIN_WINDOW_SECONDS"] = "60"
 get_settings.cache_clear()
 
-from app.core.rate_limit import public_ticket_rate_limiter  # noqa: E402
+from app.core.rate_limit import clear_rate_limiter_cache, public_ticket_rate_limiter  # noqa: E402
 from app.database.memory import ticket_store  # noqa: E402
 from app.database.memory_audit_history import audit_history_store  # noqa: E402
 from app.database.memory_citizen import citizen_store  # noqa: E402
@@ -67,6 +70,7 @@ def reset_ticket_store() -> None:
     citizen_otp_store.clear()
     staff_store.clear()
     ensure_demo_staff_accounts()
+    clear_rate_limiter_cache()
     public_ticket_rate_limiter.reset()
     from app.services.notifications import reset_delivery_ledger
 
@@ -125,6 +129,7 @@ def dynamodb_settings() -> Settings:
         os.environ["SEED_SAMPLE_TICKETS"] = "false"
         os.environ.pop("DYNAMODB_ENDPOINT_URL", None)
         get_settings.cache_clear()
+        clear_rate_limiter_cache()
 
         settings = Settings()
         create_tables(settings.dynamodb_table_prefix, settings)
@@ -154,3 +159,4 @@ def dynamodb_settings() -> Settings:
         os.environ["SEED_SAMPLE_TICKETS"] = original_seed
 
     get_settings.cache_clear()
+    clear_rate_limiter_cache()

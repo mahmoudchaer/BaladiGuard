@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
+from app.core.rate_limit import enforce_rate_limit
 from app.schemas.location_validation import ValidateLocationRequest, ValidateLocationResponse
 from app.services.location.amazon_location_client import LocationProviderError
 from app.services.location.validate_location import validate_location
@@ -14,6 +15,14 @@ def validate_report_location(
     payload: ValidateLocationRequest,
     request: Request,
 ) -> ValidateLocationResponse | JSONResponse:
+    limited = enforce_rate_limit(
+        request,
+        "public-location-validate",
+        message="Too many location validation requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+
     try:
         result = validate_location(payload)
     except LocationProviderError as exc:

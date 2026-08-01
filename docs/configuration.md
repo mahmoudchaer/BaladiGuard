@@ -62,6 +62,14 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `DUPLICATE_SIMILAR_CATEGORY_WEIGHT` | No | `0.7` | 0..1 |
 | `NOTIFICATION_ADAPTER` | Yes (prod: `real`) | `mock` | `mock` \| `real` |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
+| `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
+| `RATE_LIMIT_TICKET_TRACK_LIMIT` / `_WINDOW_SECONDS` | No | `60` / `60` | Public tracking lookup |
+| `RATE_LIMIT_UPLOAD_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `60` | Report photo upload (stricter) |
+| `RATE_LIMIT_LOCATION_VALIDATE_LIMIT` / `_WINDOW_SECONDS` | No | `30` / `60` | Location validate |
+| `RATE_LIMIT_STAFF_LOGIN_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `300` | Staff login |
+| `RATE_LIMIT_CITIZEN_OTP_REQUEST_*` / `RATE_LIMIT_CITIZEN_OTP_VERIFY_*` | No | `5`/`300`, `10`/`300` | Reserved for citizen OTP HTTP (#170) |
+| `RATE_LIMIT_SMOKE_BYPASS_TOKEN` | No | empty | Optional smoke header token; never a global disable |
+| `RATE_LIMIT_SMOKE_LIMIT` | No | `1000` | Higher still-enforced quota for smoke token clients |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
 | `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin` + `staff` accounts (#175) |
 | `DEMO_STAFF_PASSWORD` | When seeding demos | `staff-demo-password` | Password used only to hash demo staff accounts; never used as shared login |

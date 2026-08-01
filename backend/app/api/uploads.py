@@ -22,6 +22,8 @@ async def upload_report_photo(
     request: Request,
     file: UploadFile | None = REPORT_PHOTO_FILE,
 ) -> ReportPhotoUploadResponse | JSONResponse:
+    # Rate limit + Content-Length guards run in HTTP middleware (upload_abuse)
+    # before multipart parsing; do not re-check here (would double-count).
     if file is None:
         return build_error_response(
             code="MISSING_FILE",

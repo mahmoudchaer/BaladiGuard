@@ -152,25 +152,35 @@ mocked).
 
 ### Public Endpoint Abuse Protection
 
-The public citizen ticket endpoints use a lightweight in-memory fixed-window limiter:
+BaladiGuard enforces shared fixed-window rate limits on abuse-sensitive routes (issue #186).
+With `DATABASE_BACKEND=memory` (local/CI) counters are in-process; with DynamoDB they are stored
+in `rate-limit-buckets` so multiple workers/instances share the same budget. Client identities
+are HMAC-hashed before storage/logs (raw IPs are not persisted).
 
-- `POST /v1/tickets`: 20 requests per client IP per 60 seconds.
-- `GET /v1/tickets/track/{trackingCode}`: 60 requests per client IP per 60 seconds.
+Default policies (all env-configurable — see `docs/configuration.md` and
+`docs/rate-limiting-runbook.md`):
 
-When a client exceeds a limit, the API returns `429` with error code
-`RATE_LIMIT_EXCEEDED` and a `Retry-After` header. Staff-only endpoints remain protected by
-staff authentication and are not rate-limited by this public citizen policy.
+| Route | Policy | Default |
+| --- | --- | --- |
+| `POST /v1/tickets` (AI-triggering submit) | `public-ticket-submission` | 20 / 60s |
+| `GET /v1/tickets/track/{trackingCode}` | `public-ticket-tracking` | 60 / 60s |
+| `POST /v1/uploads/report-photo` | `public-upload-report-photo` | 10 / 60s (stricter) |
+| `POST /v1/locations/validate` | `public-location-validate` | 30 / 60s |
+| `POST /v1/staff/login` | `staff-login` | 10 / 300s |
+| Citizen OTP request/verify (when #170 ships) | `citizen-otp-request` / `citizen-otp-verify` | 5 / 300s and 10 / 300s |
 
-This is an MVP, per-process memory control. It is deterministic for local and CI memory runs,
-but each deployed worker maintains its own counters. Expired per-client buckets are pruned on
-new limiter checks. A multi-worker or horizontally scaled deployment should replace or front
-this with a shared limiter such as an API gateway, WAF, load balancer rule, Redis-backed
-limiter, or equivalent managed service.
+Citizen auth is passwordless OTP (signup/login). There is no citizen password-reset route;
+staff password recovery is tracked separately. Authenticated staff ticket APIs are not under
+these public policies (auth is the control plane).
 
-By default, rate limiting keys on the direct client host reported to FastAPI. Set
-`TRUST_X_FORWARDED_FOR=true` only when the API is deployed behind a trusted proxy or gateway
-that strips or overwrites client-supplied `X-Forwarded-For` values; when enabled, the limiter
-uses the leftmost forwarded address as the client key.
+Exceeding a limit returns `429` with code `RATE_LIMIT_EXCEEDED`, a safe message, `requestId`,
+and `Retry-After`. Optional smoke tests may send `X-BaladiGuard-Smoke-Token` matching
+`RATE_LIMIT_SMOKE_BYPASS_TOKEN` to receive a higher still-enforced smoke quota — never a
+global disable.
+
+By default, rate limiting keys on the direct client host reported to FastAPI (forged
+`X-Forwarded-For` is ignored). Set `TRUST_X_FORWARDED_FOR=true` only behind a trusted proxy
+or API Gateway that overwrites client-supplied XFF; the leftmost hop is then used.
 
 ### AI intake regression tests
 

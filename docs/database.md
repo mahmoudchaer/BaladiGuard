@@ -399,3 +399,4 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `duplicate-groups` | `duplicateGroupId` | |
 | `categories` | `categoryId` | Reference taxonomy for AI/admin |
 | `counters` | `counterId` | Ticket number sequence counter |
+| `rate-limit-buckets` | `bucketKey` | Shared fixed-window rate-limit counters (issue #186); TTL on `expiresAt` |
