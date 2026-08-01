@@ -112,7 +112,9 @@ def test_dynamo_partial_update_and_phone_change(dynamodb_settings: Settings) -> 
 
     try:
         verify_citizen_access_token(
-            token, session_store=DynamoCitizenSessionStore(dynamodb_settings)
+            token,
+            session_store=DynamoCitizenSessionStore(dynamodb_settings),
+            citizen_store=DynamoCitizenStore(dynamodb_settings),
         )
         raise AssertionError("expected revoked session")
     except CitizenAuthError:

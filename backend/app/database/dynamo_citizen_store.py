@@ -159,25 +159,18 @@ class DynamoCitizenStore:
         *,
         user_id: str,
         old_phone: str,
-        new_phone: str,
-        phone_verified_at: str,
-        updated_at: str,
+        updated_user: StoredCitizenUser,
     ) -> StoredCitizenUser:
+        if updated_user.user_id != user_id:
+            raise CitizenPhoneMismatchError("Updated userId does not match.")
         old_key = phone_claim_key(old_phone)
-        new_key = phone_claim_key(new_phone)
+        new_key = phone_claim_key(updated_user.phone)
         existing = self.get(user_id)
         if existing is None:
             raise CitizenNotFoundError("Citizen not found.")
         if existing.phone != old_phone:
             raise CitizenPhoneMismatchError("Current phone no longer matches.")
 
-        updated = existing.model_copy(
-            update={
-                "phone": new_phone,
-                "phone_verified_at": phone_verified_at,
-                "updated_at": updated_at,
-            }
-        )
         transact_items: list[dict[str, Any]] = [
             {
                 "Put": {
@@ -185,7 +178,7 @@ class DynamoCitizenStore:
                     "Item": {
                         "phoneKey": new_key,
                         "userId": user_id,
-                        "createdAt": phone_verified_at,
+                        "createdAt": updated_user.phone_verified_at,
                     },
                     "ConditionExpression": "attribute_not_exists(phoneKey)",
                 }
@@ -193,7 +186,7 @@ class DynamoCitizenStore:
             {
                 "Put": {
                     "TableName": self._users_table.name,
-                    "Item": _user_to_item(updated),
+                    "Item": _user_to_item(updated_user),
                     "ConditionExpression": "attribute_exists(userId) AND phone = :oldPhone",
                     "ExpressionAttributeValues": {":oldPhone": old_phone},
                 }
@@ -221,7 +214,7 @@ class DynamoCitizenStore:
                     raise PhoneClaimConflictError("Phone number is already claimed.") from error
                 raise CitizenPhoneMismatchError("Unable to transfer phone claim.") from error
             raise
-        return updated
+        return updated_user
 
     def clear(self) -> None:
         message = "DynamoCitizenStore does not support clear(). Use db-reset for local dev."

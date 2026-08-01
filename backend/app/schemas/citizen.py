@@ -30,6 +30,9 @@ class StoredCitizenUser(BaseModel):
     )
     public_name_visible: bool = Field(default=False, alias="publicNameVisible")
     active: bool = True
+    # Bumped on account-wide session revocation (phone change, deactivation, etc.).
+    # Not returned from profile endpoints.
+    session_epoch: int = Field(default=0, alias="sessionEpoch", ge=0)
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
 

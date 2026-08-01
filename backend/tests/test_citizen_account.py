@@ -221,6 +221,52 @@ def test_phone_change_rejects_claimed_number(anonymous_client: TestClient) -> No
     assert citizen_service.get_by_phone("+96170222222") is not None
 
 
+def test_phone_change_validates_profile_before_mutating(
+    anonymous_client: TestClient,
+) -> None:
+    user, token = _create_ready_citizen(phone="+96170123456")
+    challenge_id, code = citizen_service.create_change_phone_challenge(
+        user_id=user.user_id,
+        phone="+96171999999",
+    )
+    response = anonymous_client.patch(
+        "/v1/citizen/me",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "phone": "+96171999999",
+            "phoneChangeChallengeId": challenge_id,
+            "phoneChangeCode": code,
+            "notificationPreferences": {"ticketUpdates": "EMAIL"},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert citizen_service.get_by_phone("+96170123456") is not None
+    assert citizen_service.get_by_phone("+96171999999") is None
+    # Original session must remain valid because no mutation occurred.
+    still_ok = anonymous_client.get(
+        "/v1/citizen/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert still_ok.status_code == 200
+    assert still_ok.json()["phone"] == "+96170123456"
+
+
+def test_session_epoch_revokes_even_when_session_rows_are_not_marked(
+    anonymous_client: TestClient,
+) -> None:
+    user, token = _create_ready_citizen(phone="+96170123456")
+    # Simulate a GSI miss: leave session rows unmarked while bumping the epoch.
+    stored = citizen_store.get(user.user_id)
+    assert stored is not None
+    citizen_store.update(stored.model_copy(update={"session_epoch": stored.session_epoch + 1}))
+    response = anonymous_client.get(
+        "/v1/citizen/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
 def test_phone_change_rejects_wrong_otp(anonymous_client: TestClient) -> None:
     user, token = _create_ready_citizen()
     challenge_id, _code = citizen_service.create_change_phone_challenge(
@@ -241,12 +287,13 @@ def test_phone_change_rejects_wrong_otp(anonymous_client: TestClient) -> None:
 
 
 def test_missing_user_session_returns_401(anonymous_client: TestClient) -> None:
-    user, token = _create_ready_citizen()
+    from app.core.citizen_auth import issue_citizen_session
+
+    user, _token = _create_ready_citizen()
     citizen_store.clear()
     citizen_session_store.clear()
-    # Recreate a dangling session pointing at a deleted user.
-    token = citizen_service.issue_session(user.user_id)
-    # user row is gone
+    # Dangling session whose user row was deleted.
+    token, _session = issue_citizen_session(user.user_id)
     response = anonymous_client.get(
         "/v1/citizen/me",
         headers={"Authorization": f"Bearer {token}"},

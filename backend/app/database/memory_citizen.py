@@ -59,12 +59,12 @@ class InMemoryCitizenStore:
         *,
         user_id: str,
         old_phone: str,
-        new_phone: str,
-        phone_verified_at: str,
-        updated_at: str,
+        updated_user: StoredCitizenUser,
     ) -> StoredCitizenUser:
+        if updated_user.user_id != user_id:
+            raise CitizenPhoneMismatchError("Updated userId does not match.")
         old_key = phone_claim_key(old_phone)
-        new_key = phone_claim_key(new_phone)
+        new_key = phone_claim_key(updated_user.phone)
         with self._lock:
             existing = self._users.get(user_id)
             if existing is None:
@@ -80,15 +80,8 @@ class InMemoryCitizenStore:
             if old_key != new_key:
                 del self._claims[old_key]
 
-            updated = existing.model_copy(
-                update={
-                    "phone": new_phone,
-                    "phone_verified_at": phone_verified_at,
-                    "updated_at": updated_at,
-                }
-            )
-            self._users[user_id] = updated
-            return updated
+            self._users[user_id] = updated_user
+            return updated_user
 
     def clear(self) -> None:
         with self._lock:

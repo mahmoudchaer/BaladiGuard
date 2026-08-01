@@ -13,6 +13,8 @@ class StoredCitizenSession(BaseModel):
     session_id: str = Field(alias="sessionId")
     token_hash: str = Field(alias="tokenHash")
     user_id: str = Field(alias="userId")
+    # Must match the citizen's current sessionEpoch or authentication fails.
+    session_epoch: int = Field(default=0, alias="sessionEpoch", ge=0)
     created_at: str = Field(alias="createdAt")
     expires_at: str = Field(alias="expiresAt")
     revoked_at: str | None = Field(default=None, alias="revokedAt")

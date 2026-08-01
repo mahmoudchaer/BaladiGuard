@@ -2,6 +2,10 @@
 
 Citizen Bearer tokens are opaque server-side sessions. Only a keyed hash is stored.
 Staff tokens cannot authenticate citizen routes (wrong audience → 401).
+
+Account-wide revocation uses a strongly consistent ``sessionEpoch`` on the citizen
+record (checked on every authentication). Per-session ``revokedAt`` remains a
+best-effort cleanup/audit marker and is not the sole revocation authority.
 """
 
 from __future__ import annotations
@@ -53,6 +57,10 @@ class CitizenSessionStore(Protocol):
     ) -> int: ...
 
 
+class CitizenUserLookup(Protocol):
+    def get(self, user_id: str): ...
+
+
 def _secret_key(settings: Settings) -> str:
     return settings.secret_key or DEFAULT_SECRET_KEY
 
@@ -77,6 +85,7 @@ def _iso(moment: datetime) -> str:
 def issue_citizen_session(
     user_id: str,
     *,
+    session_epoch: int = 0,
     session_store: CitizenSessionStore | None = None,
     settings: Settings | None = None,
     now: datetime | None = None,
@@ -93,6 +102,7 @@ def issue_citizen_session(
         sessionId=session_id,
         tokenHash=hash_citizen_token(raw_token, settings=cfg),
         userId=user_id,
+        sessionEpoch=session_epoch,
         createdAt=_iso(moment),
         expiresAt=_iso(expires),
         ttl=int(expires.timestamp()),
@@ -105,6 +115,7 @@ def verify_citizen_access_token(
     token: str,
     *,
     session_store: CitizenSessionStore | None = None,
+    citizen_store: CitizenUserLookup | None = None,
     settings: Settings | None = None,
     now: datetime | None = None,
 ) -> CitizenPrincipal:
@@ -137,6 +148,17 @@ def verify_citizen_access_token(
 
     if moment >= expires_at:
         raise CitizenAuthError("Citizen session has expired.")
+
+    users = citizen_store
+    if users is None:
+        from app.database.store_factory import get_citizen_store
+
+        users = get_citizen_store()
+    user = users.get(session.user_id)
+    if user is None or not getattr(user, "active", False):
+        raise CitizenAuthError("Citizen session is no longer valid.")
+    if int(getattr(user, "session_epoch", 0)) != int(session.session_epoch):
+        raise CitizenAuthError("Citizen session has been revoked.")
 
     return CitizenPrincipal(user_id=session.user_id, session_id=session.session_id)
 
@@ -176,11 +198,12 @@ def require_citizen(
         raise unauthorized(request)
 
     try:
-        from app.database.store_factory import get_citizen_session_store
+        from app.database.store_factory import get_citizen_session_store, get_citizen_store
 
         return verify_citizen_access_token(
             credentials.credentials,
             session_store=get_citizen_session_store(),
+            citizen_store=get_citizen_store(),
         )
     except CitizenAuthError:
         raise unauthorized(request) from None

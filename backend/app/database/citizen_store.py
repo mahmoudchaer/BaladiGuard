@@ -35,10 +35,8 @@ class CitizenStore(Protocol):
         *,
         user_id: str,
         old_phone: str,
-        new_phone: str,
-        phone_verified_at: str,
-        updated_at: str,
+        updated_user: StoredCitizenUser,
     ) -> StoredCitizenUser:
-        """Atomically transfer the phone claim and update the citizen record."""
+        """Atomically transfer the phone claim and persist the full updated user."""
 
     def clear(self) -> None: ...

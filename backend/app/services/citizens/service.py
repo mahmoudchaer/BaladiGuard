@@ -51,9 +51,7 @@ class CitizenStorePort(Protocol):
         *,
         user_id: str,
         old_phone: str,
-        new_phone: str,
-        phone_verified_at: str,
-        updated_at: str,
+        updated_user: StoredCitizenUser,
     ) -> StoredCitizenUser: ...
 
 
@@ -226,8 +224,12 @@ class CitizenService:
         return self._resolved_store().get_by_phone(canonical)
 
     def issue_session(self, user_id: str, *, now: datetime | None = None) -> str:
+        user = self._resolved_store().get(user_id)
+        if user is None or not user.active:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
         token, _session = issue_citizen_session(
             user_id,
+            session_epoch=user.session_epoch,
             session_store=self._resolved_sessions(),  # type: ignore[arg-type]
             settings=self._settings_or_default(),
             now=now,
@@ -299,7 +301,6 @@ class CitizenService:
             raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
 
         moment = now or _utcnow()
-        stamped = _iso(moment)
         fields_set = payload.model_fields_set
 
         if "phone" in fields_set and payload.phone is not None:
@@ -313,6 +314,33 @@ class CitizenService:
                 now=moment,
             )
 
+        updated = self._project_profile_update(user, payload, stamped=_iso(moment))
+        self._validate_notification_email_rules(updated)
+
+        try:
+            stored = store.update(updated)
+        except CitizenNotFoundError as exc:
+            raise CitizenServiceError(
+                "UNAUTHORIZED", "Citizen authentication required.", 401
+            ) from exc
+        except CitizenPhoneMismatchError as exc:
+            raise CitizenServiceError(
+                "CONFLICT",
+                "Unable to update profile.",
+                status_code=409,
+            ) from exc
+
+        return to_profile_response(stored)
+
+    def _project_profile_update(
+        self,
+        user: StoredCitizenUser,
+        payload: CitizenProfileUpdateRequest,
+        *,
+        stamped: str,
+    ) -> StoredCitizenUser:
+        """Build the post-update citizen record without mutating storage."""
+        fields_set = payload.model_fields_set
         updates: dict[str, Any] = {"updated_at": stamped}
 
         if "full_name" in fields_set:
@@ -342,23 +370,7 @@ class CitizenService:
                 prefs.announcements = pref_update.announcements
             updates["notification_preferences"] = prefs
 
-        updated = user.model_copy(update=updates)
-        self._validate_notification_email_rules(updated)
-
-        try:
-            stored = store.update(updated)
-        except CitizenNotFoundError as exc:
-            raise CitizenServiceError(
-                "UNAUTHORIZED", "Citizen authentication required.", 401
-            ) from exc
-        except CitizenPhoneMismatchError as exc:
-            raise CitizenServiceError(
-                "CONFLICT",
-                "Unable to update profile.",
-                status_code=409,
-            ) from exc
-
-        return to_profile_response(stored)
+        return user.model_copy(update=updates)
 
     def _change_phone(
         self,
@@ -371,11 +383,32 @@ class CitizenService:
         profile_payload: CitizenProfileUpdateRequest,
         now: datetime,
     ) -> CitizenProfileResponse:
+        # Validate every field in the request before consuming OTP or mutating claims.
         try:
             canonical = normalize_phone(phone, region)
         except PhoneNormalizationError as exc:
             raise CitizenServiceError("VALIDATION_ERROR", str(exc)) from exc
 
+        if canonical == user.phone:
+            raise CitizenServiceError(
+                "VALIDATION_ERROR",
+                "New phone must differ from the current phone.",
+            )
+
+        stamped = _iso(now)
+        projected = self._project_profile_update(user, profile_payload, stamped=stamped)
+        projected = projected.model_copy(
+            update={
+                "phone": canonical,
+                "phone_verified_at": stamped,
+                "updated_at": stamped,
+                "session_epoch": user.session_epoch + 1,
+            }
+        )
+        self._validate_notification_email_rules(projected)
+
+        # OTP is consumed only after every non-OTP field has been validated so a
+        # bad preference/email cannot fail after the phone claim already moved.
         self._consume_change_phone_challenge(
             user_id=user.user_id,
             phone=canonical,
@@ -384,14 +417,11 @@ class CitizenService:
             now=now,
         )
 
-        stamped = _iso(now)
         try:
             updated = self._resolved_store().change_phone(
                 user_id=user.user_id,
                 old_phone=user.phone,
-                new_phone=canonical,
-                phone_verified_at=stamped,
-                updated_at=stamped,
+                updated_user=projected,
             )
         except PhoneClaimConflictError as exc:
             raise CitizenServiceError(
@@ -406,7 +436,7 @@ class CitizenService:
                 status_code=409,
             ) from exc
 
-        # Phone change revokes all sessions for the account (including current).
+        # Best-effort per-session cleanup. Auth authority is sessionEpoch on the user.
         self._resolved_sessions().revoke_all_for_user(
             user.user_id,
             revoked_at=stamped,
@@ -416,30 +446,6 @@ class CitizenService:
             "Citizen phone claim transferred user_id=%s",
             user.user_id,
         )
-
-        # Apply any remaining profile fields after the phone transfer.
-        remaining_fields = profile_payload.model_fields_set - {
-            "phone",
-            "region",
-            "phone_change_challenge_id",
-            "phone_change_code",
-        }
-        if remaining_fields:
-            follow_up = CitizenProfileUpdateRequest.model_validate(
-                {
-                    key: getattr(profile_payload, key)
-                    for key in remaining_fields
-                    if key
-                    in {
-                        "full_name",
-                        "email",
-                        "notification_preferences",
-                        "public_name_visible",
-                    }
-                }
-            )
-            return self.update_profile(user.user_id, follow_up, now=now)
-
         return to_profile_response(updated)
 
     def _consume_change_phone_challenge(
