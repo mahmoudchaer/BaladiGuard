@@ -154,6 +154,8 @@ def verify_citizen_access_token(
         from app.database.store_factory import get_citizen_store
 
         users = get_citizen_store()
+    # DynamoCitizenStore.get uses ConsistentRead so sessionEpoch is not stale
+    # immediately after a phone-change / revocation write.
     user = users.get(session.user_id)
     if user is None or not getattr(user, "active", False):
         raise CitizenAuthError("Citizen session is no longer valid.")

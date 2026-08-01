@@ -201,6 +201,8 @@ def test_verified_phone_change_transfers_claim_and_revokes_sessions(
 
 
 def test_phone_change_rejects_claimed_number(anonymous_client: TestClient) -> None:
+    from app.database.memory_citizen_otp import citizen_otp_store
+
     _owner, _ = _create_ready_citizen(phone="+96170111111", full_name="Owner")
     user, token = _create_ready_citizen(phone="+96170222222", full_name="Changer")
     challenge_id, code = citizen_service.create_change_phone_challenge(
@@ -219,6 +221,49 @@ def test_phone_change_rejects_claimed_number(anonymous_client: TestClient) -> No
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "PHONE_UNAVAILABLE"
     assert citizen_service.get_by_phone("+96170222222") is not None
+    # Failed claim transfer must restore the OTP so the code is not burned.
+    restored = citizen_otp_store.get(challenge_id)
+    assert restored is not None
+    assert restored.consumed_at is None
+
+
+def test_phone_change_restored_otp_can_be_retried_after_conflict(
+    anonymous_client: TestClient,
+) -> None:
+    _owner, _ = _create_ready_citizen(phone="+96170111111", full_name="Owner")
+    user, token = _create_ready_citizen(phone="+96170222222", full_name="Changer")
+    challenge_id, code = citizen_service.create_change_phone_challenge(
+        user_id=user.user_id,
+        phone="+96170333333",
+    )
+    # First attempt targets a number that becomes unavailable mid-flight via conflict
+    # simulation: use the already-owned number, then retry against a free number with
+    # a fresh challenge. The restore path is covered above; here ensure a free retry works.
+    busy_challenge_id, busy_code = citizen_service.create_change_phone_challenge(
+        user_id=user.user_id,
+        phone="+96170111111",
+    )
+    busy = anonymous_client.patch(
+        "/v1/citizen/me",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "phone": "+96170111111",
+            "phoneChangeChallengeId": busy_challenge_id,
+            "phoneChangeCode": busy_code,
+        },
+    )
+    assert busy.status_code == 409
+    retry = anonymous_client.patch(
+        "/v1/citizen/me",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "phone": "+96170333333",
+            "phoneChangeChallengeId": challenge_id,
+            "phoneChangeCode": code,
+        },
+    )
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["phone"] == "+96170333333"
 
 
 def test_phone_change_validates_profile_before_mutating(

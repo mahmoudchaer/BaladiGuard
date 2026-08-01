@@ -109,7 +109,7 @@ contract and persistence model.
 | `notificationPreferences.announcements` | boolean | Yes | Explicit announcement opt-in; default `false`. |
 | `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. |
 | `active` | boolean | Yes | Default `true`. OTP verification for an inactive account returns `403 ACCOUNT_INACTIVE` without issuing a session; deactivation immediately revokes existing sessions. |
-| `sessionEpoch` | number | Yes | Monotonic account-wide session generation. Phone change and other security revocations increment it; authentication rejects any session whose stored epoch does not match. This is the strongly consistent revocation authority (GSI session scans are best-effort cleanup only). Not returned from profile APIs. |
+| `sessionEpoch` | number | Yes | Monotonic account-wide session generation. Phone change and other security revocations increment it; authentication rejects any session whose stored epoch does not match. This is the strongly consistent revocation authority (GSI session scans are best-effort cleanup only). Auth must read the citizen row with DynamoDB `ConsistentRead=True`. Not returned from profile APIs. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last profile update time. |
 

@@ -407,9 +407,9 @@ class CitizenService:
         )
         self._validate_notification_email_rules(projected)
 
-        # OTP is consumed only after every non-OTP field has been validated so a
-        # bad preference/email cannot fail after the phone claim already moved.
-        self._consume_change_phone_challenge(
+        # Validate profile first, then consume OTP. If the claim transfer fails,
+        # restore the pre-consume challenge so a valid code is not permanently burned.
+        prior_challenge = self._consume_change_phone_challenge(
             user_id=user.user_id,
             phone=canonical,
             challenge_id=challenge_id,
@@ -424,12 +424,14 @@ class CitizenService:
                 updated_user=projected,
             )
         except PhoneClaimConflictError as exc:
+            self._restore_change_phone_challenge(prior_challenge)
             raise CitizenServiceError(
                 "PHONE_UNAVAILABLE",
                 "Unable to update phone number.",
                 status_code=409,
             ) from exc
         except (CitizenNotFoundError, CitizenPhoneMismatchError) as exc:
+            self._restore_change_phone_challenge(prior_challenge)
             raise CitizenServiceError(
                 "CONFLICT",
                 "Unable to update phone number.",
@@ -456,7 +458,8 @@ class CitizenService:
         challenge_id: str,
         code: str,
         now: datetime,
-    ) -> None:
+    ) -> StoredCitizenOtpChallenge:
+        """Consume the challenge and return the pre-consume snapshot for restore."""
         otp_store = self._resolved_otp()
         challenge = otp_store.get(challenge_id)
         if challenge is None:
@@ -514,6 +517,18 @@ class CitizenService:
             }
         )
         otp_store.save(consumed)
+        return challenge
+
+    def _restore_change_phone_challenge(self, prior: StoredCitizenOtpChallenge) -> None:
+        """Undo a consume when the subsequent phone-claim transaction fails."""
+        try:
+            self._resolved_otp().save(prior)
+        except Exception:
+            logger.exception(
+                "Failed to restore CHANGE_PHONE challenge after claim transfer failure "
+                "challenge_id=%s",
+                prior.challenge_id,
+            )
 
     @staticmethod
     def _validate_notification_email_rules(user: StoredCitizenUser) -> None:

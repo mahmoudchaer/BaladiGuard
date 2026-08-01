@@ -119,7 +119,12 @@ class DynamoCitizenStore:
         return user
 
     def get(self, user_id: str) -> StoredCitizenUser | None:
-        response = self._users_table.get_item(Key={"userId": user_id})
+        # Strongly consistent: auth checks sessionEpoch immediately after phone
+        # change / revocation and must not observe a stale generation.
+        response = self._users_table.get_item(
+            Key={"userId": user_id},
+            ConsistentRead=True,
+        )
         item = response.get("Item")
         if not item:
             return None
@@ -127,7 +132,10 @@ class DynamoCitizenStore:
 
     def get_by_phone(self, canonical_phone: str) -> StoredCitizenUser | None:
         claim_key = phone_claim_key(canonical_phone)
-        claim_response = self._claims_table.get_item(Key={"phoneKey": claim_key})
+        claim_response = self._claims_table.get_item(
+            Key={"phoneKey": claim_key},
+            ConsistentRead=True,
+        )
         claim = claim_response.get("Item")
         if not claim:
             return None

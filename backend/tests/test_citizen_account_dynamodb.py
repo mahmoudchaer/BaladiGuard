@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 
+import pytest
+
 from app.config import Settings
 from app.database.dynamo_citizen_otp import DynamoCitizenOtpStore
 from app.database.dynamo_citizen_session import DynamoCitizenSessionStore
@@ -39,6 +41,23 @@ def test_users_table_has_no_email_index(dynamodb_settings: Settings) -> None:
     gsis = {index["IndexName"] for index in description.get("GlobalSecondaryIndexes", [])}
     assert "email-index" not in gsis
     assert "phone-index" in gsis
+
+
+def test_dynamo_citizen_get_uses_consistent_read(
+    dynamodb_settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = DynamoCitizenStore(dynamodb_settings)
+    captured: dict[str, object] = {}
+
+    def fake_get_item(**kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(store._users_table, "get_item", fake_get_item)
+    assert store.get("usr_missing") is None
+    assert captured["Key"] == {"userId": "usr_missing"}
+    assert captured["ConsistentRead"] is True
 
 
 def test_dynamo_create_lookup_and_duplicate_phone(dynamodb_settings: Settings) -> None:
