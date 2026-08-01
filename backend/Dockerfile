@@ -1,23 +1,24 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+COPY requirements.lock ./
+RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.lock
+
+FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN addgroup --system app && adduser --system --ingroup app app
-
-COPY requirements.lock ./
 RUN find /usr/local/lib/python3.11/site-packages -maxdepth 1 \
-        \( -name 'wheel-*.dist-info' -o -name 'jaraco_context-*.dist-info' \) \
+        \( -name 'pip*' -o -name 'setuptools*' -o -name 'wheel*' \) \
         -exec rm -rf {} + \
-    && pip install --no-cache-dir -r requirements.lock \
-    && pip install --no-cache-dir --upgrade --force-reinstall \
-        'jaraco.context>=6.1.0' \
-        'wheel>=0.46.2' \
-    && python -m pip show jaraco.context wheel
+    && addgroup --system app \
+    && adduser --system --ingroup app app
 
+COPY --from=builder /install /usr/local
 COPY app ./app
 COPY scripts ./scripts
 
