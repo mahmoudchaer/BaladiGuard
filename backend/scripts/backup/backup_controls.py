@@ -33,6 +33,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "departments",
     "categories",
     "counters",
+    "rate-limit-buckets",
 )
 
 

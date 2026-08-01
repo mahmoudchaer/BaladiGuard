@@ -90,6 +90,7 @@ persistence foundation.
 | `baladiguard-duplicate-groups` | `duplicateGroupId` | — |
 | `baladiguard-categories` | `categoryId` | — |
 | `baladiguard-counters` | `counterId` | — (ticket number sequence) |
+| `baladiguard-rate-limit-buckets` | `bucketKey` | Shared rate-limit counters (#186); TTL on `expiresAt`. |
 
 ### Legacy `users` table migration
 

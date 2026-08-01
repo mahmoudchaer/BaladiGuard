@@ -191,6 +191,15 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
         "global_secondary_indexes": [],
     },
+    {
+        # Shared fixed-window rate-limit counters (issue #186). TTL on expiresAt.
+        "suffix": "rate-limit-buckets",
+        "key_schema": [{"AttributeName": "bucketKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "bucketKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
 ]
 
 

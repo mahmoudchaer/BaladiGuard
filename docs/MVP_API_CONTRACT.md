@@ -248,6 +248,8 @@ reuse the shared `require_staff` dependency.
 ## `POST /v1/staff/login`
 
 Exchanges a staff username/password for a role-aware Bearer access token.
+Shared HTTP rate limits apply (`staff-login`; default 10 / 300s). Exceeding the budget returns
+`429 RATE_LIMIT_EXCEEDED` with `Retry-After` (see `docs/rate-limiting-runbook.md`).
 
 ### Request body
 
@@ -325,6 +327,8 @@ liveness checks keep working.
 ## `POST /v1/tickets`
 
 Creates a submitted citizen report ticket.
+Shared HTTP rate limits apply (`public-ticket-submission`; default 20 / 60s) because submit
+triggers AI intake. Exceeding the budget returns `429 RATE_LIMIT_EXCEEDED` with `Retry-After`.
 
 ### Auth (Sprint 6 target)
 
@@ -775,7 +779,8 @@ latitude/longitude pair and returns a normalized location suitable for ticket su
 ### Auth (Sprint 6 target)
 
 Public. This is guest-allowed draft assistance because it creates no ticket or other persistent
-contribution. Existing rate limits and provider abuse controls apply.
+contribution. Shared HTTP rate limits apply (`public-location-validate`; see README /
+`docs/rate-limiting-runbook.md`).
 
 Uses Amazon Location Service when `LOCATION_PLACE_INDEX_NAME` is configured. When the place
 index is unset, the backend falls back to a curated Beirut local place index for local/CI use.
@@ -839,6 +844,8 @@ Uploads one citizen report photo to project storage and returns a stable image o
 returned `imageObjectKey` should be sent later when creating the report ticket.
 
 This endpoint stores only the image file. It does not create or update a ticket record.
+Shared HTTP rate limits apply with a stricter upload budget (`public-upload-report-photo`;
+default 10 / 60s) and return `429 RATE_LIMIT_EXCEEDED` with `Retry-After` when exceeded.
 
 ### Auth (Sprint 6 target)
 

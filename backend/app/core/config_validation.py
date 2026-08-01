@@ -226,6 +226,38 @@ def validate_configuration(
                 )
             )
 
+    for rate_limit_name in (
+        "RATE_LIMIT_TICKET_SUBMIT_LIMIT",
+        "RATE_LIMIT_TICKET_SUBMIT_WINDOW_SECONDS",
+        "RATE_LIMIT_TICKET_TRACK_LIMIT",
+        "RATE_LIMIT_TICKET_TRACK_WINDOW_SECONDS",
+        "RATE_LIMIT_UPLOAD_LIMIT",
+        "RATE_LIMIT_UPLOAD_WINDOW_SECONDS",
+        "RATE_LIMIT_LOCATION_VALIDATE_LIMIT",
+        "RATE_LIMIT_LOCATION_VALIDATE_WINDOW_SECONDS",
+        "RATE_LIMIT_STAFF_LOGIN_LIMIT",
+        "RATE_LIMIT_STAFF_LOGIN_WINDOW_SECONDS",
+        "RATE_LIMIT_CITIZEN_OTP_REQUEST_LIMIT",
+        "RATE_LIMIT_CITIZEN_OTP_REQUEST_WINDOW_SECONDS",
+        "RATE_LIMIT_CITIZEN_OTP_VERIFY_LIMIT",
+        "RATE_LIMIT_CITIZEN_OTP_VERIFY_WINDOW_SECONDS",
+        "RATE_LIMIT_SMOKE_LIMIT",
+    ):
+        raw_rate = _raw(env_map, rate_limit_name)
+        if raw_rate is None or not raw_rate.strip():
+            continue
+        try:
+            value = int(raw_rate.strip())
+            if value < 1:
+                raise ValueError
+        except ValueError:
+            result.issues.append(
+                ConfigIssue(
+                    code=f"INVALID_{rate_limit_name}",
+                    message=f"{rate_limit_name} must be an integer >= 1.",
+                )
+            )
+
     if not cfg.aws_region.strip():
         result.issues.append(
             ConfigIssue(
@@ -317,6 +349,19 @@ def validate_configuration(
                         "Production requires LOCATION_PLACE_INDEX_NAME "
                         "(empty falls back to the local Beirut index)."
                     ),
+                )
+            )
+
+        if not cfg.trust_x_forwarded_for:
+            result.issues.append(
+                ConfigIssue(
+                    code="TRUST_X_FORWARDED_FOR_DISABLED",
+                    message=(
+                        "Production is typically behind a trusted proxy/API Gateway. "
+                        "Set TRUST_X_FORWARDED_FOR=true only when that edge overwrites "
+                        "client-supplied X-Forwarded-For; leave false for direct ingress."
+                    ),
+                    severity="warning",
                 )
             )
 

@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, Response
 
 from app.config import get_settings
 from app.core.errors import build_error_response, get_request_id
+from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import (
     StaffAuthError,
     StaffDep,
@@ -26,6 +27,15 @@ def staff_login(
     request: Request,
 ) -> StaffLoginResponse | JSONResponse:
     settings = get_settings()
+    limited = enforce_rate_limit(
+        request,
+        "staff-login",
+        settings=settings,
+        message="Too many login attempts. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+
     try:
         principal = authenticate_staff_credentials(
             payload.username,
