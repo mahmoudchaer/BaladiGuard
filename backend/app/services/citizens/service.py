@@ -90,6 +90,15 @@ class CitizenOtpStorePort(Protocol):
 
     def save(self, challenge: StoredCitizenOtpChallenge) -> StoredCitizenOtpChallenge: ...
 
+    def consume(
+        self,
+        challenge_id: str,
+        *,
+        consumed_at: str,
+    ) -> StoredCitizenOtpChallenge | None: ...
+
+    def increment_attempt(self, challenge_id: str) -> StoredCitizenOtpChallenge | None: ...
+
 
 class CitizenServiceError(Exception):
     def __init__(self, code: str, message: str, status_code: int = 400) -> None:
@@ -592,8 +601,11 @@ class CitizenService:
         expected = challenge.code_hash
         actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
         if not hmac.compare_digest(expected, actual):
-            updated = challenge.model_copy(update={"attempt_count": challenge.attempt_count + 1})
-            otp_store.save(updated)
+            updated = otp_store.increment_attempt(challenge.challenge_id)
+            if updated is None:
+                raise CitizenServiceError(
+                    "OTP_EXPIRED", "The verification challenge is no longer valid."
+                )
             if updated.attempt_count >= OTP_MAX_ATTEMPTS:
                 raise CitizenServiceError(
                     "RATE_LIMITED",
@@ -602,13 +614,15 @@ class CitizenService:
                 )
             raise CitizenServiceError("INVALID_OTP", "The verification code is incorrect.")
 
-        consumed = challenge.model_copy(
-            update={
-                "consumed_at": _iso(now),
-                "attempt_count": challenge.attempt_count + 1,
-            }
+        # Compare-and-set consume: only one concurrent verify can mark the challenge spent.
+        consumed = otp_store.consume(
+            challenge.challenge_id,
+            consumed_at=_iso(now),
         )
-        otp_store.save(consumed)
+        if consumed is None:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
         _dev_otp_codes.pop(challenge.challenge_id, None)
         return challenge
 

@@ -268,6 +268,37 @@ def test_concurrent_verify_has_single_winner(anonymous_client: TestClient) -> No
     assert len(winners) == 1
 
 
+def test_concurrent_login_verify_issues_single_session(anonymous_client: TestClient) -> None:
+    """Existing-account login must not mint multiple sessions from one OTP."""
+    created = citizen_service.create_citizen(phone="+96170999999", full_name="Existing")
+    status, request_body = _request_otp(anonymous_client, phone="+96170999999")
+    challenge_id = request_body["challengeId"]
+    code = citizen_service.peek_dev_otp_code(challenge_id)
+    assert code is not None
+
+    def attempt(_: int) -> str | None:
+        verify_status, body = _verify_otp(
+            anonymous_client,
+            challenge_id=challenge_id,
+            code=code,
+        )
+        if verify_status == 200:
+            assert body["userId"] == created.user_id
+            return body["accessToken"]
+        assert body["error"]["code"] in {"OTP_EXPIRED", "INVALID_OTP"}
+        return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(attempt, range(8)))
+
+    tokens = [token for token in results if token is not None]
+    assert len(tokens) == 1
+
+    stored = citizen_otp_store.get(challenge_id)
+    assert stored is not None
+    assert stored.consumed_at is not None
+
+
 def test_logout_revokes_presented_session_only(anonymous_client: TestClient) -> None:
     status, request_body = _request_otp(anonymous_client)
     code = citizen_service.peek_dev_otp_code(request_body["challengeId"])
