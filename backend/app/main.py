@@ -59,6 +59,14 @@ async def lifespan(_: FastAPI):
             "Configuration validation failed. "
             "Fix the reported config issues (including APP_ENV) and restart."
         )
+    # Memory/local bootstrap for demo staff accounts (issue #175). DynamoDB uses
+    # `make db-seed` / run_seed instead.
+    from app.config import get_settings
+    from app.services.staff.bootstrap import ensure_demo_staff_accounts
+
+    settings = get_settings()
+    if not settings.use_dynamodb:
+        ensure_demo_staff_accounts(settings=settings)
     # A worker crash between the 201 response and the terminal AI status leaves
     # tickets stuck in "pending"; sweep them off the request path at startup.
     threading.Thread(

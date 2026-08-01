@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
+import { getStaffRoleLabel } from '@/services/auth';
 import { IconAnalytics, IconMap, IconTickets } from '@/components/icons';
 import './DashboardLayout.css';
 
@@ -108,11 +109,13 @@ export function DashboardLayout({
         <div className="dashboard-sidebar__footer">
           <div className="dashboard-sidebar__staff">
             <span className="dashboard-sidebar__avatar" aria-hidden="true">
-              {session?.username.slice(0, 2).toUpperCase() ?? 'MS'}
+              {(session?.name ?? session?.username ?? 'MS').slice(0, 2).toUpperCase()}
             </span>
             <div>
-              <p className="dashboard-sidebar__staff-name">{session?.username ?? 'Staff'}</p>
-              <p className="dashboard-sidebar__staff-role">Administrator</p>
+              <p className="dashboard-sidebar__staff-name">
+                {session?.name ?? session?.username ?? 'Staff'}
+              </p>
+              <p className="dashboard-sidebar__staff-role">{getStaffRoleLabel(session?.role)}</p>
             </div>
           </div>
         </div>

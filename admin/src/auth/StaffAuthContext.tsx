@@ -20,7 +20,7 @@ export function StaffAuthProvider({ children }: StaffAuthProviderProps) {
   }, []);
 
   const logout = useCallback(() => {
-    logoutStaff();
+    void logoutStaff();
     setSession(null);
   }, []);
 

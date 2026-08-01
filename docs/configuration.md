@@ -63,8 +63,10 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_ADAPTER` | Yes (prod: `real`) | `mock` | `mock` \| `real` |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
-| `STAFF_USERNAME` | No | `staff` | Backend staff login (#72) |
-| `STAFF_PASSWORD` | Production (non-demo) | demo local default | Local demo only; rotate for production |
+| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin` + `staff` accounts (#175) |
+| `DEMO_STAFF_PASSWORD` | When seeding demos | `staff-demo-password` | Password used only to hash demo staff accounts; never used as shared login |
+| `STAFF_PASSWORD` | Legacy alias | same as demo default | Deprecated alias for `DEMO_STAFF_PASSWORD` |
+| `STAFF_USERNAME` | Legacy | `staff` | Deprecated; ignored for authentication |
 | `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` |
 

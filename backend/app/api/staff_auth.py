@@ -1,14 +1,19 @@
-"""Staff authentication endpoints (issue #72)."""
+"""Staff authentication endpoints (issue #175)."""
+
+from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.config import get_settings
 from app.core.errors import build_error_response, get_request_id
 from app.core.staff_auth import (
     StaffAuthError,
+    StaffDep,
     authenticate_staff_credentials,
     issue_staff_access_token,
+    revoke_staff_sessions,
+    unauthorized,
 )
 from app.schemas.staff_auth import StaffLoginRequest, StaffLoginResponse
 
@@ -35,10 +40,27 @@ def staff_login(
             status_code=401,
         )
 
-    token = issue_staff_access_token(principal.username, settings=settings)
+    token = issue_staff_access_token(principal, settings=settings)
     return StaffLoginResponse(
         accessToken=token,
         tokenType="Bearer",
+        staffId=principal.staff_id,
         username=principal.username,
+        name=principal.name,
+        role=principal.role,
+        municipalityId=principal.municipality_id,
+        departmentIds=principal.department_ids,
         expiresIn=settings.staff_token_ttl_seconds,
     )
+
+
+@router.post("/staff/logout")
+def staff_logout(
+    request: Request,
+    principal: StaffDep,
+) -> Response:
+    try:
+        revoke_staff_sessions(principal.staff_id)
+    except StaffAuthError:
+        raise unauthorized(request) from None
+    return Response(status_code=204)

@@ -186,17 +186,23 @@ update, and writes an audit event. No migration infers ownership from email or c
 
 ### StaffUser and authorization scope
 
-Staff identities and credentials are separate from `CitizenUser`. Staff may retain the existing
-password-backed MVP authentication; no staff password hash is stored in a citizen record or returned
-by any API. The staff principal used for authorization contains:
+Staff identities and credentials are separate from `CitizenUser`. Staff use password-backed MVP
+authentication against the `staff-users` table. No staff password hash is stored in a citizen record
+or returned by any API. Username uniqueness is enforced by a transactional
+`staff-username-claims` record (`usernameKey = USERNAME#<lowercase username>`), not by a GSI alone.
 
 | Attribute | Type | Required | Description |
 | --- | --- | --- | --- |
-| `staffId` | string | Yes | Stable staff identity key. |
+| `staffId` | string | Yes | Stable staff identity key, format `staff_<id>`. |
+| `username` | string | Yes | Unique login handle (stored lowercase). |
+| `name` | string | Yes | Display name for the admin UI. |
+| `email` | string | Yes | Staff contact email (not a citizen identity). |
+| `passwordHash` | string | Yes | PBKDF2-HMAC-SHA256 credential metadata. Never returned from APIs or written to logs. |
 | `role` | enum | Yes | `municipal_staff` or `administrator`. |
 | `municipalityId` | string, nullable | Conditional | Required for `municipal_staff`; null for global administrators. |
 | `departmentIds` | string[] or null | Conditional | Assigned departments for `municipal_staff`; `null` for administrators, meaning all departments. An empty array is not a valid administrator sentinel. |
-| `active` | boolean | Yes | Inactive staff cannot authenticate; deactivation revokes staff sessions. |
+| `active` | boolean | Yes | Inactive staff cannot authenticate; deactivation increments `sessionEpoch`. |
+| `sessionEpoch` | number | Yes | Monotonic generation checked on every authenticated request (`ConsistentRead`). Logout and deactivation increment it. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last update time. |
 
@@ -205,9 +211,12 @@ Client-supplied municipality, department, owner, or actor identifiers never expa
 Municipal staff may list/read unassigned tickets in their municipality for triage, and may assign
 those tickets through the department-assignment action; other ticket mutations require the ticket's
 department to be in their assigned scope. Administrators with `departmentIds = null` may operate
-across municipalities and departments. Identity/contact reads are least-privilege and audited. A
-separate staff persistence/credential table may be introduced by the staff-auth work;
-the citizen `users` table and phone-claim table are not used for staff login.
+across municipalities and departments. Identity/contact reads are least-privilege and audited. The
+citizen `users` table and phone-claim table are not used for staff login.
+
+Local/test bootstrap creates demo `admin` (administrator) and `staff` (municipal_staff) accounts
+when `SEED_DEMO_STAFF` is enabled; production should keep that flag false and provision real
+accounts separately.
 
 ## 5. TicketStatusHistory
 
@@ -381,6 +390,8 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `phone-claims` | `phoneKey` | Atomic canonical-phone uniqueness authority; no GSI required |
 | `citizen-otp-challenges` | `challengeId` | TTL on expiry; optional abuse-control indexes must not expose code material |
 | `citizen-sessions` | `sessionId` | GSI on `userId` for account-wide revocation; TTL on expiry |
+| `staff-users` | `staffId` | Staff accounts and hashed credentials (#175) |
+| `staff-username-claims` | `usernameKey` | Atomic username uniqueness authority |
 | `municipalities` | `municipalityId` | |
 | `departments` | `departmentId` | GSI on `municipalityId` |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |

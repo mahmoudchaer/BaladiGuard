@@ -82,14 +82,27 @@ class Settings:
         )
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
-        # Staff auth (issue #72). Defaults match the admin Vite demo credentials
-        # so local/CI work out of the box; override in real environments.
+        # Staff auth (issue #175). Individual staff accounts are persisted;
+        # DEMO_STAFF_PASSWORD is only used when bootstrapping local/test seed
+        # accounts. Shared env-credential login has been removed.
         # SECRET_KEY is also validated for production in issue #147.
         self.secret_key = os.getenv("SECRET_KEY", "").strip() or None
-        self.staff_username = os.getenv("STAFF_USERNAME", "staff").strip() or "staff"
-        self.staff_password = (
-            os.getenv("STAFF_PASSWORD", "staff-demo-password").strip() or "staff-demo-password"
+        # Legacy aliases kept for local .env compatibility when seeding demos.
+        legacy_staff_password = os.getenv("STAFF_PASSWORD", "").strip()
+        self.demo_staff_password = (
+            os.getenv("DEMO_STAFF_PASSWORD", "").strip()
+            or legacy_staff_password
+            or "staff-demo-password"
         )
+        # Deprecated no-ops retained so older .env files do not break startup.
+        self.staff_username = os.getenv("STAFF_USERNAME", "staff").strip() or "staff"
+        self.staff_password = self.demo_staff_password
+        seed_demo_raw = os.getenv("SEED_DEMO_STAFF", "").strip().lower()
+        if seed_demo_raw in {"true", "false"}:
+            self.seed_demo_staff = seed_demo_raw == "true"
+        else:
+            # Default on for local/test/development; off for production/staging.
+            self.seed_demo_staff = self.app_env in {"local", "test", "development"}
         raw_token_ttl = os.getenv("STAFF_TOKEN_TTL_SECONDS", "43200").strip()
         try:
             self.staff_token_ttl_seconds = max(60, int(raw_token_ttl))

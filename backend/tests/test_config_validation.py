@@ -88,6 +88,7 @@ def test_production_rejects_development_defaults():
         "AWS_S3_BUCKET": "",
         "LOCATION_PLACE_INDEX_NAME": "",
         "SEED_SAMPLE_TICKETS": "true",
+        "SEED_DEMO_STAFF": "true",
         "DYNAMODB_ENDPOINT_URL": "http://localhost:8001",
     }
     # Build settings reflecting those env vars.
@@ -124,8 +125,7 @@ def test_production_valid_configuration_passes():
         "DATABASE_BACKEND": "dynamodb",
         "NOTIFICATION_ADAPTER": "real",
         "SECRET_KEY": "prod-rotation-key-not-a-placeholder",
-        "STAFF_USERNAME": "ops",
-        "STAFF_PASSWORD": "rotated-staff-password-not-demo",
+        "SEED_DEMO_STAFF": "false",
         "AWS_REGION": "us-east-1",
         "AWS_S3_BUCKET": "baladiguard-prod-uploads",
         "LOCATION_PLACE_INDEX_NAME": "baladiguard-places",

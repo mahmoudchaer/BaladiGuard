@@ -8,7 +8,9 @@ from app.database.memory_citizen import citizen_store
 from app.database.memory_citizen_otp import citizen_otp_store
 from app.database.memory_citizen_session import citizen_session_store
 from app.database.memory_duplicate_group import duplicate_group_store
+from app.database.memory_staff import staff_store
 from app.database.memory_status_history import status_history_store
+from app.database.staff_store import StaffStore
 from app.database.status_history_store import StatusHistoryStore
 from app.database.ticket_store import TicketStore
 
@@ -76,6 +78,15 @@ def build_citizen_otp_store(settings: Settings | None = None):
     return citizen_otp_store
 
 
+def build_staff_store(settings: Settings | None = None) -> StaffStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_staff_store import DynamoStaffStore
+
+        return DynamoStaffStore(settings)
+    return staff_store
+
+
 def get_ticket_store() -> TicketStore:
     return build_ticket_store(get_settings())
 
@@ -102,3 +113,7 @@ def get_citizen_session_store():
 
 def get_citizen_otp_store():
     return build_citizen_otp_store(get_settings())
+
+
+def get_staff_store() -> StaffStore:
+    return build_staff_store(get_settings())

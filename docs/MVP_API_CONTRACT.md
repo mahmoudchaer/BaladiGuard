@@ -233,23 +233,21 @@ cross-municipality mutations.
 
 ## Staff authentication
 
-Staff credentials are configured on the backend (`STAFF_USERNAME` / `STAFF_PASSWORD`) and signed
-with `SECRET_KEY`. This is a temporary shared-credential MVP (not Cognito). Citizen public browsing
-and tracking stay public; under the Sprint 6 target, citizen submission uses its separate OTP-backed
-session contract.
+Staff authenticate against individual persisted staff accounts (issue #175). Passwords are stored
+only as PBKDF2 hashes and are never returned or logged. Login issues an HMAC-signed Bearer token
+bound to `staffId` and `sessionEpoch`; logout and account deactivation increment `sessionEpoch` so
+outstanding tokens fail on the next request. Shared env-credential login
+(`STAFF_USERNAME` / `STAFF_PASSWORD` as the sole identity) has been removed. Local/test demos are
+bootstrapped via `SEED_DEMO_STAFF` (see README / configuration docs). Citizen public browsing and
+tracking stay public; citizen contribution uses the separate OTP-backed session contract.
 
-Protected staff routes reject missing/invalid/expired tokens with `401` and code `UNAUTHORIZED`,
-without leaking ticket contents or whether a ticket ID exists. Future staff mutations such as
-department assignment (issue #141) should reuse the shared `require_staff` dependency.
+Protected staff routes reject missing/invalid/expired/revoked tokens with `401` and code
+`UNAUTHORIZED`, without leaking ticket contents or whether a ticket ID exists. Staff mutations
+reuse the shared `require_staff` dependency.
 
 ## `POST /v1/staff/login`
 
-The current MVP still uses the shared `STAFF_USERNAME` / `STAFF_PASSWORD` credentials and returns
-the existing staff token shape. The role, municipality, and department scope fields shown below are
-the Sprint 6 target contract; they are not a requirement to expand the current shared-credential
-implementation in this issue.
-
-Exchanges staff username/password for a Bearer access token.
+Exchanges a staff username/password for a role-aware Bearer access token.
 
 ### Request body
 
@@ -266,11 +264,12 @@ Exchanges staff username/password for a Bearer access token.
 {
   "accessToken": "<signed-token>",
   "tokenType": "Bearer",
-  "staffId": "staff_001",
+  "staffId": "staff_muni_001",
   "username": "staff",
+  "name": "Demo Municipal Staff",
   "role": "municipal_staff",
-  "municipalityId": "mun_beirut",
-  "departmentIds": ["dept_roads", "dept_lighting"],
+  "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "departmentIds": ["d1111111-1111-1111-1111-111111111111", "d3333333-3333-3333-3333-333333333333"],
   "expiresIn": 43200
 }
 ```
@@ -279,8 +278,14 @@ Exchanges staff username/password for a Bearer access token.
 display them but cannot modify or use request-body copies to expand access. A municipal staff login
 returns its assigned department IDs. A global administrator login returns exactly
 `role: "administrator"`, `municipalityId: null`, and `departmentIds: null`; `null` is the explicit
-all-departments sentinel and is never an empty assignment. The same values are used in staff token
-claims and authorization checks.
+all-departments sentinel and is never an empty assignment. Inactive accounts receive the same
+generic `401 UNAUTHORIZED` as invalid credentials. Password hashes and credential metadata are
+never included in the response.
+
+## `POST /v1/staff/logout`
+
+Requires a valid staff Bearer token. Immediately revokes outstanding tokens for that staff account
+by incrementing `sessionEpoch` and returns `204`. Repeating with the revoked token returns `401`.
 
 `N/A` in the permission matrix means that role is not a valid principal for that route. If a staff
 token is presented to a citizen-only OTP/profile route, the wrong-audience authentication check
