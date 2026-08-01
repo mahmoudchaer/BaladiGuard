@@ -5,12 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
 
 from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
 from app.database.serialization import convert_decimals, prepare_dynamodb_value
 from app.schemas.staff_password_reset import StoredStaffPasswordResetChallenge
+
+_LIVE_CHALLENGE_CONDITION = (
+    "attribute_exists(challengeId) AND "
+    "attribute_not_exists(consumedAt) AND "
+    "attribute_not_exists(supersededAt)"
+)
 
 
 def _to_item(challenge: StoredStaffPasswordResetChallenge) -> dict[str, Any]:
@@ -95,6 +102,48 @@ class DynamoStaffPasswordResetStore:
     ) -> StoredStaffPasswordResetChallenge:
         self._table.put_item(Item=_to_item(challenge))
         return challenge
+
+    def consume(
+        self,
+        challenge_id: str,
+        *,
+        consumed_at: str,
+        expected_attempt_count: int,
+    ) -> StoredStaffPasswordResetChallenge | None:
+        """Conditional consume — only one concurrent confirm can win."""
+        try:
+            response = self._table.update_item(
+                Key={"challengeId": challenge_id},
+                UpdateExpression="SET consumedAt = :at ADD attemptCount :one",
+                ConditionExpression=(f"{_LIVE_CHALLENGE_CONDITION} AND attemptCount = :expected"),
+                ExpressionAttributeValues={
+                    ":at": consumed_at,
+                    ":one": 1,
+                    ":expected": expected_attempt_count,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+        return _from_item(response["Attributes"])
+
+    def increment_attempt(self, challenge_id: str) -> StoredStaffPasswordResetChallenge | None:
+        """Conditional attempt bump — loses cleanly if already consumed."""
+        try:
+            response = self._table.update_item(
+                Key={"challengeId": challenge_id},
+                UpdateExpression="ADD attemptCount :one",
+                ConditionExpression=_LIVE_CHALLENGE_CONDITION,
+                ExpressionAttributeValues={":one": 1},
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+        return _from_item(response["Attributes"])
 
     def clear(self) -> None:
         raise NotImplementedError(

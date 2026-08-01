@@ -193,6 +193,39 @@ def test_resend_supersedes_prior_open_challenge(anonymous_client: TestClient) ->
     assert ok.status_code == 200
 
 
+def test_concurrent_confirm_applies_password_once(anonymous_client: TestClient) -> None:
+    import concurrent.futures
+
+    anonymous_client.post("/v1/staff/password-reset/request", json={"username": "staff"})
+    code = _latest_code("staff")
+
+    def attempt(index: int) -> int:
+        response = anonymous_client.post(
+            "/v1/staff/password-reset/confirm",
+            json={
+                "username": "staff",
+                "code": code,
+                "newPassword": f"race-password-{index:02d}-xx",
+            },
+        )
+        return response.status_code
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        statuses = list(pool.map(attempt, range(8)))
+
+    assert statuses.count(200) == 1
+    assert all(status in {200, 400} for status in statuses)
+
+    winners = [
+        anonymous_client.post(
+            "/v1/staff/login",
+            json={"username": "staff", "password": f"race-password-{index:02d}-xx"},
+        ).status_code
+        for index in range(8)
+    ]
+    assert winners.count(200) == 1
+
+
 def test_reset_revokes_existing_staff_sessions(anonymous_client: TestClient) -> None:
     login = anonymous_client.post(
         "/v1/staff/login",

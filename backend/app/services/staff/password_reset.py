@@ -48,6 +48,16 @@ class StaffPasswordResetStorePort(Protocol):
         self, challenge: StoredStaffPasswordResetChallenge
     ) -> StoredStaffPasswordResetChallenge: ...
 
+    def consume(
+        self,
+        challenge_id: str,
+        *,
+        consumed_at: str,
+        expected_attempt_count: int,
+    ) -> StoredStaffPasswordResetChallenge | None: ...
+
+    def increment_attempt(self, challenge_id: str) -> StoredStaffPasswordResetChallenge | None: ...
+
 
 class StaffPasswordResetError(Exception):
     def __init__(self, code: str, message: str, status_code: int = 400) -> None:
@@ -205,8 +215,12 @@ class StaffPasswordResetService:
         expected = challenge.code_hash
         actual = _hash_reset_code(code.strip(), settings=self._settings_or_default())
         if not hmac.compare_digest(expected, actual):
-            updated = challenge.model_copy(update={"attempt_count": challenge.attempt_count + 1})
-            reset_store.save(updated)
+            updated = reset_store.increment_attempt(challenge.challenge_id)
+            if updated is None:
+                raise StaffPasswordResetError(
+                    "RESET_INVALID",
+                    "Unable to reset password with the provided details.",
+                )
             if updated.attempt_count >= RESET_MAX_ATTEMPTS:
                 raise StaffPasswordResetError(
                     "RATE_LIMITED",
@@ -225,7 +239,19 @@ class StaffPasswordResetService:
                 "Unable to reset password with the provided details.",
             )
 
+        # Consume first (CAS) so concurrent confirms cannot both apply a new password.
         stamped = _iso(moment)
+        consumed = reset_store.consume(
+            challenge.challenge_id,
+            consumed_at=stamped,
+            expected_attempt_count=challenge.attempt_count,
+        )
+        if consumed is None:
+            raise StaffPasswordResetError(
+                "RESET_INVALID",
+                "Unable to reset password with the provided details.",
+            )
+
         updated_staff = staff.model_copy(
             update={
                 "password_hash": hash_password(new_password),
@@ -241,14 +267,6 @@ class StaffPasswordResetService:
                 "Unable to reset password with the provided details.",
             ) from exc
 
-        reset_store.save(
-            challenge.model_copy(
-                update={
-                    "consumed_at": stamped,
-                    "attempt_count": challenge.attempt_count + 1,
-                }
-            )
-        )
         _dev_reset_codes.pop(challenge.challenge_id, None)
         logger.info("staff_recovery_completed staff_id=%s", staff.staff_id)
         return RESET_SUCCESS_MESSAGE

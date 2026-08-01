@@ -52,6 +52,42 @@ class InMemoryStaffPasswordResetStore:
             self._challenges[challenge.challenge_id] = challenge
             return challenge
 
+    def consume(
+        self,
+        challenge_id: str,
+        *,
+        consumed_at: str,
+        expected_attempt_count: int,
+    ) -> StoredStaffPasswordResetChallenge | None:
+        """Atomically consume a live challenge; returns None if already spent."""
+        with self._lock:
+            existing = self._challenges.get(challenge_id)
+            if (
+                existing is None
+                or existing.consumed_at
+                or existing.superseded_at
+                or existing.attempt_count != expected_attempt_count
+            ):
+                return None
+            updated = existing.model_copy(
+                update={
+                    "consumed_at": consumed_at,
+                    "attempt_count": existing.attempt_count + 1,
+                }
+            )
+            self._challenges[challenge_id] = updated
+            return updated
+
+    def increment_attempt(self, challenge_id: str) -> StoredStaffPasswordResetChallenge | None:
+        """Atomically bump attemptCount while the challenge is still live."""
+        with self._lock:
+            existing = self._challenges.get(challenge_id)
+            if existing is None or existing.consumed_at or existing.superseded_at:
+                return None
+            updated = existing.model_copy(update={"attempt_count": existing.attempt_count + 1})
+            self._challenges[challenge_id] = updated
+            return updated
+
     def clear(self) -> None:
         with self._lock:
             self._challenges.clear()
