@@ -114,7 +114,7 @@ describe('TicketListPage', () => {
     expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('2');
     expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('1');
     expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('1');
-    expect(stats.getByText('Resolved').previousElementSibling).toHaveTextContent('1');
+    expect(stats.getByText('Completed Tickets').previousElementSibling).toHaveTextContent('1');
   });
 
   it('filters the rendered ticket list by search text', async () => {
@@ -284,6 +284,11 @@ describe('TicketListPage', () => {
     expect(
       screen.getByText('Submitted citizen reports will appear here once they are available.'),
     ).toBeInTheDocument();
+    const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
+    expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Completed Tickets').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('0');
   });
 
   it('shows a failure state when tickets cannot be loaded', async () => {
