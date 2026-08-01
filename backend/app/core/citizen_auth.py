@@ -211,4 +211,24 @@ def require_citizen(
         raise unauthorized(request) from None
 
 
+def optional_citizen(
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_bearer_scheme),
+    ],
+) -> CitizenPrincipal | None:
+    """Return the citizen principal when a Bearer token is present; else None.
+
+    Malformed/expired/wrong-audience credentials still raise ``401`` so clients
+    cannot silently fall back to guest behavior with a bad token.
+    """
+    if credentials is None or not credentials.credentials:
+        return None
+    if credentials.scheme.lower() != "bearer":
+        raise unauthorized(request)
+    return require_citizen(request, credentials)
+
+
 CitizenDep = Annotated[CitizenPrincipal, Depends(require_citizen)]
+OptionalCitizenDep = Annotated[CitizenPrincipal | None, Depends(optional_citizen)]

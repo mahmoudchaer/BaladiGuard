@@ -1,25 +1,171 @@
-"""Citizen profile endpoints (issue #169)."""
+"""Citizen profile and OTP authentication endpoints (issues #169 / #170)."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
-from app.core.citizen_auth import CitizenDep
+from app.config import get_settings
+from app.core.citizen_auth import CitizenDep, OptionalCitizenDep
 from app.core.errors import build_error_response, get_request_id
+from app.core.rate_limit import enforce_rate_limit
 from app.schemas.citizen import CitizenProfileResponse, CitizenProfileUpdateRequest
-from app.services.citizens.service import CitizenServiceError, citizen_service
+from app.schemas.citizen_auth import (
+    CitizenOtpRequest,
+    CitizenOtpRequestResponse,
+    CitizenOtpVerifyRequest,
+    CitizenOtpVerifyResponse,
+)
+from app.services.citizens.service import (
+    CHANGE_PHONE_PURPOSE,
+    GENERIC_OTP_MESSAGE,
+    LOGIN_OR_SIGNUP_PURPOSE,
+    CitizenServiceError,
+    citizen_service,
+)
+from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 router = APIRouter(prefix="/v1/citizen", tags=["citizen"])
 
 
 def _service_error_response(request: Request, exc: CitizenServiceError) -> JSONResponse:
-    return build_error_response(
+    response = build_error_response(
         code=exc.code,
         message=exc.message,
         request_id=get_request_id(request),
         status_code=exc.status_code,
     )
+    if exc.status_code == 401:
+        response.headers["WWW-Authenticate"] = "Bearer"
+    if exc.status_code == 429:
+        response.headers.setdefault("Retry-After", "60")
+    return response
+
+
+def _phone_rate_identity(phone: str, region: str | None) -> str | None:
+    try:
+        return f"phone:{normalize_phone(phone, region)}"
+    except PhoneNormalizationError:
+        return None
+
+
+@router.post(
+    "/auth/otp/request",
+    response_model=CitizenOtpRequestResponse,
+    status_code=202,
+)
+def request_citizen_otp(
+    payload: CitizenOtpRequest,
+    request: Request,
+    principal: OptionalCitizenDep,
+) -> CitizenOtpRequestResponse | JSONResponse:
+    settings = get_settings()
+    phone_identity = _phone_rate_identity(payload.phone, payload.region)
+    device_id = (request.headers.get("X-Device-Id") or "").strip() or None
+
+    limited = enforce_rate_limit(
+        request,
+        "citizen-otp-request",
+        settings=settings,
+        message="Too many verification requests. Please wait before trying again.",
+        extra_identity=phone_identity,
+    )
+    if limited is not None:
+        return limited
+    if device_id:
+        limited = enforce_rate_limit(
+            request,
+            "citizen-otp-request",
+            settings=settings,
+            message="Too many verification requests. Please wait before trying again.",
+            extra_identity=f"device:{device_id}",
+        )
+        if limited is not None:
+            return limited
+
+    if payload.purpose == CHANGE_PHONE_PURPOSE and principal is None:
+        response = build_error_response(
+            code="UNAUTHORIZED",
+            message="Citizen authentication required.",
+            request_id=get_request_id(request),
+            status_code=401,
+        )
+        response.headers["WWW-Authenticate"] = "Bearer"
+        return response
+
+    if payload.purpose == LOGIN_OR_SIGNUP_PURPOSE:
+        auth_user_id = None
+    else:
+        auth_user_id = principal.user_id if principal is not None else None
+
+    try:
+        challenge_id, expires_in, _code = citizen_service.request_otp(
+            phone=payload.phone,
+            region=payload.region,
+            purpose=payload.purpose,
+            authenticated_user_id=auth_user_id,
+        )
+    except CitizenServiceError as exc:
+        # Keep LOGIN_OR_SIGNUP failures account-neutral where possible.
+        if payload.purpose == LOGIN_OR_SIGNUP_PURPOSE and exc.code == "VALIDATION_ERROR":
+            return _service_error_response(request, exc)
+        return _service_error_response(request, exc)
+
+    return CitizenOtpRequestResponse(
+        challengeId=challenge_id,
+        expiresIn=expires_in,
+        message=GENERIC_OTP_MESSAGE,
+    )
+
+
+@router.post("/auth/otp/verify", response_model=CitizenOtpVerifyResponse)
+def verify_citizen_otp(
+    payload: CitizenOtpVerifyRequest,
+    request: Request,
+    principal: OptionalCitizenDep,
+) -> CitizenOtpVerifyResponse | JSONResponse:
+    settings = get_settings()
+    device_id = (request.headers.get("X-Device-Id") or "").strip() or None
+    limited = enforce_rate_limit(
+        request,
+        "citizen-otp-verify",
+        settings=settings,
+        message="Too many verification attempts. Please wait before trying again.",
+        extra_identity=f"challenge:{payload.challenge_id}",
+    )
+    if limited is not None:
+        return limited
+    if device_id:
+        limited = enforce_rate_limit(
+            request,
+            "citizen-otp-verify",
+            settings=settings,
+            message="Too many verification attempts. Please wait before trying again.",
+            extra_identity=f"device:{device_id}",
+        )
+        if limited is not None:
+            return limited
+
+    try:
+        return citizen_service.verify_otp(
+            challenge_id=payload.challenge_id,
+            code=payload.code,
+            full_name=payload.full_name,
+            authenticated_user_id=principal.user_id if principal is not None else None,
+        )
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.post("/auth/logout", status_code=204, response_class=Response)
+def logout_citizen(principal: CitizenDep) -> Response:
+    # CitizenDep already authenticated the presented session; revoke it best-effort.
+    try:
+        citizen_service.logout_session(principal.session_id)
+    except CitizenServiceError:
+        # Session disappeared between auth and revoke — treat as logged out.
+        pass
+    return Response(status_code=204)
 
 
 @router.get("/me", response_model=CitizenProfileResponse)
@@ -42,7 +188,4 @@ def patch_citizen_me(
     try:
         return citizen_service.update_profile(principal.user_id, payload)
     except CitizenServiceError as exc:
-        response = _service_error_response(request, exc)
-        if exc.status_code == 401:
-            response.headers["WWW-Authenticate"] = "Bearer"
-        return response
+        return _service_error_response(request, exc)

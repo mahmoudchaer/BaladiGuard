@@ -69,6 +69,9 @@ def reset_ticket_store() -> None:
     citizen_session_store.clear()
     citizen_otp_store.clear()
     staff_store.clear()
+    from app.services.citizens.service import citizen_service
+
+    citizen_service.clear_dev_otp_codes()
     ensure_demo_staff_accounts()
     clear_rate_limiter_cache()
     public_ticket_rate_limiter.reset()
