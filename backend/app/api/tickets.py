@@ -1,10 +1,12 @@
 from fastapi import APIRouter, BackgroundTasks, Query, Request
 from fastapi.responses import JSONResponse
 
-from app.api.deps import StaffActorDep
+from app.api.deps import ContributionReadyCitizenDep, StaffActorDep
+from app.core.citizen_auth import unauthorized
 from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
+from app.database.store_factory import get_citizen_store
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
@@ -13,6 +15,7 @@ from app.schemas.ticket_response import (
     TicketResponse,
     UpdateTicketStatusRequest,
 )
+from app.services.citizens.service import snapshot_contact_for_ticket
 from app.services.complaints.status_workflow import InvalidStatusTransitionError
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
@@ -30,8 +33,9 @@ def submit_ticket(
     payload: SubmitTicketRequest,
     background_tasks: BackgroundTasks,
     request: Request,
+    principal: ContributionReadyCitizenDep,
 ) -> SubmitTicketResponse | JSONResponse:
-    """Public citizen submission — no staff auth required."""
+    """Contribution-ready citizen submission — guests and incomplete profiles are rejected."""
     limited = enforce_rate_limit(
         request,
         "public-ticket-submission",
@@ -40,7 +44,15 @@ def submit_ticket(
     if limited is not None:
         return limited
 
-    response = ticket_service.submit_ticket(payload)
+    user = get_citizen_store().get(principal.user_id)
+    if user is None:
+        raise unauthorized(request)
+
+    response = ticket_service.submit_ticket(
+        payload,
+        owner_user_id=principal.user_id,
+        contact=snapshot_contact_for_ticket(user),
+    )
     background_tasks.add_task(ticket_service.process_ticket_ai, response.ticket_id)
     return response
 

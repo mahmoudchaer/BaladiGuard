@@ -20,7 +20,7 @@ from app.schemas.stored_audit_history import AuditActionType, StoredAuditHistory
 from app.schemas.stored_duplicate_group import StoredDuplicateGroup
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
-from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
+from app.schemas.ticket import ReportContact, SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import (
     AssignTicketDepartmentRequest,
     ReviewTicketCategoryRequest,
@@ -148,7 +148,13 @@ class TicketService:
         self._processing_ticket_ids: set[str] = set()
         self._processing_lock = Lock()
 
-    def submit_ticket(self, payload: SubmitTicketRequest) -> SubmitTicketResponse:
+    def submit_ticket(
+        self,
+        payload: SubmitTicketRequest,
+        *,
+        owner_user_id: str,
+        contact: ReportContact,
+    ) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
         tracking_code = generate_tracking_code()
@@ -161,9 +167,10 @@ class TicketService:
             trackingCode=tracking_code,
             description=payload.description,
             originalDescription=payload.description,
-            contact=payload.contact,
+            contact=contact,
             location=payload.location,
             imageObjectKey=payload.image_object_key,
+            ownerUserId=owner_user_id,
             status="SUBMITTED",
             category=PENDING_CLASSIFICATION,
             aiProcessingStatus="pending",

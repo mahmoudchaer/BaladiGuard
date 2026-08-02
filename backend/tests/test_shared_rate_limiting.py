@@ -21,6 +21,7 @@ from app.core.rate_limit import (
 from app.database.dynamo_rate_limiter import DynamoRateLimiter
 from app.database.dynamodb_tables import TABLE_DEFINITIONS
 from app.main import app
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
@@ -155,7 +156,10 @@ def test_smoke_token_raises_quota_without_disabling_limits(monkeypatch) -> None:
     clear_rate_limiter_cache()
 
     client = TestClient(app)
-    headers = {"X-BaladiGuard-Smoke-Token": "smoke-secret"}
+    headers = {
+        "X-BaladiGuard-Smoke-Token": "smoke-secret",
+        **contribution_ready_auth_headers(),
+    }
 
     assert (
         client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=headers).status_code == 201
@@ -168,8 +172,18 @@ def test_smoke_token_raises_quota_without_disabling_limits(monkeypatch) -> None:
 
     # Without the token, the normal low limit still applies independently.
     clear_rate_limiter_cache()
-    assert client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD)).status_code == 201
-    assert client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD)).status_code == 429
+    assert (
+        client.post(
+            "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+        ).status_code
+        == 429
+    )
 
     get_settings.cache_clear()
     clear_rate_limiter_cache()

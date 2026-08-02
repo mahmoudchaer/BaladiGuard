@@ -189,6 +189,25 @@ def unauthorized(
     )
 
 
+def contribution_profile_required(
+    request: Request,
+    message: str = "Complete your profile before submitting a report.",
+) -> HTTPException:
+    from app.core.errors import get_request_id
+
+    return HTTPException(
+        status_code=403,
+        detail={
+            "error": {
+                "code": "CONTRIBUTION_PROFILE_REQUIRED",
+                "message": message,
+                "details": [],
+                "requestId": get_request_id(request),
+            }
+        },
+    )
+
+
 def require_citizen(
     request: Request,
     credentials: Annotated[
@@ -211,6 +230,30 @@ def require_citizen(
         raise unauthorized(request) from None
 
 
+def require_contribution_ready(
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_bearer_scheme),
+    ],
+) -> CitizenPrincipal:
+    """Require an active citizen session that is contribution-ready (issue #173).
+
+    Missing/invalid/revoked/inactive sessions → ``401 UNAUTHORIZED``.
+    Active but incomplete profiles → ``403 CONTRIBUTION_PROFILE_REQUIRED``.
+    """
+    principal = require_citizen(request, credentials)
+    from app.database.store_factory import get_citizen_store
+    from app.services.citizens.service import is_contribution_ready
+
+    user = get_citizen_store().get(principal.user_id)
+    if user is None or not getattr(user, "active", False):
+        raise unauthorized(request)
+    if not is_contribution_ready(user):
+        raise contribution_profile_required(request)
+    return principal
+
+
 def optional_citizen(
     request: Request,
     credentials: Annotated[
@@ -231,4 +274,5 @@ def optional_citizen(
 
 
 CitizenDep = Annotated[CitizenPrincipal, Depends(require_citizen)]
+ContributionReadyCitizenDep = Annotated[CitizenPrincipal, Depends(require_contribution_ready)]
 OptionalCitizenDep = Annotated[CitizenPrincipal | None, Depends(optional_citizen)]

@@ -4,7 +4,7 @@ from app.config import Settings
 from app.database.dynamo_status_history_store import DynamoStatusHistoryStore
 from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.services.complaints.ticket_service import ticket_service
-from tests.conftest import authenticated_test_client
+from tests.conftest import authenticated_test_client, contribution_ready_auth_headers
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
@@ -18,7 +18,9 @@ def test_update_ticket_status_persists_history_in_dynamodb(dynamodb_settings: Se
 
     try:
         client = authenticated_test_client()
-        submit_response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+        submit_response = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert submit_response.status_code == 201
         ticket_id = submit_response.json()["ticketId"]
 

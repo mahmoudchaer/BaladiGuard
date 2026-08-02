@@ -32,6 +32,7 @@ from app.schemas.citizen import (
 )
 from app.schemas.citizen_auth import CitizenOtpVerifyResponse
 from app.schemas.citizen_session import OtpPurpose, StoredCitizenOtpChallenge
+from app.schemas.ticket import PreferredChannel, ReportContact
 from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,31 @@ def anonymized_phone_for(user_id: str) -> str:
 
 def is_anonymized_citizen(user: StoredCitizenUser) -> bool:
     return (not user.active) and user.phone.startswith(ANONYMIZED_PHONE_PREFIX)
+
+
+def preferred_channel_from_ticket_updates(
+    ticket_updates: str,
+) -> PreferredChannel | None:
+    """Map profile ``ticketUpdates`` preference to the singular ticket snapshot channel."""
+    if ticket_updates == "SMS":
+        return "SMS"
+    if ticket_updates == "EMAIL":
+        return "EMAIL"
+    if ticket_updates == "BOTH":
+        return "SMS"
+    return None
+
+
+def snapshot_contact_for_ticket(user: StoredCitizenUser) -> ReportContact:
+    """Immutable submission-time contact snapshot from the authenticated profile (#173)."""
+    return ReportContact(
+        name=user.full_name.strip() if user.full_name else None,
+        phone=user.phone,
+        email=user.email,
+        preferredChannel=preferred_channel_from_ticket_updates(
+            user.notification_preferences.ticket_updates
+        ),
+    )
 
 
 def to_profile_response(user: StoredCitizenUser) -> CitizenProfileResponse:
@@ -992,5 +1018,7 @@ __all__ = [
     "hash_citizen_token",
     "is_anonymized_citizen",
     "is_contribution_ready",
+    "preferred_channel_from_ticket_updates",
+    "snapshot_contact_for_ticket",
     "to_profile_response",
 ]
