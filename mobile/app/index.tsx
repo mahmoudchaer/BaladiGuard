@@ -4,7 +4,12 @@ import { Link, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useCitizenAuth } from '@/auth';
+import { buildLoginHref } from '@/auth/returnTo';
+
 export default function HomeScreen() {
+  const { isAuthenticated, contributionReady, profile, logout, isLoading } = useCitizenAuth();
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -30,6 +35,33 @@ export default function HomeScreen() {
             Privacy notice
           </Button>
         </Link>
+
+        {!isLoading && isAuthenticated && contributionReady ? (
+          <View style={styles.sessionBlock}>
+            <Text variant="bodyMedium" style={styles.sessionText}>
+              {`Signed in as ${profile?.fullName ?? profile?.phone}`}
+            </Text>
+            <Button
+              mode="text"
+              onPress={() => void logout()}
+              style={styles.button}
+              testID="logout-button"
+            >
+              Sign out
+            </Button>
+          </View>
+        ) : (
+          <Link href={buildLoginHref('/') as Href} asChild>
+            <Button
+              mode="text"
+              icon="cellphone-message"
+              style={styles.button}
+              testID="sign-in-button"
+            >
+              Sign in with phone
+            </Button>
+          </Link>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -56,5 +88,12 @@ const styles = StyleSheet.create({
   },
   button: {
     alignSelf: 'flex-start',
+  },
+  sessionBlock: {
+    marginTop: 8,
+    gap: 4,
+  },
+  sessionText: {
+    color: '#334155',
   },
 });
