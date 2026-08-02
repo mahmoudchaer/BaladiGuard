@@ -2,6 +2,7 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 from app.core.rate_limit import InMemoryRateLimiter, RateLimitPolicy, get_client_rate_limit_key
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -84,10 +85,22 @@ def test_public_ticket_submission_rejects_burst_with_clear_response(client, monk
     get_settings.cache_clear()
     clear_rate_limiter_cache()
 
-    assert client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD)).status_code == 201
-    assert client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD)).status_code == 201
+    assert (
+        client.post(
+            "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+        ).status_code
+        == 201
+    )
 
-    response = client.post("/v1/tickets", json=deepcopy(VALID_PAYLOAD))
+    response = client.post(
+        "/v1/tickets", json=deepcopy(VALID_PAYLOAD), headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 429
     assert 1 <= int(response.headers["Retry-After"]) <= 60

@@ -9,6 +9,7 @@ from app.services.complaints.ticket_list_filters import (
     parse_ticket_list_filters,
 )
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -299,6 +300,7 @@ def test_list_tickets_filters_work_in_dynamodb(dynamodb_settings: Settings) -> N
                 **VALID_PAYLOAD,
                 "description": "DynamoDB filter candidate for waste department.",
             },
+            headers=contribution_ready_auth_headers(),
         )
         assert created.status_code == 201
         ticket_id = created.json()["ticketId"]
@@ -320,6 +322,7 @@ def test_list_tickets_filters_work_in_dynamodb(dynamodb_settings: Settings) -> N
                 **VALID_PAYLOAD,
                 "description": "DynamoDB ticket that should be excluded by filters.",
             },
+            headers=contribution_ready_auth_headers(),
         )
         assert other.status_code == 201
         store.patch_fields(
