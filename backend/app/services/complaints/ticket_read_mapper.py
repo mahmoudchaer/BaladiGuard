@@ -117,6 +117,7 @@ def map_ticket_to_response(
         trackingCode=ticket.tracking_code,
         description=ticket.description,
         contact=ticket.contact,
+        ownerUserId=ticket.owner_user_id,
         category=ticket.category,
         priority=ticket.priority,
         status=ticket.status,

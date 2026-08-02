@@ -10,7 +10,13 @@ contribution routes (issue #169 / #170).
 
 from __future__ import annotations
 
-from app.core.citizen_auth import CitizenDep, CitizenPrincipal, require_citizen
+from app.core.citizen_auth import (
+    CitizenDep,
+    CitizenPrincipal,
+    ContributionReadyCitizenDep,
+    require_citizen,
+    require_contribution_ready,
+)
 from app.core.staff_auth import StaffDep, StaffPrincipal, require_staff
 
 # Alias kept for #141 and any other routes that imported StaffActorDep.
@@ -19,9 +25,11 @@ StaffActorDep = StaffDep
 __all__ = [
     "CitizenDep",
     "CitizenPrincipal",
+    "ContributionReadyCitizenDep",
     "StaffActorDep",
     "StaffDep",
     "StaffPrincipal",
     "require_citizen",
+    "require_contribution_ready",
     "require_staff",
 ]

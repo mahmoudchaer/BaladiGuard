@@ -79,12 +79,25 @@ class ReportLocation(BaseModel):
 class SubmitTicketRequest(BaseModel):
     description: str = Field(min_length=10, max_length=2000)
     language_hint: str = Field(default="auto", alias="languageHint", min_length=1, max_length=40)
-    contact: ReportContact
     location: ReportLocation
     image_object_key: str = Field(alias="imageObjectKey", min_length=1, max_length=500)
     client_metadata: ClientMetadata = Field(alias="clientMetadata")
 
     model_config = {"populate_by_name": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_client_owned_fields(cls, data: Any) -> Any:
+        """Contact and owner are server-derived; reject client-supplied values (#173)."""
+        if not isinstance(data, dict):
+            return data
+        if "contact" in data:
+            raise ValueError(
+                "contact must be omitted; the server snapshots it from the authenticated profile."
+            )
+        if "ownerUserId" in data or "owner_user_id" in data:
+            raise ValueError("ownerUserId must not be supplied by the client.")
+        return data
 
     @field_validator("description", "image_object_key")
     @classmethod

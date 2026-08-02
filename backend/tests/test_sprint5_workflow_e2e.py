@@ -7,13 +7,15 @@ coverage is out of scope here because it needs real credentials and endpoints.
 
 from app.database.memory import ticket_store
 from app.services.notifications.adapters import MockNotificationAdapter
-from tests.test_submit_ticket import VALID_PAYLOAD
+from tests.conftest import contribution_ready_auth_headers
+from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
 
 STREET_LIGHTING = "d3333333-3333-3333-3333-333333333333"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"
 
 PUBLIC_FORBIDDEN_FIELDS = {
     "ticketId",
+    "ownerUserId",
     "contact",
     "imageReferences",
     "imageObjectKey",
@@ -35,6 +37,7 @@ def _submit_report(anonymous_client, description: str = VALID_PAYLOAD["descripti
     response = anonymous_client.post(
         "/v1/tickets",
         json={**VALID_PAYLOAD, "description": description},
+        headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
     body = response.json()
@@ -86,7 +89,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(public_body)
     assert "ai" not in public_body
     assert "contact" not in public_body
-    assert VALID_PAYLOAD["contact"]["phone"] not in str(public_body)
+    assert EXPECTED_CONTACT["phone"] not in str(public_body)
 
     _assert_unauthorized(anonymous_client.get("/v1/tickets"))
     _assert_unauthorized(anonymous_client.get(f"/v1/tickets/{ticket_id}"))
@@ -123,7 +126,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     detail = anonymous_client.get(f"/v1/tickets/{ticket_id}", headers=staff_headers)
     assert detail.status_code == 200
     detail_body = detail.json()
-    assert detail_body["contact"]["phone"] == VALID_PAYLOAD["contact"]["phone"]
+    assert detail_body["contact"]["phone"] == EXPECTED_CONTACT["phone"]
     assert detail_body["statusHistory"][0]["status"] == "SUBMITTED"
     assert detail_body["auditHistory"] == []
 
@@ -247,7 +250,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(public_after_body)
     assert "ai" not in public_after_body
     assert "contact" not in public_after_body
-    assert VALID_PAYLOAD["contact"]["phone"] not in str(public_after_body)
+    assert EXPECTED_CONTACT["phone"] not in str(public_after_body)
 
     target_notifications = [
         (message.event, message.status, recipient)
@@ -266,6 +269,6 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     ]
     assert all(recipient is not None for _event, _status, recipient in target_notifications)
     assert all(
-        recipient.phone == VALID_PAYLOAD["contact"]["phone"]
+        recipient.phone == EXPECTED_CONTACT["phone"]
         for _event, _status, recipient in target_notifications
     )

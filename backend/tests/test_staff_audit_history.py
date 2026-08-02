@@ -6,6 +6,7 @@ from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory_audit_history import audit_history_store
 from app.database.memory_status_history import status_history_store
 from app.services.complaints.ticket_service import ticket_service
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -184,6 +185,7 @@ def test_audit_history_persists_in_dynamodb(dynamodb_settings: Settings) -> None
         created = client.post(
             "/v1/tickets",
             json={**VALID_PAYLOAD, "description": "DynamoDB audit history ticket."},
+            headers=contribution_ready_auth_headers(),
         )
         assert created.status_code == 201
         ticket_id = created.json()["ticketId"]
