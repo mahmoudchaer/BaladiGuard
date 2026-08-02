@@ -1,5 +1,8 @@
 import { afterEach, vi } from 'vitest';
 
+import { __resetExpoRouterMock } from '@/test/mocks/expo-router';
+import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
+
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
 }
@@ -9,4 +12,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  __resetExpoRouterMock();
+  __resetSecureStoreMock();
 });

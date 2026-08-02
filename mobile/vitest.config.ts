@@ -32,6 +32,14 @@ export default defineConfig({
         find: /^react-native-paper$/,
         replacement: path.resolve(__dirname, './src/test/mocks/react-native-paper.tsx'),
       },
+      {
+        find: /^expo-secure-store$/,
+        replacement: path.resolve(__dirname, './src/test/mocks/expo-secure-store.ts'),
+      },
+      {
+        find: /^expo-constants$/,
+        replacement: path.resolve(__dirname, './src/test/mocks/expo-constants.ts'),
+      },
     ],
   },
 });
