@@ -118,6 +118,16 @@ Default seed loads:
 - **Demo staff accounts** (when `SEED_DEMO_STAFF=true`): `admin` (administrator) and `staff`
   (municipal_staff for Beirut roads + lighting), password from `DEMO_STAFF_PASSWORD`
 
+### Staff password reset (issue #178)
+
+Staff recovery uses `staff-password-reset-challenges` (hashed 6-digit codes, TTL attribute `ttl`).
+Request/confirm endpoints are account-neutral and never return codes over HTTP. In local/test/
+development, automated tests read issued codes via the in-process peek adapter
+(`staff_password_reset_service.peek_dev_reset_code`). Production email/SMS delivery is not
+required for MVP; configure a real provider later behind the same request lifecycle.
+
+Citizens have no password-reset path (OTP-only auth).
+
 Optional sample tickets from `mock_tickets.json`:
 
 ```bash

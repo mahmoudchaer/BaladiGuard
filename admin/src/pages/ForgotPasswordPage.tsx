@@ -1,47 +1,31 @@
 import { type FormEvent, useState } from 'react';
-import { Link, Navigate, type Location, useLocation, useNavigate } from 'react-router-dom';
-import { useStaffAuth } from '@/auth/useStaffAuth';
+import { Link, useNavigate } from 'react-router-dom';
+import { requestStaffPasswordReset } from '@/services/auth';
 import './LoginPage.css';
 
-type LoginLocationState = {
-  from?: Pick<Location, 'pathname' | 'search' | 'hash'>;
-  resetSuccess?: string;
-};
-
-export function LoginPage() {
+export function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { isAuthenticated, login } = useStaffAuth();
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const state = location.state as LoginLocationState | null;
-  const returnTo = state?.from
-    ? `${state.from.pathname}${state.from.search}${state.from.hash}`
-    : '/';
-  const resetSuccess = state?.resetSuccess;
-
-  if (isAuthenticated) {
-    return <Navigate to={returnTo} replace />;
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setMessage(null);
     setIsSubmitting(true);
-
     try {
-      const result = await login(username, password);
-
+      const result = await requestStaffPasswordReset(username);
       if (!result.ok) {
-        setPassword('');
         setError(result.error);
         return;
       }
-
-      navigate(returnTo, { replace: true });
+      setMessage(result.message);
+      navigate('/reset-password', {
+        replace: false,
+        state: { username: username.trim(), notice: result.message },
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -49,16 +33,21 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
-      <section className="login-panel" aria-labelledby="login-title">
+      <section className="login-panel" aria-labelledby="forgot-title">
         <div className="login-panel__brand">
           <span className="login-panel__logo" aria-hidden="true">
             BG
           </span>
           <div>
             <p className="login-panel__eyebrow">Municipal Staff Portal</p>
-            <h1 id="login-title">BaladiGuard staff login</h1>
+            <h1 id="forgot-title">Forgot password</h1>
           </div>
         </div>
+
+        <p className="login-form__hint">
+          Enter your staff username. If an account exists, a reset code will be issued through the
+          configured staff recovery channel (local/dev adapter in demo environments).
+        </p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-form__field">
@@ -73,37 +62,26 @@ export function LoginPage() {
             />
           </label>
 
-          <label className="login-form__field">
-            <span>Password</span>
-            <input
-              autoComplete="current-password"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-
-          {resetSuccess && (
-            <p className="login-form__success" role="status">
-              {resetSuccess}
-            </p>
-          )}
-
           {error && (
             <p className="login-form__error" role="alert">
               {error}
             </p>
           )}
+          {message && (
+            <p className="login-form__success" role="status">
+              {message}
+            </p>
+          )}
 
           <button className="login-form__submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in…' : 'Sign in'}
+            {isSubmitting ? 'Sending…' : 'Request reset code'}
           </button>
         </form>
 
         <p className="login-form__footer">
-          <Link to="/forgot-password">Forgot password?</Link>
+          <Link to="/reset-password">I already have a reset code</Link>
+          {' · '}
+          <Link to="/login">Back to sign in</Link>
         </p>
       </section>
     </main>
