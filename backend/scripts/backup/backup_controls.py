@@ -25,6 +25,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "citizen-sessions",
     "staff-users",
     "staff-username-claims",
+    "staff-password-reset-challenges",
     "ticket-status-history",
     "ticket-audit-history",
     "ai-outputs",

@@ -167,11 +167,13 @@ Default policies (all env-configurable — see `docs/configuration.md` and
 | `POST /v1/uploads/report-photo` | `public-upload-report-photo` | 10 / 60s (stricter) |
 | `POST /v1/locations/validate` | `public-location-validate` | 30 / 60s |
 | `POST /v1/staff/login` | `staff-login` | 10 / 300s |
+| `POST /v1/staff/password-reset/request` | `staff-password-reset-request` | 10 / 300s |
+| `POST /v1/staff/password-reset/confirm` | `staff-password-reset-confirm` | ≥20 / 300s |
 | Citizen OTP request/verify (when #170 ships) | `citizen-otp-request` / `citizen-otp-verify` | 5 / 300s and 10 / 300s |
 
-Citizen auth is passwordless OTP (signup/login). There is no citizen password-reset route;
-staff password recovery is tracked separately. Authenticated staff ticket APIs are not under
-these public policies (auth is the control plane).
+Citizen auth is passwordless OTP (signup/login). There is no citizen password-reset route.
+Staff password recovery uses the staff-admin forgot/reset pages against the endpoints above.
+Authenticated staff ticket APIs are not under these public policies (auth is the control plane).
 
 Exceeding a limit returns `429` with code `RATE_LIMIT_EXCEEDED`, a safe message, `requestId`,
 and `Retry-After`. Optional smoke tests may send `X-BaladiGuard-Smoke-Token` matching

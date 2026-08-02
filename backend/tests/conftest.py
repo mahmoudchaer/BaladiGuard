@@ -33,6 +33,7 @@ from app.database.memory_citizen_otp import citizen_otp_store  # noqa: E402
 from app.database.memory_citizen_session import citizen_session_store  # noqa: E402
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
+from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
@@ -42,6 +43,7 @@ from app.schemas.cleaning import CleaningResult  # noqa: E402
 from app.services.citizens.service import citizen_service  # noqa: E402
 from app.services.complaints.ticket_service import ticket_service  # noqa: E402
 from app.services.staff.bootstrap import ensure_demo_staff_accounts  # noqa: E402
+from app.services.staff.password_reset import staff_password_reset_service  # noqa: E402
 
 DEFAULT_CITIZEN_PHONE = "+96170123456"
 DEFAULT_CITIZEN_FULL_NAME = "Citizen Name"
@@ -122,6 +124,8 @@ def reset_ticket_store() -> None:
     citizen_session_store.clear()
     citizen_otp_store.clear()
     staff_store.clear()
+    staff_password_reset_store.clear()
+    staff_password_reset_service.clear_dev_reset_codes()
     from app.services.citizens.service import citizen_service
 
     citizen_service.clear_dev_otp_codes()

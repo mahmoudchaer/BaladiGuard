@@ -304,6 +304,73 @@ returns `401 UNAUTHORIZED` with `WWW-Authenticate: Bearer`; it is not treated as
 
 Uses the common error format with `UNAUTHORIZED` when credentials are invalid.
 
+## `POST /v1/staff/password-reset/request`
+
+Staff-only password recovery (issue #178). Accepts a staff username and always returns the same
+generic acknowledgement whether or not an active account exists. Does not return `challengeId`,
+reset codes, or any existence signal. Shared HTTP rate limits apply
+(`staff-password-reset-request`; same default budget as `staff-login`).
+
+Citizens are passwordless under the OTP contract; there is no citizen forgot-password or reset
+endpoint.
+
+### Request body
+
+```json
+{
+  "username": "staff"
+}
+```
+
+### Response `200`
+
+```json
+{
+  "message": "If a matching staff account exists, a password reset code has been issued."
+}
+```
+
+Codes are stored only as HMAC hashes on `staff-password-reset-challenges` (15-minute TTL,
+single-use, max 5 confirm attempts; a new request supersedes prior open challenges). In
+`local` / `test` / `development`, plaintext codes are available only through the in-process
+development peek adapter used by automated tests — never in HTTP responses. Production delivery
+through email/SMS is out of scope for this ticket; the provider boundary may be wired later.
+
+## `POST /v1/staff/password-reset/confirm`
+
+Exchanges username + 6-digit code + new password for a successful reset. On success the staff
+password hash is replaced with the same PBKDF2 scheme used at account creation, `sessionEpoch`
+is incremented (all existing sessions revoked), and the challenge is consumed. Invalid, expired,
+superseded, or reused codes return safe errors without revealing account existence.
+
+Shared HTTP rate limits apply (`staff-password-reset-confirm`).
+
+### Request body
+
+```json
+{
+  "username": "staff",
+  "code": "123456",
+  "newPassword": "new-staff-password-123"
+}
+```
+
+### Response `200`
+
+```json
+{
+  "message": "Password updated. Sign in with your new password."
+}
+```
+
+### Error codes
+
+| HTTP | Code | When |
+| --- | --- | --- |
+| `400` | `RESET_INVALID` | Unknown username, wrong/consumed/superseded code, or inactive staff |
+| `400` | `RESET_EXPIRED` | Code past TTL |
+| `429` | `RATE_LIMITED` | Too many confirm attempts on the challenge (or shared HTTP limit) |
+
 ## Endpoints
 
 ## `GET /health`
