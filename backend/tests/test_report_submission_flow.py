@@ -1,17 +1,12 @@
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.services.uploads.photo_upload_service import photo_upload_service
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_upload_report_photo import FakeS3Client, set_aws_env
 
 TICKET_PAYLOAD = {
     "description": "Large pothole reported near the university gate causing traffic disruption.",
     "languageHint": "auto",
-    "contact": {
-        "name": "Citizen Name",
-        "phone": "+96170123456",
-        "email": "citizen@example.com",
-        "preferredChannel": "SMS",
-    },
     "location": {
         "latitude": 33.896112,
         "longitude": 35.478419,
@@ -47,6 +42,7 @@ def test_upload_then_submit_report_flow(client, monkeypatch):
         headers={
             "Content-Type": "application/json",
             "X-Client-Version": "mobile-0.1.0",
+            **contribution_ready_auth_headers(),
         },
     )
 
@@ -70,7 +66,10 @@ def test_submit_rejects_ticket_when_upload_key_is_missing(client):
     response = client.post(
         "/v1/tickets",
         json={**TICKET_PAYLOAD, "imageObjectKey": "   "},
-        headers={"X-Client-Version": "mobile-0.1.0"},
+        headers={
+            "X-Client-Version": "mobile-0.1.0",
+            **contribution_ready_auth_headers(),
+        },
     )
 
     assert response.status_code == 400

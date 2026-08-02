@@ -140,6 +140,7 @@ class TicketResponse(BaseModel):
     tracking_code: str = Field(alias="trackingCode")
     description: str
     contact: ReportContact | None = None
+    owner_user_id: str | None = Field(default=None, alias="ownerUserId")
     category: str
     priority: TicketPriority | None
     status: TicketStatus

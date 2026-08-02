@@ -14,8 +14,17 @@ from app.schemas.cleaning import CleaningResult
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import ReportContact, ReportLocation, SubmitTicketRequest
 from app.services.complaints.ticket_service import ticket_service
-from tests.conftest import authenticated_test_client
-from tests.test_submit_ticket import VALID_PAYLOAD
+from tests.conftest import authenticated_test_client, contribution_ready_auth_headers
+from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
+
+
+def _service_submit(payload=None):
+    body = payload if payload is not None else VALID_PAYLOAD
+    return ticket_service.submit_ticket(
+        SubmitTicketRequest.model_validate(body),
+        owner_user_id="usr_test_owner",
+        contact=ReportContact.model_validate(EXPECTED_CONTACT),
+    )
 
 
 def test_submission_persists_successful_ai_output_and_read_api_returns_it(
@@ -41,7 +50,9 @@ def test_submission_persists_successful_ai_output_and_read_api_returns_it(
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     ticket_id = response.json()["ticketId"]
@@ -90,7 +101,9 @@ def test_provider_timeout_does_not_block_ticket_creation_or_log_report_content(
     monkeypatch.setattr(ticket_service, "_classifier", timeout)
     caplog.set_level(logging.ERROR)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     ticket_id = response.json()["ticketId"]
@@ -129,7 +142,9 @@ def test_classification_fallback_keeps_successful_cleaning_as_partial_success(
     monkeypatch.setattr(ticket_service, "_classifier", fallback_classification)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -164,7 +179,9 @@ def test_cleaning_fallback_never_discards_a_valid_category(
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", fallback_clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -198,7 +215,9 @@ def test_processing_is_failed_only_when_both_sides_fall_back(
     monkeypatch.setattr(ticket_service, "_classifier", fallback_classification)
     monkeypatch.setattr(ticket_service, "_description_cleaner", fallback_clean)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -227,7 +246,7 @@ def test_repeated_processing_for_same_ticket_is_a_no_op(monkeypatch):
 
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
-    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    created = _service_submit()
 
     assert ticket_service.process_ticket_ai(created.ticket_id) is True
     assert ticket_service.process_ticket_ai(created.ticket_id) is False
@@ -255,7 +274,7 @@ def test_store_claim_allows_only_one_worker_to_process(monkeypatch):
 
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
-    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    created = _service_submit()
 
     first_claim = ticket_store.claim_ai_processing(
         created.ticket_id,
@@ -298,7 +317,7 @@ def test_recover_pending_ai_tickets_sweeps_stuck_tickets(monkeypatch):
 
     # Submitting through the service (not the API) leaves the ticket pending because
     # no background task runs, simulating a crash before processing.
-    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    created = _service_submit()
     stored = ticket_store.get(created.ticket_id)
     assert stored is not None
     assert stored.ai_processing_status == "pending"
@@ -333,7 +352,7 @@ def test_recover_pending_ai_tickets_releases_stuck_processing_claims(monkeypatch
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    created = _service_submit()
     # Far in the past so the claim is older than AI_PROCESSING_CLAIM_TIMEOUT_SECONDS.
     claimed = ticket_store.claim_ai_processing(created.ticket_id, "2020-01-01T00:00:00Z")
     assert claimed is not None
@@ -366,7 +385,7 @@ def test_recover_pending_ai_tickets_skips_fresh_processing_claims(monkeypatch):
     monkeypatch.setattr(ticket_service, "_classifier", classify)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean)
 
-    created = ticket_service.submit_ticket(SubmitTicketRequest.model_validate(VALID_PAYLOAD))
+    created = _service_submit()
     claimed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     claimed = ticket_store.claim_ai_processing(created.ticket_id, claimed_at)
     assert claimed is not None
@@ -395,7 +414,9 @@ def test_submission_ai_output_persists_with_moto_dynamodb(
     ticket_service._store = store
 
     try:
-        response = TestClient(app).post("/v1/tickets", json=VALID_PAYLOAD)
+        response = TestClient(app).post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
 
         assert response.status_code == 201
         stored = store.get(response.json()["ticketId"])
@@ -466,7 +487,9 @@ def test_live_submission_processes_real_ai(client, monkeypatch):
     monkeypatch.setattr(ticket_service, "_classifier", classify_complaint)
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean_report_description)
 
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+    response = client.post(
+        "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+    )
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -511,7 +534,9 @@ def test_live_submission_persists_real_ai_to_cloud_dynamodb(monkeypatch):
     monkeypatch.setattr(ticket_service, "_description_cleaner", clean_report_description)
 
     try:
-        response = TestClient(app).post("/v1/tickets", json=VALID_PAYLOAD)
+        response = TestClient(app).post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
         assert response.status_code == 201
         ticket_id = response.json()["ticketId"]
 

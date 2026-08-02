@@ -6,13 +6,17 @@ import time
 
 from app.config import get_settings
 from app.core.staff_auth import issue_staff_access_token
+from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import VALID_PAYLOAD
 
 
 def _create_ticket(client) -> dict:
-    # Public citizen submit — works with or without auth headers.
-    response = client.post("/v1/tickets", json=VALID_PAYLOAD)
-    assert response.status_code == 201
+    response = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(),
+    )
+    assert response.status_code == 201, response.text
     return response.json()
 
 
@@ -171,11 +175,12 @@ def test_merge_succeeds_with_staff_token(client):
     assert response.json()["duplicateGroupId"] is not None
 
 
-def test_citizen_submit_remains_public(anonymous_client):
+def test_citizen_submit_requires_contribution_ready_auth(anonymous_client):
     response = anonymous_client.post("/v1/tickets", json=VALID_PAYLOAD)
 
-    assert response.status_code == 201
-    assert "ticketId" in response.json()
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+    assert response.headers.get("WWW-Authenticate", "").startswith("Bearer")
 
 
 def test_citizen_tracking_lookup_remains_public(anonymous_client):
@@ -188,6 +193,7 @@ def test_citizen_tracking_lookup_remains_public(anonymous_client):
     assert body["trackingCode"] == created["trackingCode"]
     assert "contact" not in body
     assert "ticketId" not in body
+    assert "ownerUserId" not in body
 
 
 def test_invalid_bearer_token_is_rejected(anonymous_client):

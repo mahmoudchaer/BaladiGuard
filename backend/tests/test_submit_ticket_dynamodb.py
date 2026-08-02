@@ -4,8 +4,8 @@ from app.config import Settings
 from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.services.complaints.ticket_service import ticket_service
-from tests.conftest import authenticated_test_client
-from tests.test_submit_ticket import VALID_PAYLOAD
+from tests.conftest import authenticated_test_client, contribution_ready_auth_headers
+from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
 
 
 def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
@@ -18,7 +18,9 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
     try:
         client = authenticated_test_client()
 
-        response = client.post("/v1/tickets", json=VALID_PAYLOAD)
+        response = client.post(
+            "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
+        )
 
         assert response.status_code == 201
         body = response.json()
@@ -30,8 +32,9 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
         stored = store.get(body["ticketId"])
         assert stored is not None
         assert stored.description == VALID_PAYLOAD["description"]
-        assert stored.contact.phone == VALID_PAYLOAD["contact"]["phone"]
-        assert stored.contact.email == VALID_PAYLOAD["contact"]["email"]
+        assert stored.contact.phone == EXPECTED_CONTACT["phone"]
+        assert stored.contact.email == EXPECTED_CONTACT["email"]
+        assert stored.owner_user_id is not None
         assert stored.location.latitude == VALID_PAYLOAD["location"]["latitude"]
         assert stored.location.longitude == VALID_PAYLOAD["location"]["longitude"]
         assert stored.location.address_text == VALID_PAYLOAD["location"]["addressText"]

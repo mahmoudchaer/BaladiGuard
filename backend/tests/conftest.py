@@ -37,11 +37,17 @@ from app.database.memory_staff_password_reset import staff_password_reset_store 
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
+from app.schemas.citizen import CitizenProfileUpdateRequest, StoredCitizenUser  # noqa: E402
 from app.schemas.classification import ClassificationInputs, ClassificationResult  # noqa: E402
 from app.schemas.cleaning import CleaningResult  # noqa: E402
+from app.services.citizens.service import citizen_service  # noqa: E402
 from app.services.complaints.ticket_service import ticket_service  # noqa: E402
 from app.services.staff.bootstrap import ensure_demo_staff_accounts  # noqa: E402
 from app.services.staff.password_reset import staff_password_reset_service  # noqa: E402
+
+DEFAULT_CITIZEN_PHONE = "+96170123456"
+DEFAULT_CITIZEN_FULL_NAME = "Citizen Name"
+DEFAULT_CITIZEN_EMAIL = "citizen@example.com"
 
 
 def issue_test_staff_token(client: TestClient) -> str:
@@ -51,6 +57,53 @@ def issue_test_staff_token(client: TestClient) -> str:
     )
     assert response.status_code == 200, response.text
     return response.json()["accessToken"]
+
+
+def ensure_contribution_ready_citizen(
+    *,
+    phone: str = DEFAULT_CITIZEN_PHONE,
+    full_name: str = DEFAULT_CITIZEN_FULL_NAME,
+    email: str | None = DEFAULT_CITIZEN_EMAIL,
+    ticket_updates: str = "SMS",
+) -> tuple[StoredCitizenUser, str]:
+    """Get-or-create a contribution-ready citizen and return ``(user, bearer_token)``."""
+    user = citizen_service.get_by_phone(phone)
+    if user is None:
+        user = citizen_service.create_citizen(phone=phone, full_name=full_name, email=email)
+    updates: dict[str, object] = {}
+    if user.full_name != full_name:
+        updates["fullName"] = full_name
+    if email is not None and user.email != email:
+        updates["email"] = email
+    if user.notification_preferences.ticket_updates != ticket_updates:
+        updates["notificationPreferences"] = {"ticketUpdates": ticket_updates}
+    if updates:
+        profile = citizen_service.update_profile(
+            user.user_id,
+            CitizenProfileUpdateRequest.model_validate(updates),
+        )
+        refreshed = citizen_service.get_by_phone(phone)
+        assert refreshed is not None
+        user = refreshed
+        assert profile.contribution_ready is True
+    token = citizen_service.issue_session(user.user_id)
+    return user, token
+
+
+def contribution_ready_auth_headers(
+    *,
+    phone: str = DEFAULT_CITIZEN_PHONE,
+    full_name: str = DEFAULT_CITIZEN_FULL_NAME,
+    email: str | None = DEFAULT_CITIZEN_EMAIL,
+    ticket_updates: str = "SMS",
+) -> dict[str, str]:
+    _user, token = ensure_contribution_ready_citizen(
+        phone=phone,
+        full_name=full_name,
+        email=email,
+        ticket_updates=ticket_updates,
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 def authenticated_test_client() -> TestClient:
@@ -107,6 +160,19 @@ def deterministic_submission_ai(monkeypatch: pytest.MonkeyPatch) -> None:
 def anonymous_client() -> TestClient:
     """Unauthenticated client for public routes and 401 authorization tests."""
     return TestClient(app)
+
+
+@pytest.fixture
+def contribution_ready_citizen() -> tuple[StoredCitizenUser, str]:
+    return ensure_contribution_ready_citizen()
+
+
+@pytest.fixture
+def contribution_ready_citizen_headers(
+    contribution_ready_citizen: tuple[StoredCitizenUser, str],
+) -> dict[str, str]:
+    _user, token = contribution_ready_citizen
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture

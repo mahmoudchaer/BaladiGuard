@@ -1,6 +1,6 @@
 import type { ReportPhoto } from '@/types/ticket';
 import { appConfig } from '@/services/config';
-import { getClientHeaders, parseApiError } from '@/services/api/http';
+import { getAuthHeaders, handleUnauthorizedResponse, parseApiError } from '@/services/api/http';
 
 type ReportPhotoUploadResponse = {
   imageObjectKey: string;
@@ -16,11 +16,12 @@ export async function uploadReportPhoto(photo: ReportPhoto): Promise<string> {
 
   const response = await fetch(`${appConfig.apiBaseUrl}/uploads/report-photo`, {
     method: 'POST',
-    headers: getClientHeaders(),
+    headers: getAuthHeaders(),
     body: formData,
   });
 
   if (!response.ok) {
+    handleUnauthorizedResponse(response.status);
     const message = await parseApiError(response, 'Unable to upload your photo right now.');
     throw new Error(message);
   }

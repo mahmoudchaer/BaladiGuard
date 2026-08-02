@@ -30,9 +30,8 @@ This document defines the initial MVP API contract for the mobile app and backen
 ## Sprint 6 citizen identity and privacy contract
 
 This section is the authoritative target contract for issues #168–#174, #178, #193, and #194.
-It is a design contract: routes marked **planned** are not implemented by #193. Until #194 lands,
-the current public `POST /v1/tickets` behavior may temporarily differ from the target authorization
-rule below.
+It is a design contract: routes marked **planned** are not yet implemented. `POST /v1/tickets`
+contribution-ready authentication is implemented by #173.
 
 ### Identity and contribution readiness
 
@@ -148,7 +147,7 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 | `GET /v1/tickets/track/{trackingCode}` | Public, possession-based | Existing citizen-safe tracking response; tracking code is not account authentication. |
 | `POST /v1/locations/validate` | Public | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply. |
 | `POST /v1/uploads/report-photo` | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`. |
-| `POST /v1/tickets` | Contribution-ready citizen | Planned target behavior. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403`. |
+| `POST /v1/tickets` | Contribution-ready citizen | Implemented by #173. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403 CONTRIBUTION_PROFILE_REQUIRED`. |
 | `/v1/staff/**` and staff ticket routes | Authorized staff | Identity/contact is returned only when the staff role and municipality/department scope authorize it. |
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, approved
@@ -399,13 +398,12 @@ Creates a submitted citizen report ticket.
 Shared HTTP rate limits apply (`public-ticket-submission`; default 20 / 60s) because submit
 triggers AI intake. Exceeding the budget returns `429 RATE_LIMIT_EXCEEDED` with `Retry-After`.
 
-### Auth (Sprint 6 target)
+### Auth
 
-Requires a contribution-ready citizen Bearer session. The server derives `ownerUserId` from that
-session and snapshots contact data from the citizen profile; client-supplied ownership is forbidden.
-Missing authentication and revoked inactive-account sessions return `401`; an active but incomplete
-citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
-Enforcement is implementation work in #194 and is not implemented by this contract ticket.
+Requires a contribution-ready citizen Bearer session (issue #173). The server derives `ownerUserId`
+from that session and snapshots contact data from the citizen profile; client-supplied ownership is
+forbidden. Missing authentication and revoked inactive-account sessions return `401`; an active but
+incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 
 ### Request body
 
@@ -413,12 +411,6 @@ Enforcement is implementation work in #194 and is not implemented by this contra
 {
   "description": "Large pothole reported near the university gate causing traffic disruption.",
   "languageHint": "auto",
-  "contact": {
-    "name": "Citizen Name",
-    "phone": "+96170123456",
-    "email": "citizen@example.com",
-    "preferredChannel": "SMS"
-  },
   "location": {
     "latitude": 33.896112,
     "longitude": 35.478419,
@@ -439,11 +431,8 @@ Enforcement is implementation work in #194 and is not implemented by this contra
 |---|---|---:|---|
 | `description` | string | Yes | Citizen description of the issue. Minimum 10 characters, maximum 2000 characters. |
 | `languageHint` | string | No | Use `auto` by default. |
-| `contact` | object | Legacy only | Accepted temporarily before #194 for backward compatibility. After #194, clients must omit it; if supplied, the server returns `400 VALIDATION_ERROR` rather than silently ignoring contact data. The server snapshots the authenticated profile. |
-| `contact.name` | string | Legacy only | Replaced by the authenticated citizen's current `fullName` snapshot. |
-| `contact.phone` | string | Legacy only | Replaced by the authenticated citizen's canonical verified phone snapshot. |
-| `contact.email` | string | Legacy only | Replaced by the authenticated citizen's optional email snapshot. |
-| `contact.preferredChannel` | enum | Legacy only | Replaced by the authenticated citizen's notification preference. |
+| `contact` | object | No | Must be omitted. If supplied, the server returns `400 VALIDATION_ERROR`. Contact is snapshotted from the authenticated profile (`fullName` → `name`, verified phone, optional email, and `ticketUpdates` → `preferredChannel`). |
+| `ownerUserId` | string | No | Must be omitted. If supplied, the server returns `400 VALIDATION_ERROR`. Ownership is derived from the verified citizen session. |
 | `location` | object | Yes | Report location. |
 | `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
 | `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
@@ -1059,6 +1048,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
     "email": "ahmad.khoury@example.com",
     "preferredChannel": "SMS"
   },
+  "ownerUserId": "usr_aaaaaaaaaaaaaaaaaaaaaaaa",
   "category": "road_damage",
   "priority": "high",
   "status": "IN_PROGRESS",
@@ -1150,6 +1140,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `trackingCode` | string | Citizen-facing tracking code used by staff and citizen follow-up views. |
 | `description` | string | Citizen-submitted issue description. |
 | `contact` | `ReportContact` or null | Citizen contact details when available to staff. |
+| `ownerUserId` | string or null | Stable citizen owner id when the ticket is account-linked; null for legacy unowned tickets. |
 | `category` | string | Current category value, for example `road_damage` or `PENDING_CLASSIFICATION`. |
 | `priority` | enum or null | `low`, `medium`, `high`, or `critical`; represents urgency/priority when known. |
 | `status` | `TicketStatus` | Current workflow status. |
@@ -1226,11 +1217,11 @@ Submitted tickets are persisted using the same JSON field names as this contract
 | API request field | Ticket attribute | Persisted |
 |---|---|---|
 | `description` | `description` | Yes |
-| `contact` | `contact` | Yes |
+| — (session) | `ownerUserId` | Yes (derived from contribution-ready citizen session) |
+| — (profile snapshot) | `contact` | Yes (immutable submission-time snapshot) |
 | `location` | `location` | Yes |
 | `imageObjectKey` | `imageObjectKey` | Yes |
 | `languageHint` | — | No |
-| `contact.preferredChannel` | `contact.preferredChannel` | Yes (nullable snapshot derived from profile preferences) |
 | `clientMetadata` | — | No |
 
 ### Response → Ticket record
