@@ -6,8 +6,12 @@ import logging
 
 import pytest
 
+from app.database.memory import ticket_store
+from app.database.memory_citizen import citizen_store
+from app.schemas.citizen import CitizenProfileUpdateRequest
 from app.schemas.ticket import ReportContact
 from app.schemas.ticket_response import UpdateTicketStatusRequest
+from app.services.citizens.service import citizen_service
 from app.services.complaints.ticket_service import ticket_service
 from app.services.notifications import (
     MockNotificationAdapter,
@@ -17,7 +21,14 @@ from app.services.notifications import (
     build_notification_adapter,
     emit_ticket_notification,
 )
+from tests.conftest import (
+    DEFAULT_CITIZEN_EMAIL,
+    DEFAULT_CITIZEN_PHONE,
+    contribution_ready_auth_headers,
+    ensure_contribution_ready_citizen,
+)
 from tests.test_read_tickets import create_ticket
+from tests.test_submit_ticket import VALID_PAYLOAD
 
 
 class RecordingAdapter(MockNotificationAdapter):
@@ -169,7 +180,155 @@ def test_ticket_create_passes_recipient_into_notification(client, monkeypatch):
     assert seen
     assert seen[0] is not None
     assert seen[0].phone == "+96170123456"
-    assert seen[0].email == "citizen@example.com"
+    assert seen[0].email is None
+    assert seen[0].preferred_channel == "SMS"
+
+
+@pytest.mark.parametrize(
+    ("ticket_updates", "expected_phone", "expected_email", "expected_channel"),
+    [
+        ("SMS", DEFAULT_CITIZEN_PHONE, None, "SMS"),
+        ("EMAIL", None, DEFAULT_CITIZEN_EMAIL, "EMAIL"),
+        ("BOTH", DEFAULT_CITIZEN_PHONE, DEFAULT_CITIZEN_EMAIL, "BOTH"),
+    ],
+)
+def test_account_linked_ticket_notifications_use_live_profile_preferences(
+    client,
+    monkeypatch,
+    ticket_updates,
+    expected_phone,
+    expected_email,
+    expected_channel,
+):
+    adapter = RecordingAdapter()
+    monkeypatch.setattr(
+        "app.services.notifications.service.build_notification_adapter",
+        lambda: adapter,
+    )
+
+    headers = contribution_ready_auth_headers(ticket_updates=ticket_updates)
+    created = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=headers)
+    assert created.status_code == 201, created.text
+
+    assert adapter.calls[-1][0] == "ticket_created"
+    created_recipient = adapter.calls[-1][1]
+    assert created_recipient is not None
+    assert created_recipient.phone == expected_phone
+    assert created_recipient.email == expected_email
+    assert created_recipient.preferred_channel == expected_channel
+
+    updated = client.patch(
+        f"/v1/tickets/{created.json()['ticketId']}/status",
+        json={"status": "UNDER_REVIEW"},
+    )
+    assert updated.status_code == 200, updated.text
+
+    assert adapter.calls[-1][0] == "ticket_updated"
+    updated_recipient = adapter.calls[-1][1]
+    assert updated_recipient is not None
+    assert updated_recipient.phone == expected_phone
+    assert updated_recipient.email == expected_email
+    assert updated_recipient.preferred_channel == expected_channel
+
+
+def test_account_linked_ticket_notifications_honor_later_opt_out(client, monkeypatch):
+    adapter = RecordingAdapter()
+    monkeypatch.setattr(
+        "app.services.notifications.service.build_notification_adapter",
+        lambda: adapter,
+    )
+    user, token = ensure_contribution_ready_citizen(ticket_updates="SMS")
+
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 201, created.text
+    assert len(adapter.calls) == 1
+
+    citizen_service.update_profile(
+        user.user_id,
+        CitizenProfileUpdateRequest.model_validate(
+            {"notificationPreferences": {"ticketUpdates": "NONE"}}
+        ),
+    )
+
+    updated = client.patch(
+        f"/v1/tickets/{created.json()['ticketId']}/status",
+        json={"status": "UNDER_REVIEW"},
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert len(adapter.calls) == 1
+
+
+def test_account_linked_ticket_notifications_skip_missing_profile(client, monkeypatch):
+    adapter = RecordingAdapter()
+    monkeypatch.setattr(
+        "app.services.notifications.service.build_notification_adapter",
+        lambda: adapter,
+    )
+    user, token = ensure_contribution_ready_citizen(ticket_updates="SMS")
+
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 201, created.text
+    assert len(adapter.calls) == 1
+
+    citizen_store.clear()
+    updated = client.patch(
+        f"/v1/tickets/{created.json()['ticketId']}/status",
+        json={"status": "UNDER_REVIEW"},
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert len(adapter.calls) == 1
+    assert ticket_store.get(created.json()["ticketId"]).owner_user_id == user.user_id
+
+
+def test_legacy_unowned_ticket_notifications_use_contact_snapshot(client, monkeypatch):
+    adapter = RecordingAdapter()
+    monkeypatch.setattr(
+        "app.services.notifications.service.build_notification_adapter",
+        lambda: adapter,
+    )
+    user, token = ensure_contribution_ready_citizen(ticket_updates="SMS")
+
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 201, created.text
+    ticket_id = created.json()["ticketId"]
+    assert len(adapter.calls) == 1
+
+    stored = ticket_store.get(ticket_id)
+    assert stored is not None
+    ticket_store.save(stored.model_copy(update={"owner_user_id": None}))
+    citizen_service.update_profile(
+        user.user_id,
+        CitizenProfileUpdateRequest.model_validate(
+            {"notificationPreferences": {"ticketUpdates": "NONE"}}
+        ),
+    )
+
+    updated = client.patch(
+        f"/v1/tickets/{ticket_id}/status",
+        json={"status": "UNDER_REVIEW"},
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert len(adapter.calls) == 2
+    _event, recipient = adapter.calls[-1]
+    assert recipient is not None
+    assert recipient.phone == DEFAULT_CITIZEN_PHONE
+    assert recipient.email == DEFAULT_CITIZEN_EMAIL
+    assert recipient.preferred_channel == "SMS"
 
 
 def test_recipient_from_contact_requires_phone_or_email():

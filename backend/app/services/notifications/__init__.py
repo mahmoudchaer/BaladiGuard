@@ -13,6 +13,7 @@ from app.services.notifications.ledger import (
     notification_idempotency_key,
     reset_delivery_ledger,
 )
+from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.notifications.service import emit_ticket_notification
 from app.services.notifications.templates import (
     NotificationEvent,
@@ -42,4 +43,5 @@ __all__ = [
     "render_ticket_updated",
     "reset_delivery_ledger",
     "status_text_for",
+    "ticket_notification_recipient",
 ]

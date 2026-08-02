@@ -25,7 +25,7 @@ Ticket create/status **never** roll back when delivery fails. Failures are logge
 | `NotificationAdapter` | Protocol with `mode` (`mock` \| `real`) and `deliver(message, recipient)` |
 | `MockNotificationAdapter` | Default MVP adapter — logs **mock** delivery (not SMS/email) |
 | `UnconfiguredRealNotificationAdapter` | Selected when `NOTIFICATION_ADAPTER=real` until SNS/SES is wired; fails closed |
-| `NotificationRecipient` | Optional phone/email/preferred channel from the ticket contact |
+| `NotificationRecipient` | Optional phone/email/preferred channel resolved for this event |
 
 Source: `backend/app/services/notifications/adapters.py`
 
@@ -38,7 +38,26 @@ Each emit includes:
 | `ticketId` | Ticket |
 | `trackingCode` | Ticket (when present; also appears in rendered body) |
 | `status` / event | New workflow status; event is `ticket_created`, `ticket_updated`, or `ticket_resolved` |
-| recipient | From ticket contact when phone and/or email exist |
+| recipient | Account-linked tickets use the current citizen profile preference; legacy unowned tickets use the ticket contact snapshot |
+
+## Citizen notification preferences
+
+Issue **#177** connects citizen profile preferences to the existing delivery flow. The templates,
+adapter contract, idempotency ledger, and failure isolation above remain unchanged.
+
+For tickets with `ownerUserId`, each ticket create/status notification resolves the owner profile at
+send time:
+
+| `notificationPreferences.ticketUpdates` | Delivery behavior |
+| --- | --- |
+| `SMS` | Send to the profile phone only |
+| `EMAIL` | Send to the profile email only; skip if email is missing |
+| `BOTH` | Send with profile phone and email when available |
+| `NONE` | Skip delivery |
+
+If the owner profile is missing or inactive, delivery is skipped without failing the ticket action.
+Tickets without `ownerUserId` keep the pre-account behavior and deliver from the immutable ticket
+contact snapshot when it contains phone and/or email.
 
 ## Idempotency
 
@@ -69,6 +88,6 @@ Delivery claims a process-local key `{event}:{ticketId}:{status}`.
 
 ## Tests
 
-- `backend/tests/test_notifications.py` — adapter success/failure, recipient, idempotency, no ticket rollback
+- `backend/tests/test_notifications.py` — adapter success/failure, preferences, recipient, idempotency, no ticket rollback
 - `backend/tests/test_notification_templates.py` — #40 wording
 - `backend/tests/test_health.py` — emit never raises
