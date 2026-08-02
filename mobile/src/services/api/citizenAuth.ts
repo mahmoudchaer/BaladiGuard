@@ -4,6 +4,7 @@ import type {
   CitizenOtpVerifyPayload,
   CitizenOtpVerifyResponse,
   CitizenProfile,
+  CitizenProfileUpdatePayload,
 } from '@/types/citizen';
 import { appConfig } from '@/services/config';
 import { getAuthHeaders, parseApiError, parseApiErrorCode } from '@/services/api/http';
@@ -16,6 +17,8 @@ export const OTP_EXPIRED_MESSAGE = 'The verification challenge is no longer vali
 export const OTP_RATE_LIMITED_MESSAGE = 'Too many attempts. Please wait before trying again.';
 export const ACCOUNT_INACTIVE_MESSAGE = 'This account is inactive and cannot sign in.';
 export const SESSION_UNAUTHORIZED_MESSAGE = 'Your session has expired. Please sign in again.';
+export const PHONE_UNAVAILABLE_MESSAGE = 'This phone number is already linked to another account.';
+export const PROFILE_UPDATE_SUCCESS_MESSAGE = 'Your profile was updated.';
 
 export class CitizenAuthApiError extends Error {
   readonly code: string;
@@ -97,6 +100,14 @@ async function throwMappedAuthError(response: Response, fallbackMessage: string)
     throw new CitizenAuthApiError(SESSION_UNAUTHORIZED_MESSAGE, {
       code: 'UNAUTHORIZED',
       status: 401,
+      retryAfterSeconds,
+    });
+  }
+
+  if (code === 'PHONE_UNAVAILABLE') {
+    throw new CitizenAuthApiError(PHONE_UNAVAILABLE_MESSAGE, {
+      code: 'PHONE_UNAVAILABLE',
+      status: response.status || 409,
       retryAfterSeconds,
     });
   }
@@ -207,9 +218,40 @@ export async function getCitizenMe(accessToken: string): Promise<CitizenProfile>
   return response.json() as Promise<CitizenProfile>;
 }
 
+function buildProfilePatchBody(patch: CitizenProfileUpdatePayload): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+
+  if (patch.fullName !== undefined) {
+    body.fullName = patch.fullName.trim();
+  }
+  if (patch.email !== undefined) {
+    body.email = patch.email === null ? null : patch.email.trim() || null;
+  }
+  if (patch.notificationPreferences !== undefined) {
+    body.notificationPreferences = patch.notificationPreferences;
+  }
+  if (patch.publicNameVisible !== undefined) {
+    body.publicNameVisible = patch.publicNameVisible;
+  }
+  if (patch.phone !== undefined) {
+    body.phone = patch.phone;
+  }
+  if (patch.region !== undefined) {
+    body.region = patch.region;
+  }
+  if (patch.phoneChangeChallengeId !== undefined) {
+    body.phoneChangeChallengeId = patch.phoneChangeChallengeId;
+  }
+  if (patch.phoneChangeCode !== undefined) {
+    body.phoneChangeCode = patch.phoneChangeCode;
+  }
+
+  return body;
+}
+
 export async function updateCitizenProfile(
   accessToken: string,
-  patch: { fullName: string },
+  patch: CitizenProfileUpdatePayload,
 ): Promise<CitizenProfile> {
   const response = await citizenFetch('/citizen/me', {
     method: 'PATCH',
@@ -217,7 +259,7 @@ export async function updateCitizenProfile(
       ...getAuthHeaders(accessToken),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ fullName: patch.fullName.trim() }),
+    body: JSON.stringify(buildProfilePatchBody(patch)),
   });
 
   if (!response.ok) {

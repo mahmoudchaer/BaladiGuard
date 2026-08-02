@@ -37,6 +37,10 @@ export function Chip({ children, ...props }: HostProps) {
   return React.createElement('Chip', props, children);
 }
 
+export function Switch(props: HostProps) {
+  return React.createElement('Switch', props);
+}
+
 function CardRoot({ children, ...props }: HostProps) {
   return React.createElement('Card', props, children);
 }

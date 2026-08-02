@@ -34,6 +34,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="profile/index"
+              options={{
+                title: 'Profile',
+                headerBackTitle: 'Home',
+              }}
+            />
+            <Stack.Screen
               name="privacy/index"
               options={{
                 title: 'Privacy notice',

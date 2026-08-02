@@ -7,6 +7,7 @@ import {
   OTP_INVALID_MESSAGE,
   OTP_NETWORK_MESSAGE,
   OTP_RATE_LIMITED_MESSAGE,
+  PHONE_UNAVAILABLE_MESSAGE,
   getCitizenMe,
   logoutCitizen,
   requestCitizenOtp,
@@ -214,6 +215,54 @@ describe('citizenAuth API client', () => {
         body: JSON.stringify({ fullName: 'Ada Lovelace' }),
       }),
     );
+  });
+
+  it('patches optional email, preferences, and public visibility', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...profile,
+        email: null,
+        publicNameVisible: true,
+        notificationPreferences: { ticketUpdates: 'SMS', announcements: true },
+      }),
+      headers: { get: () => null },
+    } as unknown as Response);
+
+    await updateCitizenProfile('tok_1', {
+      email: null,
+      publicNameVisible: true,
+      notificationPreferences: { ticketUpdates: 'SMS', announcements: true },
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/citizen/me',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          email: null,
+          notificationPreferences: { ticketUpdates: 'SMS', announcements: true },
+          publicNameVisible: true,
+        }),
+      }),
+    );
+  });
+
+  it('maps PHONE_UNAVAILABLE conflicts to a safe message', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: { code: 'PHONE_UNAVAILABLE', message: 'secret' } }),
+      headers: { get: () => null },
+      clone() {
+        return this;
+      },
+    } as unknown as Response);
+
+    await expect(verifyCitizenOtp({ challengeId: 'ch_1', code: '123456' })).rejects.toMatchObject({
+      message: PHONE_UNAVAILABLE_MESSAGE,
+      code: 'PHONE_UNAVAILABLE',
+    });
   });
 
   it('exposes CitizenAuthApiError for callers', () => {

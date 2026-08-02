@@ -11,6 +11,7 @@ import {
   type PhoneOtpRequestValues,
 } from '@/schemas/citizenOtpSchema';
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
+import type { CitizenOtpPurpose } from '@/types/citizen';
 import { validatePhoneInput } from '@/utils/phone';
 
 export type PhoneEntrySuccess = {
@@ -22,9 +23,19 @@ export type PhoneEntrySuccess = {
 
 type PhoneEntryFormProps = {
   onSuccess: (result: PhoneEntrySuccess) => void;
+  purpose?: CitizenOtpPurpose;
+  title?: string;
+  subtitle?: string;
+  submitLabel?: string;
 };
 
-export function PhoneEntryForm({ onSuccess }: PhoneEntryFormProps) {
+export function PhoneEntryForm({
+  onSuccess,
+  purpose = 'LOGIN_OR_SIGNUP',
+  title = 'Sign in with phone',
+  subtitle = 'Enter your mobile number to receive a one-time verification code. No password needed.',
+  submitLabel = 'Send verification code',
+}: PhoneEntryFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(null);
   const requestInFlight = useRef(false);
@@ -57,7 +68,7 @@ export function PhoneEntryForm({ onSuccess }: PhoneEntryFormProps) {
       const response = await requestCitizenOtp({
         phone: validated.phone,
         region: validated.region,
-        purpose: 'LOGIN_OR_SIGNUP',
+        purpose,
       });
 
       onSuccess({
@@ -81,10 +92,10 @@ export function PhoneEntryForm({ onSuccess }: PhoneEntryFormProps) {
   return (
     <View style={styles.container}>
       <Text variant="titleLarge" style={styles.title}>
-        Sign in with phone
+        {title}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        Enter your mobile number to receive a one-time verification code. No password needed.
+        {subtitle}
       </Text>
 
       {formError ? (
@@ -146,7 +157,7 @@ export function PhoneEntryForm({ onSuccess }: PhoneEntryFormProps) {
         style={styles.button}
         testID="request-otp-button"
       >
-        Send verification code
+        {submitLabel}
       </Button>
     </View>
   );
