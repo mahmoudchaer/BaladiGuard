@@ -103,3 +103,39 @@ class CitizenProfileUpdateRequest(BaseModel):
                 "phoneChangeChallengeId and phoneChangeCode are required to change phone."
             )
         return self
+
+
+class CitizenExportTicketSummary(BaseModel):
+    """Owned-ticket projection included in a citizen privacy export (issue #190)."""
+
+    ticket_id: str = Field(alias="ticketId")
+    ticket_number: str = Field(alias="ticketNumber")
+    tracking_code: str = Field(alias="trackingCode")
+    status: str
+    category: str
+    description: str
+    location_address: str = Field(alias="locationAddress")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str | None = Field(default=None, alias="updatedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class CitizenDataExportResponse(BaseModel):
+    """Authenticated citizen self-service data export (issue #190)."""
+
+    exported_at: str = Field(alias="exportedAt")
+    profile: CitizenProfileResponse
+    tickets: list[CitizenExportTicketSummary]
+
+    model_config = {"populate_by_name": True}
+
+
+class CitizenDeleteResponse(BaseModel):
+    """Acknowledgement body for account anonymization (issue #190)."""
+
+    status: Literal["deleted"] = "deleted"
+    user_id: str = Field(alias="userId")
+    deleted_at: str = Field(alias="deletedAt")
+
+    model_config = {"populate_by_name": True}
