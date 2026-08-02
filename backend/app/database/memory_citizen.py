@@ -83,6 +83,31 @@ class InMemoryCitizenStore:
             self._users[user_id] = updated_user
             return updated_user
 
+    def anonymize(
+        self,
+        *,
+        user_id: str,
+        current_phone: str,
+        anonymized_user: StoredCitizenUser,
+    ) -> StoredCitizenUser:
+        if anonymized_user.user_id != user_id:
+            raise CitizenPhoneMismatchError("Updated userId does not match.")
+        with self._lock:
+            existing = self._users.get(user_id)
+            if existing is None:
+                raise CitizenNotFoundError("Citizen not found.")
+            if existing.phone != current_phone:
+                raise CitizenPhoneMismatchError("Current phone no longer matches.")
+
+            # Only release a real E.164 claim. Tombstones never own the claims table.
+            if not current_phone.startswith("ANON:"):
+                claim_key = phone_claim_key(current_phone)
+                if self._claims.get(claim_key) == user_id:
+                    del self._claims[claim_key]
+
+            self._users[user_id] = anonymized_user
+            return anonymized_user
+
     def clear(self) -> None:
         with self._lock:
             self._users.clear()

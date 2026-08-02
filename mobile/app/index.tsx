@@ -30,6 +30,11 @@ export default function HomeScreen() {
             Track a report
           </Button>
         </Link>
+        <Link href={'/privacy' as Href} asChild>
+          <Button mode="text" style={styles.button}>
+            Privacy notice
+          </Button>
+        </Link>
 
         {!isLoading && isAuthenticated && contributionReady ? (
           <View style={styles.sessionBlock}>

@@ -179,6 +179,10 @@ name attribution never reads the snapshot: it dynamically resolves the active ow
 `publicNameVisible` and `fullName`, otherwise returns `Anonymous`. Profile changes do not rewrite
 contact snapshots.
 
+Citizen account deletion (issue #190) anonymizes the `users` row (`active=false`, PII cleared, phone
+claim released, tombstone phone `ANON:{userId}`) and revokes sessions. It does **not** rewrite
+tickets, contact snapshots, status history, or audit history. See `docs/privacy-lifecycle.md`.
+
 Pre-account tickets remain valid with `ownerUserId = null` and their existing contact shape. They
 remain trackable and publicly anonymous. Linking requires verified ownership of the normalized
 snapshot phone plus separate ticket proof, uses a conditional `attribute_not_exists(ownerUserId)`

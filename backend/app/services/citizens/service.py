@@ -22,6 +22,9 @@ from app.database.citizen_store import (
     PhoneClaimConflictError,
 )
 from app.schemas.citizen import (
+    CitizenDataExportResponse,
+    CitizenDeleteResponse,
+    CitizenExportTicketSummary,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
     NotificationPreferences,
@@ -39,6 +42,7 @@ OTP_MAX_ATTEMPTS = 5
 LOGIN_OR_SIGNUP_PURPOSE: OtpPurpose = "LOGIN_OR_SIGNUP"
 CHANGE_PHONE_PURPOSE: OtpPurpose = "CHANGE_PHONE"
 GENERIC_OTP_MESSAGE = "If the request is valid, a verification code has been sent."
+ANONYMIZED_PHONE_PREFIX = "ANON:"
 
 # Local/test-only plaintext OTP peek. Never returned by HTTP responses.
 _dev_otp_codes: dict[str, str] = {}
@@ -60,6 +64,18 @@ class CitizenStorePort(Protocol):
         old_phone: str,
         updated_user: StoredCitizenUser,
     ) -> StoredCitizenUser: ...
+
+    def anonymize(
+        self,
+        *,
+        user_id: str,
+        current_phone: str,
+        anonymized_user: StoredCitizenUser,
+    ) -> StoredCitizenUser: ...
+
+
+class TicketStorePort(Protocol):
+    def list(self) -> list[Any]: ...
 
 
 class CitizenSessionStorePort(Protocol):
@@ -140,6 +156,14 @@ def is_contribution_ready(user: StoredCitizenUser) -> bool:
     return bool(user.active and user.phone_verified_at and _valid_full_name(user.full_name))
 
 
+def anonymized_phone_for(user_id: str) -> str:
+    return f"{ANONYMIZED_PHONE_PREFIX}{user_id}"
+
+
+def is_anonymized_citizen(user: StoredCitizenUser) -> bool:
+    return (not user.active) and user.phone.startswith(ANONYMIZED_PHONE_PREFIX)
+
+
 def preferred_channel_from_ticket_updates(
     ticket_updates: str,
 ) -> PreferredChannel | None:
@@ -188,11 +212,13 @@ class CitizenService:
         store: CitizenStorePort | None = None,
         session_store: CitizenSessionStorePort | None = None,
         otp_store: CitizenOtpStorePort | None = None,
+        ticket_store: TicketStorePort | None = None,
         settings: Settings | None = None,
     ) -> None:
         self._store = store
         self._session_store = session_store
         self._otp_store = otp_store
+        self._ticket_store = ticket_store
         self._settings = settings
 
     def _resolved_store(self) -> CitizenStorePort:
@@ -215,6 +241,13 @@ class CitizenService:
         from app.database.store_factory import get_citizen_otp_store
 
         return get_citizen_otp_store()
+
+    def _resolved_tickets(self) -> TicketStorePort:
+        if self._ticket_store is not None:
+            return self._ticket_store
+        from app.database.store_factory import get_ticket_store
+
+        return get_ticket_store()
 
     def _settings_or_default(self) -> Settings:
         return self._settings or get_settings()
@@ -658,6 +691,107 @@ class CitizenService:
             raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
         return to_profile_response(user)
 
+    def export_account(
+        self,
+        user_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> CitizenDataExportResponse:
+        """Return a privacy export for the authenticated citizen only."""
+        user = self._resolved_store().get(user_id)
+        if user is None or not user.active or is_anonymized_citizen(user):
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+
+        moment = now or _utcnow()
+        owned = [
+            ticket
+            for ticket in self._resolved_tickets().list()
+            if getattr(ticket, "owner_user_id", None) == user_id
+        ]
+        owned.sort(key=lambda ticket: ticket.created_at, reverse=True)
+        ticket_summaries = [
+            CitizenExportTicketSummary(
+                ticketId=ticket.ticket_id,
+                ticketNumber=ticket.ticket_number,
+                trackingCode=ticket.tracking_code,
+                status=ticket.status,
+                category=ticket.category,
+                description=ticket.description,
+                locationAddress=ticket.location.address_text,
+                createdAt=ticket.created_at,
+                updatedAt=ticket.updated_at,
+            )
+            for ticket in owned
+        ]
+        return CitizenDataExportResponse(
+            exportedAt=_iso(moment),
+            profile=to_profile_response(user),
+            tickets=ticket_summaries,
+        )
+
+    def delete_account(
+        self,
+        user_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> CitizenDeleteResponse:
+        """Anonymize citizen PII, release the phone claim, and revoke sessions.
+
+        Municipal ticket rows keep ``ownerUserId`` and immutable contact snapshots.
+        """
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+
+        moment = now or _utcnow()
+        stamped = _iso(moment)
+
+        if is_anonymized_citizen(user):
+            self._resolved_sessions().revoke_all_for_user(
+                user_id,
+                revoked_at=stamped,
+                reason="account_deletion",
+            )
+            return CitizenDeleteResponse(status="deleted", userId=user_id, deletedAt=stamped)
+
+        anonymized = user.model_copy(
+            update={
+                "phone": anonymized_phone_for(user_id),
+                "full_name": None,
+                "email": None,
+                "notification_preferences": NotificationPreferences(),
+                "public_name_visible": False,
+                "active": False,
+                "session_epoch": user.session_epoch + 1,
+                "updated_at": stamped,
+            }
+        )
+        try:
+            store.anonymize(
+                user_id=user_id,
+                current_phone=user.phone,
+                anonymized_user=anonymized,
+            )
+        except CitizenNotFoundError as exc:
+            raise CitizenServiceError(
+                "UNAUTHORIZED", "Citizen authentication required.", 401
+            ) from exc
+        except CitizenPhoneMismatchError as exc:
+            raise CitizenServiceError(
+                "CONFLICT",
+                "Unable to delete account.",
+                status_code=409,
+            ) from exc
+
+        self._resolved_sessions().revoke_all_for_user(
+            user_id,
+            revoked_at=stamped,
+            reason="account_deletion",
+        )
+        logger.info("Citizen account anonymized user_id=%s", user_id)
+        return CitizenDeleteResponse(status="deleted", userId=user_id, deletedAt=stamped)
+
     def update_profile(
         self,
         user_id: str,
@@ -870,6 +1004,7 @@ citizen_service = CitizenService()
 
 # Re-export helpers useful for tests without pulling OTP plaintext into API responses.
 __all__ = [
+    "ANONYMIZED_PHONE_PREFIX",
     "CITIZEN_SESSION_TTL_SECONDS",
     "CHANGE_PHONE_PURPOSE",
     "GENERIC_OTP_MESSAGE",
@@ -878,8 +1013,10 @@ __all__ = [
     "OTP_TTL_SECONDS",
     "CitizenService",
     "CitizenServiceError",
+    "anonymized_phone_for",
     "citizen_service",
     "hash_citizen_token",
+    "is_anonymized_citizen",
     "is_contribution_ready",
     "preferred_channel_from_ticket_updates",
     "snapshot_contact_for_ticket",
