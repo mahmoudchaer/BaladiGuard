@@ -39,4 +39,13 @@ class CitizenStore(Protocol):
     ) -> StoredCitizenUser:
         """Atomically transfer the phone claim and persist the full updated user."""
 
+    def anonymize(
+        self,
+        *,
+        user_id: str,
+        current_phone: str,
+        anonymized_user: StoredCitizenUser,
+    ) -> StoredCitizenUser:
+        """Release the phone claim and persist the anonymized citizen tombstone."""
+
     def clear(self) -> None: ...

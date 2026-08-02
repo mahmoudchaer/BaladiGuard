@@ -138,3 +138,39 @@ def test_dynamo_partial_update_and_phone_change(dynamodb_settings: Settings) -> 
         raise AssertionError("expected revoked session")
     except CitizenAuthError:
         pass
+
+
+def test_dynamo_delete_anonymizes_and_releases_phone(dynamodb_settings: Settings) -> None:
+    service = _service(dynamodb_settings)
+    user = service.create_citizen(
+        phone="+96170444555",
+        full_name="Delete Me",
+        email="delete.me@example.com",
+    )
+    token = service.issue_session(user.user_id)
+    result = service.delete_account(user.user_id)
+    assert result.status == "deleted"
+    assert result.user_id == user.user_id
+
+    assert service.get_by_phone("+96170444555") is None
+    tombstone = DynamoCitizenStore(dynamodb_settings).get(user.user_id)
+    assert tombstone is not None
+    assert tombstone.active is False
+    assert tombstone.full_name is None
+    assert tombstone.email is None
+    assert tombstone.phone.startswith("ANON:")
+
+    from app.core.citizen_auth import CitizenAuthError, verify_citizen_access_token
+
+    try:
+        verify_citizen_access_token(
+            token,
+            session_store=DynamoCitizenSessionStore(dynamodb_settings),
+            citizen_store=DynamoCitizenStore(dynamodb_settings),
+        )
+        raise AssertionError("expected revoked session after deletion")
+    except CitizenAuthError:
+        pass
+
+    replacement = service.create_citizen(phone="+96170444555", full_name="Reuse Phone")
+    assert replacement.user_id != user.user_id

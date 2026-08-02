@@ -9,7 +9,12 @@ from app.config import get_settings
 from app.core.citizen_auth import CitizenDep, OptionalCitizenDep
 from app.core.errors import build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
-from app.schemas.citizen import CitizenProfileResponse, CitizenProfileUpdateRequest
+from app.schemas.citizen import (
+    CitizenDataExportResponse,
+    CitizenDeleteResponse,
+    CitizenProfileResponse,
+    CitizenProfileUpdateRequest,
+)
 from app.schemas.citizen_auth import (
     CitizenOtpRequest,
     CitizenOtpRequestResponse,
@@ -187,5 +192,29 @@ def patch_citizen_me(
 ) -> CitizenProfileResponse | JSONResponse:
     try:
         return citizen_service.update_profile(principal.user_id, payload)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.get("/me/export", response_model=CitizenDataExportResponse)
+def export_citizen_me(
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenDataExportResponse | JSONResponse:
+    """Authenticated privacy export of profile + owned tickets (issue #190)."""
+    try:
+        return citizen_service.export_account(principal.user_id)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.post("/me/delete", response_model=CitizenDeleteResponse)
+def delete_citizen_me(
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenDeleteResponse | JSONResponse:
+    """Anonymize the authenticated citizen account (issue #190)."""
+    try:
+        return citizen_service.delete_account(principal.user_id)
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
