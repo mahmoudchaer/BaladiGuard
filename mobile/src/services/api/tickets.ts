@@ -7,7 +7,7 @@ import type {
   SubmitTicketResponse,
 } from '@/types/ticket';
 import { appConfig } from '@/services/config';
-import { getClientHeaders, parseApiError } from '@/services/api/http';
+import { getAuthHeaders, handleUnauthorizedResponse, parseApiError } from '@/services/api/http';
 import { getTicketByTrackingCodeMock, submitTicketMock } from '@/services/api/mockTickets';
 import { uploadReportPhoto } from '@/services/api/uploads';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
@@ -81,13 +81,14 @@ export async function submitReport(
   const response = await fetch(`${appConfig.apiBaseUrl}/tickets`, {
     method: 'POST',
     headers: {
-      ...getClientHeaders(),
+      ...getAuthHeaders(),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
+    handleUnauthorizedResponse(response.status);
     const message = await parseApiError(response, 'Unable to submit your report right now.');
     throw new Error(`Your photo was uploaded, but the report could not be saved. ${message}`);
   }
@@ -116,7 +117,7 @@ export async function getTicketByTrackingCode(
     `${appConfig.apiBaseUrl}/tickets/track/${encodeURIComponent(normalized)}`,
     {
       method: 'GET',
-      headers: getClientHeaders(),
+      headers: getAuthHeaders(),
     },
   );
 
