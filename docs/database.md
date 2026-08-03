@@ -119,7 +119,9 @@ affect contribution eligibility.
 
 At ticket creation, `notificationPreferences.ticketUpdates` maps into the immutable singular
 snapshot as follows: `SMS` → `SMS`, `EMAIL` → `EMAIL`, `BOTH` → `SMS` (MVP primary with email as a
-fallback), and `NONE` → null. Profile changes never rewrite this snapshot.
+fallback), and `NONE` → null. Profile changes never rewrite this snapshot, but account-linked ticket
+notification delivery resolves current profile preferences at send time; legacy unowned tickets keep
+using the snapshot.
 
 ### Phone normalization and atomic uniqueness
 

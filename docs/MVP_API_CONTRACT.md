@@ -177,13 +177,14 @@ tickets are always anonymous.
 Ticket ownership and contact have different lifecycles. `ownerUserId` is the immutable stable owner.
 `contact` is an immutable submission-time snapshot of the then-current normalized phone, optional
 email, full name, and preferred notification channel. Later profile edits do not rewrite it. It is
-used for ticket-specific delivery/audit only and is visible solely to authorized staff; public
-attribution never reads `contact.name`.
+visible solely to authorized staff; public attribution never reads `contact.name`.
 
 The profile's `notificationPreferences.ticketUpdates` maps to the ticket's singular snapshot
 `contact.preferredChannel` as follows: `SMS` → `SMS`, `EMAIL` → `EMAIL`, `BOTH` → `SMS` (MVP primary,
-with email available as delivery fallback), and `NONE` → `null`. The snapshot preserves the selected
-MVP delivery behavior even if the profile preference later changes.
+with email available as delivery fallback), and `NONE` → `null`. For account-linked tickets, actual
+ticket create/status notification delivery uses the current owner profile preference at send time, so
+later opt-out or channel changes apply without rewriting the snapshot. Legacy unowned tickets keep
+using the immutable contact snapshot for delivery.
 
 ### Backward compatibility and linking
 

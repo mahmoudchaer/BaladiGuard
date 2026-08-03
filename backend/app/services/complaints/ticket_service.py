@@ -45,6 +45,7 @@ from app.services.complaints.ticket_read_mapper import (
 )
 from app.services.duplicates import find_nearby_duplicates
 from app.services.notifications.adapters import NotificationRecipient
+from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.routing import suggest_department_id
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
@@ -193,7 +194,7 @@ class TicketService:
             status="SUBMITTED",
             tracking_code=tracking_code,
             ticket_number=ticket_number,
-            recipient=NotificationRecipient.from_contact(stored_ticket.contact),
+            recipient=ticket_notification_recipient(stored_ticket),
         )
 
         return SubmitTicketResponse(
@@ -430,7 +431,7 @@ class TicketService:
             status=payload.status,
             tracking_code=updated_ticket.tracking_code,
             ticket_number=updated_ticket.ticket_number,
-            recipient=NotificationRecipient.from_contact(updated_ticket.contact),
+            recipient=ticket_notification_recipient(updated_ticket),
         )
         return self._map_ticket(updated_ticket)
 
@@ -829,6 +830,15 @@ class TicketService:
         recipient: NotificationRecipient | None = None,
     ) -> None:
         """Best-effort notification emit; never breaks the ticket workflow."""
+        if recipient is None:
+            logger.info(
+                "Notification skipped because no eligible recipient was resolved "
+                "event=%s ticket_id=%s status=%s",
+                event,
+                ticket_id,
+                status,
+            )
+            return
         try:
             from app.services.notifications import emit_ticket_notification
 
