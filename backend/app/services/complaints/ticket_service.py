@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from threading import Lock
 
 from app.config import get_settings
+from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket, staff_can_assign_department
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.duplicate_group_store import DuplicateGroupStore
 from app.database.status_history_store import StatusHistoryStore
@@ -75,6 +76,10 @@ class TicketNotFoundError(LookupError):
 
 
 class DuplicateMergeError(ValueError):
+    pass
+
+
+class StaffScopeForbiddenError(PermissionError):
     pass
 
 
@@ -363,17 +368,36 @@ class TicketService:
         age_seconds = (now - claimed_at.astimezone(UTC)).total_seconds()
         return age_seconds >= get_settings().ai_processing_claim_timeout_seconds
 
-    def list_tickets(self, filters: TicketListFilters | None = None) -> list[TicketResponse]:
+    def list_tickets(
+        self,
+        filters: TicketListFilters | None = None,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> list[TicketResponse]:
+        stored_tickets = filter_stored_tickets(self._store.list(), filters)
+        if staff_principal is not None:
+            stored_tickets = [
+                ticket
+                for ticket in stored_tickets
+                if staff_can_access_ticket(staff_principal, ticket)
+            ]
         tickets = sorted(
-            filter_stored_tickets(self._store.list(), filters),
+            stored_tickets,
             key=lambda ticket: (ticket.created_at, ticket.ticket_number),
             reverse=True,
         )
         return [self._map_ticket(ticket) for ticket in tickets]
 
-    def get_ticket(self, ticket_id: str) -> TicketResponse | None:
+    def get_ticket(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> TicketResponse | None:
         ticket = self._store.get(ticket_id)
         if ticket is None:
+            return None
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
             return None
         return self._map_ticket(ticket, include_duplicate_suggestions=True)
 
@@ -388,9 +412,13 @@ class TicketService:
         self,
         ticket_id: str,
         payload: UpdateTicketStatusRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
             raise TicketNotFoundError(ticket_id)
 
         validate_status_transition(ticket.status, payload.status)
@@ -481,9 +509,13 @@ class TicketService:
         self,
         ticket_id: str,
         payload: ReviewTicketCategoryRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
             raise TicketNotFoundError(ticket_id)
 
         reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -528,11 +560,18 @@ class TicketService:
         self,
         ticket_id: str,
         payload: AssignTicketDepartmentRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
     ) -> TicketResponse:
         """Persist a staff department assignment without clearing the AI suggestion."""
         ticket = self._store.get(ticket_id)
         if ticket is None:
             raise TicketNotFoundError(ticket_id)
+        if staff_principal is not None:
+            if not staff_can_access_ticket(staff_principal, ticket):
+                raise TicketNotFoundError(ticket_id)
+            if not staff_can_assign_department(staff_principal, payload.department_id):
+                raise StaffScopeForbiddenError(payload.department_id)
 
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         updated_ticket = self._store.patch_fields(
@@ -562,6 +601,8 @@ class TicketService:
     def merge_duplicate_tickets(
         self,
         payload: MergeDuplicateTicketsRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
     ) -> TicketResponse:
         canonical_id = payload.canonical_ticket_id.strip()
         duplicate_ids = payload.duplicate_ticket_ids
@@ -574,11 +615,15 @@ class TicketService:
         canonical = self._store.get(canonical_id)
         if canonical is None:
             raise TicketNotFoundError(canonical_id)
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, canonical):
+            raise TicketNotFoundError(canonical_id)
 
         duplicates: list[StoredTicket] = []
         for ticket_id in duplicate_ids:
             ticket = self._store.get(ticket_id)
             if ticket is None:
+                raise TicketNotFoundError(ticket_id)
+            if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
                 raise TicketNotFoundError(ticket_id)
             if ticket.duplicate_group_id:
                 raise DuplicateMergeError(

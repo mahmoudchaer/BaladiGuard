@@ -9,6 +9,8 @@ from app.services.complaints.ticket_service import ticket_service
 from tests.conftest import authenticated_test_client
 from tests.test_read_tickets import create_ticket
 
+ADMIN_STAFF_ID = "staff_admin_001"
+
 
 def test_merge_duplicate_tickets_saves_group_and_links_members(client):
     main = create_ticket(client)
@@ -30,7 +32,7 @@ def test_merge_duplicate_tickets_saves_group_and_links_members(client):
     assert body["duplicateGroup"]["duplicateGroupId"] == body["duplicateGroupId"]
     assert body["duplicateGroup"]["canonicalTicketId"] == main["ticketId"]
     assert body["duplicateGroup"]["ticketIds"] == [main["ticketId"], duplicate["ticketId"]]
-    assert body["updatedBy"] == "staff-1"
+    assert body["updatedBy"] == ADMIN_STAFF_ID
 
     stored_main = ticket_store.get(main["ticketId"])
     stored_duplicate = ticket_store.get(duplicate["ticketId"])

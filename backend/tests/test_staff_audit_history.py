@@ -12,6 +12,7 @@ from tests.test_submit_ticket import VALID_PAYLOAD
 
 ROAD_MAINTENANCE = "d1111111-1111-1111-1111-111111111111"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"
+ADMIN_STAFF_ID = "staff_admin_001"
 
 
 def _audit_by_type(body: dict, action_type: str) -> list[dict]:
@@ -33,7 +34,7 @@ def test_status_change_writes_audit_and_keeps_status_history(client):
     assert len(audits) == 1
     assert audits[0] == {
         "actionType": "STATUS_CHANGE",
-        "actorId": "staff-1",
+        "actorId": ADMIN_STAFF_ID,
         "summary": "Status changed from SUBMITTED to UNDER_REVIEW.",
         "previousValue": "SUBMITTED",
         "newValue": "UNDER_REVIEW",
@@ -53,7 +54,7 @@ def test_category_review_writes_audit_record(client):
     body = response.json()
     audits = _audit_by_type(body, "CATEGORY_REVIEW")
     assert len(audits) == 1
-    assert audits[0]["actorId"] == "staff-2"
+    assert audits[0]["actorId"] == ADMIN_STAFF_ID
     assert audits[0]["newValue"] == "waste"
     assert audits[0]["previousValue"] in {"PENDING_CLASSIFICATION", "road_damage"}
     assert "Category reviewed as waste." in audits[0]["summary"]
@@ -71,7 +72,7 @@ def test_department_assignment_writes_audit_record(client):
     body = response.json()
     audits = _audit_by_type(body, "DEPARTMENT_ASSIGN")
     assert len(audits) == 1
-    assert audits[0]["actorId"] == "staff-3"
+    assert audits[0]["actorId"] == ADMIN_STAFF_ID
     assert audits[0]["previousValue"] == ROAD_MAINTENANCE
     assert audits[0]["newValue"] == WASTE_MANAGEMENT
     assert audits[0]["summary"].startswith("Department assignment changed from")
@@ -94,7 +95,7 @@ def test_duplicate_merge_writes_audit_for_canonical_and_duplicate(client):
     body = response.json()
     canonical_audits = _audit_by_type(body, "DUPLICATE_MERGE")
     assert len(canonical_audits) == 1
-    assert canonical_audits[0]["actorId"] == "staff-4"
+    assert canonical_audits[0]["actorId"] == ADMIN_STAFF_ID
     assert canonical_audits[0]["previousValue"] is None
     assert canonical_audits[0]["newValue"] == body["duplicateGroupId"]
     assert "canonical" in canonical_audits[0]["summary"]
@@ -103,7 +104,7 @@ def test_duplicate_merge_writes_audit_for_canonical_and_duplicate(client):
     assert duplicate_detail.status_code == 200
     duplicate_audits = _audit_by_type(duplicate_detail.json(), "DUPLICATE_MERGE")
     assert len(duplicate_audits) == 1
-    assert duplicate_audits[0]["actorId"] == "staff-4"
+    assert duplicate_audits[0]["actorId"] == ADMIN_STAFF_ID
     assert "duplicate" in duplicate_audits[0]["summary"]
     assert duplicate_audits[0]["newValue"] == body["duplicateGroupId"]
 
@@ -200,7 +201,7 @@ def test_audit_history_persists_in_dynamodb(dynamodb_settings: Settings) -> None
         persisted = audit_store.list_by_ticket_id(ticket_id)
         assert len(persisted) == 1
         assert persisted[0].action_type == "STATUS_CHANGE"
-        assert persisted[0].actor_id == "staff-db"
+        assert persisted[0].actor_id == ADMIN_STAFF_ID
         assert persisted[0].previous_value == "SUBMITTED"
         assert persisted[0].new_value == "UNDER_REVIEW"
     finally:

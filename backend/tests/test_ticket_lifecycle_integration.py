@@ -4,6 +4,8 @@ from app.schemas.cleaning import CleaningResult
 from app.services.complaints.ticket_service import ticket_service
 from tests.conftest import contribution_ready_auth_headers
 
+ADMIN_STAFF_ID = "staff_admin_001"
+
 VALID_LIFECYCLE_PAYLOAD = {
     "description": "Large pothole reported near the university gate causing traffic disruption.",
     "languageHint": "auto",
@@ -104,7 +106,7 @@ def test_ticket_lifecycle_with_ai_processing_and_staff_review(client, monkeypatc
     reviewed = review_response.json()
     assert reviewed["category"] == "road_damage"
     assert reviewed["ai"]["finalCategory"] == "road_damage"
-    assert reviewed["ai"]["categoryReviewedBy"] == "staff-category-reviewer"
+    assert reviewed["ai"]["categoryReviewedBy"] == ADMIN_STAFF_ID
     assert reviewed["ai"]["categoryReviewedAt"]
     assert reviewed["ai"]["aiSuggestedCategory"] == ai_suggestion
     assert reviewed["ai"]["originalDescription"] == original_description
@@ -134,7 +136,7 @@ def test_ticket_lifecycle_with_ai_processing_and_staff_review(client, monkeypatc
         {
             "status": "UNDER_REVIEW",
             "changedAt": status_body["updatedAt"],
-            "changedBy": "staff-status-reviewer",
+            "changedBy": ADMIN_STAFF_ID,
             "note": "Category reviewed and ready for assignment.",
         },
     ]

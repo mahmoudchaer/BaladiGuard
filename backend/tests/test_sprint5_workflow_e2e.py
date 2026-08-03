@@ -12,6 +12,7 @@ from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
 
 STREET_LIGHTING = "d3333333-3333-3333-3333-333333333333"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"
+ADMIN_STAFF_ID = "staff_admin_001"
 
 PUBLIC_FORBIDDEN_FIELDS = {
     "ticketId",
@@ -114,7 +115,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
 
     login = anonymous_client.post(
         "/v1/staff/login",
-        json={"username": "staff", "password": "staff-demo-password"},
+        json={"username": "admin", "password": "staff-demo-password"},
     )
     assert login.status_code == 200, login.text
     staff_headers = {"Authorization": f"Bearer {login.json()['accessToken']}"}
@@ -176,7 +177,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     assert final_body["status"] == "ASSIGNED"
     assert final_body["category"] == "road_damage"
     assert final_body["departmentId"] == STREET_LIGHTING
-    assert final_body["updatedBy"] == "staff-workflow"
+    assert final_body["updatedBy"] == ADMIN_STAFF_ID
     assert [entry["status"] for entry in final_body["statusHistory"]] == [
         "SUBMITTED",
         "UNDER_REVIEW",

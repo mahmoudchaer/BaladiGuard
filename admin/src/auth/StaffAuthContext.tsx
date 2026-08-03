@@ -1,6 +1,12 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { StaffAuthContext } from '@/auth/staffAuthState';
-import { getStoredStaffSession, loginStaff, logoutStaff, type StaffSession } from '@/services/auth';
+import {
+  STAFF_SESSION_CLEARED_EVENT,
+  getStoredStaffSession,
+  loginStaff,
+  logoutStaff,
+  type StaffSession,
+} from '@/services/auth';
 
 type StaffAuthProviderProps = {
   children: ReactNode;
@@ -22,6 +28,13 @@ export function StaffAuthProvider({ children }: StaffAuthProviderProps) {
   const logout = useCallback(() => {
     void logoutStaff();
     setSession(null);
+  }, []);
+
+  useEffect(() => {
+    const handleSessionCleared = () => setSession(null);
+
+    window.addEventListener(STAFF_SESSION_CLEARED_EVENT, handleSessionCleared);
+    return () => window.removeEventListener(STAFF_SESSION_CLEARED_EVENT, handleSessionCleared);
   }, []);
 
   const value = useMemo(

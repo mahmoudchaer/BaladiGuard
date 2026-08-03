@@ -50,10 +50,15 @@ DEFAULT_CITIZEN_FULL_NAME = "Citizen Name"
 DEFAULT_CITIZEN_EMAIL = "citizen@example.com"
 
 
-def issue_test_staff_token(client: TestClient) -> str:
+def issue_test_staff_token(
+    client: TestClient,
+    *,
+    username: str = "admin",
+    password: str = "staff-demo-password",
+) -> str:
     response = client.post(
         "/v1/staff/login",
-        json={"username": "staff", "password": "staff-demo-password"},
+        json={"username": username, "password": password},
     )
     assert response.status_code == 200, response.text
     return response.json()["accessToken"]
@@ -185,7 +190,7 @@ def client(anonymous_client: TestClient) -> TestClient:
 
 @pytest.fixture
 def staff_auth_headers(anonymous_client: TestClient) -> dict[str, str]:
-    token = issue_test_staff_token(anonymous_client)
+    token = issue_test_staff_token(anonymous_client, username="staff")
     return {"Authorization": f"Bearer {token}"}
 
 
