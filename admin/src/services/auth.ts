@@ -1,6 +1,7 @@
 import { config } from '@/services/config';
 
 const STAFF_SESSION_KEY = 'baladiguard.staffSession';
+export const STAFF_SESSION_CLEARED_EVENT = 'baladiguard.staffSessionCleared';
 
 export type StaffRole = 'municipal_staff' | 'administrator';
 
@@ -149,6 +150,18 @@ function storeSession(session: StaffSession): LoginResult {
   };
 }
 
+export function clearStoredStaffSession(): void {
+  try {
+    getBrowserStorage()?.removeItem(STAFF_SESSION_KEY);
+  } catch {
+    // Session clearing is best-effort; callers still update in-memory auth state.
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(STAFF_SESSION_CLEARED_EVENT));
+  }
+}
+
 function roleLabel(role: StaffRole): string {
   return role === 'administrator' ? 'Administrator' : 'Municipal staff';
 }
@@ -265,11 +278,7 @@ export async function loginStaff(username: string, password: string): Promise<Lo
 
 export async function logoutStaff(): Promise<void> {
   const session = getStoredStaffSession();
-  try {
-    getBrowserStorage()?.removeItem(STAFF_SESSION_KEY);
-  } catch {
-    // Continue; local clear failure should not block navigation.
-  }
+  clearStoredStaffSession();
 
   if (!session?.accessToken || config.useMockData) {
     return;

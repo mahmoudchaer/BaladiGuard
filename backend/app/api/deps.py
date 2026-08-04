@@ -17,7 +17,16 @@ from app.core.citizen_auth import (
     require_citizen,
     require_contribution_ready,
 )
-from app.core.staff_auth import StaffDep, StaffPrincipal, require_staff
+from app.core.staff_auth import (
+    AdminStaffDep,
+    StaffDep,
+    StaffPrincipal,
+    forbidden,
+    require_admin,
+    require_staff,
+    staff_can_access_ticket,
+    staff_can_assign_department,
+)
 
 # Alias kept for #141 and any other routes that imported StaffActorDep.
 StaffActorDep = StaffDep
@@ -27,9 +36,14 @@ __all__ = [
     "CitizenPrincipal",
     "ContributionReadyCitizenDep",
     "StaffActorDep",
+    "AdminStaffDep",
     "StaffDep",
     "StaffPrincipal",
+    "forbidden",
+    "require_admin",
     "require_citizen",
     "require_contribution_ready",
     "require_staff",
+    "staff_can_access_ticket",
+    "staff_can_assign_department",
 ]

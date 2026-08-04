@@ -7,6 +7,8 @@ from tests.conftest import authenticated_test_client, contribution_ready_auth_he
 from tests.test_read_tickets import create_ticket
 from tests.test_submit_ticket import VALID_PAYLOAD
 
+ADMIN_STAFF_ID = "staff_admin_001"
+
 
 def seed_ai_suggestion(ticket_id: str, category: str = "road_damage") -> None:
     ticket_service.save_ticket_ai_output(
@@ -32,11 +34,11 @@ def test_accept_ai_suggestion_through_api_preserves_original_ai_fields(client):
     assert response.status_code == 200
     body = response.json()
     assert body["category"] == "road_damage"
-    assert body["updatedBy"] == "staff-1"
+    assert body["updatedBy"] == ADMIN_STAFF_ID
     assert body["ai"]["aiSuggestedCategory"] == "road_damage"
     assert body["ai"]["aiCategoryExplanation"] == ("The report describes damage to a public road.")
     assert body["ai"]["finalCategory"] == "road_damage"
-    assert body["ai"]["categoryReviewedBy"] == "staff-1"
+    assert body["ai"]["categoryReviewedBy"] == ADMIN_STAFF_ID
     assert body["ai"]["categoryReviewedAt"] is not None
 
     stored = ticket_store.get(created["ticketId"])
@@ -113,7 +115,7 @@ def test_category_review_allows_missing_reviewer_identity(client):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["ai"]["categoryReviewedBy"] is None
+    assert body["ai"]["categoryReviewedBy"] == ADMIN_STAFF_ID
     assert body["ai"]["categoryReviewedAt"] is not None
 
 
@@ -167,7 +169,7 @@ def test_category_review_persists_in_dynamodb(dynamodb_settings: Settings) -> No
         assert stored.category == "waste"
         assert stored.final_category == "waste"
         assert stored.ai_suggested_category == "road_damage"
-        assert stored.category_reviewed_by == "staff-3"
+        assert stored.category_reviewed_by == ADMIN_STAFF_ID
         assert stored.category_reviewed_at is not None
     finally:
         ticket_service._store = original_store

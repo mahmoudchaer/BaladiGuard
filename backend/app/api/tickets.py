@@ -20,6 +20,7 @@ from app.services.complaints.status_workflow import InvalidStatusTransitionError
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
     DuplicateMergeError,
+    StaffScopeForbiddenError,
     TicketNotFoundError,
     ticket_service,
 )
@@ -59,7 +60,7 @@ def submit_ticket(
 
 @router.get("/tickets", response_model=list[TicketResponse])
 def list_tickets(
-    _: StaffDep,
+    principal: StaffDep,
     request: Request,
     status: str | None = Query(default=None),
     category: str | None = Query(default=None),
@@ -81,7 +82,7 @@ def list_tickets(
             details=[ErrorDetail(field=error.field, message=error.message) for error in errors],
             status_code=400,
         )
-    return ticket_service.list_tickets(filters)
+    return ticket_service.list_tickets(filters, staff_principal=principal)
 
 
 @router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)
@@ -130,12 +131,12 @@ def get_ticket_by_tracking_code(
 def get_ticket(
     ticket_id: str,
     request: Request,
-    _: StaffDep,
+    principal: StaffDep,
 ) -> TicketResponse | JSONResponse:
     """Staff ticket detail (issue #72). Auth is checked before any ticket lookup
     so unauthorized callers never learn whether an ID exists.
     """
-    ticket = ticket_service.get_ticket(ticket_id)
+    ticket = ticket_service.get_ticket(ticket_id, staff_principal=principal)
     if ticket is None:
         return build_error_response(
             code="TICKET_NOT_FOUND",
@@ -151,10 +152,15 @@ def update_ticket_status(
     ticket_id: str,
     payload: UpdateTicketStatusRequest,
     request: Request,
-    _: StaffDep,
+    principal: StaffDep,
 ) -> TicketResponse | JSONResponse:
     try:
-        return ticket_service.update_ticket_status(ticket_id, payload)
+        verified_payload = payload.model_copy(update={"updated_by": principal.staff_id})
+        return ticket_service.update_ticket_status(
+            ticket_id,
+            verified_payload,
+            staff_principal=principal,
+        )
     except TicketNotFoundError:
         return build_error_response(
             code="TICKET_NOT_FOUND",
@@ -176,16 +182,28 @@ def review_ticket_category(
     ticket_id: str,
     payload: ReviewTicketCategoryRequest,
     request: Request,
-    _: StaffDep,
+    principal: StaffDep,
 ) -> TicketResponse | JSONResponse:
     try:
-        return ticket_service.review_ticket_category(ticket_id, payload)
+        verified_payload = payload.model_copy(update={"category_reviewed_by": principal.staff_id})
+        return ticket_service.review_ticket_category(
+            ticket_id,
+            verified_payload,
+            staff_principal=principal,
+        )
     except TicketNotFoundError:
         return build_error_response(
             code="TICKET_NOT_FOUND",
             message="Ticket was not found.",
             request_id=get_request_id(request),
             status_code=404,
+        )
+    except StaffScopeForbiddenError:
+        return build_error_response(
+            code="FORBIDDEN",
+            message="You do not have permission to assign the department for this category.",
+            request_id=get_request_id(request),
+            status_code=403,
         )
 
 
@@ -194,11 +212,16 @@ def assign_ticket_department(
     ticket_id: str,
     payload: AssignTicketDepartmentRequest,
     request: Request,
-    _: StaffActorDep,
+    principal: StaffActorDep,
 ) -> TicketResponse | JSONResponse:
     """Staff department assignment (issue #141). Auth via ``StaffActorDep`` (#72)."""
     try:
-        return ticket_service.assign_ticket_department(ticket_id, payload)
+        verified_payload = payload.model_copy(update={"updated_by": principal.staff_id})
+        return ticket_service.assign_ticket_department(
+            ticket_id,
+            verified_payload,
+            staff_principal=principal,
+        )
     except TicketNotFoundError:
         return build_error_response(
             code="TICKET_NOT_FOUND",
@@ -206,16 +229,27 @@ def assign_ticket_department(
             request_id=get_request_id(request),
             status_code=404,
         )
+    except StaffScopeForbiddenError:
+        return build_error_response(
+            code="FORBIDDEN",
+            message="You do not have permission to assign this department.",
+            request_id=get_request_id(request),
+            status_code=403,
+        )
 
 
 @router.post("/tickets/merge", response_model=TicketResponse)
 def merge_duplicate_tickets(
     payload: MergeDuplicateTicketsRequest,
     request: Request,
-    _: StaffDep,
+    principal: StaffDep,
 ) -> TicketResponse | JSONResponse:
     try:
-        return ticket_service.merge_duplicate_tickets(payload)
+        verified_payload = payload.model_copy(update={"merged_by": principal.staff_id})
+        return ticket_service.merge_duplicate_tickets(
+            verified_payload,
+            staff_principal=principal,
+        )
     except TicketNotFoundError:
         return build_error_response(
             code="TICKET_NOT_FOUND",

@@ -28,12 +28,51 @@ const apiTicket: Ticket = {
 };
 
 afterEach(() => {
+  window.localStorage.clear();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.resetModules();
 });
 
 describe('fetchTickets', () => {
+  it('clears stored staff sessions when the backend rejects the token', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+    window.localStorage.setItem(
+      'baladiguard.staffSession',
+      JSON.stringify({
+        username: 'staff',
+        name: 'Demo Municipal Staff',
+        staffId: 'staff_muni_001',
+        role: 'municipal_staff',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        signedInAt: '2026-07-27T08:00:00Z',
+        accessToken: 'expired-token',
+      }),
+    );
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Staff access token has expired.',
+            details: [],
+            requestId: 'req_test',
+          },
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchTickets } = await import('@/services/tickets');
+
+    await expect(fetchTickets()).rejects.toThrow('Staff access token has expired.');
+    expect(window.localStorage.getItem('baladiguard.staffSession')).toBeNull();
+  });
+
   it('sends persisted dashboard filters to the real backend list endpoint', async () => {
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
     vi.stubEnv('VITE_USE_MOCK_DATA', undefined);

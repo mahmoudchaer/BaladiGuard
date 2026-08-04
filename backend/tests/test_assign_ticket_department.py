@@ -10,6 +10,7 @@ from tests.test_submit_ticket import VALID_PAYLOAD
 ROAD_MAINTENANCE = "d1111111-1111-1111-1111-111111111111"
 WASTE_MANAGEMENT = "d2222222-2222-2222-2222-222222222222"
 STREET_LIGHTING = "d3333333-3333-3333-3333-333333333333"
+ADMIN_STAFF_ID = "staff_admin_001"
 
 
 def _test_client():
@@ -58,7 +59,7 @@ def test_assign_department_persists_and_preserves_suggestion(client):
         "departmentId": STREET_LIGHTING,
         "name": "Street Lighting",
     }
-    assert body["updatedBy"] == "staff-1"
+    assert body["updatedBy"] == ADMIN_STAFF_ID
     assert body["ai"]["suggestedDepartmentId"] == ROAD_MAINTENANCE
 
     stored = ticket_store.get(created["ticketId"])

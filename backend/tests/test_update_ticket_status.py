@@ -1,5 +1,7 @@
 from tests.test_read_tickets import create_ticket
 
+ADMIN_STAFF_ID = "staff_admin_001"
+
 
 def test_update_ticket_status_moves_through_allowed_workflow(client):
     created = create_ticket(client)
@@ -12,7 +14,7 @@ def test_update_ticket_status_moves_through_allowed_workflow(client):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "UNDER_REVIEW"
-    assert body["updatedBy"] == "staff-1"
+    assert body["updatedBy"] == ADMIN_STAFF_ID
     assert body["updatedAt"] == body["statusHistory"][-1]["changedAt"]
     assert body["statusHistory"] == [
         {
@@ -24,7 +26,7 @@ def test_update_ticket_status_moves_through_allowed_workflow(client):
         {
             "status": "UNDER_REVIEW",
             "changedAt": body["updatedAt"],
-            "changedBy": "staff-1",
+            "changedBy": ADMIN_STAFF_ID,
             "note": "Queued for review.",
         },
     ]
@@ -142,8 +144,8 @@ def test_get_ticket_includes_status_history_after_updates(client):
         "UNDER_REVIEW",
         "ASSIGNED",
     ]
-    assert body["statusHistory"][1]["changedBy"] == "staff-1"
-    assert body["statusHistory"][2]["changedBy"] == "staff-2"
+    assert body["statusHistory"][1]["changedBy"] == ADMIN_STAFF_ID
+    assert body["statusHistory"][2]["changedBy"] == ADMIN_STAFF_ID
 
 
 def test_list_tickets_includes_status_history(client):

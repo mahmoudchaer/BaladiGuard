@@ -10,7 +10,7 @@ import type {
 } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
-import { getStaffAuthHeaders } from '@/services/auth';
+import { clearStoredStaffSession, getStaffAuthHeaders } from '@/services/auth';
 import { config } from '@/services/config';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 
@@ -73,6 +73,15 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string):
   return typeof message === 'string' ? message : fallbackMessage;
 }
 
+async function throwApiError(response: Response, fallbackMessage: string): Promise<never> {
+  if (response.status === 401) {
+    clearStoredStaffSession();
+  }
+
+  const message = await readApiErrorMessage(response, fallbackMessage);
+  throw new Error(message);
+}
+
 function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters): boolean {
   if (filters.status && filters.status !== 'ALL' && ticket.status !== filters.status) {
     return false;
@@ -131,8 +140,7 @@ async function fetchTicketsFromApi(filters: FetchTicketsFilters = {}): Promise<T
   });
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response, 'Unable to load tickets from the server.');
-    throw new Error(message);
+    await throwApiError(response, 'Unable to load tickets from the server.');
   }
 
   const data: unknown = await response.json();
@@ -485,8 +493,7 @@ async function fetchTicketByIdFromApi(ticketId: string): Promise<Ticket | null> 
   }
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response, 'Unable to load ticket from the server.');
-    throw new Error(message);
+    await throwApiError(response, 'Unable to load ticket from the server.');
   }
 
   const data: unknown = await response.json();
@@ -550,8 +557,7 @@ async function updateTicketStatusFromApi(
   }
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response, 'Unable to update ticket status.');
-    throw new Error(message);
+    await throwApiError(response, 'Unable to update ticket status.');
   }
 
   const data: unknown = await response.json();
@@ -619,8 +625,7 @@ async function reviewTicketCategoryFromApi(
   }
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response, 'Unable to save category review.');
-    throw new Error(message);
+    await throwApiError(response, 'Unable to save category review.');
   }
 
   const data: unknown = await response.json();
@@ -737,8 +742,7 @@ async function mergeDuplicateTicketsFromApi(
   }
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response, 'Unable to merge duplicate tickets.');
-    throw new Error(message);
+    await throwApiError(response, 'Unable to merge duplicate tickets.');
   }
 
   const data: unknown = await response.json();
@@ -816,8 +820,7 @@ async function assignTicketDepartmentFromApi(
   }
 
   if (!response.ok) {
-    const message = await readApiErrorMessage(response, 'Unable to update ticket department.');
-    throw new Error(message);
+    await throwApiError(response, 'Unable to update ticket department.');
   }
 
   const data: unknown = await response.json();

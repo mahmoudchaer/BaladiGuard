@@ -699,7 +699,7 @@ Updates a ticket's workflow status using the strict transition rules documented 
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | `status` | `TicketStatus` | Yes | Target status. Invalid enum values are rejected with `400` (`VALIDATION_ERROR`). |
-| `updatedBy` | string | No | Actor identifier for audit/history (max 120 characters). |
+| `updatedBy` | string | No | Ignored for trust decisions; audit/history actor identity is derived from the verified staff principal. |
 | `note` | string | No | Optional human-readable note (max 500 characters). |
 
 ### Response `200`
@@ -734,7 +734,7 @@ explanation.
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | `finalCategory` | string | Yes | One concrete supported category ID. `PENDING_CLASSIFICATION` is not a final category. |
-| `categoryReviewedBy` | string | No | Reviewer identifier when authentication provides one (max 120 characters). |
+| `categoryReviewedBy` | string | No | Ignored for trust decisions; reviewer identity is derived from the verified staff principal. |
 
 ### Response `200`
 
@@ -749,6 +749,7 @@ to `auditHistory`.
 |---|---:|---|
 | `UNAUTHORIZED` | 401 | Missing, invalid, or expired staff Bearer token. |
 | `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
+| `FORBIDDEN` | 403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
 | `VALIDATION_ERROR` | 400 | The category is missing, pending, or not in the supported category catalog. |
 
 ## `PATCH /v1/tickets/{ticketId}/department`
@@ -769,7 +770,7 @@ automatic department suggestion.
 | Field | Type | Required | Notes |
 |---|---|---:|---|
 | `departmentId` | string | Yes | Must be one of the seeded department catalog IDs. |
-| `updatedBy` | string | No | Staff actor identifier when authentication provides one (max 120 characters). |
+| `updatedBy` | string | No | Ignored for trust decisions; audit actor identity is derived from the verified staff principal. |
 
 ### Response `200`
 
@@ -784,6 +785,7 @@ Staff responses also append a `DEPARTMENT_ASSIGN` entry to `auditHistory`.
 | `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
 | `VALIDATION_ERROR` | 400 | The department ID is missing or not in the seeded department catalog. |
 | `UNAUTHORIZED` | 401 | Missing/invalid staff auth once issue #72 is wired. |
+| `FORBIDDEN` | 403 | Authenticated staff principal cannot assign the requested department. |
 
 ## `POST /v1/tickets/merge`
 
@@ -806,7 +808,7 @@ Links one or more duplicate tickets under a staff-chosen main ticket and persist
 |---|---|---:|---|
 | `canonicalTicketId` | string | Yes | Main ticket that remains the group representative. |
 | `duplicateTicketIds` | string[] | Yes | One or more other ticket IDs to link. Must not include the main ticket. |
-| `mergedBy` | string | No | Staff actor identifier when available (max 120 characters). |
+| `mergedBy` | string | No | Ignored for trust decisions; merge actor identity is derived from the verified staff principal. |
 
 ### Merge rules
 
