@@ -24,7 +24,8 @@ export function sanitizeReturnTo(returnTo: string | string[] | undefined | null)
     pathOnly === '/' ||
     pathOnly.startsWith('/report') ||
     pathOnly.startsWith('/track') ||
-    pathOnly.startsWith('/profile')
+    pathOnly.startsWith('/profile') ||
+    pathOnly.startsWith('/history')
   ) {
     return pathOnly;
   }

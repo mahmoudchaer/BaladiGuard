@@ -53,6 +53,16 @@ export default function HomeScreen() {
                 Profile
               </Button>
             </Link>
+            <Link href={'/history' as Href} asChild>
+              <Button
+                mode="text"
+                icon="history"
+                style={styles.button}
+                testID="history-entry-button"
+              >
+                My reports
+              </Button>
+            </Link>
             <Button
               mode="text"
               onPress={() => void logout()}

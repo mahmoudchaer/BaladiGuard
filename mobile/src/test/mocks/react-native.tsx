@@ -18,6 +18,7 @@ export const TextInput = createHostComponent('TextInput');
 export const View = createHostComponent('View');
 export const Image = createHostComponent('Image');
 export const ActivityIndicator = createHostComponent('ActivityIndicator');
+export const RefreshControl = createHostComponent('RefreshControl');
 
 export const Platform = {
   OS: 'ios',

@@ -9,11 +9,13 @@ describe('returnTo helpers', () => {
     expect(sanitizeReturnTo('https://evil.example')).toBe('/');
     expect(sanitizeReturnTo('//evil.example')).toBe('/');
     expect(sanitizeReturnTo('/profile')).toBe('/profile');
+    expect(sanitizeReturnTo('/history')).toBe('/history');
   });
 
   it('builds login hrefs with returnTo', () => {
     expect(buildLoginHref('/')).toBe('/login');
     expect(buildLoginHref('/report')).toBe('/login?returnTo=%2Freport');
     expect(buildLoginHref('/profile')).toBe('/login?returnTo=%2Fprofile');
+    expect(buildLoginHref('/history')).toBe('/login?returnTo=%2Fhistory');
   });
 });

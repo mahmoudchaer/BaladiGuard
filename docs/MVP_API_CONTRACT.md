@@ -4,27 +4,27 @@ This document defines the initial MVP API contract for the mobile app and backen
 
 ## Base API
 
-| Item | Value |
-|---|---|
-| Base path | `/v1` |
-| Request body format | JSON |
-| Response body format | JSON |
+| Item                 | Value |
+| -------------------- | ----- |
+| Base path            | `/v1` |
+| Request body format  | JSON  |
+| Response body format | JSON  |
 
 ## Headers
 
 ### Request headers
 
-| Header | Required | Description |
-|---|---:|---|
-| `Content-Type: application/json` | Yes | Required for JSON request bodies. |
+| Header                                |         Required | Description                                                                                                                        |
+| ------------------------------------- | ---------------: | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Content-Type: application/json`      |              Yes | Required for JSON request bodies.                                                                                                  |
 | `Authorization: Bearer <accessToken>` | Protected routes | A citizen session token on citizen routes or a staff token on staff routes. Tokens are audience-bound and are not interchangeable. |
-| `X-Client-Version` | No | Optional client version, for example `mobile-0.1.0`. |
+| `X-Client-Version`                    |               No | Optional client version, for example `mobile-0.1.0`.                                                                               |
 
 ### Response headers
 
-| Header | Description |
-|---|---|
-| `X-Request-Id` | Request identifier returned by the backend for tracing errors. |
+| Header             | Description                                                       |
+| ------------------ | ----------------------------------------------------------------- |
+| `X-Request-Id`     | Request identifier returned by the backend for tracing errors.    |
 | `WWW-Authenticate` | Present on `401 UNAUTHORIZED` authentication failures (`Bearer`). |
 
 ## Sprint 6 citizen identity and privacy contract
@@ -45,9 +45,9 @@ contribution-ready authentication is implemented by #173.
 - A citizen is **contribution-ready** only when the session is valid, the account is active,
   `phoneVerifiedAt` is non-null for the account's current phone, and `fullName` is valid after
   trimming (1–120 Unicode characters). OTP verification for an inactive account returns `403
-  ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions so their next
+ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions so their next
   use returns `401 UNAUTHORIZED`. An active but incomplete account receives `403
-  CONTRIBUTION_PROFILE_REQUIRED` on contribution routes.
+CONTRIBUTION_PROFILE_REQUIRED` on contribution routes.
 - Guests and incomplete citizens may browse public data but may not create tickets or perform any
   other contribution. Clients must never supply `ownerUserId`; protected contribution routes derive
   it from the session.
@@ -72,16 +72,16 @@ service.
 
 Implemented by issue #170 (except `GET /v1/citizen/tickets`, which remains planned for #174).
 
-| Route | Guest | Authenticated citizen | Contract |
-|---|---:|---:|---|
-| `POST /v1/citizen/auth/otp/request` | `LOGIN_OR_SIGNUP` only | Allowed | Accepts phone/region and purpose. `CHANGE_PHONE` requires a valid citizen session and applies only to that session's account; a guest request with that purpose returns `401`. Always returns `202` with a generic response after an authorized, valid request. A code is 6 digits, expires after 5 minutes, is single-use, stores only a keyed hash, and is bound to normalized phone, purpose, challenge ID, and—when changing phone—authenticated `userId`. At most 5 verification attempts are allowed; resend invalidates prior live codes. Per-phone, per-IP, per-account, and per-device throttles apply. |
-| `POST /v1/citizen/auth/otp/verify` | `LOGIN_OR_SIGNUP` only | Allowed | Atomically consumes a valid challenge. `LOGIN_OR_SIGNUP` finds or creates the phone identity and returns an opaque citizen Bearer session. An inactive existing account returns `403 ACCOUNT_INACTIVE` after successful phone proof and no session is issued. `CHANGE_PHONE` requires the same authenticated citizen that requested the challenge. Responses before successful phone proof do not reveal whether the phone exists. |
-| `POST /v1/citizen/auth/logout` | No | Allowed | Immediately revokes the presented server-side session and returns `204`. Repeating with a revoked token returns `401`. |
-| `GET /v1/citizen/me` | No | Allowed | Returns the citizen-safe profile and `contributionReady`; never returns OTP material, internal claims, or credentials. |
-| `PATCH /v1/citizen/me` | No | Allowed | Updates supported profile/preferences. A phone change requires a separately verified `CHANGE_PHONE` challenge and an atomic claim transfer. Email changes do not affect identity or sessions. |
-| `GET /v1/citizen/me/export` | No | Allowed | Returns a JSON export of the authenticated citizen's profile and owned-ticket summaries (`ownerUserId` match only). Staff tokens and other citizens receive `401` / cross-user denial. See `docs/privacy-lifecycle.md`. |
-| `POST /v1/citizen/me/delete` | No | Allowed | Anonymizes the authenticated citizen account: releases the phone claim, redacts profile PII, sets `active=false`, bumps `sessionEpoch`, and revokes sessions. Returns `200` with deletion acknowledgement. Municipal ticket/audit rows remain. See `docs/privacy-lifecycle.md`. |
-| `GET /v1/citizen/tickets` | No | Allowed | Planned account history; derives `userId` from the session and returns only tickets owned by it. |
+| Route                               |                  Guest | Authenticated citizen | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------- | ---------------------: | --------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/citizen/auth/otp/request` | `LOGIN_OR_SIGNUP` only |               Allowed | Accepts phone/region and purpose. `CHANGE_PHONE` requires a valid citizen session and applies only to that session's account; a guest request with that purpose returns `401`. Always returns `202` with a generic response after an authorized, valid request. A code is 6 digits, expires after 5 minutes, is single-use, stores only a keyed hash, and is bound to normalized phone, purpose, challenge ID, and—when changing phone—authenticated `userId`. At most 5 verification attempts are allowed; resend invalidates prior live codes. Per-phone, per-IP, per-account, and per-device throttles apply. |
+| `POST /v1/citizen/auth/otp/verify`  | `LOGIN_OR_SIGNUP` only |               Allowed | Atomically consumes a valid challenge. `LOGIN_OR_SIGNUP` finds or creates the phone identity and returns an opaque citizen Bearer session. An inactive existing account returns `403 ACCOUNT_INACTIVE` after successful phone proof and no session is issued. `CHANGE_PHONE` requires the same authenticated citizen that requested the challenge. Responses before successful phone proof do not reveal whether the phone exists.                                                                                                                                                                               |
+| `POST /v1/citizen/auth/logout`      |                     No |               Allowed | Immediately revokes the presented server-side session and returns `204`. Repeating with a revoked token returns `401`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `GET /v1/citizen/me`                |                     No |               Allowed | Returns the citizen-safe profile and `contributionReady`; never returns OTP material, internal claims, or credentials.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `PATCH /v1/citizen/me`              |                     No |               Allowed | Updates supported profile/preferences. A phone change requires a separately verified `CHANGE_PHONE` challenge and an atomic claim transfer. Email changes do not affect identity or sessions.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `GET /v1/citizen/me/export`         |                     No |               Allowed | Returns a JSON export of the authenticated citizen's profile and owned-ticket summaries (`ownerUserId` match only). Staff tokens and other citizens receive `401` / cross-user denial. See `docs/privacy-lifecycle.md`.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `POST /v1/citizen/me/delete`        |                     No |               Allowed | Anonymizes the authenticated citizen account: releases the phone claim, redacts profile PII, sets `active=false`, bumps `sessionEpoch`, and revokes sessions. Returns `200` with deletion acknowledgement. Municipal ticket/audit rows remain. See `docs/privacy-lifecycle.md`.                                                                                                                                                                                                                                                                                                                                  |
+| `GET /v1/citizen/me/tickets`        |                     No |               Allowed | Implemented account history; derives `userId` from the session and returns only citizen-safe summaries for tickets owned by it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Citizen-safe profile shape for `GET` / `PATCH /v1/citizen/me` (issue #169):
 
@@ -112,6 +112,41 @@ the account after the atomic claim transfer. Staff tokens on these routes return
 Account deletion (`POST /v1/citizen/me/delete`) and export (`GET /v1/citizen/me/export`) follow the
 privacy lifecycle in `docs/privacy-lifecycle.md`. Deletion keeps `ownerUserId` and immutable ticket
 `contact` snapshots for municipal integrity while clearing live profile PII.
+
+`GET /v1/citizen/me/tickets` returns the authenticated citizen's owned report history. It derives
+the owner from the verified citizen session; clients cannot submit or override an owner id. Results
+are filtered to `ownerUserId == session.userId` before sorting and pagination, legacy unowned tickets
+are omitted, and public tracking remains a separate possession-based route.
+
+Query parameters:
+
+| Field    | Type    | Default | Bounds                      | Notes                                                         |
+| -------- | ------- | ------: | --------------------------- | ------------------------------------------------------------- |
+| `limit`  | integer |    `20` | `1`-`50`                    | Maximum page size.                                            |
+| `cursor` | string  |  `null` | non-negative integer offset | Opaque to clients except passing back the prior `nextCursor`. |
+
+Successful response:
+
+```json
+{
+  "items": [
+    {
+      "trackingCode": "AB23CD",
+      "status": "IN_PROGRESS",
+      "category": "road_damage",
+      "locationAddress": "Near AUB Main Gate, Hamra, Beirut",
+      "submittedAt": "2026-08-01T12:00:00Z"
+    }
+  ],
+  "nextCursor": null,
+  "limit": 20
+}
+```
+
+Items are ordered newest first by `submittedAt`, with ticket id as a deterministic tie-breaker. The
+history response never includes `ticketId`, `ownerUserId`, phone, email, contact snapshots, public
+name preferences, OTP/session material, staff actors, department/municipality ids, audit history, or
+AI/provider internals. Empty history returns `200` with an empty `items` array.
 
 Minimal OTP payloads are fixed as follows:
 
@@ -146,15 +181,15 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 
 ### Public browsing, attribution, and private contact
 
-| Route | Authentication | Public/private rule |
-|---|---|---|
-| `GET /v1/public/reports` | Public | Planned citizen-safe list/map data only. |
-| `GET /v1/public/reports/{ticketNumber}` | Public | Planned citizen-safe report detail only. |
-| `GET /v1/tickets/track/{trackingCode}` | Public, possession-based | Existing citizen-safe tracking response; tracking code is not account authentication. |
-| `POST /v1/locations/validate` | Public | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply. |
-| `POST /v1/uploads/report-photo` | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`. |
-| `POST /v1/tickets` | Contribution-ready citizen | Implemented by #173. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403 CONTRIBUTION_PROFILE_REQUIRED`. |
-| `/v1/staff/**` and staff ticket routes | Authorized staff | Identity/contact is returned only when the staff role and municipality/department scope authorize it. |
+| Route                                   | Authentication             | Public/private rule                                                                                                                                          |
+| --------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /v1/public/reports`                | Public                     | Planned citizen-safe list/map data only.                                                                                                                     |
+| `GET /v1/public/reports/{ticketNumber}` | Public                     | Planned citizen-safe report detail only.                                                                                                                     |
+| `GET /v1/tickets/track/{trackingCode}`  | Public, possession-based   | Existing citizen-safe tracking response; tracking code is not account authentication.                                                                        |
+| `POST /v1/locations/validate`           | Public                     | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply.                              |
+| `POST /v1/uploads/report-photo`         | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`.                |
+| `POST /v1/tickets`                      | Contribution-ready citizen | Implemented by #173. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403 CONTRIBUTION_PROFILE_REQUIRED`. |
+| `/v1/staff/**` and staff ticket routes  | Authorized staff           | Identity/contact is returned only when the staff role and municipality/department scope authorize it.                                                        |
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, approved
 `category`, moderated `description`, `location`, optional approved `photoUrl`, `createdAt`,
@@ -206,24 +241,24 @@ equivalent proof.
 The API recognizes three authorization roles. A citizen principal is identified by `userId` and a
 citizen session. Staff principals use a separate staff identity and credential/session system.
 
-| Role | Identity and scope | Allowed actions |
-|---|---|---|
-| `citizen` | Stable `userId`; no municipality/department authority. | Public browsing and tracking; own profile/session/history; contribution-ready ticket and photo submission. A citizen can never read another citizen's profile/history or perform staff mutations. |
+| Role              | Identity and scope                                                                            | Allowed actions                                                                                                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `citizen`         | Stable `userId`; no municipality/department authority.                                        | Public browsing and tracking; own profile/session/history; contribution-ready ticket and photo submission. A citizen can never read another citizen's profile/history or perform staff mutations.                              |
 | `municipal_staff` | Staff identity scoped to one `municipalityId` and one or more assigned `departmentId` values. | Read and mutate tickets in that municipality and assigned departments, according to the route's action; view identity/contact only for authorized operational handling. No staff-account or cross-municipality administration. |
-| `administrator` | Staff identity with global municipality/department scope. | All `municipal_staff` actions plus staff/role assignment, municipality and department administration, and cross-scope operational access. |
+| `administrator`   | Staff identity with global municipality/department scope.                                     | All `municipal_staff` actions plus staff/role assignment, municipality and department administration, and cross-scope operational access.                                                                                      |
 
 Route permissions are explicit:
 
-| Route/action | Guest | Citizen | Municipal staff | Administrator |
-|---|---:|---:|---:|---:|
-| Public map/report list/detail and tracking lookup | Allow | Allow | Allow | Allow |
-| `POST /v1/locations/validate` draft validation | Allow | Allow | Allow | Allow |
-| OTP request/verify | Login/signup purpose only | Own phone-change purpose | N/A | N/A |
-| Current profile, logout, and own history | Deny | Own resources | N/A | N/A |
-| `POST /v1/uploads/report-photo` and `POST /v1/tickets` | Deny | Contribution-ready own session | N/A | N/A |
-| Staff ticket list/detail and all staff ticket mutations, including status/category/department actions and `POST /v1/tickets/merge` | Deny | Deny | Scoped tickets | All tickets |
-| Staff identity/contact fields | Deny | Deny | Authorized operational need and scope only | Authorized administrative need |
-| Staff/role, municipality, and department administration | Deny | Deny | Deny | Allow |
+| Route/action                                                                                                                       |                     Guest |                        Citizen |                            Municipal staff |                  Administrator |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------: | -----------------------------: | -----------------------------------------: | -----------------------------: |
+| Public map/report list/detail and tracking lookup                                                                                  |                     Allow |                          Allow |                                      Allow |                          Allow |
+| `POST /v1/locations/validate` draft validation                                                                                     |                     Allow |                          Allow |                                      Allow |                          Allow |
+| OTP request/verify                                                                                                                 | Login/signup purpose only |       Own phone-change purpose |                                        N/A |                            N/A |
+| Current profile, logout, and own history                                                                                           |                      Deny |                  Own resources |                                        N/A |                            N/A |
+| `POST /v1/uploads/report-photo` and `POST /v1/tickets`                                                                             |                      Deny | Contribution-ready own session |                                        N/A |                            N/A |
+| Staff ticket list/detail and all staff ticket mutations, including status/category/department actions and `POST /v1/tickets/merge` |                      Deny |                           Deny |                             Scoped tickets |                    All tickets |
+| Staff identity/contact fields                                                                                                      |                      Deny |                           Deny | Authorized operational need and scope only | Authorized administrative need |
+| Staff/role, municipality, and department administration                                                                            |                      Deny |                           Deny |                                       Deny |                          Allow |
 
 Authentication is checked before authorization. Missing, malformed, expired, revoked, or wrong-audience
 credentials return `401 UNAUTHORIZED`; a valid principal lacking the route permission returns `403
@@ -279,7 +314,10 @@ Shared HTTP rate limits apply (`staff-login`; default 10 / 300s). Exceeding the 
   "name": "Demo Municipal Staff",
   "role": "municipal_staff",
   "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-  "departmentIds": ["d1111111-1111-1111-1111-111111111111", "d3333333-3333-3333-3333-333333333333"],
+  "departmentIds": [
+    "d1111111-1111-1111-1111-111111111111",
+    "d3333333-3333-3333-3333-333333333333"
+  ],
   "expiresIn": 43200
 }
 ```
@@ -366,11 +404,11 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 
 ### Error codes
 
-| HTTP | Code | When |
-| --- | --- | --- |
+| HTTP  | Code            | When                                                                |
+| ----- | --------------- | ------------------------------------------------------------------- |
 | `400` | `RESET_INVALID` | Unknown username, wrong/consumed/superseded code, or inactive staff |
-| `400` | `RESET_EXPIRED` | Code past TTL |
-| `429` | `RATE_LIMITED` | Too many confirm attempts on the challenge (or shared HTTP limit) |
+| `400` | `RESET_EXPIRED` | Code past TTL                                                       |
+| `429` | `RATE_LIMITED`  | Too many confirm attempts on the challenge (or shared HTTP limit)   |
 
 ## Endpoints
 
@@ -434,21 +472,21 @@ incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 
 ### Request fields
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `description` | string | Yes | Citizen description of the issue. Minimum 10 characters, maximum 2000 characters. |
-| `languageHint` | string | No | Use `auto` by default. |
-| `contact` | object | No | Must be omitted. If supplied, the server returns `400 VALIDATION_ERROR`. Contact is snapshotted from the authenticated profile (`fullName` → `name`, verified phone, optional email, and `ticketUpdates` → `preferredChannel`). |
-| `ownerUserId` | string | No | Must be omitted. If supplied, the server returns `400 VALIDATION_ERROR`. Ownership is derived from the verified citizen session. |
-| `location` | object | Yes | Report location. |
-| `location.latitude` | number | Yes | Finite latitude between `-90` and `90`, inclusive. |
-| `location.longitude` | number | Yes | Finite longitude between `-180` and `180`, inclusive. |
-| `location.addressText` | string | Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters). |
-| `location.source` | enum | Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`. |
-| `imageObjectKey` | string | Yes | Stable image object key/reference used by the backend. |
-| `clientMetadata` | object | Yes | Client metadata sent by the mobile app. |
-| `clientMetadata.platform` | string | Yes | Example values: `ios`, `android`, `web`. |
-| `clientMetadata.appVersion` | string | Yes | Mobile app version. |
+| Field                       | Type   | Required | Notes                                                                                                                                                                                                                           |
+| --------------------------- | ------ | -------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description`               | string |      Yes | Citizen description of the issue. Minimum 10 characters, maximum 2000 characters.                                                                                                                                               |
+| `languageHint`              | string |       No | Use `auto` by default.                                                                                                                                                                                                          |
+| `contact`                   | object |       No | Must be omitted. If supplied, the server returns `400 VALIDATION_ERROR`. Contact is snapshotted from the authenticated profile (`fullName` → `name`, verified phone, optional email, and `ticketUpdates` → `preferredChannel`). |
+| `ownerUserId`               | string |       No | Must be omitted. If supplied, the server returns `400 VALIDATION_ERROR`. Ownership is derived from the verified citizen session.                                                                                                |
+| `location`                  | object |      Yes | Report location.                                                                                                                                                                                                                |
+| `location.latitude`         | number |      Yes | Finite latitude between `-90` and `90`, inclusive.                                                                                                                                                                              |
+| `location.longitude`        | number |      Yes | Finite longitude between `-180` and `180`, inclusive.                                                                                                                                                                           |
+| `location.addressText`      | string |      Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters).                                                                                                                                   |
+| `location.source`           | enum   |      Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`.                                                                                                                                                                                              |
+| `imageObjectKey`            | string |      Yes | Stable image object key/reference used by the backend.                                                                                                                                                                          |
+| `clientMetadata`            | object |      Yes | Client metadata sent by the mobile app.                                                                                                                                                                                         |
+| `clientMetadata.platform`   | string |      Yes | Example values: `ios`, `android`, `web`.                                                                                                                                                                                        |
+| `clientMetadata.appVersion` | string |      Yes | Mobile app version.                                                                                                                                                                                                             |
 
 ### Response `201`
 
@@ -465,14 +503,14 @@ incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 
 ### Response fields
 
-| Field | Type | Notes |
-|---|---|---|
-| `ticketId` | string | Internal ticket identifier. |
-| `ticketNumber` | string | Citizen-facing ticket number. |
-| `trackingCode` | string | Citizen-facing tracking code. |
-| `status` | enum | Initial value is `SUBMITTED`. |
-| `message` | string | Human-readable confirmation message. |
-| `createdAt` | string | ISO 8601 timestamp. |
+| Field          | Type   | Notes                                |
+| -------------- | ------ | ------------------------------------ |
+| `ticketId`     | string | Internal ticket identifier.          |
+| `ticketNumber` | string | Citizen-facing ticket number.        |
+| `trackingCode` | string | Citizen-facing tracking code.        |
+| `status`       | enum   | Initial value is `SUBMITTED`.        |
+| `message`      | string | Human-readable confirmation message. |
+| `createdAt`    | string | ISO 8601 timestamp.                  |
 
 ## `GET /v1/tickets/track/{trackingCode}`
 
@@ -509,18 +547,18 @@ frontend field hiding.
 
 ### Public response fields
 
-| Field | Type | Notes |
-|---|---|---|
-| `ticketNumber` | string or null | Citizen-facing ticket number when available. |
-| `trackingCode` | string | Citizen-facing tracking code entered by the resident. |
-| `status` | `TicketStatus` | Current public workflow status. |
-| `category` | string or null | Staff-approved/current public category when available; omitted as null while classification is pending or unapproved. |
-| `location.addressText` | string | Public-readable location text only. Coordinates and location source remain staff-only. |
-| `createdAt` | string | ISO 8601 timestamp for original submission. |
-| `updatedAt` | string or null | ISO 8601 timestamp for the latest ticket update when available. |
-| `lastUpdatedAt` | string | `updatedAt` when present, otherwise `createdAt`, for citizen tracking display. |
-| `timeline[].status` | `TicketStatus` | Public status reached at this point in the workflow. |
-| `timeline[].changedAt` | string | ISO 8601 timestamp for the status change. |
+| Field                  | Type           | Notes                                                                                                                 |
+| ---------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `ticketNumber`         | string or null | Citizen-facing ticket number when available.                                                                          |
+| `trackingCode`         | string         | Citizen-facing tracking code entered by the resident.                                                                 |
+| `status`               | `TicketStatus` | Current public workflow status.                                                                                       |
+| `category`             | string or null | Staff-approved/current public category when available; omitted as null while classification is pending or unapproved. |
+| `location.addressText` | string         | Public-readable location text only. Coordinates and location source remain staff-only.                                |
+| `createdAt`            | string         | ISO 8601 timestamp for original submission.                                                                           |
+| `updatedAt`            | string or null | ISO 8601 timestamp for the latest ticket update when available.                                                       |
+| `lastUpdatedAt`        | string         | `updatedAt` when present, otherwise `createdAt`, for citizen tracking display.                                        |
+| `timeline[].status`    | `TicketStatus` | Public status reached at this point in the workflow.                                                                  |
+| `timeline[].changedAt` | string         | ISO 8601 timestamp for the status change.                                                                             |
 
 ### Staff-only fields excluded from citizen tracking
 
@@ -554,10 +592,10 @@ Citizen tracking codes are 6 characters drawn from `A-Z` and `2-9`, excluding am
 
 ### Tracking lookup error codes
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `VALIDATION_ERROR` | 400 | The tracking code format is invalid (wrong length or alphabet). |
-| `TICKET_NOT_FOUND` | 404 | No ticket exists for a well-formed tracking code. |
+| Code               | Status | Meaning                                                         |
+| ------------------ | -----: | --------------------------------------------------------------- |
+| `VALIDATION_ERROR` |    400 | The tracking code format is invalid (wrong length or alphabet). |
+| `TICKET_NOT_FOUND` |    404 | No ticket exists for a well-formed tracking code.               |
 
 ## `GET /v1/tickets`
 
@@ -570,12 +608,12 @@ error.
 
 ### Query Parameters
 
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `status` | enum | No | Exact match on ticket `status`. One of `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`. |
-| `category` | string | No | Exact match on ticket `category` (including `PENDING_CLASSIFICATION`). Must be a seeded catalog category ID. |
-| `urgency` | enum | No | Exact match on persisted urgency level stored as ticket `priority`. One of `low`, `medium`, `high`, `critical`. Tickets with `priority: null` do not match. |
-| `departmentId` | string | No | Exact match on assigned `departmentId` (staff override or automatic assignment). Must be a seeded department catalog ID. Does **not** filter on `ai.suggestedDepartmentId`. |
+| Name           | Type   | Required | Description                                                                                                                                                                 |
+| -------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`       | enum   | No       | Exact match on ticket `status`. One of `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`.                                                        |
+| `category`     | string | No       | Exact match on ticket `category` (including `PENDING_CLASSIFICATION`). Must be a seeded catalog category ID.                                                                |
+| `urgency`      | enum   | No       | Exact match on persisted urgency level stored as ticket `priority`. One of `low`, `medium`, `high`, `critical`. Tickets with `priority: null` do not match.                 |
+| `departmentId` | string | No       | Exact match on assigned `departmentId` (staff override or automatic assignment). Must be a seeded department catalog ID. Does **not** filter on `ai.suggestedDepartmentId`. |
 
 Invalid or blank filter values return `400` with `error.code = VALIDATION_ERROR` and a `details[]`
 entry whose `field` is the query parameter name (`status`, `category`, `urgency`, or
@@ -696,11 +734,11 @@ Updates a ticket's workflow status using the strict transition rules documented 
 
 ### Request fields
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `status` | `TicketStatus` | Yes | Target status. Invalid enum values are rejected with `400` (`VALIDATION_ERROR`). |
-| `updatedBy` | string | No | Ignored for trust decisions; audit/history actor identity is derived from the verified staff principal. |
-| `note` | string | No | Optional human-readable note (max 500 characters). |
+| Field       | Type           | Required | Notes                                                                                                   |
+| ----------- | -------------- | -------: | ------------------------------------------------------------------------------------------------------- |
+| `status`    | `TicketStatus` |      Yes | Target status. Invalid enum values are rejected with `400` (`VALIDATION_ERROR`).                        |
+| `updatedBy` | string         |       No | Ignored for trust decisions; audit/history actor identity is derived from the verified staff principal. |
+| `note`      | string         |       No | Optional human-readable note (max 500 characters).                                                      |
 
 ### Response `200`
 
@@ -709,11 +747,11 @@ Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, `statu
 
 ### Status update error codes
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `UNAUTHORIZED` | 401 | Missing, invalid, or expired staff Bearer token. |
-| `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
-| `INVALID_STATUS_TRANSITION` | 400 | Requested status is not allowed from the ticket's current status. |
+| Code                        | Status | Meaning                                                           |
+| --------------------------- | -----: | ----------------------------------------------------------------- |
+| `UNAUTHORIZED`              |    401 | Missing, invalid, or expired staff Bearer token.                  |
+| `TICKET_NOT_FOUND`          |    404 | Ticket ID does not exist.                                         |
+| `INVALID_STATUS_TRANSITION` |    400 | Requested status is not allowed from the ticket's current status. |
 
 ## `PATCH /v1/tickets/{ticketId}/category`
 
@@ -731,10 +769,10 @@ explanation.
 }
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `finalCategory` | string | Yes | One concrete supported category ID. `PENDING_CLASSIFICATION` is not a final category. |
-| `categoryReviewedBy` | string | No | Ignored for trust decisions; reviewer identity is derived from the verified staff principal. |
+| Field                | Type   | Required | Notes                                                                                        |
+| -------------------- | ------ | -------: | -------------------------------------------------------------------------------------------- |
+| `finalCategory`      | string |      Yes | One concrete supported category ID. `PENDING_CLASSIFICATION` is not a final category.        |
+| `categoryReviewedBy` | string |       No | Ignored for trust decisions; reviewer identity is derived from the verified staff principal. |
 
 ### Response `200`
 
@@ -745,12 +783,12 @@ to `auditHistory`.
 
 ### Category review error codes
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `UNAUTHORIZED` | 401 | Missing, invalid, or expired staff Bearer token. |
-| `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
-| `FORBIDDEN` | 403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
-| `VALIDATION_ERROR` | 400 | The category is missing, pending, or not in the supported category catalog. |
+| Code               | Status | Meaning                                                                                      |
+| ------------------ | -----: | -------------------------------------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                                             |
+| `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist.                                                                    |
+| `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
+| `VALIDATION_ERROR` |    400 | The category is missing, pending, or not in the supported category catalog.                  |
 
 ## `PATCH /v1/tickets/{ticketId}/department`
 
@@ -767,10 +805,10 @@ automatic department suggestion.
 }
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `departmentId` | string | Yes | Must be one of the seeded department catalog IDs. |
-| `updatedBy` | string | No | Ignored for trust decisions; audit actor identity is derived from the verified staff principal. |
+| Field          | Type   | Required | Notes                                                                                           |
+| -------------- | ------ | -------: | ----------------------------------------------------------------------------------------------- |
+| `departmentId` | string |      Yes | Must be one of the seeded department catalog IDs.                                               |
+| `updatedBy`    | string |       No | Ignored for trust decisions; audit actor identity is derived from the verified staff principal. |
 
 ### Response `200`
 
@@ -780,12 +818,12 @@ Staff responses also append a `DEPARTMENT_ASSIGN` entry to `auditHistory`.
 
 ### Department assignment error codes
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
-| `VALIDATION_ERROR` | 400 | The department ID is missing or not in the seeded department catalog. |
-| `UNAUTHORIZED` | 401 | Missing/invalid staff auth once issue #72 is wired. |
-| `FORBIDDEN` | 403 | Authenticated staff principal cannot assign the requested department. |
+| Code               | Status | Meaning                                                               |
+| ------------------ | -----: | --------------------------------------------------------------------- |
+| `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist.                                             |
+| `VALIDATION_ERROR` |    400 | The department ID is missing or not in the seeded department catalog. |
+| `UNAUTHORIZED`     |    401 | Missing/invalid staff auth once issue #72 is wired.                   |
+| `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the requested department. |
 
 ## `POST /v1/tickets/merge`
 
@@ -804,11 +842,11 @@ Links one or more duplicate tickets under a staff-chosen main ticket and persist
 }
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `canonicalTicketId` | string | Yes | Main ticket that remains the group representative. |
-| `duplicateTicketIds` | string[] | Yes | One or more other ticket IDs to link. Must not include the main ticket. |
-| `mergedBy` | string | No | Ignored for trust decisions; merge actor identity is derived from the verified staff principal. |
+| Field                | Type     | Required | Notes                                                                                           |
+| -------------------- | -------- | -------: | ----------------------------------------------------------------------------------------------- |
+| `canonicalTicketId`  | string   |      Yes | Main ticket that remains the group representative.                                              |
+| `duplicateTicketIds` | string[] |      Yes | One or more other ticket IDs to link. Must not include the main ticket.                         |
+| `mergedBy`           | string   |       No | Ignored for trust decisions; merge actor identity is derived from the verified staff principal. |
 
 ### Merge rules
 
@@ -832,11 +870,11 @@ ticket also receives a `DUPLICATE_MERGE` `auditHistory` entry.
 
 ### Merge error codes
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `UNAUTHORIZED` | 401 | Missing, invalid, or expired staff Bearer token. |
-| `TICKET_NOT_FOUND` | 404 | The main ticket or a duplicate ticket ID does not exist. |
-| `VALIDATION_ERROR` | 400 | The request violates a merge rule (main ticket listed as duplicate, a duplicate already grouped, categories differ, a ticket is still pending classification, or merging from a non-main group member). |
+| Code               | Status | Meaning                                                                                                                                                                                                 |
+| ------------------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                                                                                                                                                        |
+| `TICKET_NOT_FOUND` |    404 | The main ticket or a duplicate ticket ID does not exist.                                                                                                                                                |
+| `VALIDATION_ERROR` |    400 | The request violates a merge rule (main ticket listed as duplicate, a duplicate already grouped, categories differ, a ticket is still pending classification, or merging from a non-main group member). |
 
 ## `POST /v1/locations/validate`
 
@@ -871,11 +909,11 @@ index is unset, the backend falls back to a curated Beirut local place index for
 
 ### Request fields
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
+| Field         | Type   |    Required | Notes                                                                        |
+| ------------- | ------ | ----------: | ---------------------------------------------------------------------------- |
 | `addressText` | string | Conditional | Required when coordinates are not provided. Minimum 3 characters after trim. |
-| `latitude` | number | Conditional | Required with `longitude`. Finite value between `-90` and `90`. |
-| `longitude` | number | Conditional | Required with `latitude`. Finite value between `-180` and `180`. |
+| `latitude`    | number | Conditional | Required with `longitude`. Finite value between `-90` and `90`.              |
+| `longitude`   | number | Conditional | Required with `latitude`. Finite value between `-180` and `180`.             |
 
 Provide either `addressText` or both coordinates. Partial coordinate pairs are rejected.
 
@@ -898,12 +936,12 @@ Provide either `addressText` or both coordinates. Partial coordinate pairs are r
 
 ### Location validation error codes
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `VALIDATION_ERROR` | 400 | Missing address/coordinates or invalid field values. |
-| `LOCATION_NOT_FOUND` | 400 | Provider could not resolve the address/point. |
-| `LOCATION_OUT_OF_SERVICE_AREA` | 400 | Coordinates are outside the supported service area. |
-| `LOCATION_PROVIDER_UNAVAILABLE` | 502 | Amazon Location request failed or returned incomplete data. |
+| Code                            | Status | Meaning                                                     |
+| ------------------------------- | -----: | ----------------------------------------------------------- |
+| `VALIDATION_ERROR`              |    400 | Missing address/coordinates or invalid field values.        |
+| `LOCATION_NOT_FOUND`            |    400 | Provider could not resolve the address/point.               |
+| `LOCATION_OUT_OF_SERVICE_AREA`  |    400 | Coordinates are outside the supported service area.         |
+| `LOCATION_PROVIDER_UNAVAILABLE` |    502 | Amazon Location request failed or returned incomplete data. |
 
 ## `POST /v1/uploads/report-photo`
 
@@ -923,9 +961,9 @@ Missing authentication returns `401`; an incomplete citizen returns `403`. Enfor
 
 Content type: `multipart/form-data`
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `file` | image file | Yes | Allowed extensions: `jpg`, `jpeg`, `png`, `webp`. Allowed content types: `image/jpeg`, `image/png`, `image/webp`. Maximum size: `5MB`. |
+| Field  | Type       | Required | Notes                                                                                                                                  |
+| ------ | ---------- | -------: | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `file` | image file |      Yes | Allowed extensions: `jpg`, `jpeg`, `png`, `webp`. Allowed content types: `image/jpeg`, `image/png`, `image/webp`. Maximum size: `5MB`. |
 
 ### Response `200`
 
@@ -937,20 +975,20 @@ Content type: `multipart/form-data`
 
 ### Response fields
 
-| Field | Type | Notes |
-|---|---|---|
+| Field            | Type   | Notes                                            |
+| ---------------- | ------ | ------------------------------------------------ |
 | `imageObjectKey` | string | Stable object key for the uploaded report photo. |
 
 ### Upload error codes
 
 Upload errors use the common error format.
 
-| Code | Status | Meaning |
-|---|---:|---|
-| `MISSING_FILE` | 400 | No file was provided in the `file` field. |
-| `INVALID_FILE_TYPE` | 400 | File extension or content type is not allowed. |
-| `FILE_TOO_LARGE` | 400 | File is larger than `5MB`. |
-| `S3_UPLOAD_FAILED` | 502 | The backend could not upload the file to project storage. |
+| Code                | Status | Meaning                                                   |
+| ------------------- | -----: | --------------------------------------------------------- |
+| `MISSING_FILE`      |    400 | No file was provided in the `file` field.                 |
+| `INVALID_FILE_TYPE` |    400 | File extension or content type is not allowed.            |
+| `FILE_TOO_LARGE`    |    400 | File is larger than `5MB`.                                |
+| `S3_UPLOAD_FAILED`  |    502 | The backend could not upload the file to project storage. |
 
 ## Error Format
 
@@ -974,14 +1012,14 @@ Validation errors use the following shape.
 
 ### Error fields
 
-| Field | Type | Notes |
-|---|---|---|
-| `error.code` | string | Machine-readable error code. |
-| `error.message` | string | Human-readable summary. |
-| `error.details` | array | Field-level validation details. |
-| `error.details[].field` | string | Field path that caused the error. |
-| `error.details[].message` | string | Field-level message. |
-| `error.requestId` | string | Request identifier for debugging. |
+| Field                     | Type   | Notes                             |
+| ------------------------- | ------ | --------------------------------- |
+| `error.code`              | string | Machine-readable error code.      |
+| `error.message`           | string | Human-readable summary.           |
+| `error.details`           | array  | Field-level validation details.   |
+| `error.details[].field`   | string | Field path that caused the error. |
+| `error.details[].message` | string | Field-level message.              |
+| `error.requestId`         | string | Request identifier for debugging. |
 
 ## Common Enums
 
@@ -1020,14 +1058,14 @@ New submissions always return `SUBMITTED`.
 The backend enforces a strict workflow. Only the transitions below are accepted by
 `PATCH /v1/tickets/{ticketId}/status`.
 
-| Current status | Allowed next statuses |
-|---|---|
-| `SUBMITTED` | `UNDER_REVIEW`, `CLOSED` |
-| `UNDER_REVIEW` | `ASSIGNED`, `CLOSED` |
-| `ASSIGNED` | `IN_PROGRESS`, `UNDER_REVIEW` |
-| `IN_PROGRESS` | `RESOLVED`, `ASSIGNED` |
-| `RESOLVED` | `CLOSED`, `IN_PROGRESS` |
-| `CLOSED` | _(terminal — no further transitions)_ |
+| Current status | Allowed next statuses                 |
+| -------------- | ------------------------------------- |
+| `SUBMITTED`    | `UNDER_REVIEW`, `CLOSED`              |
+| `UNDER_REVIEW` | `ASSIGNED`, `CLOSED`                  |
+| `ASSIGNED`     | `IN_PROGRESS`, `UNDER_REVIEW`         |
+| `IN_PROGRESS`  | `RESOLVED`, `ASSIGNED`                |
+| `RESOLVED`     | `CLOSED`, `IN_PROGRESS`               |
+| `CLOSED`       | _(terminal — no further transitions)_ |
 
 Each successful status change appends a row to ticket status history and updates `updatedAt`
 and `updatedBy` on the ticket record.
@@ -1143,79 +1181,79 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 
 ### Required fields
 
-| Field | Type | Notes |
-|---|---|---|
-| `ticketId` | string | Internal ticket identifier. |
-| `trackingCode` | string | Citizen-facing tracking code used by staff and citizen follow-up views. |
-| `description` | string | Citizen-submitted issue description. |
-| `contact` | `ReportContact` or null | Citizen contact details when available to staff. |
-| `ownerUserId` | string or null | Stable citizen owner id when the ticket is account-linked; null for legacy unowned tickets. |
-| `category` | string | Current category value, for example `road_damage` or `PENDING_CLASSIFICATION`. |
-| `priority` | enum or null | `low`, `medium`, `high`, or `critical`; represents urgency/priority when known. |
-| `status` | `TicketStatus` | Current workflow status. |
-| `location` | `ReportLocation` | Same location object used by ticket submission. |
-| `imageReferences` | array | One or more stable image references for display. |
-| `department` | object or null | Routed department summary when assigned or suggested. |
-| `createdAt` | string | ISO 8601 timestamp. |
-| `updatedAt` | string or null | ISO 8601 timestamp for the latest ticket update. |
-| `updatedBy` | string or null | Actor identifier for the latest ticket update when available. |
+| Field             | Type                    | Notes                                                                                       |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `ticketId`        | string                  | Internal ticket identifier.                                                                 |
+| `trackingCode`    | string                  | Citizen-facing tracking code used by staff and citizen follow-up views.                     |
+| `description`     | string                  | Citizen-submitted issue description.                                                        |
+| `contact`         | `ReportContact` or null | Citizen contact details when available to staff.                                            |
+| `ownerUserId`     | string or null          | Stable citizen owner id when the ticket is account-linked; null for legacy unowned tickets. |
+| `category`        | string                  | Current category value, for example `road_damage` or `PENDING_CLASSIFICATION`.              |
+| `priority`        | enum or null            | `low`, `medium`, `high`, or `critical`; represents urgency/priority when known.             |
+| `status`          | `TicketStatus`          | Current workflow status.                                                                    |
+| `location`        | `ReportLocation`        | Same location object used by ticket submission.                                             |
+| `imageReferences` | array                   | One or more stable image references for display.                                            |
+| `department`      | object or null          | Routed department summary when assigned or suggested.                                       |
+| `createdAt`       | string                  | ISO 8601 timestamp.                                                                         |
+| `updatedAt`       | string or null          | ISO 8601 timestamp for the latest ticket update.                                            |
+| `updatedBy`       | string or null          | Actor identifier for the latest ticket update when available.                               |
 
 ### Optional fields
 
-| Field | Type | Notes |
-|---|---|---|
-| `ticketNumber` | string | Citizen-facing ticket number when available. |
-| `imageObjectKey` | string | Compatibility field for current staff dashboard clients; mirrors the primary `imageReferences[0].objectKey`. |
-| `departmentId` | string | Compatibility field for current staff dashboard clients; mirrors `department.departmentId` when assigned. |
-| `department.departmentId` | string | Department identifier. |
-| `department.name` | string | Display name when available. |
-| `ai.originalDescription` | string | Immutable citizen description captured at submission. |
-| `ai.cleanedDescription` | string | English-normalized municipal description when available. |
-| `ai.aiSuggestedCategory` | string | AI category suggestion when available. |
-| `ai.aiCategoryExplanation` | string | Short AI explanation for the suggested category. |
-| `ai.aiConfidence` | number | Optional confidence value between `0` and `1` when available. |
-| `ai.finalCategory` | string | Staff-approved category when reviewed. |
-| `ai.categoryReviewedBy` | string | Staff actor identifier when the category was reviewed. |
-| `ai.categoryReviewedAt` | string | ISO 8601 timestamp for staff category review. |
-| `ai.aiProcessingStatus` | enum | `pending`, `processing`, `completed`, or `failed`. |
-| `ai.aiModelVersion` | string | Bedrock model or processing version identifier when available. |
-| `ai.suggestedCategory` | string | Compatibility alias for `ai.aiSuggestedCategory`. |
-| `ai.urgencyScore` | number | Urgency score from `0` to `100` when available. |
-| `ai.urgencyReason` | string | AI explanation for the urgency/priority when available. |
-| `ai.summary` | string | AI-generated ticket summary when available. |
-| `statusHistory` | array | Optional workflow history returned by detail APIs. |
-| `statusHistory[].status` | `TicketStatus` | Status after the change. |
-| `statusHistory[].changedAt` | string | ISO 8601 timestamp for the change. |
-| `statusHistory[].changedBy` | string | Actor identifier when available. |
-| `statusHistory[].note` | string | Human-readable note when available. |
-| `auditHistory` | array | Staff-only mutation audit trail (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
-| `auditHistory[].actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`. |
-| `auditHistory[].actorId` | string | Staff actor identifier when available. |
-| `auditHistory[].summary` | string | Concise change summary. |
-| `auditHistory[].previousValue` | string | Previous value when applicable. |
-| `auditHistory[].newValue` | string | New value when applicable. |
-| `auditHistory[].changedAt` | string | ISO 8601 timestamp for the change. |
-| `duplicateGroup` | object | Optional duplicate group reference returned by duplicate-aware APIs. |
-| `duplicateGroup.duplicateGroupId` | string | Duplicate group identifier. |
-| `duplicateGroup.ticketIds` | array | Related ticket IDs when returned. |
-| `duplicateGroup.canonicalTicketId` | string | Primary ticket ID for the group when known. |
-| `duplicateSuggestions` | array | Nearby open, ungrouped duplicate candidates returned by ticket detail APIs; list responses return an empty array. |
-| `duplicateSuggestions[].ticketId` | string | Internal ID of the suggested ticket. |
-| `duplicateSuggestions[].ticketNumber` | string | Citizen-facing number for the suggested ticket when available. |
-| `duplicateSuggestions[].distanceMeters` | number | Approximate distance from the current ticket location. |
-| `duplicateSuggestions[].status` | `TicketStatus` | Current status of the suggested ticket. |
-| `duplicateSuggestions[].category` | string | Effective category used for matching, including AI-suggested categories before staff review. |
-| `duplicateSuggestions[].score` | number | Optional duplicate confidence score from `0` to `1`. |
-| `duplicateSuggestions[].categoryMatch` | string | Optional category relationship, either `same` or `similar`. |
+| Field                                   | Type           | Notes                                                                                                                                              |
+| --------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ticketNumber`                          | string         | Citizen-facing ticket number when available.                                                                                                       |
+| `imageObjectKey`                        | string         | Compatibility field for current staff dashboard clients; mirrors the primary `imageReferences[0].objectKey`.                                       |
+| `departmentId`                          | string         | Compatibility field for current staff dashboard clients; mirrors `department.departmentId` when assigned.                                          |
+| `department.departmentId`               | string         | Department identifier.                                                                                                                             |
+| `department.name`                       | string         | Display name when available.                                                                                                                       |
+| `ai.originalDescription`                | string         | Immutable citizen description captured at submission.                                                                                              |
+| `ai.cleanedDescription`                 | string         | English-normalized municipal description when available.                                                                                           |
+| `ai.aiSuggestedCategory`                | string         | AI category suggestion when available.                                                                                                             |
+| `ai.aiCategoryExplanation`              | string         | Short AI explanation for the suggested category.                                                                                                   |
+| `ai.aiConfidence`                       | number         | Optional confidence value between `0` and `1` when available.                                                                                      |
+| `ai.finalCategory`                      | string         | Staff-approved category when reviewed.                                                                                                             |
+| `ai.categoryReviewedBy`                 | string         | Staff actor identifier when the category was reviewed.                                                                                             |
+| `ai.categoryReviewedAt`                 | string         | ISO 8601 timestamp for staff category review.                                                                                                      |
+| `ai.aiProcessingStatus`                 | enum           | `pending`, `processing`, `completed`, or `failed`.                                                                                                 |
+| `ai.aiModelVersion`                     | string         | Bedrock model or processing version identifier when available.                                                                                     |
+| `ai.suggestedCategory`                  | string         | Compatibility alias for `ai.aiSuggestedCategory`.                                                                                                  |
+| `ai.urgencyScore`                       | number         | Urgency score from `0` to `100` when available.                                                                                                    |
+| `ai.urgencyReason`                      | string         | AI explanation for the urgency/priority when available.                                                                                            |
+| `ai.summary`                            | string         | AI-generated ticket summary when available.                                                                                                        |
+| `statusHistory`                         | array          | Optional workflow history returned by detail APIs.                                                                                                 |
+| `statusHistory[].status`                | `TicketStatus` | Status after the change.                                                                                                                           |
+| `statusHistory[].changedAt`             | string         | ISO 8601 timestamp for the change.                                                                                                                 |
+| `statusHistory[].changedBy`             | string         | Actor identifier when available.                                                                                                                   |
+| `statusHistory[].note`                  | string         | Human-readable note when available.                                                                                                                |
+| `auditHistory`                          | array          | Staff-only mutation audit trail (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
+| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`.                                                                     |
+| `auditHistory[].actorId`                | string         | Staff actor identifier when available.                                                                                                             |
+| `auditHistory[].summary`                | string         | Concise change summary.                                                                                                                            |
+| `auditHistory[].previousValue`          | string         | Previous value when applicable.                                                                                                                    |
+| `auditHistory[].newValue`               | string         | New value when applicable.                                                                                                                         |
+| `auditHistory[].changedAt`              | string         | ISO 8601 timestamp for the change.                                                                                                                 |
+| `duplicateGroup`                        | object         | Optional duplicate group reference returned by duplicate-aware APIs.                                                                               |
+| `duplicateGroup.duplicateGroupId`       | string         | Duplicate group identifier.                                                                                                                        |
+| `duplicateGroup.ticketIds`              | array          | Related ticket IDs when returned.                                                                                                                  |
+| `duplicateGroup.canonicalTicketId`      | string         | Primary ticket ID for the group when known.                                                                                                        |
+| `duplicateSuggestions`                  | array          | Nearby open, ungrouped duplicate candidates returned by ticket detail APIs; list responses return an empty array.                                  |
+| `duplicateSuggestions[].ticketId`       | string         | Internal ID of the suggested ticket.                                                                                                               |
+| `duplicateSuggestions[].ticketNumber`   | string         | Citizen-facing number for the suggested ticket when available.                                                                                     |
+| `duplicateSuggestions[].distanceMeters` | number         | Approximate distance from the current ticket location.                                                                                             |
+| `duplicateSuggestions[].status`         | `TicketStatus` | Current status of the suggested ticket.                                                                                                            |
+| `duplicateSuggestions[].category`       | string         | Effective category used for matching, including AI-suggested categories before staff review.                                                       |
+| `duplicateSuggestions[].score`          | number         | Optional duplicate confidence score from `0` to `1`.                                                                                               |
+| `duplicateSuggestions[].categoryMatch`  | string         | Optional category relationship, either `same` or `similar`.                                                                                        |
 
 ### Image reference fields
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `objectKey` | string | Yes | Stable storage object key. |
-| `url` | string | No | Temporary or public display URL when the API chooses to return one. |
-| `contentType` | string | No | Image MIME type when known. |
-| `createdAt` | string | No | ISO 8601 timestamp for the image reference. |
+| Field         | Type   | Required | Notes                                                               |
+| ------------- | ------ | -------: | ------------------------------------------------------------------- |
+| `objectKey`   | string |      Yes | Stable storage object key.                                          |
+| `url`         | string |       No | Temporary or public display URL when the API chooses to return one. |
+| `contentType` | string |       No | Image MIME type when known.                                         |
+| `createdAt`   | string |       No | ISO 8601 timestamp for the image reference.                         |
 
 ## Persistence Mapping
 
@@ -1223,35 +1261,35 @@ Submitted tickets are persisted using the same JSON field names as this contract
 
 ### Request → Ticket record
 
-| API request field | Ticket attribute | Persisted |
-|---|---|---|
-| `description` | `description` | Yes |
-| — (session) | `ownerUserId` | Yes (derived from contribution-ready citizen session) |
-| — (profile snapshot) | `contact` | Yes (immutable submission-time snapshot) |
-| `location` | `location` | Yes |
-| `imageObjectKey` | `imageObjectKey` | Yes |
-| `languageHint` | — | No |
-| `clientMetadata` | — | No |
+| API request field    | Ticket attribute | Persisted                                             |
+| -------------------- | ---------------- | ----------------------------------------------------- |
+| `description`        | `description`    | Yes                                                   |
+| — (session)          | `ownerUserId`    | Yes (derived from contribution-ready citizen session) |
+| — (profile snapshot) | `contact`        | Yes (immutable submission-time snapshot)              |
+| `location`           | `location`       | Yes                                                   |
+| `imageObjectKey`     | `imageObjectKey` | Yes                                                   |
+| `languageHint`       | —                | No                                                    |
+| `clientMetadata`     | —                | No                                                    |
 
 ### Response → Ticket record
 
-| API response field | Ticket attribute | Persisted |
-|---|---|---|
-| `ticketId` | `ticketId` | Yes |
-| `ticketNumber` | `ticketNumber` | Yes |
-| `trackingCode` | `trackingCode` | Yes |
-| `status` | `status` | Yes |
-| `createdAt` | `createdAt` | Yes |
-| `message` | — | No (response-only) |
+| API response field | Ticket attribute | Persisted          |
+| ------------------ | ---------------- | ------------------ |
+| `ticketId`         | `ticketId`       | Yes                |
+| `ticketNumber`     | `ticketNumber`   | Yes                |
+| `trackingCode`     | `trackingCode`   | Yes                |
+| `status`           | `status`         | Yes                |
+| `createdAt`        | `createdAt`      | Yes                |
+| `message`          | —                | No (response-only) |
 
 ### Backend defaults (not in API request)
 
-| Ticket attribute | Default | Set by |
-|---|---|---|
-| `category` | `PENDING_CLASSIFICATION` | Backend on create |
-| `priority` | `null` | AI urgency estimation |
-| `municipalityId` | `null` | Geocoding / routing |
-| `departmentId` | `null` | AI department recommendation |
-| `createdBy` | `null` | Authentication |
-| `duplicateGroupId` | `null` | Duplicate detection |
-| `updatedAt` | same as `createdAt` | Backend on create |
+| Ticket attribute   | Default                  | Set by                       |
+| ------------------ | ------------------------ | ---------------------------- |
+| `category`         | `PENDING_CLASSIFICATION` | Backend on create            |
+| `priority`         | `null`                   | AI urgency estimation        |
+| `municipalityId`   | `null`                   | Geocoding / routing          |
+| `departmentId`     | `null`                   | AI department recommendation |
+| `createdBy`        | `null`                   | Authentication               |
+| `duplicateGroupId` | `null`                   | Duplicate detection          |
+| `updatedAt`        | same as `createdAt`      | Backend on create            |

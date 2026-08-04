@@ -27,6 +27,8 @@ from app.schemas.citizen import (
     CitizenExportTicketSummary,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
+    CitizenTicketHistoryItem,
+    CitizenTicketHistoryResponse,
     NotificationPreferences,
     StoredCitizenUser,
 )
@@ -43,6 +45,8 @@ LOGIN_OR_SIGNUP_PURPOSE: OtpPurpose = "LOGIN_OR_SIGNUP"
 CHANGE_PHONE_PURPOSE: OtpPurpose = "CHANGE_PHONE"
 GENERIC_OTP_MESSAGE = "If the request is valid, a verification code has been sent."
 ANONYMIZED_PHONE_PREFIX = "ANON:"
+CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT = 20
+CITIZEN_TICKET_HISTORY_MAX_LIMIT = 50
 
 # Local/test-only plaintext OTP peek. Never returned by HTTP responses.
 _dev_otp_codes: dict[str, str] = {}
@@ -729,6 +733,45 @@ class CitizenService:
             tickets=ticket_summaries,
         )
 
+    def list_ticket_history(
+        self,
+        user_id: str,
+        *,
+        limit: int = CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> CitizenTicketHistoryResponse:
+        """Return citizen-safe summaries for tickets owned by the authenticated user."""
+        user = self._resolved_store().get(user_id)
+        if user is None or not user.active or is_anonymized_citizen(user):
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+
+        start = self._parse_history_cursor(cursor)
+        owned = [
+            ticket
+            for ticket in self._resolved_tickets().list()
+            if getattr(ticket, "owner_user_id", None) == user_id
+        ]
+        owned.sort(key=lambda ticket: (ticket.created_at, ticket.ticket_id), reverse=True)
+
+        page = owned[start : start + limit]
+        next_offset = start + limit
+        next_cursor = str(next_offset) if next_offset < len(owned) else None
+
+        return CitizenTicketHistoryResponse(
+            items=[
+                CitizenTicketHistoryItem(
+                    trackingCode=ticket.tracking_code,
+                    status=ticket.status,
+                    category=self._citizen_history_category(ticket),
+                    locationAddress=ticket.location.address_text,
+                    submittedAt=ticket.created_at,
+                )
+                for ticket in page
+            ],
+            nextCursor=next_cursor,
+            limit=limit,
+        )
+
     def delete_account(
         self,
         user_id: str,
@@ -998,6 +1041,34 @@ class CitizenService:
                 "notificationPreferences.ticketUpdates EMAIL/BOTH requires a non-null email.",
             )
 
+    @staticmethod
+    def _parse_history_cursor(cursor: str | None) -> int:
+        if cursor is None or cursor == "":
+            return 0
+        try:
+            start = int(cursor)
+        except ValueError as exc:
+            raise CitizenServiceError(
+                "VALIDATION_ERROR",
+                "cursor must be a non-negative integer offset.",
+            ) from exc
+        if start < 0:
+            raise CitizenServiceError(
+                "VALIDATION_ERROR",
+                "cursor must be a non-negative integer offset.",
+            )
+        return start
+
+    @staticmethod
+    def _citizen_history_category(ticket: Any) -> str | None:
+        from app.schemas.stored_ticket import PENDING_CLASSIFICATION
+
+        if ticket.final_category:
+            return ticket.final_category
+        if ticket.category and ticket.category != PENDING_CLASSIFICATION:
+            return ticket.category
+        return None
+
 
 # Default singleton uses factory-resolved stores so memory/Dynamo stay equivalent.
 citizen_service = CitizenService()
@@ -1007,6 +1078,8 @@ __all__ = [
     "ANONYMIZED_PHONE_PREFIX",
     "CITIZEN_SESSION_TTL_SECONDS",
     "CHANGE_PHONE_PURPOSE",
+    "CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT",
+    "CITIZEN_TICKET_HISTORY_MAX_LIMIT",
     "GENERIC_OTP_MESSAGE",
     "LOGIN_OR_SIGNUP_PURPOSE",
     "OTP_MAX_ATTEMPTS",

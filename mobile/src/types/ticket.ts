@@ -57,6 +57,20 @@ export type CitizenTicketResponse = {
   timeline: CitizenTicketTimelineEntry[];
 };
 
+export type CitizenTicketHistoryItem = {
+  trackingCode: string;
+  status: TicketStatus;
+  category: string | null;
+  locationAddress: string;
+  submittedAt: string;
+};
+
+export type CitizenTicketHistoryResponse = {
+  items: CitizenTicketHistoryItem[];
+  nextCursor: string | null;
+  limit: number;
+};
+
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type TicketImageReference = {
