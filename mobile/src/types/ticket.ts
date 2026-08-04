@@ -51,6 +51,7 @@ export type CitizenTicketResponse = {
   status: TicketStatus;
   category: string | null;
   location: { addressText: string } | null;
+  department?: { name: string } | null;
   createdAt: string;
   updatedAt: string | null;
   lastUpdatedAt: string;

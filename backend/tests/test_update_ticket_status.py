@@ -1,3 +1,4 @@
+from app.database.memory import ticket_store
 from tests.test_read_tickets import create_ticket
 
 ADMIN_STAFF_ID = "staff_admin_001"
@@ -44,6 +45,50 @@ def test_update_ticket_status_rejects_invalid_transition(client):
     body = response.json()
     assert body["error"]["code"] == "INVALID_STATUS_TRANSITION"
     assert "Cannot move ticket from Submitted to Resolved" in body["error"]["message"]
+
+
+def test_update_ticket_status_rejects_assigned_without_valid_department(client):
+    created = create_ticket(client)
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {
+            "status": "UNDER_REVIEW",
+            "department_id": None,
+            "suggested_department_id": None,
+        },
+    )
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/status",
+        json={"status": "ASSIGNED"},
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "INVALID_STATUS_TRANSITION"
+    assert "responsible department is assigned" in body["error"]["message"]
+
+
+def test_update_ticket_status_rejects_assigned_with_unknown_department(client):
+    created = create_ticket(client)
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {
+            "status": "UNDER_REVIEW",
+            "department_id": "missing-department",
+            "suggested_department_id": None,
+        },
+    )
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/status",
+        json={"status": "ASSIGNED"},
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "INVALID_STATUS_TRANSITION"
+    assert "responsible department is assigned" in body["error"]["message"]
 
 
 def test_update_ticket_status_rejects_unknown_status_value(client):

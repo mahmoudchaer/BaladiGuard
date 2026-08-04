@@ -59,6 +59,7 @@ export async function getTicketByTrackingCodeMock(
     status: 'IN_PROGRESS',
     category: 'road_damage',
     location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
+    department: { name: 'Road Maintenance' },
     createdAt,
     updatedAt,
     lastUpdatedAt: updatedAt,

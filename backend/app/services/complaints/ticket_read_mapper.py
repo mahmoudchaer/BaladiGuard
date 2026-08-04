@@ -8,6 +8,7 @@ from app.schemas.stored_audit_history import StoredAuditHistory
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import (
+    CitizenTicketDepartment,
     CitizenTicketLocation,
     CitizenTicketResponse,
     CitizenTicketTimelineEntry,
@@ -21,6 +22,8 @@ from app.schemas.ticket_response import (
     TicketStatusHistoryEntry,
 )
 from app.services.routing import department_name
+
+CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
 
 
 @lru_cache
@@ -76,6 +79,7 @@ def map_ticket_to_citizen_response(
         for entry in (status_history or [])
     ]
     last_updated_at = ticket.updated_at or ticket.created_at
+    visible_department = _citizen_visible_department(ticket)
 
     return CitizenTicketResponse(
         ticketNumber=ticket.ticket_number,
@@ -83,11 +87,18 @@ def map_ticket_to_citizen_response(
         status=ticket.status,
         category=ticket.final_category,
         location=CitizenTicketLocation(addressText=ticket.location.address_text),
+        department=visible_department,
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
         lastUpdatedAt=last_updated_at,
         timeline=timeline,
     )
+
+
+def _citizen_visible_department(ticket: StoredTicket) -> CitizenTicketDepartment | None:
+    if ticket.status not in CITIZEN_DEPARTMENT_VISIBLE_STATUSES or not ticket.department_id:
+        return None
+    return CitizenTicketDepartment(name=department_name(ticket.department_id) or "Assigned team")
 
 
 def map_ticket_to_response(

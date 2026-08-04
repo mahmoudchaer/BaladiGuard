@@ -160,6 +160,12 @@ describe('TicketDetailPage category review', () => {
     renderPage();
 
     expect(await screen.findByText('AI category recommendation')).toBeInTheDocument();
+    expect(screen.getByText('Next action')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Complete staff review, then move the ticket to the responsible department.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText('The report describes damage to a public road.')).toBeInTheDocument();
     expect(screen.getByText('Confidence 92%')).toBeInTheDocument();
     expect(screen.getByText('62/100')).toBeInTheDocument();

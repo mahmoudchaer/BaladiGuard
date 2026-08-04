@@ -120,10 +120,10 @@ legacy unowned tickets are omitted, and public tracking remains a separate posse
 
 Query parameters:
 
-| Field    | Type    | Default | Bounds                      | Notes                                                         |
-| -------- | ------- | ------: | --------------------------- | ------------------------------------------------------------- |
-| `limit`  | integer |    `20` | `1`-`50`                    | Maximum page size.                                            |
-| `cursor` | string  |  `null` | opaque continuation token    | Opaque to clients except passing back the prior `nextCursor`. |
+| Field    | Type    | Default | Bounds                    | Notes                                                         |
+| -------- | ------- | ------: | ------------------------- | ------------------------------------------------------------- |
+| `limit`  | integer |    `20` | `1`-`50`                  | Maximum page size.                                            |
+| `cursor` | string  |  `null` | opaque continuation token | Opaque to clients except passing back the prior `nextCursor`. |
 
 Successful response:
 
@@ -529,6 +529,9 @@ frontend field hiding.
   "location": {
     "addressText": "Near AUB Main Gate, Hamra, Beirut"
   },
+  "department": {
+    "name": "Road Maintenance"
+  },
   "createdAt": "2026-08-12T09:30:00Z",
   "updatedAt": "2026-08-12T11:30:00Z",
   "lastUpdatedAt": "2026-08-12T11:30:00Z",
@@ -547,25 +550,28 @@ frontend field hiding.
 
 ### Public response fields
 
-| Field                  | Type           | Notes                                                                                                                 |
-| ---------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `ticketNumber`         | string or null | Citizen-facing ticket number when available.                                                                          |
-| `trackingCode`         | string         | Citizen-facing tracking code entered by the resident.                                                                 |
-| `status`               | `TicketStatus` | Current public workflow status.                                                                                       |
-| `category`             | string or null | Staff-approved/current public category when available; omitted as null while classification is pending or unapproved. |
-| `location.addressText` | string         | Public-readable location text only. Coordinates and location source remain staff-only.                                |
-| `createdAt`            | string         | ISO 8601 timestamp for original submission.                                                                           |
-| `updatedAt`            | string or null | ISO 8601 timestamp for the latest ticket update when available.                                                       |
-| `lastUpdatedAt`        | string         | `updatedAt` when present, otherwise `createdAt`, for citizen tracking display.                                        |
-| `timeline[].status`    | `TicketStatus` | Public status reached at this point in the workflow.                                                                  |
-| `timeline[].changedAt` | string         | ISO 8601 timestamp for the status change.                                                                             |
+| Field                  | Type           | Notes                                                                                                                                      |
+| ---------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ticketNumber`         | string or null | Citizen-facing ticket number when available.                                                                                               |
+| `trackingCode`         | string         | Citizen-facing tracking code entered by the resident.                                                                                      |
+| `status`               | `TicketStatus` | Current public workflow status.                                                                                                            |
+| `category`             | string or null | Staff-approved/current public category when available; omitted as null while classification is pending or unapproved.                      |
+| `location.addressText` | string         | Public-readable location text only. Coordinates and location source remain staff-only.                                                     |
+| `department.name`      | string         | Name-only assigned department display when status is `ASSIGNED`, `IN_PROGRESS`, `RESOLVED`, or `CLOSED`; otherwise `department` is `null`. |
+| `createdAt`            | string         | ISO 8601 timestamp for original submission.                                                                                                |
+| `updatedAt`            | string or null | ISO 8601 timestamp for the latest ticket update when available.                                                                            |
+| `lastUpdatedAt`        | string         | `updatedAt` when present, otherwise `createdAt`, for citizen tracking display.                                                             |
+| `timeline[].status`    | `TicketStatus` | Public status reached at this point in the workflow.                                                                                       |
+| `timeline[].changedAt` | string         | ISO 8601 timestamp for the status change.                                                                                                  |
 
 ### Staff-only fields excluded from citizen tracking
 
 Citizen tracking responses must not include internal ticket IDs, contact details, photo storage
 references, department identifiers, staff actor IDs, municipality IDs, duplicate group data, internal
-status notes, authorization data, staff-only controls, or AI/provider implementation details. These
-fields remain available only through staff `TicketResponse` endpoints where appropriate.
+status notes, authorization data, staff-only controls, or AI/provider implementation details. A
+citizen response may include a name-only `department` display after assignment, but the internal
+department ID remains staff-only. These fields remain available only through staff `TicketResponse`
+endpoints where appropriate.
 
 ### Auth
 

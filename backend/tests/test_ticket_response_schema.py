@@ -165,6 +165,7 @@ def test_citizen_ticket_response_serializes_only_public_tracking_fields():
         "trackingCode": "AB12CD",
         "status": "IN_PROGRESS",
         "category": "road_damage",
+        "department": None,
         "location": {"addressText": "Near AUB Main Gate, Hamra, Beirut"},
         "createdAt": "2026-08-12T09:30:00Z",
         "updatedAt": "2026-08-12T11:30:00Z",

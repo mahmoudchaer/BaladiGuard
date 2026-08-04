@@ -37,6 +37,13 @@ class InvalidStatusTransitionError(ValueError):
         self.requested_status = requested_status
 
 
+class MissingDepartmentAssignmentError(ValueError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Cannot move ticket to Assigned until a responsible department is assigned."
+        )
+
+
 def validate_status_transition(
     current_status: TicketStatus | str,
     requested_status: TicketStatus | str,

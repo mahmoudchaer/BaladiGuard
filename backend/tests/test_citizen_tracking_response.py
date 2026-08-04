@@ -6,7 +6,6 @@ STAFF_ONLY_FIELDS = {
     "contact",
     "imageReferences",
     "imageObjectKey",
-    "department",
     "departmentId",
     "createdBy",
     "municipalityId",
@@ -32,7 +31,7 @@ def test_tracking_code_lookup_returns_citizen_safe_ticket_response(client):
             "ai_model_version": "amazon.nova-lite-v1:0",
             "category": "road_damage",
             "final_category": "road_damage",
-            "department_id": "roads",
+            "department_id": "d1111111-1111-1111-1111-111111111111",
             "updated_by": "staff-1",
             "duplicate_group_id": "dup_internal",
         },
@@ -55,6 +54,7 @@ def test_tracking_code_lookup_returns_citizen_safe_ticket_response(client):
     assert body["status"] == "UNDER_REVIEW"
     assert body["category"] == "road_damage"
     assert body["location"] == {"addressText": stored.location.address_text}
+    assert body["department"] is None
     assert body["createdAt"] == created["createdAt"]
     assert body["updatedAt"] == body["lastUpdatedAt"]
     assert [entry["status"] for entry in body["timeline"]] == ["SUBMITTED", "UNDER_REVIEW"]
@@ -62,6 +62,47 @@ def test_tracking_code_lookup_returns_citizen_safe_ticket_response(client):
     assert STAFF_ONLY_FIELDS.isdisjoint(body)
     assert "latitude" not in body["location"]
     assert "longitude" not in body["location"]
+
+
+def test_tracking_code_lookup_shows_name_only_department_after_assignment(client):
+    created = create_ticket(client)
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {
+            "category": "road_damage",
+            "final_category": "road_damage",
+            "department_id": "d1111111-1111-1111-1111-111111111111",
+            "status": "ASSIGNED",
+        },
+    )
+
+    response = client.get(f"/v1/tickets/track/{created['trackingCode']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["department"] == {"name": "Road Maintenance"}
+    assert "departmentId" not in body
+    assert "updatedBy" not in body
+
+
+def test_tracking_code_lookup_uses_safe_department_fallback_for_unknown_id(client):
+    created = create_ticket(client)
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {
+            "category": "road_damage",
+            "final_category": "road_damage",
+            "department_id": "missing-department",
+            "status": "ASSIGNED",
+        },
+    )
+
+    response = client.get(f"/v1/tickets/track/{created['trackingCode']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["department"] == {"name": "Assigned team"}
+    assert "departmentId" not in body
 
 
 def test_tracking_code_lookup_hides_category_until_staff_approval(client):
