@@ -17,6 +17,7 @@ const citizenTicket: CitizenTicketResponse = {
   status: 'IN_PROGRESS',
   category: 'road_damage',
   location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
+  department: { name: 'Road Maintenance' },
   createdAt: '2026-07-26T09:00:00Z',
   updatedAt: '2026-07-26T11:30:00Z',
   lastUpdatedAt: '2026-07-26T11:30:00Z',
@@ -94,6 +95,36 @@ describe('TrackLookupForm', () => {
       screen.root.findAll((node) => node.props?.children === 'In Progress').length,
     ).toBeGreaterThan(0);
     expect(screen.root.findByProps({ children: 'Road Damage' })).toBeTruthy();
+    expect(
+      screen.root.findAll((node) => node.props?.children === 'Submitted').length,
+    ).toBeGreaterThan(0);
+    expect(screen.root.findByProps({ children: 'Department' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Road Maintenance' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'track-next-action' })).toBeTruthy();
+    expect(
+      screen.root.findByProps({
+        children: 'The assigned team is working on the issue and will update the status when done.',
+      }),
+    ).toBeTruthy();
+  });
+
+  it('omits the department row when it is not visible in the citizen response', async () => {
+    vi.mocked(getTicketByTrackingCode).mockResolvedValueOnce({
+      ...citizenTicket,
+      status: 'UNDER_REVIEW',
+      department: null,
+    });
+    const screen = renderWithProviders(<TrackLookupForm />);
+
+    await submitLookup(screen, 'AB23CD');
+
+    expect(screen.root.findByProps({ testID: 'track-lookup-result' })).toBeTruthy();
+    expect(() => screen.root.findByProps({ children: 'Department' })).toThrow();
+    expect(
+      screen.root.findByProps({
+        children: 'Municipal staff are reviewing the report details and category.',
+      }),
+    ).toBeTruthy();
   });
 
   it('auto-loads the citizen-safe result from an initial tracking code', async () => {

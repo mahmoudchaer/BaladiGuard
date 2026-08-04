@@ -81,6 +81,12 @@ class CitizenTicketLocation(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class CitizenTicketDepartment(BaseModel):
+    """Citizen-safe department display; never exposes internal department IDs."""
+
+    name: str
+
+
 class CitizenTicketTimelineEntry(BaseModel):
     status: TicketStatus
     changed_at: str = Field(alias="changedAt")
@@ -96,6 +102,7 @@ class CitizenTicketResponse(BaseModel):
     status: TicketStatus
     category: str | None = None
     location: CitizenTicketLocation | None = None
+    department: CitizenTicketDepartment | None = None
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
     last_updated_at: str = Field(alias="lastUpdatedAt")

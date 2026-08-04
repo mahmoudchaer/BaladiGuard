@@ -30,6 +30,7 @@ import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { TicketMap } from '@/components/TicketMap';
 import { TicketTimeline } from '@/components/TicketTimeline';
 import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
+import { getStaffNextAction } from '@/utils/reportGuidance';
 import { IconClock, IconDocument, IconHash, IconLocation, IconWorkflow } from '@/components/icons';
 import './TicketDetailPage.css';
 
@@ -550,6 +551,14 @@ export function TicketDetailPage() {
                       <dt>Status</dt>
                       <dd>
                         <StatusBadge status={ticket.status} />
+                      </dd>
+                    </div>
+                    <div className="ticket-detail__meta-row ticket-detail__meta-row--stacked">
+                      <dt>Next action</dt>
+                      <dd>
+                        <span className="ticket-detail__next-action">
+                          {getStaffNextAction(ticket.status)}
+                        </span>
                       </dd>
                     </div>
                     <div className="ticket-detail__meta-row">

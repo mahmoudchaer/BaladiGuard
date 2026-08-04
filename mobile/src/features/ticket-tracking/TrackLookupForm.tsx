@@ -20,6 +20,7 @@ import {
 } from '@/schemas/trackLookupSchema';
 import { getTicketByTrackingCode } from '@/services/api/tickets';
 import type { CitizenTicketResponse } from '@/types/ticket';
+import { getCitizenNextAction } from '@/utils/reportGuidance';
 import { normalizeTrackingCode } from '@/utils/trackingCode';
 
 const STATUS_LABELS: Record<CitizenTicketResponse['status'], string> = {
@@ -222,8 +223,22 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
               </View>
             ) : null}
             <View style={styles.resultRow}>
+              <Text variant="labelLarge">Submitted</Text>
+              <Text variant="bodyMedium">{formatDisplayDate(result.createdAt)}</Text>
+            </View>
+            <View style={styles.resultRow}>
               <Text variant="labelLarge">Last updated</Text>
               <Text variant="bodyMedium">{formatDisplayDate(result.lastUpdatedAt)}</Text>
+            </View>
+            {result.department?.name ? (
+              <View style={styles.resultRow}>
+                <Text variant="labelLarge">Department</Text>
+                <Text variant="bodyLarge">{result.department.name}</Text>
+              </View>
+            ) : null}
+            <View style={styles.guidance} testID="track-next-action">
+              <Text variant="labelLarge">What happens next</Text>
+              <Text variant="bodyMedium">{getCitizenNextAction(result.status)}</Text>
             </View>
 
             <Text variant="titleMedium" style={styles.timelineHeading}>
@@ -287,6 +302,14 @@ const styles = StyleSheet.create({
   },
   resultRow: {
     gap: 2,
+  },
+  guidance: {
+    gap: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    backgroundColor: '#F0FDFA',
+    padding: 12,
   },
   timelineHeading: {
     marginTop: 8,
