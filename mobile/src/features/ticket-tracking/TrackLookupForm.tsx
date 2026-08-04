@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
@@ -20,6 +20,7 @@ import {
 } from '@/schemas/trackLookupSchema';
 import { getTicketByTrackingCode } from '@/services/api/tickets';
 import type { CitizenTicketResponse } from '@/types/ticket';
+import { normalizeTrackingCode } from '@/utils/trackingCode';
 
 const STATUS_LABELS: Record<CitizenTicketResponse['status'], string> = {
   SUBMITTED: 'Submitted',
@@ -61,15 +62,21 @@ function formatCategory(category: string): string {
   );
 }
 
-export function TrackLookupForm() {
+type TrackLookupFormProps = {
+  initialTrackingCode?: string;
+};
+
+export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [result, setResult] = useState<CitizenTicketResponse | null>(null);
   const requestInFlight = useRef(false);
+  const didAutoLookup = useRef(false);
 
   const {
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<TrackLookupFormValues>({
     resolver: zodResolver(trackLookupSchema),
@@ -77,7 +84,7 @@ export function TrackLookupForm() {
     mode: 'onBlur',
   });
 
-  const onSubmit = async (values: TrackLookupFormValues) => {
+  const onSubmit = useCallback(async (values: TrackLookupFormValues) => {
     // Guard against double-taps while the button is still enabled briefly.
     if (requestInFlight.current) {
       return;
@@ -96,7 +103,17 @@ export function TrackLookupForm() {
     } finally {
       requestInFlight.current = false;
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const normalized = normalizeTrackingCode(initialTrackingCode ?? '');
+    if (!normalized || didAutoLookup.current) {
+      return;
+    }
+    didAutoLookup.current = true;
+    setValue('trackingCode', normalized, { shouldValidate: true });
+    void onSubmit({ trackingCode: normalized });
+  }, [initialTrackingCode, onSubmit, setValue]);
 
   const handleReset = () => {
     reset(defaultTrackLookupValues);

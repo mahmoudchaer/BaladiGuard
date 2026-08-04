@@ -1,4 +1,5 @@
 import type {
+  CitizenTicketHistoryResponse,
   CitizenTicketResponse,
   SubmitTicketRequest,
   SubmitTicketResponse,
@@ -66,5 +67,30 @@ export async function getTicketByTrackingCodeMock(
       { status: 'UNDER_REVIEW', changedAt: '2026-07-26T10:00:00Z' },
       { status: 'IN_PROGRESS', changedAt: updatedAt },
     ],
+  };
+}
+
+export async function getCitizenTicketHistoryMock(): Promise<CitizenTicketHistoryResponse> {
+  await wait(350);
+
+  return {
+    items: [
+      {
+        trackingCode: 'AB23CD',
+        status: 'IN_PROGRESS',
+        category: 'road_damage',
+        locationAddress: 'Near AUB Main Gate, Hamra, Beirut',
+        submittedAt: '2026-07-26T09:00:00Z',
+      },
+      {
+        trackingCode: 'CD45EF',
+        status: 'SUBMITTED',
+        category: null,
+        locationAddress: 'Bliss Street, Beirut',
+        submittedAt: '2026-07-25T13:15:00Z',
+      },
+    ],
+    nextCursor: null,
+    limit: 20,
   };
 }

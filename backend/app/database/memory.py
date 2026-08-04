@@ -2,6 +2,7 @@ from threading import Lock
 from typing import Any
 
 from app.database.ticket_patch import resolve_ticket_attr_name
+from app.database.ticket_store import TicketHistoryPage
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.utils.ticket_ids import normalize_tracking_code
@@ -45,6 +46,30 @@ class InMemoryTicketStore:
     def list(self) -> list[StoredTicket]:
         with self._lock:
             return list(self._tickets.values())
+
+    def list_by_owner(
+        self,
+        owner_user_id: str,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TicketHistoryPage:
+        cursor_key = _decode_owner_history_cursor(cursor)
+        with self._lock:
+            owned = [
+                ticket for ticket in self._tickets.values() if ticket.owner_user_id == owner_user_id
+            ]
+        owned.sort(key=_owner_history_sort_key, reverse=True)
+        if cursor_key is not None:
+            owned = [ticket for ticket in owned if _owner_history_sort_key(ticket) < cursor_key]
+
+        page = owned[:limit]
+        next_cursor = (
+            _encode_owner_history_cursor(_owner_history_sort_key(page[-1]))
+            if len(owned) > limit and page
+            else None
+        )
+        return TicketHistoryPage(page, next_cursor)
 
     def patch_fields(
         self,
@@ -145,3 +170,35 @@ class InMemoryTicketStore:
 
 
 ticket_store = InMemoryTicketStore()
+
+
+def _owner_history_sort_key(ticket: StoredTicket) -> tuple[str, str]:
+    return (ticket.created_at, ticket.ticket_id)
+
+
+def _encode_owner_history_cursor(sort_key: tuple[str, str]) -> str:
+    import base64
+    import json
+
+    payload = {"createdAt": sort_key[0], "ticketId": sort_key[1]}
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_owner_history_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if cursor is None or cursor == "":
+        return None
+    import base64
+    import binascii
+    import json
+
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+        created_at = payload["createdAt"]
+        ticket_id = payload["ticketId"]
+    except (binascii.Error, KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid owner history cursor.") from exc
+    if not isinstance(created_at, str) or not isinstance(ticket_id, str):
+        raise ValueError("Invalid owner history cursor.")
+    return (created_at, ticket_id)

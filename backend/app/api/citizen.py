@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
@@ -14,6 +14,7 @@ from app.schemas.citizen import (
     CitizenDeleteResponse,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
+    CitizenTicketHistoryResponse,
 )
 from app.schemas.citizen_auth import (
     CitizenOtpRequest,
@@ -23,6 +24,8 @@ from app.schemas.citizen_auth import (
 )
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
+    CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
+    CITIZEN_TICKET_HISTORY_MAX_LIMIT,
     GENERIC_OTP_MESSAGE,
     LOGIN_OR_SIGNUP_PURPOSE,
     CitizenServiceError,
@@ -204,6 +207,28 @@ def export_citizen_me(
     """Authenticated privacy export of profile + owned tickets (issue #190)."""
     try:
         return citizen_service.export_account(principal.user_id)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.get("/me/tickets", response_model=CitizenTicketHistoryResponse)
+def list_citizen_ticket_history(
+    request: Request,
+    principal: CitizenDep,
+    limit: int = Query(
+        default=CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
+        ge=1,
+        le=CITIZEN_TICKET_HISTORY_MAX_LIMIT,
+    ),
+    cursor: str | None = Query(default=None),
+) -> CitizenTicketHistoryResponse | JSONResponse:
+    """Authenticated citizen-owned ticket history (issue #174)."""
+    try:
+        return citizen_service.list_ticket_history(
+            principal.user_id,
+            limit=limit,
+            cursor=cursor,
+        )
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 

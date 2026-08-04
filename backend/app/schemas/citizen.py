@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.schemas.ticket_status import TicketStatus
+
 TicketUpdatesPreference = Literal["SMS", "EMAIL", "BOTH", "NONE"]
 
 
@@ -117,6 +119,28 @@ class CitizenExportTicketSummary(BaseModel):
     location_address: str = Field(alias="locationAddress")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class CitizenTicketHistoryItem(BaseModel):
+    """Citizen-owned ticket history projection for the mobile account screen."""
+
+    tracking_code: str = Field(alias="trackingCode")
+    status: TicketStatus
+    category: str | None = None
+    location_address: str = Field(alias="locationAddress")
+    submitted_at: str = Field(alias="submittedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class CitizenTicketHistoryResponse(BaseModel):
+    """Bounded page of authenticated citizen-owned ticket history."""
+
+    items: list[CitizenTicketHistoryItem]
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
+    limit: int = Field(ge=1, le=50)
 
     model_config = {"populate_by_name": True}
 

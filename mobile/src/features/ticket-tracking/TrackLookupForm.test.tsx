@@ -96,6 +96,18 @@ describe('TrackLookupForm', () => {
     expect(screen.root.findByProps({ children: 'Road Damage' })).toBeTruthy();
   });
 
+  it('auto-loads the citizen-safe result from an initial tracking code', async () => {
+    vi.mocked(getTicketByTrackingCode).mockResolvedValueOnce(citizenTicket);
+    const screen = renderWithProviders(<TrackLookupForm initialTrackingCode=" ab23cd " />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(getTicketByTrackingCode).toHaveBeenCalledWith('AB23CD');
+    expect(screen.root.findByProps({ testID: 'track-lookup-result' })).toBeTruthy();
+  });
+
   it('formats mixed-case known categories and unknown category fallbacks', async () => {
     vi.mocked(getTicketByTrackingCode)
       .mockResolvedValueOnce({

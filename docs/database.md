@@ -33,6 +33,7 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | --- | --- | --- | --- |
 | `ticketId` | string | Yes | Primary key. Format: `tkt_<hex>`. |
 | `ownerUserId` | string, nullable | No | Stable citizen owner derived from authentication. Null/absent only for legacy/unlinked tickets. Never accepted from a client. |
+| `ownerHistorySortKey` | string | For account-owned tickets | Derived `createdAt#ticketId` value for stable newest-first citizen history pagination. |
 | `ticketNumber` | string | Yes | Citizen-facing ticket number, e.g. `BG-2026-0001`. |
 | `trackingCode` | string | Yes | Citizen-facing tracking code, e.g. `AB12CD`. |
 | `status` | enum | Yes | Initial value: `SUBMITTED`. |
@@ -391,7 +392,7 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 
 | Table suffix | Partition key | Notes |
 |---|---|---|
-| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode` |
+| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode`, `ownerUserId` + `ownerHistorySortKey` |
 | `users` | `userId` | Optional `phone-index` read optimization only; no email index |
 | `phone-claims` | `phoneKey` | Atomic canonical-phone uniqueness authority; no GSI required |
 | `citizen-otp-challenges` | `challengeId` | TTL on expiry; optional abuse-control indexes must not expose code material |

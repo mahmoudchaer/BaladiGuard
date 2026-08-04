@@ -22,6 +22,8 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
             {"AttributeName": "ticketId", "AttributeType": "S"},
             {"AttributeName": "ticketNumber", "AttributeType": "S"},
             {"AttributeName": "trackingCode", "AttributeType": "S"},
+            {"AttributeName": "ownerUserId", "AttributeType": "S"},
+            {"AttributeName": "ownerHistorySortKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
@@ -32,6 +34,14 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
             {
                 "IndexName": "trackingCode-index",
                 "KeySchema": [{"AttributeName": "trackingCode", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ownerUserId-ownerHistorySortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "ownerUserId", "KeyType": "HASH"},
+                    {"AttributeName": "ownerHistorySortKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
