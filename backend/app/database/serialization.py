@@ -3,7 +3,6 @@ from typing import Any
 
 from app.schemas.stored_ticket import StoredTicket
 
-
 OWNER_HISTORY_SORT_KEY = "ownerHistorySortKey"
 
 

@@ -57,9 +57,7 @@ class InMemoryTicketStore:
         cursor_key = _decode_owner_history_cursor(cursor)
         with self._lock:
             owned = [
-                ticket
-                for ticket in self._tickets.values()
-                if ticket.owner_user_id == owner_user_id
+                ticket for ticket in self._tickets.values() if ticket.owner_user_id == owner_user_id
             ]
         owned.sort(key=_owner_history_sort_key, reverse=True)
         if cursor_key is not None:
