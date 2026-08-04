@@ -275,6 +275,24 @@ def test_municipal_staff_cannot_assign_unscoped_department(anonymous_client, cli
     assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
+def test_category_review_cannot_auto_assign_unscoped_department(anonymous_client, client):
+    created = _create_ticket(client)
+    _stamp_ticket_scope(created["ticketId"], department_id=None)
+
+    response = anonymous_client.patch(
+        f"/v1/tickets/{created['ticketId']}/category",
+        json={"finalCategory": "waste", "categoryReviewedBy": "spoofed-reviewer"},
+        headers=_staff_headers(anonymous_client, "staff"),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.final_category is None
+    assert stored.department_id is None
+
+
 def test_staff_mutation_actor_identity_uses_verified_principal(anonymous_client, client):
     created = _create_ticket(client)
     _stamp_ticket_scope(created["ticketId"], department_id=ROAD_MAINTENANCE)

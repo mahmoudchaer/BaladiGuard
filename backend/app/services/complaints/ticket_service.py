@@ -529,13 +529,19 @@ class TicketService:
         }
         suggested_department_id = suggest_department_id(category_id=payload.final_category)
         previous_category_id = effective_ticket_category(ticket)
-        update_fields.update(
-            _department_suggestion_fields(
-                ticket,
-                suggested_department_id=suggested_department_id,
-                previous_category_id=previous_category_id,
-            )
+        department_update_fields = _department_suggestion_fields(
+            ticket,
+            suggested_department_id=suggested_department_id,
+            previous_category_id=previous_category_id,
         )
+        department_id = department_update_fields.get("department_id")
+        if (
+            staff_principal is not None
+            and isinstance(department_id, str)
+            and not staff_can_assign_department(staff_principal, department_id)
+        ):
+            raise StaffScopeForbiddenError(department_id)
+        update_fields.update(department_update_fields)
 
         # Partial update so concurrent merges/AI writes are not overwritten.
         updated_ticket = self._store.patch_fields(

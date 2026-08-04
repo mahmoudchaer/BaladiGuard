@@ -198,6 +198,13 @@ def review_ticket_category(
             request_id=get_request_id(request),
             status_code=404,
         )
+    except StaffScopeForbiddenError:
+        return build_error_response(
+            code="FORBIDDEN",
+            message="You do not have permission to assign the department for this category.",
+            request_id=get_request_id(request),
+            status_code=403,
+        )
 
 
 @router.patch("/tickets/{ticket_id}/department", response_model=TicketResponse)

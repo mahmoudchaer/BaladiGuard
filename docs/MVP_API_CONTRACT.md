@@ -749,6 +749,7 @@ to `auditHistory`.
 |---|---:|---|
 | `UNAUTHORIZED` | 401 | Missing, invalid, or expired staff Bearer token. |
 | `TICKET_NOT_FOUND` | 404 | Ticket ID does not exist. |
+| `FORBIDDEN` | 403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
 | `VALIDATION_ERROR` | 400 | The category is missing, pending, or not in the supported category catalog. |
 
 ## `PATCH /v1/tickets/{ticketId}/department`
