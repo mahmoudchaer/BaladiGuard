@@ -20,7 +20,6 @@ PUBLIC_FORBIDDEN_FIELDS = {
     "contact",
     "imageReferences",
     "imageObjectKey",
-    "department",
     "departmentId",
     "createdBy",
     "municipalityId",
@@ -86,6 +85,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     assert public_body["ticketNumber"] == created["ticketNumber"]
     assert public_body["status"] == "SUBMITTED"
     assert public_body["category"] is None
+    assert public_body["department"] is None
     assert [entry["status"] for entry in public_body["timeline"]] == ["SUBMITTED"]
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(public_body)
     assert "ai" not in public_body
@@ -243,6 +243,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
     public_after_body = public_after_staff_work.json()
     assert public_after_body["status"] == "ASSIGNED"
     assert public_after_body["category"] == "road_damage"
+    assert public_after_body["department"] == {"name": "Street Lighting"}
     assert [entry["status"] for entry in public_after_body["timeline"]] == [
         "SUBMITTED",
         "UNDER_REVIEW",
