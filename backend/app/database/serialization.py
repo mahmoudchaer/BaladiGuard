@@ -4,6 +4,13 @@ from typing import Any
 from app.schemas.stored_ticket import StoredTicket
 
 
+OWNER_HISTORY_SORT_KEY = "ownerHistorySortKey"
+
+
+def build_owner_history_sort_key(ticket: StoredTicket) -> str:
+    return f"{ticket.created_at}#{ticket.ticket_id}"
+
+
 def convert_decimals(value: Any) -> Any:
     if isinstance(value, list):
         return [convert_decimals(item) for item in value]
@@ -28,6 +35,8 @@ def prepare_dynamodb_value(value: Any) -> Any:
 
 def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
     item = ticket.model_dump(by_alias=True, mode="json")
+    if ticket.owner_user_id:
+        item[OWNER_HISTORY_SORT_KEY] = build_owner_history_sort_key(ticket)
     filtered = {key: value for key, value in item.items() if value is not None}
     return prepare_dynamodb_value(filtered)
 

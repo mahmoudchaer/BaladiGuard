@@ -1,4 +1,8 @@
+import base64
+import binascii
+import json
 from decimal import Decimal
+from typing import Any
 
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
@@ -6,13 +10,20 @@ from botocore.exceptions import ClientError
 from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
-from app.database.serialization import item_to_ticket, prepare_dynamodb_value, ticket_to_item
+from app.database.serialization import (
+    OWNER_HISTORY_SORT_KEY,
+    item_to_ticket,
+    prepare_dynamodb_value,
+    ticket_to_item,
+)
 from app.database.ticket_patch import build_update_expression
+from app.database.ticket_store import TicketHistoryPage
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.utils.ticket_ids import normalize_tracking_code
 
 TICKET_NUMBER_COUNTER_ID = "ticketNumberSequence"
+OWNER_HISTORY_INDEX = "ownerUserId-ownerHistorySortKey-index"
 
 
 class DynamoTicketStore:
@@ -71,6 +82,31 @@ class DynamoTicketStore:
             scan_kwargs["ExclusiveStartKey"] = last_key
 
         return tickets
+
+    def list_by_owner(
+        self,
+        owner_user_id: str,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TicketHistoryPage:
+        query_kwargs: dict[str, object] = {
+            "IndexName": OWNER_HISTORY_INDEX,
+            "KeyConditionExpression": Key("ownerUserId").eq(owner_user_id),
+            "ScanIndexForward": False,
+            "Limit": limit,
+        }
+        if cursor:
+            query_kwargs["ExclusiveStartKey"] = _decode_owner_history_cursor(
+                cursor,
+                owner_user_id=owner_user_id,
+            )
+
+        response = self._tickets_table.query(**query_kwargs)
+        return TicketHistoryPage(
+            [item_to_ticket(item) for item in response.get("Items", [])],
+            _encode_owner_history_cursor(response.get("LastEvaluatedKey")),
+        )
 
     def patch_fields(
         self,
@@ -211,3 +247,46 @@ class DynamoTicketStore:
     def clear(self) -> None:
         message = "DynamoTicketStore does not support clear(). Use db-reset for local dev."
         raise NotImplementedError(message)
+
+
+def _encode_owner_history_cursor(last_key: dict[str, Any] | None) -> str | None:
+    if not last_key:
+        return None
+    payload = {
+        "ownerUserId": last_key.get("ownerUserId"),
+        "ownerHistorySortKey": last_key.get(OWNER_HISTORY_SORT_KEY),
+        "ticketId": last_key.get("ticketId"),
+    }
+    if not all(isinstance(value, str) for value in payload.values()):
+        raise ValueError("Invalid owner history cursor.")
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_owner_history_cursor(
+    cursor: str,
+    *,
+    owner_user_id: str,
+) -> dict[str, str]:
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Invalid owner history cursor.") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid owner history cursor.")
+    decoded_owner = payload.get("ownerUserId")
+    sort_key = payload.get("ownerHistorySortKey")
+    ticket_id = payload.get("ticketId")
+    if (
+        decoded_owner != owner_user_id
+        or not isinstance(sort_key, str)
+        or not isinstance(ticket_id, str)
+    ):
+        raise ValueError("Invalid owner history cursor.")
+    return {
+        "ownerUserId": decoded_owner,
+        OWNER_HISTORY_SORT_KEY: sort_key,
+        "ticketId": ticket_id,
+    }

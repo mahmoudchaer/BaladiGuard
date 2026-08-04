@@ -115,15 +115,15 @@ privacy lifecycle in `docs/privacy-lifecycle.md`. Deletion keeps `ownerUserId` a
 
 `GET /v1/citizen/me/tickets` returns the authenticated citizen's owned report history. It derives
 the owner from the verified citizen session; clients cannot submit or override an owner id. Results
-are filtered to `ownerUserId == session.userId` before sorting and pagination, legacy unowned tickets
-are omitted, and public tracking remains a separate possession-based route.
+come from an owner-scoped storage query on `ownerUserId`, ordered by `createdAt` plus `ticketId`;
+legacy unowned tickets are omitted, and public tracking remains a separate possession-based route.
 
 Query parameters:
 
 | Field    | Type    | Default | Bounds                      | Notes                                                         |
 | -------- | ------- | ------: | --------------------------- | ------------------------------------------------------------- |
 | `limit`  | integer |    `20` | `1`-`50`                    | Maximum page size.                                            |
-| `cursor` | string  |  `null` | non-negative integer offset | Opaque to clients except passing back the prior `nextCursor`. |
+| `cursor` | string  |  `null` | opaque continuation token    | Opaque to clients except passing back the prior `nextCursor`. |
 
 Successful response:
 

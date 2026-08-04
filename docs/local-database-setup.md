@@ -76,7 +76,7 @@ persistence foundation.
 
 | Table | Partition key | GSIs |
 |---|---|---|
-| `baladiguard-tickets` | `ticketId` | `ticketNumber-index`, `trackingCode-index` |
+| `baladiguard-tickets` | `ticketId` | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index` |
 | `baladiguard-users` | `userId` | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
 | `baladiguard-phone-claims` | `phoneKey` | No GSI; transactional phone-uniqueness authority. |
 | `baladiguard-citizen-otp-challenges` | `challengeId` | TTL on `ttl`; plain OTP codes are never stored. |

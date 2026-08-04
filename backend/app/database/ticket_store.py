@@ -1,7 +1,14 @@
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
+
+
+@dataclass(frozen=True)
+class TicketHistoryPage:
+    items: list[StoredTicket]
+    next_cursor: str | None
 
 
 class TicketStore(Protocol):
@@ -14,6 +21,14 @@ class TicketStore(Protocol):
     def get_by_tracking_code(self, tracking_code: str) -> StoredTicket | None: ...
 
     def list(self) -> list[StoredTicket]: ...
+
+    def list_by_owner(
+        self,
+        owner_user_id: str,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TicketHistoryPage: ...
 
     def patch_fields(
         self,

@@ -312,7 +312,7 @@ def test_ticket_history_orders_newest_first_with_pagination(
     assert first.status_code == 200, first.text
     first_body = first.json()
     assert [item["trackingCode"] for item in first_body["items"]] == ["TIEZZZ", "TIEAAA"]
-    assert first_body["nextCursor"] == "2"
+    assert first_body["nextCursor"]
 
     second = anonymous_client.get(
         f"/v1/citizen/me/tickets?limit=2&cursor={first_body['nextCursor']}",
@@ -321,6 +321,55 @@ def test_ticket_history_orders_newest_first_with_pagination(
     assert second.status_code == 200, second.text
     second_body = second.json()
     assert [item["trackingCode"] for item in second_body["items"]] == ["OLD222"]
+    assert second_body["nextCursor"] is None
+
+
+def test_ticket_history_cursor_is_stable_when_newer_ticket_is_inserted(
+    anonymous_client: TestClient,
+) -> None:
+    user_id, token = _create_ready_citizen()
+    _owned_ticket(
+        user_id,
+        ticket_id="tkt_oldest",
+        tracking_code="OLD111",
+        created_at="2026-08-01T09:00:00Z",
+    )
+    _owned_ticket(
+        user_id,
+        ticket_id="tkt_middle",
+        tracking_code="MID222",
+        created_at="2026-08-02T09:00:00Z",
+    )
+    _owned_ticket(
+        user_id,
+        ticket_id="tkt_newest",
+        tracking_code="NEW333",
+        created_at="2026-08-03T09:00:00Z",
+    )
+
+    first = anonymous_client.get(
+        "/v1/citizen/me/tickets?limit=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert [item["trackingCode"] for item in first_body["items"]] == ["NEW333", "MID222"]
+    assert first_body["nextCursor"]
+
+    _owned_ticket(
+        user_id,
+        ticket_id="tkt_inserted_newer",
+        tracking_code="INS444",
+        created_at="2026-08-04T09:00:00Z",
+    )
+
+    second = anonymous_client.get(
+        f"/v1/citizen/me/tickets?limit=2&cursor={first_body['nextCursor']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert second.status_code == 200, second.text
+    second_body = second.json()
+    assert [item["trackingCode"] for item in second_body["items"]] == ["OLD111"]
     assert second_body["nextCursor"] is None
 
 

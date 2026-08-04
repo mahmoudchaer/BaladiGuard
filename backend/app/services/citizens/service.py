@@ -21,6 +21,7 @@ from app.database.citizen_store import (
     CitizenPhoneMismatchError,
     PhoneClaimConflictError,
 )
+from app.database.ticket_store import TicketHistoryPage
 from app.schemas.citizen import (
     CitizenDataExportResponse,
     CitizenDeleteResponse,
@@ -80,6 +81,14 @@ class CitizenStorePort(Protocol):
 
 class TicketStorePort(Protocol):
     def list(self) -> list[Any]: ...
+
+    def list_by_owner(
+        self,
+        owner_user_id: str,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TicketHistoryPage: ...
 
 
 class CitizenSessionStorePort(Protocol):
@@ -745,17 +754,17 @@ class CitizenService:
         if user is None or not user.active or is_anonymized_citizen(user):
             raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
 
-        start = self._parse_history_cursor(cursor)
-        owned = [
-            ticket
-            for ticket in self._resolved_tickets().list()
-            if getattr(ticket, "owner_user_id", None) == user_id
-        ]
-        owned.sort(key=lambda ticket: (ticket.created_at, ticket.ticket_id), reverse=True)
-
-        page = owned[start : start + limit]
-        next_offset = start + limit
-        next_cursor = str(next_offset) if next_offset < len(owned) else None
+        try:
+            page = self._resolved_tickets().list_by_owner(
+                user_id,
+                limit=limit,
+                cursor=cursor,
+            )
+        except ValueError as exc:
+            raise CitizenServiceError(
+                "VALIDATION_ERROR",
+                "cursor is invalid.",
+            ) from exc
 
         return CitizenTicketHistoryResponse(
             items=[
@@ -766,9 +775,9 @@ class CitizenService:
                     locationAddress=ticket.location.address_text,
                     submittedAt=ticket.created_at,
                 )
-                for ticket in page
+                for ticket in page.items
             ],
-            nextCursor=next_cursor,
+            nextCursor=page.next_cursor,
             limit=limit,
         )
 
@@ -1040,24 +1049,6 @@ class CitizenService:
                 "VALIDATION_ERROR",
                 "notificationPreferences.ticketUpdates EMAIL/BOTH requires a non-null email.",
             )
-
-    @staticmethod
-    def _parse_history_cursor(cursor: str | None) -> int:
-        if cursor is None or cursor == "":
-            return 0
-        try:
-            start = int(cursor)
-        except ValueError as exc:
-            raise CitizenServiceError(
-                "VALIDATION_ERROR",
-                "cursor must be a non-negative integer offset.",
-            ) from exc
-        if start < 0:
-            raise CitizenServiceError(
-                "VALIDATION_ERROR",
-                "cursor must be a non-negative integer offset.",
-            )
-        return start
 
     @staticmethod
     def _citizen_history_category(ticket: Any) -> str | None:
