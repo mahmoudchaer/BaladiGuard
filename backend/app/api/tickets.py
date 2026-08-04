@@ -16,7 +16,10 @@ from app.schemas.ticket_response import (
     UpdateTicketStatusRequest,
 )
 from app.services.citizens.service import snapshot_contact_for_ticket
-from app.services.complaints.status_workflow import InvalidStatusTransitionError
+from app.services.complaints.status_workflow import (
+    InvalidStatusTransitionError,
+    MissingDepartmentAssignmentError,
+)
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
     DuplicateMergeError,
@@ -168,7 +171,7 @@ def update_ticket_status(
             request_id=get_request_id(request),
             status_code=404,
         )
-    except InvalidStatusTransitionError as exc:
+    except (InvalidStatusTransitionError, MissingDepartmentAssignmentError) as exc:
         return build_error_response(
             code="INVALID_STATUS_TRANSITION",
             message=str(exc),

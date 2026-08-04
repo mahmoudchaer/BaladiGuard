@@ -85,6 +85,26 @@ def test_tracking_code_lookup_shows_name_only_department_after_assignment(client
     assert "updatedBy" not in body
 
 
+def test_tracking_code_lookup_uses_safe_department_fallback_for_unknown_id(client):
+    created = create_ticket(client)
+    ticket_store.patch_fields(
+        created["ticketId"],
+        {
+            "category": "road_damage",
+            "final_category": "road_damage",
+            "department_id": "missing-department",
+            "status": "ASSIGNED",
+        },
+    )
+
+    response = client.get(f"/v1/tickets/track/{created['trackingCode']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["department"] == {"name": "Assigned team"}
+    assert "departmentId" not in body
+
+
 def test_tracking_code_lookup_hides_category_until_staff_approval(client):
     created = create_ticket(client)
     ticket_store.patch_fields(

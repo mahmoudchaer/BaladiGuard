@@ -38,7 +38,10 @@ from app.schemas.ticket_response import (
 from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
-from app.services.complaints.status_workflow import validate_status_transition
+from app.services.complaints.status_workflow import (
+    MissingDepartmentAssignmentError,
+    validate_status_transition,
+)
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
@@ -47,7 +50,7 @@ from app.services.complaints.ticket_read_mapper import (
 from app.services.duplicates import find_nearby_duplicates
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
-from app.services.routing import suggest_department_id
+from app.services.routing import department_ids, suggest_department_id
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_audit_history_id,
@@ -422,6 +425,8 @@ class TicketService:
             raise TicketNotFoundError(ticket_id)
 
         validate_status_transition(ticket.status, payload.status)
+        if payload.status == "ASSIGNED" and ticket.department_id not in department_ids():
+            raise MissingDepartmentAssignmentError()
 
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         # Partial update so concurrent merges/AI writes are not overwritten.
