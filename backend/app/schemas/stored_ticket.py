@@ -7,6 +7,7 @@ from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
 ReportPriority = Literal["low", "medium", "high", "critical"]
+PublicTicketStatus = Literal["DRAFT", "PUBLISHED", "UNPUBLISHED"]
 
 PENDING_CLASSIFICATION = "PENDING_CLASSIFICATION"
 
@@ -31,6 +32,10 @@ class StoredTicket(BaseModel):
     final_category: str | None = Field(default=None, alias="finalCategory")
     category_reviewed_by: str | None = Field(default=None, alias="categoryReviewedBy")
     category_reviewed_at: str | None = Field(default=None, alias="categoryReviewedAt")
+    public_status: PublicTicketStatus = Field(default="DRAFT", alias="publicStatus")
+    public_description: str | None = Field(default=None, alias="publicDescription")
+    public_location_label: str | None = Field(default=None, alias="publicLocationLabel")
+    public_published_at: str | None = Field(default=None, alias="publicPublishedAt")
     ai_processing_status: AiProcessingStatus = Field(
         default="pending",
         alias="aiProcessingStatus",

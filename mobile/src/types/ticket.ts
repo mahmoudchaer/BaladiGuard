@@ -17,7 +17,6 @@ export type ReportContact = {
 export type SubmitTicketRequest = {
   description: string;
   languageHint: 'auto' | string;
-  contact: ReportContact;
   location: ReportLocation;
   imageObjectKey: string;
   clientMetadata: {
@@ -68,6 +67,34 @@ export type CitizenTicketHistoryItem = {
 
 export type CitizenTicketHistoryResponse = {
   items: CitizenTicketHistoryItem[];
+  nextCursor: string | null;
+  limit: number;
+};
+
+export type PublicTicketAttribution = {
+  displayName: string;
+  isNamed: boolean;
+};
+
+export type PublicTicketResponse = {
+  ticketNumber: string;
+  status: TicketStatus;
+  category: string | null;
+  description: string;
+  location: { addressText: string };
+  mapLocation: {
+    addressText: string;
+    latitude: number;
+    longitude: number;
+  };
+  department?: { name: string } | null;
+  attribution: PublicTicketAttribution;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+export type PublicTicketListResponse = {
+  items: PublicTicketResponse[];
   nextCursor: string | null;
   limit: number;
 };

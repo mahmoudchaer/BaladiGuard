@@ -189,6 +189,50 @@ def test_dynamo_ticket_store_lists_owner_history_with_stable_cursor(
     assert second.next_cursor is None
 
 
+def test_dynamo_ticket_store_lists_public_reports_from_publishable_index(
+    dynamodb_settings: Settings,
+) -> None:
+    store = DynamoTicketStore(dynamodb_settings)
+    unpublished = _dynamo_owned_ticket(
+        ticket_id="tkt_public_unpublished",
+        ticket_number="BG-2026-0301",
+        tracking_code="PUB301",
+        owner_user_id="usr_public",
+        created_at="2026-08-01T09:00:00Z",
+    )
+    published = _dynamo_owned_ticket(
+        ticket_id="tkt_public_published",
+        ticket_number="BG-2026-0302",
+        tracking_code="PUB302",
+        owner_user_id="usr_public",
+        created_at="2026-08-02T09:00:00Z",
+    )
+    store.save(unpublished)
+    store.save(published)
+
+    assert store.list_public(limit=10).items == []
+    assert store.get_by_ticket_number("bg-2026-0302") is not None
+
+    updated = store.patch_fields(
+        published.ticket_id,
+        {
+            "final_category": "road_damage",
+            "category": "road_damage",
+            "public_status": "PUBLISHED",
+            "public_description": "Approved public road hazard summary.",
+            "public_location_label": "Hamra, Beirut",
+            "public_published_at": "2026-08-05T12:00:00Z",
+        },
+    )
+
+    assert updated is not None
+    public_page = store.list_public(limit=10)
+    assert [ticket.ticket_number for ticket in public_page.items] == ["BG-2026-0302"]
+
+    store.patch_fields(published.ticket_id, {"public_status": "UNPUBLISHED"})
+    assert store.list_public(limit=10).items == []
+
+
 def test_seed_script_loads_reference_data(dynamodb_settings: Settings) -> None:
     from app.database.seeding import run_seed
 

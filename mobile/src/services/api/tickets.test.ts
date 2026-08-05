@@ -6,6 +6,8 @@ import {
   TRACK_LOOKUP_INVALID_MESSAGE,
   TRACK_LOOKUP_NOT_FOUND_MESSAGE,
   getCitizenTicketHistory,
+  getPublicTicketByNumber,
+  getPublicTickets,
   getTicketByTrackingCode,
   submitReport,
 } from '@/services/api/tickets';
@@ -13,9 +15,6 @@ import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
 const formValues: ReportFormValues = {
   description: 'Large pothole near the university gate causing traffic disruption.',
-  contactName: 'Citizen Name',
-  phone: '+96170123456',
-  email: 'citizen@example.com',
   addressText: 'Near AUB Main Gate, Hamra, Beirut',
   latitude: 33.896112,
   longitude: 35.478419,
@@ -60,6 +59,29 @@ const mockCitizenHistory = {
   limit: 20,
 };
 
+const mockPublicTickets = {
+  items: [
+    {
+      ticketNumber: 'BG-2026-0001',
+      status: 'IN_PROGRESS' as const,
+      category: 'road_damage',
+      description: 'Large pothole near the university gate causing traffic disruption.',
+      location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
+      mapLocation: {
+        addressText: 'Near AUB Main Gate, Hamra, Beirut',
+        latitude: 33.896,
+        longitude: 35.478,
+      },
+      department: { name: 'Road Maintenance' },
+      attribution: { displayName: 'Community member', isNamed: false },
+      createdAt: '2026-07-07T00:00:00Z',
+      updatedAt: '2026-07-07T02:00:00Z',
+    },
+  ],
+  nextCursor: null,
+  limit: 20,
+};
+
 const { appConfig } = vi.hoisted(() => ({
   appConfig: {
     apiBaseUrl: 'http://localhost:8000/v1',
@@ -80,6 +102,8 @@ vi.mock('@/services/api/mockTickets', () => ({
   submitTicketMock: vi.fn(async () => mockTicketResponse),
   getTicketByTrackingCodeMock: vi.fn(async () => mockCitizenTicket),
   getCitizenTicketHistoryMock: vi.fn(async () => mockCitizenHistory),
+  getPublicTicketsMock: vi.fn(async () => mockPublicTickets),
+  getPublicTicketByNumberMock: vi.fn(async () => mockPublicTickets.items[0]),
 }));
 
 vi.mock('@/services/api/uploads', () => ({
@@ -88,6 +112,8 @@ vi.mock('@/services/api/uploads', () => ({
 
 import {
   getCitizenTicketHistoryMock,
+  getPublicTicketByNumberMock,
+  getPublicTicketsMock,
   getTicketByTrackingCodeMock,
   submitTicketMock,
 } from '@/services/api/mockTickets';
@@ -131,6 +157,9 @@ describe('submitReport', () => {
         body: expect.stringContaining('"imageObjectKey":"reports/photos/uploaded.jpg"'),
       }),
     );
+    const submittedBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
+    expect(submittedBody).not.toHaveProperty('contact');
+    expect(submittedBody).not.toHaveProperty('ownerUserId');
     expect(response).toEqual(mockTicketResponse);
   });
 
@@ -150,6 +179,66 @@ describe('submitReport', () => {
     await expect(submitReport(formValues)).rejects.toThrow(
       'Your photo was uploaded, but the report could not be saved. Validation failed.',
     );
+  });
+});
+
+describe('public ticket browsing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appConfig.enableMockApi = false;
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('loads the unauthenticated public report feed with pagination params', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockPublicTickets,
+    } as Response);
+
+    const result = await getPublicTickets({ limit: 10, cursor: 'cursor_1' });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets/public?limit=10&cursor=cursor_1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result).toEqual(mockPublicTickets);
+  });
+
+  it('loads public detail by ticket number', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockPublicTickets.items[0],
+    } as Response);
+
+    const result = await getPublicTicketByNumber(' bg-2026-0001 ');
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets/public/BG-2026-0001',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result).toEqual(mockPublicTickets.items[0]);
+  });
+
+  it('uses public mock browsing when mock mode is enabled', async () => {
+    appConfig.enableMockApi = true;
+
+    const result = await getPublicTickets({ limit: 5 });
+
+    expect(getPublicTicketsMock).toHaveBeenCalledWith({ limit: 5 });
+    expect(result).toEqual(mockPublicTickets);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('uses public mock detail when mock mode is enabled', async () => {
+    appConfig.enableMockApi = true;
+
+    const result = await getPublicTicketByNumber('BG-2026-0001');
+
+    expect(getPublicTicketByNumberMock).toHaveBeenCalledWith('BG-2026-0001');
+    expect(result).toEqual(mockPublicTickets.items[0]);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

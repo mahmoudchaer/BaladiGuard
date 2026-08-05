@@ -169,6 +169,11 @@ def build_rate_limit_policies(settings: Settings | None = None) -> dict[str, Rat
             limit=cfg.rate_limit_ticket_track_limit,
             window_seconds=cfg.rate_limit_ticket_track_window_seconds,
         ),
+        "public-ticket-browsing": RateLimitPolicy(
+            name="public-ticket-browsing",
+            limit=cfg.rate_limit_ticket_track_limit,
+            window_seconds=cfg.rate_limit_ticket_track_window_seconds,
+        ),
         "public-upload-report-photo": RateLimitPolicy(
             name="public-upload-report-photo",
             limit=cfg.rate_limit_upload_limit,

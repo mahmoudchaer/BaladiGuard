@@ -38,6 +38,21 @@ vi.mock('@/features/ticket-tracking/TrackLookupForm', () => ({
   TrackLookupForm: () => React.createElement('TrackLookupForm', { testID: 'track-lookup-form' }),
 }));
 
+vi.mock('@/services/api/tickets', () => ({
+  getPublicTickets: vi.fn(async () => ({
+    items: [],
+    nextCursor: null,
+    limit: 20,
+  })),
+}));
+
+vi.mock('react-native-maps', () => ({
+  default: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('MapView', props, children),
+  Marker: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('Marker', props, children),
+}));
+
 import {
   getCitizenMe,
   logoutCitizen,

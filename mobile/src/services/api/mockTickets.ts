@@ -1,6 +1,8 @@
 import type {
   CitizenTicketHistoryResponse,
   CitizenTicketResponse,
+  PublicTicketListResponse,
+  PublicTicketResponse,
   SubmitTicketRequest,
   SubmitTicketResponse,
 } from '@/types/ticket';
@@ -26,6 +28,41 @@ const createTrackingCode = () =>
     const index = Math.floor(Math.random() * TRACKING_CODE_ALPHABET.length);
     return TRACKING_CODE_ALPHABET[index];
   }).join('');
+
+const publicTickets: PublicTicketResponse[] = [
+  {
+    ticketNumber: 'BG-2026-0042',
+    status: 'IN_PROGRESS',
+    category: 'road_damage',
+    description: 'Large pothole near the university gate causing traffic disruption.',
+    location: { addressText: 'Hamra, Beirut' },
+    mapLocation: {
+      addressText: 'Hamra, Beirut',
+      latitude: 33.896,
+      longitude: 35.478,
+    },
+    department: { name: 'Road Maintenance' },
+    attribution: { displayName: 'Community member', isNamed: false },
+    createdAt: '2026-07-26T09:00:00Z',
+    updatedAt: '2026-07-26T11:30:00Z',
+  },
+  {
+    ticketNumber: 'BG-2026-0041',
+    status: 'SUBMITTED',
+    category: null,
+    description: 'Street light is flickering beside the bus stop.',
+    location: { addressText: 'Ras Beirut' },
+    mapLocation: {
+      addressText: 'Ras Beirut',
+      latitude: 33.9,
+      longitude: 35.482,
+    },
+    department: null,
+    attribution: { displayName: 'Ada Citizen', isNamed: true },
+    createdAt: '2026-07-25T13:15:00Z',
+    updatedAt: '2026-07-25T13:15:00Z',
+  },
+];
 
 export async function submitTicketMock(
   payload: SubmitTicketRequest,
@@ -94,4 +131,31 @@ export async function getCitizenTicketHistoryMock(): Promise<CitizenTicketHistor
     nextCursor: null,
     limit: 20,
   };
+}
+
+export async function getPublicTicketsMock({
+  limit = 20,
+}: {
+  limit?: number;
+} = {}): Promise<PublicTicketListResponse> {
+  await wait(350);
+
+  return {
+    items: publicTickets.slice(0, limit),
+    nextCursor: null,
+    limit,
+  };
+}
+
+export async function getPublicTicketByNumberMock(
+  ticketNumber: string,
+): Promise<PublicTicketResponse> {
+  await wait(250);
+  const ticket = publicTickets.find((item) => item.ticketNumber === ticketNumber);
+  if (!ticket) {
+    throw new Error(
+      'Unable to load public reports right now. Check your connection and try again.',
+    );
+  }
+  return ticket;
 }

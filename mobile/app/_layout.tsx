@@ -47,6 +47,13 @@ export default function RootLayout() {
                 headerBackTitle: 'Home',
               }}
             />
+            <Stack.Screen
+              name="public/[ticketNumber]"
+              options={{
+                title: 'Public report',
+                headerBackTitle: 'Home',
+              }}
+            />
           </Stack>
         </CitizenAuthProvider>
       </PaperProvider>

@@ -1,6 +1,7 @@
 from threading import Lock
 from typing import Any
 
+from app.database.serialization import build_public_sort_key, is_public_ticket_publishable
 from app.database.ticket_patch import resolve_ticket_attr_name
 from app.database.ticket_store import TicketHistoryPage
 from app.schemas.stored_ticket import StoredTicket
@@ -11,6 +12,7 @@ from app.utils.ticket_ids import normalize_tracking_code
 class InMemoryTicketStore:
     def __init__(self) -> None:
         self._tickets: dict[str, StoredTicket] = {}
+        self._tickets_by_number: dict[str, str] = {}
         self._ticket_numbers: set[str] = set()
         self._tracking_codes: set[str] = set()
         self._sequence = 0
@@ -23,7 +25,11 @@ class InMemoryTicketStore:
 
     def save(self, ticket: StoredTicket) -> None:
         with self._lock:
+            existing = self._tickets.get(ticket.ticket_id)
+            if existing is not None:
+                self._tickets_by_number.pop(existing.ticket_number.upper(), None)
             self._tickets[ticket.ticket_id] = ticket
+            self._tickets_by_number[ticket.ticket_number.upper()] = ticket.ticket_id
             self._ticket_numbers.add(ticket.ticket_number)
             self._tracking_codes.add(ticket.tracking_code)
 
@@ -42,6 +48,14 @@ class InMemoryTicketStore:
                 ),
                 None,
             )
+
+    def get_by_ticket_number(self, ticket_number: str) -> StoredTicket | None:
+        normalized = ticket_number.strip().upper()
+        with self._lock:
+            ticket_id = self._tickets_by_number.get(normalized)
+            if ticket_id is None:
+                return None
+            return self._tickets.get(ticket_id)
 
     def list(self) -> list[StoredTicket]:
         with self._lock:
@@ -67,6 +81,31 @@ class InMemoryTicketStore:
         next_cursor = (
             _encode_owner_history_cursor(_owner_history_sort_key(page[-1]))
             if len(owned) > limit and page
+            else None
+        )
+        return TicketHistoryPage(page, next_cursor)
+
+    def list_public(
+        self,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TicketHistoryPage:
+        cursor_key = _decode_public_cursor(cursor)
+        with self._lock:
+            publishable = [
+                ticket for ticket in self._tickets.values() if is_public_ticket_publishable(ticket)
+            ]
+        publishable.sort(key=_public_sort_key, reverse=True)
+        if cursor_key is not None:
+            publishable = [
+                ticket for ticket in publishable if _public_sort_key(ticket) < cursor_key
+            ]
+
+        page = publishable[:limit]
+        next_cursor = (
+            _encode_public_cursor(_public_sort_key(page[-1]))
+            if len(publishable) > limit and page
             else None
         )
         return TicketHistoryPage(page, next_cursor)
@@ -164,6 +203,7 @@ class InMemoryTicketStore:
     def clear(self) -> None:
         with self._lock:
             self._tickets.clear()
+            self._tickets_by_number.clear()
             self._ticket_numbers.clear()
             self._tracking_codes.clear()
             self._sequence = 0
@@ -174,6 +214,10 @@ ticket_store = InMemoryTicketStore()
 
 def _owner_history_sort_key(ticket: StoredTicket) -> tuple[str, str]:
     return (ticket.created_at, ticket.ticket_id)
+
+
+def _public_sort_key(ticket: StoredTicket) -> tuple[str, str]:
+    return (build_public_sort_key(ticket), ticket.ticket_id)
 
 
 def _encode_owner_history_cursor(sort_key: tuple[str, str]) -> str:
@@ -202,3 +246,31 @@ def _decode_owner_history_cursor(cursor: str | None) -> tuple[str, str] | None:
     if not isinstance(created_at, str) or not isinstance(ticket_id, str):
         raise ValueError("Invalid owner history cursor.")
     return (created_at, ticket_id)
+
+
+def _encode_public_cursor(sort_key: tuple[str, str]) -> str:
+    import base64
+    import json
+
+    payload = {"publicSortKey": sort_key[0], "ticketId": sort_key[1]}
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_public_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if cursor is None or cursor == "":
+        return None
+    import base64
+    import binascii
+    import json
+
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+        public_sort_key = payload["publicSortKey"]
+        ticket_id = payload["ticketId"]
+    except (binascii.Error, KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid public ticket cursor.") from exc
+    if not isinstance(public_sort_key, str) or not isinstance(ticket_id, str):
+        raise ValueError("Invalid public ticket cursor.")
+    return (public_sort_key, ticket_id)

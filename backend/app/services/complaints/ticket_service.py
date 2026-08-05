@@ -7,9 +7,11 @@ from app.config import get_settings
 from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket, staff_can_assign_department
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.duplicate_group_store import DuplicateGroupStore
+from app.database.serialization import is_public_ticket_publishable
 from app.database.status_history_store import StatusHistoryStore
 from app.database.store_factory import (
     get_audit_history_store,
+    get_citizen_store,
     get_duplicate_group_store,
     get_status_history_store,
     get_ticket_store,
@@ -30,6 +32,8 @@ from app.schemas.ticket_ai_update import (
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
+    PublicTicketListResponse,
+    PublicTicketResponse,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketResponse,
@@ -45,6 +49,7 @@ from app.services.complaints.status_workflow import (
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
+    map_ticket_to_public_response,
     map_ticket_to_response,
 )
 from app.services.duplicates import find_nearby_duplicates
@@ -65,6 +70,8 @@ logger = logging.getLogger(__name__)
 
 Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
+PUBLIC_TICKET_DEFAULT_LIMIT = 20
+PUBLIC_TICKET_MAX_LIMIT = 50
 
 
 def _parse_iso_utc(value: str) -> datetime | None:
@@ -391,6 +398,31 @@ class TicketService:
         )
         return [self._map_ticket(ticket) for ticket in tickets]
 
+    def list_public_tickets(
+        self,
+        *,
+        limit: int = PUBLIC_TICKET_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> PublicTicketListResponse:
+        page_size = min(max(limit, 1), PUBLIC_TICKET_MAX_LIMIT)
+        page = self._store.list_public(limit=page_size, cursor=cursor)
+        owners = self._public_owner_cache(page.items)
+        return PublicTicketListResponse(
+            items=[
+                map_ticket_to_public_response(ticket, owner=owners.get(ticket.owner_user_id))
+                for ticket in page.items
+            ],
+            nextCursor=page.next_cursor,
+            limit=page_size,
+        )
+
+    def get_public_ticket(self, ticket_number: str) -> PublicTicketResponse | None:
+        ticket = self._store.get_by_ticket_number(ticket_number)
+        if ticket is None or not self._is_public_ticket_publishable(ticket):
+            return None
+        owner = get_citizen_store().get(ticket.owner_user_id) if ticket.owner_user_id else None
+        return map_ticket_to_public_response(ticket, owner=owner)
+
     def get_ticket(
         self,
         ticket_id: str,
@@ -410,6 +442,17 @@ class TicketService:
             return None
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
         return map_ticket_to_citizen_response(ticket, history)
+
+    def _public_owner_cache(self, tickets: list[StoredTicket]):
+        owner_ids = {ticket.owner_user_id for ticket in tickets if ticket.owner_user_id}
+        if not owner_ids:
+            return {}
+        citizen_store = get_citizen_store()
+        return {owner_id: citizen_store.get(owner_id) for owner_id in owner_ids}
+
+    @staticmethod
+    def _is_public_ticket_publishable(ticket: StoredTicket) -> bool:
+        return is_public_ticket_publishable(ticket)
 
     def update_ticket_status(
         self,

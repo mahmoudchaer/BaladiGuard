@@ -12,6 +12,8 @@ from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTi
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
+    PublicTicketListResponse,
+    PublicTicketResponse,
     TicketResponse,
     UpdateTicketStatusRequest,
 )
@@ -120,6 +122,58 @@ def get_ticket_by_tracking_code(
         )
 
     ticket = ticket_service.get_ticket_by_tracking_code(tracking_code)
+    if ticket is None:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    return ticket
+
+
+@router.get("/tickets/public", response_model=PublicTicketListResponse)
+def list_public_tickets(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None),
+) -> PublicTicketListResponse | JSONResponse:
+    """Unauthenticated citizen-safe public report feed for map/list browsing."""
+    limited = enforce_rate_limit(
+        request,
+        "public-ticket-browsing",
+        message="Too many public ticket requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+
+    try:
+        return ticket_service.list_public_tickets(limit=limit, cursor=cursor)
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The public report cursor is invalid.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
+            status_code=400,
+        )
+
+
+@router.get("/tickets/public/{ticket_number}", response_model=PublicTicketResponse)
+def get_public_ticket(
+    ticket_number: str,
+    request: Request,
+) -> PublicTicketResponse | JSONResponse:
+    """Unauthenticated citizen-safe public report detail by ticket number."""
+    limited = enforce_rate_limit(
+        request,
+        "public-ticket-browsing",
+        message="Too many public ticket requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+
+    ticket = ticket_service.get_public_ticket(ticket_number)
     if ticket is None:
         return build_error_response(
             code="TICKET_NOT_FOUND",

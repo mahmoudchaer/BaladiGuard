@@ -183,31 +183,38 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 
 | Route                                   | Authentication             | Public/private rule                                                                                                                                          |
 | --------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /v1/public/reports`                | Public                     | Planned citizen-safe list/map data only.                                                                                                                     |
-| `GET /v1/public/reports/{ticketNumber}` | Public                     | Planned citizen-safe report detail only.                                                                                                                     |
+| `GET /v1/tickets/public`                | Public                     | Implemented citizen-safe list/map data with bounded pagination over explicitly published reports only.                                                       |
+| `GET /v1/tickets/public/{ticketNumber}` | Public                     | Implemented citizen-safe report detail by public ticket number; unpublished reports return `404`.                                                            |
 | `GET /v1/tickets/track/{trackingCode}`  | Public, possession-based   | Existing citizen-safe tracking response; tracking code is not account authentication.                                                                        |
 | `POST /v1/locations/validate`           | Public                     | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply.                              |
 | `POST /v1/uploads/report-photo`         | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`.                |
 | `POST /v1/tickets`                      | Contribution-ready citizen | Implemented by #173. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403 CONTRIBUTION_PROFILE_REQUIRED`. |
 | `/v1/staff/**` and staff ticket routes  | Authorized staff           | Identity/contact is returned only when the staff role and municipality/department scope authorize it.                                                        |
 
-Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, approved
-`category`, moderated `description`, `location`, optional approved `photoUrl`, `createdAt`,
-`updatedAt`, and `submittedBy`. `location` contains a server-generated neighborhood/municipality
-`label` plus latitude and longitude rounded to 3 decimal places (about a 110 m latitude grid); it
-never contains stored `addressText`, source, or exact coordinates. A report is omitted until its
-description/photo are approved for public display; absent/unapproved photos produce no `photoUrl`.
-They must not expose `ticketId`, `trackingCode`, `ownerUserId`, phone, email, contact snapshot, device
-metadata, internal notes, staff actors, department/municipality IDs, duplicate internals, audit
-history, or AI/provider internals. The implementation must use a dedicated public projection and
-fail closed rather than serialize a staff model.
+Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, staff-reviewed
+`category`, staff-approved `publicDescription` as `description`, coarse `publicLocationLabel` as
+`location.addressText`, `mapLocation`, optional name-only `department`, `attribution`, `createdAt`,
+and `updatedAt`. A report is publishable only when `publicStatus` is `PUBLISHED`, a final category is
+present, and both approved public fields are non-empty; otherwise public list omits it and public
+detail returns `404`. `mapLocation` contains the same coarse label plus latitude and longitude rounded
+to 3 decimal places (about a 110 m latitude grid); it never contains the stored
+`location.addressText`, stored location source, or exact coordinates. They must not expose
+`ticketId`, `trackingCode`, `ownerUserId`, phone, email, contact snapshot, device metadata, internal
+notes, staff actors, department/municipality IDs, duplicate internals, audit history, raw
+descriptions, cleaned AI descriptions, or AI/provider internals. The implementation must use a
+dedicated public projection and fail closed rather than serialize a staff model.
 
-`submittedBy` is computed at read time. It is the citizen's current `fullName` only when the ticket
-has an `ownerUserId`, that citizen is active, and their current `publicNameVisible` is `true`;
-otherwise it is the literal `"Anonymous"`. The default is `false`. Changing the preference or name
-therefore affects every existing and future owned report dynamically; turning visibility off hides
-all attribution immediately. A name is never copied into the public projection, and legacy/unlinked
-tickets are always anonymous.
+Public browsing uses the `publicStatus-publicSortKey-index` storage query for stable keyset
+pagination and the existing `ticketNumber-index` for detail lookup. The public mapper must not scan
+all staff tickets or derive public copy from raw/cleaned descriptions at read time.
+
+`attribution` is computed at read time. `attribution.displayName` is the citizen's current `fullName`
+only when the ticket has an `ownerUserId`, that citizen is active, and their current
+`publicNameVisible` is `true`; in that case `attribution.isNamed` is `true`. Otherwise
+`displayName` is the literal `"Community member"` and `isNamed` is `false`. The default is `false`.
+Changing the preference or name therefore affects every existing and future owned report
+dynamically; turning visibility off hides all attribution immediately. A name is never copied into
+the public projection, and legacy/unlinked tickets are always generic.
 
 Ticket ownership and contact have different lifecycles. `ownerUserId` is the immutable stable owner.
 `contact` is an immutable submission-time snapshot of the then-current normalized phone, optional
