@@ -1,6 +1,3 @@
-import base64
-import binascii
-import json
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -10,9 +7,11 @@ from app.config import get_settings
 from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket, staff_can_assign_department
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.duplicate_group_store import DuplicateGroupStore
+from app.database.serialization import is_public_ticket_publishable
 from app.database.status_history_store import StatusHistoryStore
 from app.database.store_factory import (
     get_audit_history_store,
+    get_citizen_store,
     get_duplicate_group_store,
     get_status_history_store,
     get_ticket_store,
@@ -143,31 +142,6 @@ def _department_suggestion_fields(
     ):
         fields["department_id"] = suggested_department_id
     return fields
-
-
-def _public_ticket_sort_key(ticket: StoredTicket) -> tuple[str, str]:
-    return (ticket.created_at, ticket.ticket_number)
-
-
-def _encode_public_ticket_cursor(sort_key: tuple[str, str]) -> str:
-    payload = {"createdAt": sort_key[0], "ticketNumber": sort_key[1]}
-    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    return base64.urlsafe_b64encode(raw).decode("ascii")
-
-
-def _decode_public_ticket_cursor(cursor: str | None) -> tuple[str, str] | None:
-    if cursor is None or cursor == "":
-        return None
-    try:
-        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
-        payload = json.loads(decoded.decode("utf-8"))
-        created_at = payload["createdAt"]
-        ticket_number = payload["ticketNumber"]
-    except (binascii.Error, KeyError, TypeError, ValueError) as exc:
-        raise ValueError("Invalid public ticket cursor.") from exc
-    if not isinstance(created_at, str) or not isinstance(ticket_number, str):
-        raise ValueError("Invalid public ticket cursor.")
-    return (created_at, ticket_number)
 
 
 class TicketService:
@@ -431,36 +405,23 @@ class TicketService:
         cursor: str | None = None,
     ) -> PublicTicketListResponse:
         page_size = min(max(limit, 1), PUBLIC_TICKET_MAX_LIMIT)
-        cursor_key = _decode_public_ticket_cursor(cursor)
-        tickets = sorted(
-            self._store.list(),
-            key=_public_ticket_sort_key,
-            reverse=True,
-        )
-        if cursor_key is not None:
-            tickets = [ticket for ticket in tickets if _public_ticket_sort_key(ticket) < cursor_key]
-
-        page = tickets[:page_size]
-        next_cursor = (
-            _encode_public_ticket_cursor(_public_ticket_sort_key(page[-1]))
-            if len(tickets) > page_size and page
-            else None
-        )
+        page = self._store.list_public(limit=page_size, cursor=cursor)
+        owners = self._public_owner_cache(page.items)
         return PublicTicketListResponse(
-            items=[map_ticket_to_public_response(ticket) for ticket in page],
-            nextCursor=next_cursor,
+            items=[
+                map_ticket_to_public_response(ticket, owner=owners.get(ticket.owner_user_id))
+                for ticket in page.items
+            ],
+            nextCursor=page.next_cursor,
             limit=page_size,
         )
 
     def get_public_ticket(self, ticket_number: str) -> PublicTicketResponse | None:
-        normalized = ticket_number.strip().upper()
-        ticket = next(
-            (ticket for ticket in self._store.list() if ticket.ticket_number.upper() == normalized),
-            None,
-        )
-        if ticket is None:
+        ticket = self._store.get_by_ticket_number(ticket_number)
+        if ticket is None or not self._is_public_ticket_publishable(ticket):
             return None
-        return map_ticket_to_public_response(ticket)
+        owner = get_citizen_store().get(ticket.owner_user_id) if ticket.owner_user_id else None
+        return map_ticket_to_public_response(ticket, owner=owner)
 
     def get_ticket(
         self,
@@ -481,6 +442,17 @@ class TicketService:
             return None
         history = self._history_store.list_by_ticket_id(ticket.ticket_id)
         return map_ticket_to_citizen_response(ticket, history)
+
+    def _public_owner_cache(self, tickets: list[StoredTicket]):
+        owner_ids = {ticket.owner_user_id for ticket in tickets if ticket.owner_user_id}
+        if not owner_ids:
+            return {}
+        citizen_store = get_citizen_store()
+        return {owner_id: citizen_store.get(owner_id) for owner_id in owner_ids}
+
+    @staticmethod
+    def _is_public_ticket_publishable(ticket: StoredTicket) -> bool:
+        return is_public_ticket_publishable(ticket)
 
     def update_ticket_status(
         self,

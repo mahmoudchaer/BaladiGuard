@@ -20,7 +20,16 @@ class TicketStore(Protocol):
 
     def get_by_tracking_code(self, tracking_code: str) -> StoredTicket | None: ...
 
+    def get_by_ticket_number(self, ticket_number: str) -> StoredTicket | None: ...
+
     def list(self) -> list[StoredTicket]: ...
+
+    def list_public(
+        self,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TicketHistoryPage: ...
 
     def list_by_owner(
         self,

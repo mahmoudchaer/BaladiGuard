@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { ActivityIndicator, Banner, Button, Card, Text } from 'react-native-paper';
-import { Link, type Href } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,6 +33,7 @@ const statusLabels: Record<PublicTicketResponse['status'], string> = {
 };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { isAuthenticated, contributionReady, profile, logout, isLoading } = useCitizenAuth();
   const [reports, setReports] = useState<PublicTicketResponse[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
@@ -67,6 +68,13 @@ export default function HomeScreen() {
       active = false;
     };
   }, []);
+
+  const openPublicReport = (ticketNumber: string) => {
+    router.push({
+      pathname: '/public/[ticketNumber]',
+      params: { ticketNumber },
+    } as Href);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -189,13 +197,19 @@ export default function HomeScreen() {
                     }}
                     title={report.ticketNumber}
                     description={report.location.addressText}
+                    onPress={() => openPublicReport(report.ticketNumber)}
                   />
                 ))}
               </MapView>
             ) : null}
 
             {reports.map((report) => (
-              <Card key={report.ticketNumber} style={styles.reportCard}>
+              <Card
+                key={report.ticketNumber}
+                style={styles.reportCard}
+                onPress={() => openPublicReport(report.ticketNumber)}
+                testID={`public-report-card-${report.ticketNumber}`}
+              >
                 <Card.Content style={styles.reportCardContent}>
                   <View style={styles.reportCardHeader}>
                     <Text variant="titleMedium" style={styles.reportNumber}>

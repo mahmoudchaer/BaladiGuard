@@ -35,9 +35,9 @@ const publicTickets: PublicTicketResponse[] = [
     status: 'IN_PROGRESS',
     category: 'road_damage',
     description: 'Large pothole near the university gate causing traffic disruption.',
-    location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
+    location: { addressText: 'Hamra, Beirut' },
     mapLocation: {
-      addressText: 'Near AUB Main Gate, Hamra, Beirut',
+      addressText: 'Hamra, Beirut',
       latitude: 33.896,
       longitude: 35.478,
     },
@@ -51,9 +51,9 @@ const publicTickets: PublicTicketResponse[] = [
     status: 'SUBMITTED',
     category: null,
     description: 'Street light is flickering beside the bus stop.',
-    location: { addressText: 'Bliss Street, Beirut' },
+    location: { addressText: 'Ras Beirut' },
     mapLocation: {
-      addressText: 'Bliss Street, Beirut',
+      addressText: 'Ras Beirut',
       latitude: 33.9,
       longitude: 35.482,
     },

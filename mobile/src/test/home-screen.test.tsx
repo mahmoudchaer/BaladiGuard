@@ -1,8 +1,10 @@
 import React from 'react';
+import { act } from 'react-test-renderer';
 import { beforeEach, vi } from 'vitest';
 import { describe, expect, it } from 'vitest';
 
 import HomeScreen from '../../app/index';
+import { __getRouterMockState, __resetExpoRouterMock } from './mocks/expo-router';
 import { renderWithProvidersAsync } from './render';
 
 const publicTickets = {
@@ -58,6 +60,7 @@ function hasTextContaining(
 describe('HomeScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetExpoRouterMock();
     vi.mocked(getPublicTickets).mockResolvedValue(publicTickets);
   });
 
@@ -85,5 +88,25 @@ describe('HomeScreen', () => {
     ).toBeTruthy();
     expect(hasTextContaining(screen, 'Reported by Community member')).toBe(true);
     expect(screen.root.findAll((node) => String(node.type) === 'Marker')).toHaveLength(1);
+  });
+
+  it('opens public report details from a card and a map marker', async () => {
+    const screen = await renderWithProvidersAsync(<HomeScreen />);
+
+    await act(async () => {
+      screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' }).props.onPress();
+    });
+    expect(__getRouterMockState().pushCalls).toContainEqual({
+      pathname: '/public/[ticketNumber]',
+      params: { ticketNumber: 'BG-2026-0001' },
+    });
+
+    await act(async () => {
+      screen.root.findByProps({ title: 'BG-2026-0001' }).props.onPress();
+    });
+    expect(__getRouterMockState().pushCalls).toContainEqual({
+      pathname: '/public/[ticketNumber]',
+      params: { ticketNumber: 'BG-2026-0001' },
+    });
   });
 });
