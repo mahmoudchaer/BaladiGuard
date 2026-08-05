@@ -254,11 +254,7 @@ def test_seed_script_loads_reference_data(dynamodb_settings: Settings) -> None:
 
 def test_seed_script_loads_sample_ticket_story_when_enabled(
     dynamodb_settings: Settings,
-    monkeypatch,
 ) -> None:
-    monkeypatch.setenv("SEED_SAMPLE_TICKETS", "true")
-
-    from app.config import Settings as RuntimeSettings
     from app.database.dynamo_duplicate_group_store import DynamoDuplicateGroupStore
     from app.database.dynamo_status_history_store import DynamoStatusHistoryStore
     from app.database.dynamo_ticket_store import DynamoTicketStore
@@ -266,8 +262,8 @@ def test_seed_script_loads_sample_ticket_story_when_enabled(
     from app.database.seeding import run_seed
     from app.utils.phone import phone_claim_key
 
-    settings = RuntimeSettings()
-    run_seed(settings)
+    settings = dynamodb_settings
+    run_seed(settings, with_samples=True)
 
     resource = create_dynamodb_resource(settings)
     prefix = settings.dynamodb_table_prefix
@@ -293,7 +289,11 @@ def test_seed_script_loads_sample_ticket_story_when_enabled(
     assert detail.public_location_label != detail.location.address_text
 
     status_history = DynamoStatusHistoryStore(settings).list_by_ticket_id(detail.ticket_id)
-    assert [entry.new_status for entry in status_history] == ["SUBMITTED"]
+    assert [entry.new_status for entry in status_history] == [
+        "SUBMITTED",
+        "UNDER_REVIEW",
+        "ASSIGNED",
+    ]
 
     group = DynamoDuplicateGroupStore(settings).get("99999999-9999-9999-9999-999999999999")
     assert group is not None

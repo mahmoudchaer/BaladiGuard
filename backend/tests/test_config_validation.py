@@ -18,6 +18,27 @@ def _settings_from_env() -> Settings:
     return Settings()
 
 
+def test_process_environment_overrides_dotenv_values(monkeypatch, tmp_path):
+    import app.config as config
+
+    backend_dir = tmp_path / "backend"
+    repo_root = tmp_path
+    backend_dir.mkdir()
+    (backend_dir / ".env").write_text("SEED_SAMPLE_TICKETS=false\n", encoding="utf-8")
+    (repo_root / ".env").write_text("DATABASE_BACKEND=dynamodb\n", encoding="utf-8")
+    monkeypatch.setattr(config, "BACKEND_DIR", backend_dir)
+    monkeypatch.setattr(config, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("SEED_SAMPLE_TICKETS", "true")
+    monkeypatch.setenv("DATABASE_BACKEND", "memory")
+
+    config.load_environment()
+    get_settings.cache_clear()
+    settings = Settings()
+
+    assert settings.seed_sample_tickets is True
+    assert settings.database_backend == "memory"
+
+
 def test_local_defaults_are_valid():
     environ = {
         "APP_ENV": "local",

@@ -135,6 +135,13 @@ set SEED_SAMPLE_TICKETS=true
 make db-seed
 ```
 
+Or bypass env-file collisions entirely:
+
+```bash
+cd backend
+python scripts/db/seed.py --with-samples
+```
+
 Sample tickets are **off by default** so local `POST /v1/tickets` testing starts from a clean ticket
 table. When enabled, the seed loads a synthetic Sprint 6 demo story: three phone-verified demo
 citizens, owned reports across every MVP category, staff-reviewed AI fields, public-safe browsing

@@ -23,17 +23,6 @@
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "departmentId": "d1111111-1111-1111-1111-111111111111",
     "duplicateGroupId": null,
-    "duplicateSuggestions": [
-      {
-        "ticketId": "tkt_bbbbbbbb444455556666bbbbbbbbbbbb",
-        "ticketNumber": "BG-2026-0011",
-        "distanceMeters": 73.46,
-        "status": "SUBMITTED",
-        "category": "road_damage",
-        "score": 0.94,
-        "categoryMatch": "same"
-      }
-    ],
     "createdAt": "2026-08-12T09:30:00Z",
     "updatedAt": "2026-08-12T09:30:00Z",
     "ownerUserId": "usr_demo_ahmad",
@@ -91,7 +80,9 @@
     "publicStatus": "PUBLISHED",
     "publicDescription": "Overflowing waste bins are blocking part of a public sidewalk.",
     "publicLocationLabel": "Hamra district, Beirut",
-    "publicPublishedAt": "2026-08-12T11:00:00Z"
+    "publicPublishedAt": "2026-08-12T11:00:00Z",
+    "urgencyScore": 46,
+    "urgencyReason": "Medium (46): public obstruction; recurring waste issue; photo evidence."
   },
   {
     "ticketId": "tkt_33333333333333333333333333333333",
@@ -151,7 +142,7 @@
       "source": "GPS"
     },
     "imageObjectKey": "reports/mock/water-leak-achrafieh.jpg",
-    "status": "SUBMITTED",
+    "status": "UNDER_REVIEW",
     "category": "water_leak",
     "priority": "high",
     "createdBy": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
@@ -168,7 +159,9 @@
     "aiConfidence": 0.87,
     "aiProcessingStatus": "completed",
     "aiModelVersion": "demo-sprint-6-fixture",
-    "publicStatus": "DRAFT"
+    "publicStatus": "DRAFT",
+    "urgencyScore": 58,
+    "urgencyReason": "High (58): water infrastructure concern; active leak; public disruption."
   },
   {
     "ticketId": "tkt_55555555555555555555555555555555",
@@ -285,7 +278,9 @@
     "publicStatus": "PUBLISHED",
     "publicDescription": "Broken sidewalk tiles are creating a tripping hazard in Manara.",
     "publicLocationLabel": "Manara district, Beirut",
-    "publicPublishedAt": "2026-08-13T15:30:00Z"
+    "publicPublishedAt": "2026-08-13T15:30:00Z",
+    "urgencyScore": 42,
+    "urgencyReason": "Medium (42): pedestrian hazard; moderate location risk; clear report text."
   },
   {
     "ticketId": "tkt_88888888888888888888888888888888",
@@ -303,7 +298,7 @@
       "source": "GPS"
     },
     "imageObjectKey": "reports/mock/traffic-signal-sodeco.jpg",
-    "status": "SUBMITTED",
+    "status": "ASSIGNED",
     "category": "traffic_signal",
     "priority": "critical",
     "createdBy": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
@@ -369,7 +364,9 @@
     "publicStatus": "PUBLISHED",
     "publicDescription": "A blocked storm drain is causing water accumulation after rain.",
     "publicLocationLabel": "Ras Beirut district",
-    "publicPublishedAt": "2026-08-14T12:10:00Z"
+    "publicPublishedAt": "2026-08-14T12:10:00Z",
+    "urgencyScore": 61,
+    "urgencyReason": "High (61): drainage blockage; rain-related accumulation; nearby public route."
   },
   {
     "ticketId": "tkt_aaaaaaaa111122223333aaaaaaaaaaaa",
@@ -436,17 +433,6 @@
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "departmentId": "d1111111-1111-1111-1111-111111111111",
     "duplicateGroupId": null,
-    "duplicateSuggestions": [
-      {
-        "ticketId": "tkt_11111111111111111111111111111111",
-        "ticketNumber": "BG-2026-0001",
-        "distanceMeters": 73.46,
-        "status": "SUBMITTED",
-        "category": "road_damage",
-        "score": 0.94,
-        "categoryMatch": "same"
-      }
-    ],
     "createdAt": "2026-08-15T17:30:00Z",
     "updatedAt": "2026-08-15T17:30:00Z",
     "ownerUserId": "usr_demo_sara",

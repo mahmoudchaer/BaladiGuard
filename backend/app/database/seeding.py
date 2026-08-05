@@ -142,7 +142,11 @@ def max_ticket_sequence_from_samples(tickets: list[dict]) -> int:
     return highest
 
 
-def run_seed(settings: Settings | None = None) -> None:
+def run_seed(
+    settings: Settings | None = None,
+    *,
+    with_samples: bool | None = None,
+) -> None:
     settings = settings or get_settings()
     prefix = settings.dynamodb_table_prefix
     resource = create_dynamodb_resource(settings)
@@ -175,7 +179,8 @@ def run_seed(settings: Settings | None = None) -> None:
     print(f"Seeded demo staff accounts created: {staff_created}")
 
     counter_seed_value = 0
-    if settings.seed_sample_tickets:
+    should_seed_samples = settings.seed_sample_tickets if with_samples is None else with_samples
+    if should_seed_samples:
         citizen_count = seed_citizens(
             users_table,
             phone_claims_table,
@@ -194,6 +199,9 @@ def run_seed(settings: Settings | None = None) -> None:
         print(f"Seeded sample duplicate groups: {duplicate_group_count}")
         print(f"Seeded sample status history entries: {history_count}")
     else:
-        print("Skipped sample tickets (set SEED_SAMPLE_TICKETS=true to load mock_tickets.json).")
+        print(
+            "Skipped sample tickets "
+            "(set SEED_SAMPLE_TICKETS=true or run scripts/db/seed.py --with-samples)."
+        )
 
     initialize_ticket_counter(counters_table, counter_seed_value)

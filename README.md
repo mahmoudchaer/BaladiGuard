@@ -281,10 +281,10 @@ python scripts/db/migrate.py
 python scripts/db/seed.py
 ```
 
-`python scripts/db/seed.py` always loads reference catalogs and demo staff when enabled. Set
-`SEED_SAMPLE_TICKETS=true` before seeding to also load the Sprint 6 sample report story from
-`mock_tickets.json`, including synthetic demo citizens, public-safe report projections, status
-history, and duplicate-group rows.
+`python scripts/db/seed.py` always loads reference catalogs and demo staff when enabled. Run
+`python scripts/db/seed.py --with-samples`, or set `SEED_SAMPLE_TICKETS=true` before seeding, to also
+load the Sprint 6 sample report story from `mock_tickets.json`, including synthetic demo citizens,
+public-safe report projections, status history, and duplicate-group rows.
 
 4. Run the API:
 

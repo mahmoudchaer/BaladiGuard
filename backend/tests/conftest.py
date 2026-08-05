@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from moto import mock_aws
 
-# Importing app.config loads .env with override=True, so force memory afterward.
+# Import app.config early, then force deterministic test settings for the suite.
 import app.config  # noqa: F401
 from app.config import Settings, get_settings
 
