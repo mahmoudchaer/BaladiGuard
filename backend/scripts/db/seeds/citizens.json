@@ -1,0 +1,50 @@
+[
+  {
+    "userId": "usr_demo_ahmad",
+    "phone": "+96170123456",
+    "phoneVerifiedAt": "2026-08-10T08:00:00Z",
+    "fullName": "Ahmad Khoury",
+    "email": "ahmad.khoury@example.com",
+    "notificationPreferences": {
+      "ticketUpdates": "SMS",
+      "announcements": true
+    },
+    "publicNameVisible": false,
+    "active": true,
+    "sessionEpoch": 0,
+    "createdAt": "2026-08-10T08:00:00Z",
+    "updatedAt": "2026-08-10T08:00:00Z"
+  },
+  {
+    "userId": "usr_demo_layla",
+    "phone": "+96103123456",
+    "phoneVerifiedAt": "2026-08-10T08:05:00Z",
+    "fullName": "Layla Mansour",
+    "email": "layla.mansour@example.com",
+    "notificationPreferences": {
+      "ticketUpdates": "EMAIL",
+      "announcements": false
+    },
+    "publicNameVisible": true,
+    "active": true,
+    "sessionEpoch": 0,
+    "createdAt": "2026-08-10T08:05:00Z",
+    "updatedAt": "2026-08-10T08:05:00Z"
+  },
+  {
+    "userId": "usr_demo_sara",
+    "phone": "+96178901234",
+    "phoneVerifiedAt": "2026-08-10T08:10:00Z",
+    "fullName": "Sara Haddad",
+    "email": "sara.haddad@example.com",
+    "notificationPreferences": {
+      "ticketUpdates": "BOTH",
+      "announcements": true
+    },
+    "publicNameVisible": true,
+    "active": true,
+    "sessionEpoch": 0,
+    "createdAt": "2026-08-10T08:10:00Z",
+    "updatedAt": "2026-08-10T08:10:00Z"
+  }
+]

@@ -25,12 +25,29 @@ schema_fields = {
     "ticketNumber",
     "trackingCode",
     "description",
+    "originalDescription",
+    "cleanedDescription",
     "contact",
     "location",
     "imageObjectKey",
+    "ownerUserId",
     "status",
     "category",
+    "aiSuggestedCategory",
+    "aiCategoryExplanation",
+    "aiConfidence",
+    "finalCategory",
+    "categoryReviewedBy",
+    "categoryReviewedAt",
+    "aiProcessingStatus",
+    "aiModelVersion",
+    "publicStatus",
+    "publicDescription",
+    "publicLocationLabel",
+    "publicPublishedAt",
     "priority",
+    "urgencyScore",
+    "urgencyReason",
     "createdBy",
     "municipalityId",
     "departmentId",
@@ -81,6 +98,8 @@ contact_violations = [
 ]
 print("=== Contact rule (phone OR email) ===")
 print("Violations:", contact_violations or "none")
+if contact_violations:
+    raise SystemExit(1)
 
 valid_status = {"SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS", "RESOLVED"}
 bad_status = [
@@ -90,10 +109,14 @@ bad_status = [
 ]
 print("\n=== Status enum (uppercase) ===")
 print("Invalid:", bad_status or "none")
+if bad_status:
+    raise SystemExit(1)
 
 bad_ids = [record["ticketId"] for record in records if not record["ticketId"].startswith("tkt_")]
 print("\n=== ticketId format (tkt_*) ===")
 print("Invalid:", bad_ids or "none")
+if bad_ids:
+    raise SystemExit(1)
 
 old_keys = {
     "id",
@@ -110,3 +133,38 @@ old_keys = {
 found_old = sorted(old_keys & set().union(*(record.keys() for record in records)))
 print("\n=== Old snake_case / flat schema keys (should be absent) ===")
 print("Found:", found_old or "none")
+if found_old:
+    raise SystemExit(1)
+
+valid_public_statuses = {"DRAFT", "PUBLISHED", "UNPUBLISHED"}
+bad_public_statuses = [
+    (record["ticketId"], record.get("publicStatus"))
+    for record in records
+    if record.get("publicStatus") not in valid_public_statuses
+]
+print("\n=== Public status enum ===")
+print("Invalid:", bad_public_statuses or "none")
+if bad_public_statuses:
+    raise SystemExit(1)
+
+unsafe_public = [
+    record["ticketId"]
+    for record in records
+    if record.get("publicStatus") == "PUBLISHED"
+    and (
+        not record.get("publicDescription")
+        or not record.get("publicLocationLabel")
+        or not record.get("publicPublishedAt")
+        or record["location"]["addressText"] == record.get("publicLocationLabel")
+    )
+]
+print("\n=== Published reports have approved public fields ===")
+print("Violations:", unsafe_public or "none")
+if unsafe_public:
+    raise SystemExit(1)
+
+ownerless = [record["ticketId"] for record in records if not record.get("ownerUserId")]
+print("\n=== Synthetic citizen ownership ===")
+print("Ownerless:", ownerless or "none")
+if ownerless:
+    raise SystemExit(1)

@@ -6,13 +6,13 @@ The canonical persistence model is defined in [database.md](./database.md).
 
 ## Migration approach
 
-| Item | Choice |
-|---|---|
-| Database | DynamoDB |
-| Local runtime | DynamoDB Local (Docker) |
-| Migrations | Idempotent Python scripts (`create_table` if not exists) |
-| Seeds | JSON fixtures loaded by `backend/scripts/db/seed.py` |
-| Table design | One table per entity, camelCase attributes matching the API |
+| Item          | Choice                                                      |
+| ------------- | ----------------------------------------------------------- |
+| Database      | DynamoDB                                                    |
+| Local runtime | DynamoDB Local (Docker)                                     |
+| Migrations    | Idempotent Python scripts (`create_table` if not exists)    |
+| Seeds         | JSON fixtures loaded by `backend/scripts/db/seed.py`        |
+| Table design  | One table per entity, camelCase attributes matching the API |
 
 Run migrations before seeds. Use `make db-reset` to drop and recreate all project tables during development.
 
@@ -59,13 +59,13 @@ Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb
 
 ## Make commands
 
-| Command | Description |
-|---|---|
-| `make db-up` | Start DynamoDB Local on port `8001` |
-| `make db-down` | Stop the Docker Compose stack |
-| `make db-migrate` | Create MVP tables (idempotent) |
-| `make db-seed` | Load municipalities, departments, and categories |
-| `make db-reset` | Delete project tables, recreate them, and seed again |
+| Command           | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `make db-up`      | Start DynamoDB Local on port `8001`                  |
+| `make db-down`    | Stop the Docker Compose stack                        |
+| `make db-migrate` | Create MVP tables (idempotent)                       |
+| `make db-seed`    | Load municipalities, departments, and categories     |
+| `make db-reset`   | Delete project tables, recreate them, and seed again |
 
 ## Current tables (including Sprint 6 citizen persistence)
 
@@ -74,23 +74,23 @@ Citizen account tables are created by `make db-migrate` (issue #169). Public OTP
 request/verify HTTP routes remain #170; the challenge/session tables are the shared
 persistence foundation.
 
-| Table | Partition key | GSIs |
-|---|---|---|
-| `baladiguard-tickets` | `ticketId` | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index` |
-| `baladiguard-users` | `userId` | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
-| `baladiguard-phone-claims` | `phoneKey` | No GSI; transactional phone-uniqueness authority. |
-| `baladiguard-citizen-otp-challenges` | `challengeId` | TTL on `ttl`; plain OTP codes are never stored. |
-| `baladiguard-citizen-sessions` | `sessionId` | `userId-index` for account-wide revocation; TTL on `ttl`. |
-| `baladiguard-staff-users` | `staffId` | Staff accounts (#175); password hashes never returned. |
-| `baladiguard-staff-username-claims` | `usernameKey` | Transactional username uniqueness (`USERNAME#…`). |
-| `baladiguard-municipalities` | `municipalityId` | — |
-| `baladiguard-departments` | `departmentId` | `municipalityId-index` |
-| `baladiguard-ticket-status-history` | `historyId` | `ticketId-index` |
-| `baladiguard-ai-outputs` | `aiOutputId` | `ticketId-index` |
-| `baladiguard-duplicate-groups` | `duplicateGroupId` | — |
-| `baladiguard-categories` | `categoryId` | — |
-| `baladiguard-counters` | `counterId` | — (ticket number sequence) |
-| `baladiguard-rate-limit-buckets` | `bucketKey` | Shared rate-limit counters (#186); TTL on `expiresAt`. |
+| Table                                | Partition key      | GSIs                                                                                        |
+| ------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------- |
+| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`         |
+| `baladiguard-users`                  | `userId`           | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
+| `baladiguard-phone-claims`           | `phoneKey`         | No GSI; transactional phone-uniqueness authority.                                           |
+| `baladiguard-citizen-otp-challenges` | `challengeId`      | TTL on `ttl`; plain OTP codes are never stored.                                             |
+| `baladiguard-citizen-sessions`       | `sessionId`        | `userId-index` for account-wide revocation; TTL on `ttl`.                                   |
+| `baladiguard-staff-users`            | `staffId`          | Staff accounts (#175); password hashes never returned.                                      |
+| `baladiguard-staff-username-claims`  | `usernameKey`      | Transactional username uniqueness (`USERNAME#…`).                                           |
+| `baladiguard-municipalities`         | `municipalityId`   | —                                                                                           |
+| `baladiguard-departments`            | `departmentId`     | `municipalityId-index`                                                                      |
+| `baladiguard-ticket-status-history`  | `historyId`        | `ticketId-index`                                                                            |
+| `baladiguard-ai-outputs`             | `aiOutputId`       | `ticketId-index`                                                                            |
+| `baladiguard-duplicate-groups`       | `duplicateGroupId` | —                                                                                           |
+| `baladiguard-categories`             | `categoryId`       | —                                                                                           |
+| `baladiguard-counters`               | `counterId`        | — (ticket number sequence)                                                                  |
+| `baladiguard-rate-limit-buckets`     | `bucketKey`        | Shared rate-limit counters (#186); TTL on `expiresAt`.                                      |
 
 ### Legacy `users` table migration
 
@@ -135,28 +135,33 @@ set SEED_SAMPLE_TICKETS=true
 make db-seed
 ```
 
-Sample tickets are **off by default** so local `POST /v1/tickets` testing starts from a clean ticket table.
+Sample tickets are **off by default** so local `POST /v1/tickets` testing starts from a clean ticket
+table. When enabled, the seed loads a synthetic Sprint 6 demo story: three phone-verified demo
+citizens, owned reports across every MVP category, staff-reviewed AI fields, public-safe browsing
+projections for published reports, status history timelines, and a duplicate group. Public sample
+records use coarse `publicLocationLabel` values and approved `publicDescription` text rather than
+raw citizen addresses or descriptions.
 
 ## Environment variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_BACKEND` | `memory` | `memory` for tests; `dynamodb` for local/prod persistence |
-| `DYNAMODB_ENDPOINT_URL` | — | `http://localhost:8001` for DynamoDB Local |
-| `AWS_REGION` | `us-east-1` | AWS region for boto3 |
-| `AWS_ACCESS_KEY_ID` | — | Use `local` for DynamoDB Local (dummy value required by boto3) |
-| `AWS_SECRET_ACCESS_KEY` | — | Use `local` for DynamoDB Local (dummy value required by boto3) |
-| `DYNAMODB_TABLE_PREFIX` | `baladiguard-` | Prefix for all table names |
-| `SEED_SAMPLE_TICKETS` | `false` | Load `mock_tickets.json` when seeding |
+| Variable                | Default        | Description                                                    |
+| ----------------------- | -------------- | -------------------------------------------------------------- |
+| `DATABASE_BACKEND`      | `memory`       | `memory` for tests; `dynamodb` for local/prod persistence      |
+| `DYNAMODB_ENDPOINT_URL` | —              | `http://localhost:8001` for DynamoDB Local                     |
+| `AWS_REGION`            | `us-east-1`    | AWS region for boto3                                           |
+| `AWS_ACCESS_KEY_ID`     | —              | Use `local` for DynamoDB Local (dummy value required by boto3) |
+| `AWS_SECRET_ACCESS_KEY` | —              | Use `local` for DynamoDB Local (dummy value required by boto3) |
+| `DYNAMODB_TABLE_PREFIX` | `baladiguard-` | Prefix for all table names                                     |
+| `SEED_SAMPLE_TICKETS`   | `false`        | Load `mock_tickets.json` when seeding                          |
 
 ## Tests vs real local persistence
 
 These are separate paths:
 
-| Path | What it uses | When to use it |
-|---|---|---|
-| Automated tests (`pytest`) | Default `DATABASE_BACKEND=memory`, plus one issue #9 Dynamo test that uses **moto** | CI and everyday backend test runs — **no Docker required** |
-| Real local API persistence | `DATABASE_BACKEND=dynamodb` + DynamoDB Local + `make db-migrate` (+ optional `make db-seed`) | Manual/demo runs against a real local database |
+| Path                       | What it uses                                                                                 | When to use it                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Automated tests (`pytest`) | Default `DATABASE_BACKEND=memory`, plus one issue #9 Dynamo test that uses **moto**          | CI and everyday backend test runs — **no Docker required** |
+| Real local API persistence | `DATABASE_BACKEND=dynamodb` + DynamoDB Local + `make db-migrate` (+ optional `make db-seed`) | Manual/demo runs against a real local database             |
 
 So yes: for a real run (not just CI), you still need DynamoDB Local up, migrations applied, and `DATABASE_BACKEND=dynamodb`. The moto test only proves the submit → save → get-by-ID path in CI; it does not replace local DynamoDB setup.
 
@@ -189,13 +194,13 @@ PYTHONPATH=. python scripts/validate_mock_tickets.py
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---|---|
-| `Could not connect to the endpoint URL` | Run `make db-up` and confirm `DYNAMODB_ENDPOINT_URL=http://localhost:8001` |
-| `Unable to locate credentials` | Set `AWS_ACCESS_KEY_ID=local` and `AWS_SECRET_ACCESS_KEY=local` in `backend/.env` |
-| `ResourceInUseException` | Table already exists — safe to ignore during migrate |
-| API still uses in-memory storage | Set `DATABASE_BACKEND=dynamodb` and restart Uvicorn |
-| Port `8001` in use | Change the host port in `docker-compose.yml` and update `DYNAMODB_ENDPOINT_URL` |
+| Problem                                 | Fix                                                                               |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `Could not connect to the endpoint URL` | Run `make db-up` and confirm `DYNAMODB_ENDPOINT_URL=http://localhost:8001`        |
+| `Unable to locate credentials`          | Set `AWS_ACCESS_KEY_ID=local` and `AWS_SECRET_ACCESS_KEY=local` in `backend/.env` |
+| `ResourceInUseException`                | Table already exists — safe to ignore during migrate                              |
+| API still uses in-memory storage        | Set `DATABASE_BACKEND=dynamodb` and restart Uvicorn                               |
+| Port `8001` in use                      | Change the host port in `docker-compose.yml` and update `DYNAMODB_ENDPOINT_URL`   |
 
 ## Cloud / production note
 

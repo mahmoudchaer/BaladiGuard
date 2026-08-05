@@ -35,7 +35,22 @@
       }
     ],
     "createdAt": "2026-08-12T09:30:00Z",
-    "updatedAt": "2026-08-12T09:30:00Z"
+    "updatedAt": "2026-08-12T09:30:00Z",
+    "ownerUserId": "usr_demo_ahmad",
+    "originalDescription": "Large pothole causing traffic near the university entrance.",
+    "cleanedDescription": "Large pothole causing traffic near the university entrance.",
+    "aiSuggestedCategory": "road_damage",
+    "aiCategoryExplanation": "The report describes a damaged road surface that affects traffic safety.",
+    "aiConfidence": 0.92,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "road_damage",
+    "categoryReviewedBy": "staff_muni_001",
+    "categoryReviewedAt": "2026-08-12T09:30:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "A large pothole is affecting traffic flow in Hamra.",
+    "publicLocationLabel": "Hamra district, Beirut",
+    "publicPublishedAt": "2026-08-12T09:30:00Z"
   },
   {
     "ticketId": "tkt_22222222222222222222222222222222",
@@ -61,7 +76,22 @@
     "departmentId": "d2222222-2222-2222-2222-222222222222",
     "duplicateGroupId": "99999999-9999-9999-9999-999999999999",
     "createdAt": "2026-08-12T10:15:00Z",
-    "updatedAt": "2026-08-12T11:00:00Z"
+    "updatedAt": "2026-08-12T11:00:00Z",
+    "ownerUserId": "usr_demo_ahmad",
+    "originalDescription": "Overflowing garbage bins on the sidewalk.",
+    "cleanedDescription": "Overflowing garbage bins on the sidewalk.",
+    "aiSuggestedCategory": "waste",
+    "aiCategoryExplanation": "The report describes unmanaged public waste obstructing a sidewalk.",
+    "aiConfidence": 0.89,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "waste",
+    "categoryReviewedBy": "staff_admin_001",
+    "categoryReviewedAt": "2026-08-12T11:00:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "Overflowing waste bins are blocking part of a public sidewalk.",
+    "publicLocationLabel": "Hamra district, Beirut",
+    "publicPublishedAt": "2026-08-12T11:00:00Z"
   },
   {
     "ticketId": "tkt_33333333333333333333333333333333",
@@ -87,7 +117,22 @@
     "departmentId": "d3333333-3333-3333-3333-333333333333",
     "duplicateGroupId": null,
     "createdAt": "2026-08-12T18:45:00Z",
-    "updatedAt": "2026-08-13T08:20:00Z"
+    "updatedAt": "2026-08-13T08:20:00Z",
+    "ownerUserId": "usr_demo_layla",
+    "originalDescription": "Street light is not working at night.",
+    "cleanedDescription": "Street light is not working at night.",
+    "aiSuggestedCategory": "street_lighting",
+    "aiCategoryExplanation": "The report describes a malfunctioning public street light.",
+    "aiConfidence": 0.91,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "street_lighting",
+    "categoryReviewedBy": "staff_muni_001",
+    "categoryReviewedAt": "2026-08-13T08:20:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "A street light outage was reported and resolved in Ain El Mreisseh.",
+    "publicLocationLabel": "Beirut waterfront area",
+    "publicPublishedAt": "2026-08-13T08:20:00Z"
   },
   {
     "ticketId": "tkt_44444444444444444444444444444444",
@@ -114,7 +159,16 @@
     "departmentId": "d4444444-4444-4444-4444-444444444444",
     "duplicateGroupId": null,
     "createdAt": "2026-08-12T12:10:00Z",
-    "updatedAt": "2026-08-12T12:10:00Z"
+    "updatedAt": "2026-08-12T12:10:00Z",
+    "ownerUserId": "usr_demo_layla",
+    "originalDescription": "Water leaking from an underground pipe.",
+    "cleanedDescription": "Water leaking from an underground pipe.",
+    "aiSuggestedCategory": "water_leak",
+    "aiCategoryExplanation": "The report describes a visible water leak from public infrastructure.",
+    "aiConfidence": 0.87,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "publicStatus": "DRAFT"
   },
   {
     "ticketId": "tkt_55555555555555555555555555555555",
@@ -140,7 +194,22 @@
     "departmentId": "d2222222-2222-2222-2222-222222222222",
     "duplicateGroupId": "99999999-9999-9999-9999-999999999999",
     "createdAt": "2026-08-12T09:45:00Z",
-    "updatedAt": "2026-08-12T09:45:00Z"
+    "updatedAt": "2026-08-12T09:45:00Z",
+    "ownerUserId": "usr_demo_ahmad",
+    "originalDescription": "Garbage bags accumulating beside the same sidewalk.",
+    "cleanedDescription": "Garbage bags accumulating beside the same sidewalk.",
+    "aiSuggestedCategory": "waste",
+    "aiCategoryExplanation": "The report describes unmanaged public waste obstructing a sidewalk.",
+    "aiConfidence": 0.89,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "waste",
+    "categoryReviewedBy": "staff_admin_001",
+    "categoryReviewedAt": "2026-08-12T09:45:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "A second nearby waste report was linked to an existing case.",
+    "publicLocationLabel": "Hamra district, Beirut",
+    "publicPublishedAt": "2026-08-12T09:45:00Z"
   },
   {
     "ticketId": "tkt_66666666666666666666666666666666",
@@ -166,7 +235,16 @@
     "departmentId": "d5555555-5555-5555-5555-555555555555",
     "duplicateGroupId": null,
     "createdAt": "2026-08-13T21:20:00Z",
-    "updatedAt": "2026-08-13T21:20:00Z"
+    "updatedAt": "2026-08-13T21:20:00Z",
+    "ownerUserId": "usr_demo_sara",
+    "originalDescription": "Loud construction noise continuing late at night.",
+    "cleanedDescription": "Loud construction noise continuing late at night.",
+    "aiSuggestedCategory": "noise",
+    "aiCategoryExplanation": "The report describes recurring late-night construction noise.",
+    "aiConfidence": 0.83,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "publicStatus": "DRAFT"
   },
   {
     "ticketId": "tkt_77777777777777777777777777777777",
@@ -192,7 +270,22 @@
     "departmentId": "d1111111-1111-1111-1111-111111111111",
     "duplicateGroupId": null,
     "createdAt": "2026-08-13T14:05:00Z",
-    "updatedAt": "2026-08-13T15:30:00Z"
+    "updatedAt": "2026-08-13T15:30:00Z",
+    "ownerUserId": "usr_demo_ahmad",
+    "originalDescription": "Broken sidewalk tiles creating a tripping hazard.",
+    "cleanedDescription": "Broken sidewalk tiles creating a tripping hazard.",
+    "aiSuggestedCategory": "sidewalk_damage",
+    "aiCategoryExplanation": "The report describes damaged sidewalk tiles and pedestrian risk.",
+    "aiConfidence": 0.9,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "sidewalk_damage",
+    "categoryReviewedBy": "staff_muni_001",
+    "categoryReviewedAt": "2026-08-13T15:30:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "Broken sidewalk tiles are creating a tripping hazard in Manara.",
+    "publicLocationLabel": "Manara district, Beirut",
+    "publicPublishedAt": "2026-08-13T15:30:00Z"
   },
   {
     "ticketId": "tkt_88888888888888888888888888888888",
@@ -221,10 +314,21 @@
     "urgencyReason": "Critical (75): immediate safety danger; critical location; strong evidence.",
     "createdAt": "2026-08-14T08:25:00Z",
     "updatedAt": "2026-08-14T08:25:00Z",
-    "ai": {
-      "urgencyScore": 75,
-      "urgencyReason": "Critical (75): immediate safety danger; critical location; strong evidence."
-    }
+    "ownerUserId": "usr_demo_layla",
+    "originalDescription": "Traffic signal is fully dark at a busy signalized intersection.",
+    "cleanedDescription": "Traffic signal is fully dark at a busy signalized intersection.",
+    "aiSuggestedCategory": "traffic_signal",
+    "aiCategoryExplanation": "The report describes a traffic signal outage at a busy intersection.",
+    "aiConfidence": 0.95,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "traffic_signal",
+    "categoryReviewedBy": "staff_admin_001",
+    "categoryReviewedAt": "2026-08-14T08:25:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "A dark traffic signal at a busy intersection requires urgent repair.",
+    "publicLocationLabel": "Sodeco district, Beirut",
+    "publicPublishedAt": "2026-08-14T08:25:00Z"
   },
   {
     "ticketId": "tkt_99999999aaaabbbbcccc999999999999",
@@ -250,7 +354,22 @@
     "departmentId": "d7777777-7777-7777-7777-777777777777",
     "duplicateGroupId": null,
     "createdAt": "2026-08-14T11:40:00Z",
-    "updatedAt": "2026-08-14T12:10:00Z"
+    "updatedAt": "2026-08-14T12:10:00Z",
+    "ownerUserId": "usr_demo_sara",
+    "originalDescription": "Blocked storm drain causing water accumulation after rain.",
+    "cleanedDescription": "Blocked storm drain causing water accumulation after rain.",
+    "aiSuggestedCategory": "drainage",
+    "aiCategoryExplanation": "The report describes storm drain blockage and water accumulation.",
+    "aiConfidence": 0.88,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "drainage",
+    "categoryReviewedBy": "staff_admin_001",
+    "categoryReviewedAt": "2026-08-14T12:10:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "A blocked storm drain is causing water accumulation after rain.",
+    "publicLocationLabel": "Ras Beirut district",
+    "publicPublishedAt": "2026-08-14T12:10:00Z"
   },
   {
     "ticketId": "tkt_aaaaaaaa111122223333aaaaaaaaaaaa",
@@ -277,7 +396,22 @@
     "departmentId": "d8888888-8888-8888-8888-888888888888",
     "duplicateGroupId": null,
     "createdAt": "2026-08-15T16:00:00Z",
-    "updatedAt": "2026-08-16T09:15:00Z"
+    "updatedAt": "2026-08-16T09:15:00Z",
+    "ownerUserId": "usr_demo_ahmad",
+    "originalDescription": "Damaged public bench in the park.",
+    "cleanedDescription": "Damaged public bench in the park.",
+    "aiSuggestedCategory": "public_facilities",
+    "aiCategoryExplanation": "The report describes damage to a public park facility.",
+    "aiConfidence": 0.86,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "finalCategory": "public_facilities",
+    "categoryReviewedBy": "staff_admin_001",
+    "categoryReviewedAt": "2026-08-16T09:15:00Z",
+    "publicStatus": "PUBLISHED",
+    "publicDescription": "A damaged public bench was repaired in Horsh Beirut.",
+    "publicLocationLabel": "Horsh Beirut area",
+    "publicPublishedAt": "2026-08-16T09:15:00Z"
   },
   {
     "ticketId": "tkt_bbbbbbbb444455556666bbbbbbbbbbbb",
@@ -314,6 +448,15 @@
       }
     ],
     "createdAt": "2026-08-15T17:30:00Z",
-    "updatedAt": "2026-08-15T17:30:00Z"
+    "updatedAt": "2026-08-15T17:30:00Z",
+    "ownerUserId": "usr_demo_sara",
+    "originalDescription": "Another deep pothole a block away from the university entrance.",
+    "cleanedDescription": "Another deep pothole a block away from the university entrance.",
+    "aiSuggestedCategory": "road_damage",
+    "aiCategoryExplanation": "The report describes a damaged road surface that affects traffic safety.",
+    "aiConfidence": 0.92,
+    "aiProcessingStatus": "completed",
+    "aiModelVersion": "demo-sprint-6-fixture",
+    "publicStatus": "DRAFT"
   }
 ]
