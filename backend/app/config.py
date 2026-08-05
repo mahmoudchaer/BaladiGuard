@@ -9,8 +9,8 @@ REPO_ROOT = BACKEND_DIR.parent
 
 
 def load_environment() -> None:
-    load_dotenv(BACKEND_DIR / ".env", override=True)
-    load_dotenv(REPO_ROOT / ".env", override=True)
+    load_dotenv(BACKEND_DIR / ".env", override=False)
+    load_dotenv(REPO_ROOT / ".env", override=False)
 
 
 load_environment()

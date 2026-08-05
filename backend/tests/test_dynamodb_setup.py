@@ -250,3 +250,51 @@ def test_seed_script_loads_reference_data(dynamodb_settings: Settings) -> None:
     assert len(municipalities) == 1
     assert len(departments) == 8
     assert len(categories) == 10
+
+
+def test_seed_script_loads_sample_ticket_story_when_enabled(
+    dynamodb_settings: Settings,
+) -> None:
+    from app.database.dynamo_duplicate_group_store import DynamoDuplicateGroupStore
+    from app.database.dynamo_status_history_store import DynamoStatusHistoryStore
+    from app.database.dynamo_ticket_store import DynamoTicketStore
+    from app.database.dynamodb import create_dynamodb_resource
+    from app.database.seeding import run_seed
+    from app.utils.phone import phone_claim_key
+
+    settings = dynamodb_settings
+    run_seed(settings, with_samples=True)
+
+    resource = create_dynamodb_resource(settings)
+    prefix = settings.dynamodb_table_prefix
+    users_table = resource.Table(build_table_name(prefix, "users"))
+    claims_table = resource.Table(build_table_name(prefix, "phone-claims"))
+    users = users_table.scan()["Items"]
+    assert len(users) == 3
+    assert users_table.get_item(Key={"userId": "usr_demo_layla"})["Item"]["publicNameVisible"]
+    assert (
+        claims_table.get_item(Key={"phoneKey": phone_claim_key("+96170123456")})["Item"]["userId"]
+        == "usr_demo_ahmad"
+    )
+
+    ticket_store = DynamoTicketStore(settings)
+    public_page = ticket_store.list_public(limit=20)
+    ticket_numbers = [ticket.ticket_number for ticket in public_page.items]
+    assert "BG-2026-0008" in ticket_numbers
+    assert "BG-2026-0011" not in ticket_numbers
+
+    detail = ticket_store.get_by_ticket_number("bg-2026-0008")
+    assert detail is not None
+    assert detail.owner_user_id == "usr_demo_layla"
+    assert detail.public_location_label != detail.location.address_text
+
+    status_history = DynamoStatusHistoryStore(settings).list_by_ticket_id(detail.ticket_id)
+    assert [entry.new_status for entry in status_history] == [
+        "SUBMITTED",
+        "UNDER_REVIEW",
+        "ASSIGNED",
+    ]
+
+    group = DynamoDuplicateGroupStore(settings).get("99999999-9999-9999-9999-999999999999")
+    assert group is not None
+    assert group.canonical_ticket_id == "tkt_55555555555555555555555555555555"

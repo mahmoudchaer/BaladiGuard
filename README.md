@@ -160,15 +160,15 @@ are HMAC-hashed before storage/logs (raw IPs are not persisted).
 Default policies (all env-configurable — see `docs/configuration.md` and
 `docs/rate-limiting-runbook.md`):
 
-| Route | Policy | Default |
-| --- | --- | --- |
-| `POST /v1/tickets` (AI-triggering submit) | `public-ticket-submission` | 20 / 60s |
-| `GET /v1/tickets/track/{trackingCode}` | `public-ticket-tracking` | 60 / 60s |
-| `POST /v1/uploads/report-photo` | `public-upload-report-photo` | 10 / 60s (stricter) |
-| `POST /v1/locations/validate` | `public-location-validate` | 30 / 60s |
-| `POST /v1/staff/login` | `staff-login` | 10 / 300s |
-| `POST /v1/staff/password-reset/request` | `staff-password-reset-request` | 10 / 300s |
-| `POST /v1/staff/password-reset/confirm` | `staff-password-reset-confirm` | ≥20 / 300s |
+| Route                                        | Policy                                       | Default                |
+| -------------------------------------------- | -------------------------------------------- | ---------------------- |
+| `POST /v1/tickets` (AI-triggering submit)    | `public-ticket-submission`                   | 20 / 60s               |
+| `GET /v1/tickets/track/{trackingCode}`       | `public-ticket-tracking`                     | 60 / 60s               |
+| `POST /v1/uploads/report-photo`              | `public-upload-report-photo`                 | 10 / 60s (stricter)    |
+| `POST /v1/locations/validate`                | `public-location-validate`                   | 30 / 60s               |
+| `POST /v1/staff/login`                       | `staff-login`                                | 10 / 300s              |
+| `POST /v1/staff/password-reset/request`      | `staff-password-reset-request`               | 10 / 300s              |
+| `POST /v1/staff/password-reset/confirm`      | `staff-password-reset-confirm`               | ≥20 / 300s             |
 | Citizen OTP request/verify (when #170 ships) | `citizen-otp-request` / `citizen-otp-verify` | 5 / 300s and 10 / 300s |
 
 Citizen auth is passwordless OTP (signup/login). There is no citizen password-reset route.
@@ -280,6 +280,11 @@ cd backend
 python scripts/db/migrate.py
 python scripts/db/seed.py
 ```
+
+`python scripts/db/seed.py` always loads reference catalogs and demo staff when enabled. Run
+`python scripts/db/seed.py --with-samples`, or set `SEED_SAMPLE_TICKETS=true` before seeding, to also
+load the Sprint 6 sample report story from `mock_tickets.json`, including synthetic demo citizens,
+public-safe report projections, status history, and duplicate-group rows.
 
 4. Run the API:
 
@@ -418,10 +423,10 @@ intentionally want mock fixtures.
 The shared env-credential staff login has been replaced with individual staff accounts.
 When `SEED_DEMO_STAFF=true` (default for local/test), the backend bootstraps:
 
-| Username | Role | Password |
-|---|---|---|
-| `admin` | `administrator` (global scope) | `DEMO_STAFF_PASSWORD` (default `staff-demo-password`) |
-| `staff` | `municipal_staff` (Beirut roads + lighting) | same demo password |
+| Username | Role                                        | Password                                              |
+| -------- | ------------------------------------------- | ----------------------------------------------------- |
+| `admin`  | `administrator` (global scope)              | `DEMO_STAFF_PASSWORD` (default `staff-demo-password`) |
+| `staff`  | `municipal_staff` (Beirut roads + lighting) | same demo password                                    |
 
 Memory mode creates these accounts on API startup. DynamoDB Local creates them via
 `make db-seed`. Passwords are stored as PBKDF2 hashes only. Use `POST /v1/staff/logout`
