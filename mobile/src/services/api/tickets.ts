@@ -4,6 +4,8 @@ import type { ReportFormValues } from '@/schemas/reportFormSchema';
 import type {
   CitizenTicketHistoryResponse,
   CitizenTicketResponse,
+  PublicTicketListResponse,
+  PublicTicketResponse,
   SubmitTicketRequest,
   SubmitTicketResponse,
 } from '@/types/ticket';
@@ -11,6 +13,8 @@ import { appConfig } from '@/services/config';
 import { getAuthHeaders, handleUnauthorizedResponse, parseApiError } from '@/services/api/http';
 import {
   getCitizenTicketHistoryMock,
+  getPublicTicketByNumberMock,
+  getPublicTicketsMock,
   getTicketByTrackingCodeMock,
   submitTicketMock,
 } from '@/services/api/mockTickets';
@@ -29,6 +33,8 @@ export const TICKET_HISTORY_NETWORK_MESSAGE =
   'Unable to load your report history right now. Check your connection and try again.';
 export const TICKET_HISTORY_UNAUTHORIZED_MESSAGE =
   'Your session has expired. Please sign in again.';
+export const PUBLIC_TICKETS_NETWORK_MESSAGE =
+  'Unable to load public reports right now. Check your connection and try again.';
 
 type CitizenTicketHistoryOptions = {
   accessToken: string;
@@ -40,21 +46,18 @@ type SubmitReportOptions = {
   onProgress?: (phase: SubmitReportPhase) => void;
 };
 
+type PublicTicketListOptions = {
+  limit?: number;
+  cursor?: string | null;
+};
+
 const buildSubmitPayload = (
   values: ReportFormValues,
   imageObjectKey: string,
 ): SubmitTicketRequest => {
-  const preferredChannel = values.email?.trim() ? 'EMAIL' : 'SMS';
-
   return {
     description: values.description.trim(),
     languageHint: 'auto',
-    contact: {
-      name: values.contactName?.trim() || undefined,
-      phone: values.phone?.trim() || undefined,
-      email: values.email?.trim() || undefined,
-      preferredChannel,
-    },
     location: {
       latitude: values.latitude as number,
       longitude: values.longitude as number,
@@ -202,4 +205,59 @@ export async function getCitizenTicketHistory({
   }
 
   return response.json() as Promise<CitizenTicketHistoryResponse>;
+}
+
+export async function getPublicTickets({
+  limit = 20,
+  cursor,
+}: PublicTicketListOptions = {}): Promise<PublicTicketListResponse> {
+  if (appConfig.enableMockApi) {
+    return getPublicTicketsMock({ limit });
+  }
+
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) {
+    params.set('cursor', cursor);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${appConfig.apiBaseUrl}/tickets/public?${params.toString()}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+  } catch (error) {
+    if (isOfflineError(error)) {
+      throw new Error(PUBLIC_TICKETS_NETWORK_MESSAGE);
+    }
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, PUBLIC_TICKETS_NETWORK_MESSAGE));
+  }
+
+  return response.json() as Promise<PublicTicketListResponse>;
+}
+
+export async function getPublicTicketByNumber(ticketNumber: string): Promise<PublicTicketResponse> {
+  const normalized = ticketNumber.trim().toUpperCase();
+
+  if (appConfig.enableMockApi) {
+    return getPublicTicketByNumberMock(normalized);
+  }
+
+  const response = await fetch(
+    `${appConfig.apiBaseUrl}/tickets/public/${encodeURIComponent(normalized)}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, PUBLIC_TICKETS_NETWORK_MESSAGE));
+  }
+
+  return response.json() as Promise<PublicTicketResponse>;
 }

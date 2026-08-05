@@ -12,7 +12,7 @@ import {
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-import { ContactFields } from '@/features/citizen-report/components/ContactFields';
+import { useCitizenAuth } from '@/auth';
 import { LocationFields } from '@/features/citizen-report/components/LocationFields';
 import { PhotoPickerField } from '@/features/citizen-report/components/PhotoPickerField';
 import {
@@ -30,6 +30,7 @@ const submitPhaseLabels: Record<SubmitReportPhase, string> = {
 };
 
 export function ReportForm() {
+  const { profile } = useCitizenAuth();
   const [selectedPlaceholderId, setSelectedPlaceholderId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<SubmitReportPhase | null>(null);
@@ -165,8 +166,13 @@ export function ReportForm() {
         <PhotoPickerField control={control} errors={errors} setValue={setValue} />
       </View>
 
-      <View style={styles.section}>
-        <ContactFields control={control} errors={errors} />
+      <View style={styles.identityNotice} testID="verified-identity-notice">
+        <Text variant="labelLarge">Verified contributor</Text>
+        <Text variant="bodyMedium" style={styles.identityText}>
+          {profile?.fullName
+            ? `${profile.fullName} is signed in by verified phone. Contact details are taken from your profile.`
+            : 'You are signed in by verified phone. Contact details are taken from your profile.'}
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -218,6 +224,17 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 8,
+  },
+  identityNotice: {
+    gap: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    backgroundColor: '#F0F9FF',
+    padding: 12,
+  },
+  identityText: {
+    color: '#334155',
   },
   label: {
     fontWeight: '600',

@@ -4,6 +4,7 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.config import get_settings
+from app.database.store_factory import get_citizen_store
 from app.schemas.stored_audit_history import StoredAuditHistory
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
@@ -12,6 +13,9 @@ from app.schemas.ticket_response import (
     CitizenTicketLocation,
     CitizenTicketResponse,
     CitizenTicketTimelineEntry,
+    PublicTicketAttribution,
+    PublicTicketMapLocation,
+    PublicTicketResponse,
     TicketAiFields,
     TicketAuditHistoryEntry,
     TicketDepartment,
@@ -85,7 +89,7 @@ def map_ticket_to_citizen_response(
         ticketNumber=ticket.ticket_number,
         trackingCode=ticket.tracking_code,
         status=ticket.status,
-        category=ticket.final_category,
+        category=_citizen_visible_category(ticket),
         location=CitizenTicketLocation(addressText=ticket.location.address_text),
         department=visible_department,
         createdAt=ticket.created_at,
@@ -99,6 +103,43 @@ def _citizen_visible_department(ticket: StoredTicket) -> CitizenTicketDepartment
     if ticket.status not in CITIZEN_DEPARTMENT_VISIBLE_STATUSES or not ticket.department_id:
         return None
     return CitizenTicketDepartment(name=department_name(ticket.department_id) or "Assigned team")
+
+
+def map_ticket_to_public_response(ticket: StoredTicket) -> PublicTicketResponse:
+    return PublicTicketResponse(
+        ticketNumber=ticket.ticket_number,
+        status=ticket.status,
+        category=_citizen_visible_category(ticket),
+        description=ticket.cleaned_description or ticket.description,
+        location=CitizenTicketLocation(addressText=ticket.location.address_text),
+        mapLocation=PublicTicketMapLocation(
+            addressText=ticket.location.address_text,
+            latitude=round(ticket.location.latitude, 3),
+            longitude=round(ticket.location.longitude, 3),
+        ),
+        department=_citizen_visible_department(ticket),
+        attribution=_public_attribution(ticket),
+        createdAt=ticket.created_at,
+        updatedAt=ticket.updated_at,
+    )
+
+
+def _citizen_visible_category(ticket: StoredTicket) -> str | None:
+    return ticket.final_category
+
+
+def _public_attribution(ticket: StoredTicket) -> PublicTicketAttribution:
+    if ticket.owner_user_id:
+        owner = get_citizen_store().get(ticket.owner_user_id)
+        if (
+            owner is not None
+            and owner.active
+            and owner.public_name_visible
+            and owner.full_name
+            and owner.full_name.strip()
+        ):
+            return PublicTicketAttribution(displayName=owner.full_name.strip(), isNamed=True)
+    return PublicTicketAttribution(displayName="Community member", isNamed=False)
 
 
 def map_ticket_to_response(

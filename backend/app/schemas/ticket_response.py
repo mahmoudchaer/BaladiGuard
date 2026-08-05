@@ -111,6 +111,46 @@ class CitizenTicketResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class PublicTicketAttribution(BaseModel):
+    display_name: str = Field(alias="displayName")
+    is_named: bool = Field(alias="isNamed")
+
+    model_config = {"populate_by_name": True}
+
+
+class PublicTicketMapLocation(BaseModel):
+    address_text: str = Field(alias="addressText")
+    latitude: float
+    longitude: float
+
+    model_config = {"populate_by_name": True}
+
+
+class PublicTicketResponse(BaseModel):
+    """Citizen-safe public browsing projection. Never includes tracking codes or IDs."""
+
+    ticket_number: str = Field(alias="ticketNumber")
+    status: TicketStatus
+    category: str | None = None
+    description: str
+    location: CitizenTicketLocation
+    map_location: PublicTicketMapLocation = Field(alias="mapLocation")
+    department: CitizenTicketDepartment | None = None
+    attribution: PublicTicketAttribution
+    created_at: str = Field(alias="createdAt")
+    updated_at: str | None = Field(default=None, alias="updatedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class PublicTicketListResponse(BaseModel):
+    items: list[PublicTicketResponse]
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
+    limit: int = Field(ge=1, le=50)
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketDuplicateReference(BaseModel):
     duplicate_group_id: str = Field(alias="duplicateGroupId")
     ticket_ids: list[str] | None = Field(default=None, alias="ticketIds")

@@ -11,6 +11,7 @@ import {
 } from '@/services/citizenSession';
 import { getCitizenMe } from '@/services/api/citizenAuth';
 import {
+  getPublicTickets,
   getCitizenTicketHistory,
   TICKET_HISTORY_UNAUTHORIZED_MESSAGE,
 } from '@/services/api/tickets';
@@ -36,8 +37,16 @@ vi.mock('@/services/api/tickets', async () => {
   return {
     ...actual,
     getCitizenTicketHistory: vi.fn(),
+    getPublicTickets: vi.fn(async () => ({ items: [], nextCursor: null, limit: 20 })),
   };
 });
+
+vi.mock('react-native-maps', () => ({
+  default: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('MapView', props, children),
+  Marker: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('Marker', props, children),
+}));
 
 const readyProfile: CitizenProfile = {
   userId: 'usr_1',
@@ -107,6 +116,7 @@ function findButton(screen: Awaited<ReturnType<typeof renderWithProvidersAsync>>
 describe('HistoryScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getPublicTickets).mockResolvedValue({ items: [], nextCursor: null, limit: 20 });
     __resetExpoRouterMock();
     __resetSecureStoreMock();
     vi.mocked(getCitizenMe).mockReset();

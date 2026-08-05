@@ -16,6 +16,7 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "category": "category",
     "category_reviewed_by": "categoryReviewedBy",
     "category_reviewed_at": "categoryReviewedAt",
+    "owner_user_id": "ownerUserId",
     "duplicate_group_id": "duplicateGroupId",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",

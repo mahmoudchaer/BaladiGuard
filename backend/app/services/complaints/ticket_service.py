@@ -1,3 +1,6 @@
+import base64
+import binascii
+import json
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -30,6 +33,8 @@ from app.schemas.ticket_ai_update import (
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
+    PublicTicketListResponse,
+    PublicTicketResponse,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketResponse,
@@ -45,6 +50,7 @@ from app.services.complaints.status_workflow import (
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
+    map_ticket_to_public_response,
     map_ticket_to_response,
 )
 from app.services.duplicates import find_nearby_duplicates
@@ -65,6 +71,8 @@ logger = logging.getLogger(__name__)
 
 Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
+PUBLIC_TICKET_DEFAULT_LIMIT = 20
+PUBLIC_TICKET_MAX_LIMIT = 50
 
 
 def _parse_iso_utc(value: str) -> datetime | None:
@@ -135,6 +143,31 @@ def _department_suggestion_fields(
     ):
         fields["department_id"] = suggested_department_id
     return fields
+
+
+def _public_ticket_sort_key(ticket: StoredTicket) -> tuple[str, str]:
+    return (ticket.created_at, ticket.ticket_number)
+
+
+def _encode_public_ticket_cursor(sort_key: tuple[str, str]) -> str:
+    payload = {"createdAt": sort_key[0], "ticketNumber": sort_key[1]}
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_public_ticket_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if cursor is None or cursor == "":
+        return None
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+        created_at = payload["createdAt"]
+        ticket_number = payload["ticketNumber"]
+    except (binascii.Error, KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid public ticket cursor.") from exc
+    if not isinstance(created_at, str) or not isinstance(ticket_number, str):
+        raise ValueError("Invalid public ticket cursor.")
+    return (created_at, ticket_number)
 
 
 class TicketService:
@@ -390,6 +423,44 @@ class TicketService:
             reverse=True,
         )
         return [self._map_ticket(ticket) for ticket in tickets]
+
+    def list_public_tickets(
+        self,
+        *,
+        limit: int = PUBLIC_TICKET_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> PublicTicketListResponse:
+        page_size = min(max(limit, 1), PUBLIC_TICKET_MAX_LIMIT)
+        cursor_key = _decode_public_ticket_cursor(cursor)
+        tickets = sorted(
+            self._store.list(),
+            key=_public_ticket_sort_key,
+            reverse=True,
+        )
+        if cursor_key is not None:
+            tickets = [ticket for ticket in tickets if _public_ticket_sort_key(ticket) < cursor_key]
+
+        page = tickets[:page_size]
+        next_cursor = (
+            _encode_public_ticket_cursor(_public_ticket_sort_key(page[-1]))
+            if len(tickets) > page_size and page
+            else None
+        )
+        return PublicTicketListResponse(
+            items=[map_ticket_to_public_response(ticket) for ticket in page],
+            nextCursor=next_cursor,
+            limit=page_size,
+        )
+
+    def get_public_ticket(self, ticket_number: str) -> PublicTicketResponse | None:
+        normalized = ticket_number.strip().upper()
+        ticket = next(
+            (ticket for ticket in self._store.list() if ticket.ticket_number.upper() == normalized),
+            None,
+        )
+        if ticket is None:
+            return None
+        return map_ticket_to_public_response(ticket)
 
     def get_ticket(
         self,

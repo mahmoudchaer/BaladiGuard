@@ -143,7 +143,6 @@ describe('ReportForm', () => {
 
     expect(hasText(screen, 'Please describe the issue in at least 10 characters.')).toBe(true);
     expect(hasText(screen, 'Please attach a photo of the issue.')).toBe(true);
-    expect(hasText(screen, 'Provide a phone number or email so we can reach you.')).toBe(true);
     expect(hasText(screen, 'Enter a location or choose a sample place.')).toBe(true);
     expect(submitReport).not.toHaveBeenCalled();
   });
@@ -156,8 +155,6 @@ describe('ReportForm', () => {
       'What is the problem?',
       'Large pothole near the university gate causing traffic disruption.',
     );
-    await changeText(screen, 'Name (optional)', 'Citizen Name');
-    await changeText(screen, 'Phone', '+96170123456');
 
     await act(async () => {
       findButtonByText(screen, 'Choose photo').props.onPress();
@@ -178,8 +175,6 @@ describe('ReportForm', () => {
     expect(submitReport).toHaveBeenCalledWith(
       expect.objectContaining({
         description: 'Large pothole near the university gate causing traffic disruption.',
-        contactName: 'Citizen Name',
-        phone: '+96170123456',
         addressText: 'Near AUB Main Gate, Hamra, Beirut',
         latitude: 33.896112,
         longitude: 35.478419,
@@ -250,7 +245,6 @@ describe('ReportForm', () => {
       'What is the problem?',
       'Large pothole near the university gate causing traffic disruption.',
     );
-    await changeText(screen, 'Phone', '+96170123456');
     await act(async () => {
       findButtonByText(screen, 'Choose photo').props.onPress();
     });
@@ -289,7 +283,6 @@ describe('ReportForm', () => {
       'What is the problem?',
       'Large pothole near the university gate causing traffic disruption.',
     );
-    await changeText(screen, 'Phone', '+96170123456');
     await act(async () => {
       findButtonByText(screen, 'Choose photo').props.onPress();
     });
