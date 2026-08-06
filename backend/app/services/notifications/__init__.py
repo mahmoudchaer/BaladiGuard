@@ -8,6 +8,7 @@ from app.services.notifications.adapters import (
     UnconfiguredRealNotificationAdapter,
     build_notification_adapter,
 )
+from app.services.notifications.aws_adapter import AwsSesSnsNotificationAdapter
 from app.services.notifications.ledger import (
     get_delivery_ledger,
     notification_idempotency_key,
@@ -26,6 +27,7 @@ from app.services.notifications.templates import (
 )
 
 __all__ = [
+    "AwsSesSnsNotificationAdapter",
     "MockNotificationAdapter",
     "NotificationAdapter",
     "NotificationDeliveryError",

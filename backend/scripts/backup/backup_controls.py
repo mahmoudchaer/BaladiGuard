@@ -28,6 +28,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "staff-password-reset-challenges",
     "ticket-status-history",
     "ticket-audit-history",
+    "notification-deliveries",
     "ai-outputs",
     "duplicate-groups",
     "municipalities",

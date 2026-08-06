@@ -73,9 +73,38 @@ class Settings:
             minimum=0.0,
             maximum=1.0,
         )
-        # mock = log-only delivery; real = provider path (unconfigured until SNS/SES).
+        # mock = log-only delivery; real = SES email + SNS SMS (issue #183).
         self.notification_adapter = (
             os.getenv("NOTIFICATION_ADAPTER", "mock").strip().lower() or "mock"
+        )
+        self.ses_from_email = os.getenv("SES_FROM_EMAIL", "").strip() or None
+        self.ses_configuration_set = os.getenv("SES_CONFIGURATION_SET", "").strip() or None
+        self.sns_sms_sender_id = os.getenv("SNS_SMS_SENDER_ID", "").strip() or None
+        # When true, real adapter may send SMS-only without SES_FROM_EMAIL configured.
+        self.notification_allow_sms_only_real = (
+            os.getenv("NOTIFICATION_ALLOW_SMS_ONLY_REAL", "true").strip().lower() == "true"
+        )
+        sandbox_raw = os.getenv("NOTIFICATION_SANDBOX", "").strip().lower()
+        if sandbox_raw in {"true", "false"}:
+            self.notification_sandbox = sandbox_raw == "true"
+        else:
+            # Local/dev sandbox by default so real credentials cannot spam citizens.
+            self.notification_sandbox = self.app_env in {"local", "test", "development"}
+        self.notification_allowlist_emails = frozenset(
+            value.strip().lower()
+            for value in os.getenv("NOTIFICATION_ALLOWLIST_EMAILS", "").split(",")
+            if value.strip()
+        )
+        self.notification_allowlist_phones = frozenset(
+            value.strip()
+            for value in os.getenv("NOTIFICATION_ALLOWLIST_PHONES", "").split(",")
+            if value.strip()
+        )
+        self.notification_destination_rate_limit = self._int_setting(
+            "NOTIFICATION_DESTINATION_RATE_LIMIT", default=10, minimum=1
+        )
+        self.notification_destination_rate_window_seconds = self._int_setting(
+            "NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS", default=60, minimum=1
         )
         self.trust_x_forwarded_for = (
             os.getenv("TRUST_X_FORWARDED_FOR", "false").strip().lower() == "true"

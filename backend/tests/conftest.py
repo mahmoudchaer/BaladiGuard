@@ -32,6 +32,7 @@ from app.database.memory_citizen import citizen_store  # noqa: E402
 from app.database.memory_citizen_otp import citizen_otp_store  # noqa: E402
 from app.database.memory_citizen_session import citizen_session_store  # noqa: E402
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
+from app.database.memory_notification_delivery import notification_delivery_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
 from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
@@ -125,6 +126,7 @@ def reset_ticket_store() -> None:
     status_history_store.clear()
     audit_history_store.clear()
     duplicate_group_store.clear()
+    notification_delivery_store.clear()
     citizen_store.clear()
     citizen_session_store.clear()
     citizen_otp_store.clear()

@@ -181,6 +181,21 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "notification-deliveries",
+        "key_schema": [{"AttributeName": "deliveryId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "deliveryId", "AttributeType": "S"},
+            {"AttributeName": "idempotencyKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "idempotencyKey-index",
+                "KeySchema": [{"AttributeName": "idempotencyKey", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
         "attribute_definitions": [

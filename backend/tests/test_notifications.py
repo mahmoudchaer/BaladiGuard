@@ -35,9 +35,9 @@ class RecordingAdapter(MockNotificationAdapter):
     def __init__(self) -> None:
         self.calls: list[tuple[str, NotificationRecipient | None]] = []
 
-    def deliver(self, message, recipient=None) -> None:  # type: ignore[no-untyped-def]
+    def deliver(self, message, recipient=None):  # type: ignore[no-untyped-def]
         self.calls.append((message.event, recipient))
-        super().deliver(message, recipient)
+        return super().deliver(message, recipient)
 
 
 class FailingAdapter(MockNotificationAdapter):
@@ -46,7 +46,8 @@ class FailingAdapter(MockNotificationAdapter):
         return "mock"
 
     def deliver(self, message, recipient=None) -> None:  # type: ignore[no-untyped-def]
-        raise NotificationDeliveryError("forced delivery failure")
+        # transient=True releases the idempotency claim so later retries can succeed.
+        raise NotificationDeliveryError("forced delivery failure", transient=True)
 
 
 def test_build_notification_adapter_defaults_to_mock():
@@ -55,10 +56,16 @@ def test_build_notification_adapter_defaults_to_mock():
     assert isinstance(adapter, MockNotificationAdapter)
 
 
-def test_build_notification_adapter_real_is_explicitly_unconfigured():
+def test_build_notification_adapter_real_without_channels_is_unconfigured(monkeypatch):
+    monkeypatch.setenv("SES_FROM_EMAIL", "")
+    monkeypatch.setenv("NOTIFICATION_ALLOW_SMS_ONLY_REAL", "false")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
     adapter = build_notification_adapter("real")
     assert adapter.mode == "real"
     assert isinstance(adapter, UnconfiguredRealNotificationAdapter)
+    get_settings.cache_clear()
 
 
 def test_emit_success_uses_mock_adapter_and_recipient(caplog):
@@ -124,7 +131,7 @@ def test_emit_failure_is_logged_and_allows_retry(caplog):
     assert first is False
     assert any("Notification delivery failed" in r.message for r in caplog.records)
 
-    # Failed delivery releases the idempotency claim so retries can succeed.
+    # Transient failure releases the idempotency claim so retries can succeed.
     second = emit_ticket_notification(
         event="ticket_resolved",
         ticket_id="tkt_notify_fail",

@@ -27,6 +27,8 @@ Prefer syncing those files from AWS Secrets Manager with
   - Bedrock Runtime: `InvokeModel` / `Converse` for the chosen vision model (issue #17)
   - Amazon Location: `geo:SearchPlaceIndexForText` and `geo:SearchPlaceIndexForPosition`
     for the configured place index (issue #24)
+  - SES: `ses:SendEmail` (and related) for the verified from identity (issue #183)
+  - SNS: `sns:Publish` for SMS to phone numbers (issue #183)
 - An S3 bucket for report photos (example name: `baladiguard-report-photos-dev`)
 - Backend dependencies installed (`pip install -r requirements.txt`)
 - For AI classification: enable model access in the Bedrock console
@@ -78,6 +80,14 @@ AWS_S3_BUCKET=baladiguard-report-photos-dev
 
 # Optional for live Amazon Location geocoding (issue #24).
 # Leave empty to use the curated local Beirut place index.
+
+# Real ticket notifications (issue #183). Prefer mock locally; real needs SES/SNS ready.
+# NOTIFICATION_ADAPTER=real
+# SES_FROM_EMAIL=noreply@your-verified-domain.example
+# NOTIFICATION_SANDBOX=true
+# NOTIFICATION_ALLOWLIST_EMAILS=you@example.com
+# NOTIFICATION_ALLOWLIST_PHONES=+96170123456
+# NOTIFICATION_SANDBOX=false   # only after SES/SNS production access
 LOCATION_PLACE_INDEX_NAME=
 ```
 

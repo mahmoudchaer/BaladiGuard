@@ -1,8 +1,7 @@
-"""Replaceable notification delivery adapters (issue #39).
+"""Replaceable notification delivery adapters (issues #39 / #183).
 
-Templates (#40) render message text. Adapters deliver that text. The MVP ships a
-mock adapter that logs clearly marked mock output. A real SMS/email provider can
-replace the mock without changing ticket create/status callers.
+Templates (#40) render message text. Adapters deliver that text. Local demos use
+the mock adapter. Production uses SES email and SNS SMS when configured.
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from app.schemas.ticket import ReportContact
+from app.services.notifications.results import ChannelDeliveryResult
 from app.services.notifications.templates import NotificationMessage
 
 logger = logging.getLogger(__name__)
@@ -45,9 +45,22 @@ class NotificationRecipient:
 class NotificationDeliveryError(RuntimeError):
     """Raised when a delivery adapter fails. Callers must not roll back tickets."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "unknown",
+        transient: bool = False,
+        channel_results: list[ChannelDeliveryResult] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.transient = transient
+        self.channel_results = channel_results or []
+
 
 class NotificationAdapter(Protocol):
-    """Small delivery contract for issue #39."""
+    """Small delivery contract for issues #39 / #183."""
 
     @property
     def mode(self) -> DeliveryMode:
@@ -57,8 +70,11 @@ class NotificationAdapter(Protocol):
         self,
         message: NotificationMessage,
         recipient: NotificationRecipient | None = None,
-    ) -> None:
-        """Deliver one rendered notification. May raise ``NotificationDeliveryError``."""
+    ) -> list[ChannelDeliveryResult]:
+        """Deliver one rendered notification.
+
+        Returns per-channel results on success. May raise ``NotificationDeliveryError``.
+        """
 
 
 class MockNotificationAdapter:
@@ -72,7 +88,7 @@ class MockNotificationAdapter:
         self,
         message: NotificationMessage,
         recipient: NotificationRecipient | None = None,
-    ) -> None:
+    ) -> list[ChannelDeliveryResult]:
         logger.info(
             "Notification mock delivery mode=mock event=%s ticket_id=%s status=%s "
             "tracking_context=%s recipient_phone=%s recipient_email=%s "
@@ -86,14 +102,71 @@ class MockNotificationAdapter:
             recipient.preferred_channel if recipient else None,
             message.subject,
         )
+        results: list[ChannelDeliveryResult] = []
+        preference = (recipient.preferred_channel if recipient else None) or ""
+        preference = preference.upper()
+        if preference == "EMAIL" and recipient and recipient.email:
+            results.append(
+                ChannelDeliveryResult(
+                    channel="EMAIL",
+                    status="SUCCEEDED",
+                    provider_message_id="mock-email",
+                )
+            )
+        elif preference == "SMS" and recipient and recipient.phone:
+            results.append(
+                ChannelDeliveryResult(
+                    channel="SMS",
+                    status="SUCCEEDED",
+                    provider_message_id="mock-sms",
+                )
+            )
+        elif preference == "BOTH" and recipient:
+            if recipient.phone:
+                results.append(
+                    ChannelDeliveryResult(
+                        channel="SMS",
+                        status="SUCCEEDED",
+                        provider_message_id="mock-sms",
+                    )
+                )
+            if recipient.email:
+                results.append(
+                    ChannelDeliveryResult(
+                        channel="EMAIL",
+                        status="SUCCEEDED",
+                        provider_message_id="mock-email",
+                    )
+                )
+        elif recipient and recipient.phone:
+            results.append(
+                ChannelDeliveryResult(
+                    channel="SMS",
+                    status="SUCCEEDED",
+                    provider_message_id="mock-sms",
+                )
+            )
+        elif recipient and recipient.email:
+            results.append(
+                ChannelDeliveryResult(
+                    channel="EMAIL",
+                    status="SUCCEEDED",
+                    provider_message_id="mock-email",
+                )
+            )
+        else:
+            results.append(
+                ChannelDeliveryResult(
+                    channel="SMS",
+                    status="SUCCEEDED",
+                    provider_message_id="mock",
+                )
+            )
+        return results
 
 
 class UnconfiguredRealNotificationAdapter:
-    """Placeholder real adapter until SNS/SES (or similar) is wired.
-
-    Selecting ``NOTIFICATION_ADAPTER=real`` without a provider must not silently
-    look like successful mock delivery — it fails closed with a clear error.
-    """
+    """Fails closed when real mode is selected but AWS delivery is not configured."""
 
     @property
     def mode(self) -> DeliveryMode:
@@ -103,10 +176,14 @@ class UnconfiguredRealNotificationAdapter:
         self,
         message: NotificationMessage,
         recipient: NotificationRecipient | None = None,
-    ) -> None:
+    ) -> list[ChannelDeliveryResult]:
         raise NotificationDeliveryError(
             "Real notification delivery is not configured for this environment "
-            f"(event={message.event}, ticket_id={message.ticket_id})."
+            f"(event={message.event}, ticket_id={message.ticket_id}). "
+            "Set SES_FROM_EMAIL (and AWS credentials/region) for email, and ensure "
+            "SNS SMS is enabled for phone delivery.",
+            category="not_configured",
+            transient=False,
         )
 
 
@@ -114,7 +191,14 @@ def build_notification_adapter(mode: str | None = None) -> NotificationAdapter:
     """Factory used by the notification service (config-driven)."""
     from app.config import get_settings
 
-    selected = (mode or get_settings().notification_adapter).strip().lower()
+    settings = get_settings()
+    selected = (mode or settings.notification_adapter).strip().lower()
     if selected == "real":
+        # Email is the primary “at least one channel” path: require verified SES identity.
+        # SNS SMS works without SES_FROM when preference is SMS-only.
+        if settings.ses_from_email or settings.notification_allow_sms_only_real:
+            from app.services.notifications.aws_adapter import AwsSesSnsNotificationAdapter
+
+            return AwsSesSnsNotificationAdapter(settings=settings)
         return UnconfiguredRealNotificationAdapter()
     return MockNotificationAdapter()
