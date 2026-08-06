@@ -86,6 +86,8 @@ persistence foundation.
 | `baladiguard-municipalities`         | `municipalityId`   | —                                                                                           |
 | `baladiguard-departments`            | `departmentId`     | `municipalityId-index`                                                                      |
 | `baladiguard-ticket-status-history`  | `historyId`        | `ticketId-index`                                                                            |
+| `baladiguard-ticket-audit-history`   | `auditId`          | `ticketId-index` (ticket mutation audit, #143 / #181)                                       |
+| `baladiguard-account-audit`          | `auditId`          | `targetStaffId-index` (staff/admin account audit, #181)                                     |
 | `baladiguard-ai-outputs`             | `aiOutputId`       | `ticketId-index`                                                                            |
 | `baladiguard-duplicate-groups`       | `duplicateGroupId` | —                                                                                           |
 | `baladiguard-categories`             | `categoryId`       | —                                                                                           |

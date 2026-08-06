@@ -215,6 +215,7 @@ def map_ticket_to_response(
             TicketAuditHistoryEntry(
                 actionType=entry.action_type,
                 actorId=entry.actor_id,
+                actorRole=entry.actor_role,
                 summary=entry.summary,
                 previousValue=entry.previous_value,
                 newValue=entry.new_value,
