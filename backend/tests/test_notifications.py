@@ -342,3 +342,59 @@ def test_recipient_from_contact_requires_phone_or_email():
     assert NotificationRecipient.from_contact(None) is None
     with pytest.raises(ValueError):
         ReportContact(name="Nobody")
+
+
+def test_dynamodb_claim_is_atomic_across_two_workers(dynamodb_settings):
+    """Two worker ledgers sharing DynamoDB cannot both claim the same key."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.config import Settings
+    from app.services.notifications.ledger import DynamoNotificationDeliveryLedger
+
+    assert isinstance(dynamodb_settings, Settings)
+    key = "ticket_updated:tkt_notify_race:UNDER_REVIEW"
+    workers = [
+        DynamoNotificationDeliveryLedger(dynamodb_settings),
+        DynamoNotificationDeliveryLedger(dynamodb_settings),
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda ledger: ledger.claim(key), workers))
+
+    assert sorted(results) == [False, True]
+    # Loser still cannot claim after the winner holds it.
+    assert workers[0].claim(key) is False
+    assert workers[1].claim(key) is False
+
+
+def test_two_dynamodb_workers_cannot_both_emit_same_notification(
+    dynamodb_settings,
+    monkeypatch,
+):
+    """Simulate two API instances: only the first durable claim may deliver."""
+    from app.services.notifications import service as notification_service
+    from app.services.notifications.ledger import DynamoNotificationDeliveryLedger
+
+    worker_a = DynamoNotificationDeliveryLedger(dynamodb_settings)
+    worker_b = DynamoNotificationDeliveryLedger(dynamodb_settings)
+    adapter = RecordingAdapter()
+
+    monkeypatch.setattr(notification_service, "get_delivery_ledger", lambda: worker_a)
+    first = emit_ticket_notification(
+        event="ticket_updated",
+        ticket_id="tkt_notify_multi_worker",
+        status="UNDER_REVIEW",
+        adapter=adapter,
+    )
+
+    monkeypatch.setattr(notification_service, "get_delivery_ledger", lambda: worker_b)
+    second = emit_ticket_notification(
+        event="ticket_updated",
+        ticket_id="tkt_notify_multi_worker",
+        status="UNDER_REVIEW",
+        adapter=adapter,
+    )
+
+    assert first is True
+    assert second is False
+    assert len(adapter.calls) == 1

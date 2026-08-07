@@ -12,7 +12,7 @@ ticket create / status update
         ▼
 emit_ticket_notification()
         │
-        ├─ idempotency ledger (process-local claim)
+        ├─ idempotency ledger (memory claim, or DynamoDB conditional claim)
         ├─ render_notification()  (#40 templates)
         ├─ NotificationAdapter.deliver()  (mock | SES+SNS)
         └─ delivery records (memory or DynamoDB)
@@ -69,7 +69,14 @@ contact snapshot when it contains phone and/or email.
 
 ## Idempotency and retry policy
 
-Delivery claims a process-local key `{event}:{ticketId}:{status}`.
+Delivery claims the key `{event}:{ticketId}:{status}` **before** provider calls:
+
+| Backend | Claim mechanism |
+| --- | --- |
+| Memory (`DATABASE_BACKEND=memory`) | Process-local in-memory set (single API process / local CI) |
+| DynamoDB | Conditional `put_item` on table suffix `notification-claims` (`attribute_not_exists(idempotencyKey)`) so multiple workers cannot both send the same notification |
+
+Delivery attempt rows (`notification-deliveries`) are written after the attempt for ops/audit; they are **not** the uniqueness authority.
 
 | Outcome | Ledger claim | Notes |
 | --- | --- | --- |
