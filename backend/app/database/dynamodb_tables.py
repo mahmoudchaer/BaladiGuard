@@ -204,7 +204,6 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
         "global_secondary_indexes": [],
     },
-
     {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
