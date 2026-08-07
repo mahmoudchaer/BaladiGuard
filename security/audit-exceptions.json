@@ -11,7 +11,10 @@
         "GHSA-fxqj-rqcc-2cmp",
         "GHSA-w5hq-g745-h8pq",
         "GHSA-w3rx-r6r6-pgpr",
-        "GHSA-5p2g-fcmc-qvqq"
+        "GHSA-5p2g-fcmc-qvqq",
+        "GHSA-5p4m-2wfm-xmqj",
+        "GHSA-28wg-ghj8-5hjv",
+        "GHSA-2v37-7h3g-55p8"
       ],
       "created": "2026-08-01",
       "expires": "2026-08-31",
@@ -23,7 +26,9 @@
   ],
   "admin": [
     {
-      "advisories": ["GHSA-qwww-vcr4-c8h2"],
+      "advisories": [
+        "GHSA-qwww-vcr4-c8h2"
+      ],
       "created": "2026-08-01",
       "expires": "2026-08-31",
       "issue": "https://github.com/mahmoudchaer/BaladiGuard/issues/189",
