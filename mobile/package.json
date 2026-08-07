@@ -50,15 +50,5 @@
     "typescript": "~5.9.2",
     "vitest": "^3.2.4"
   },
-  "overrides": {
-    "js-yaml": "4.3.1",
-    "@istanbuljs/load-nyc-config": {
-      "js-yaml": "3.15.1"
-    },
-    "nanoid": "3.3.17",
-    "@emnapi/core": "1.11.3",
-    "@emnapi/runtime": "1.11.3"
-  },
-
   "private": true
 }
