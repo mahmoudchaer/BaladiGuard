@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.core.staff_auth import principal_from_user
 from app.database.memory_account_audit import account_audit_store
 from app.database.memory_staff import staff_store
@@ -222,3 +224,16 @@ def test_safe_audit_value_excludes_sensitive_fields():
     assert "resetCode" not in sanitized
     assert sanitized["username"] == "x"
     assert not contains_forbidden_audit_key(sanitized)
+
+
+def test_safe_audit_value_rejects_sensitive_string_payloads():
+    with pytest.raises(ValueError, match="forbidden sensitive material"):
+        safe_audit_value("passwordHash=secret token=abc")
+
+    with pytest.raises(ValueError, match="forbidden sensitive material"):
+        safe_audit_value("reset_code=123456")
+
+    # JSON object strings are sanitized like mappings (sensitive keys dropped).
+    sanitized = json.loads(safe_audit_value('{"username":"x","passwordHash":"nope"}') or "{}")
+    assert sanitized == {"username": "x"}
+    assert safe_audit_value("UNDER_REVIEW") == "UNDER_REVIEW"

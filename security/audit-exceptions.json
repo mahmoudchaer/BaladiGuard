@@ -8,13 +8,16 @@
         "GHSA-qx2v-qp2m-jg93",
         "GHSA-6g55-p6wh-862q",
         "GHSA-r28c-9q8g-f849",
-        "GHSA-fxqj-rqcc-2cmp"
+        "GHSA-fxqj-rqcc-2cmp",
+        "GHSA-w5hq-g745-h8pq",
+        "GHSA-w3rx-r6r6-pgpr",
+        "GHSA-5p2g-fcmc-qvqq"
       ],
       "created": "2026-08-01",
       "expires": "2026-08-31",
       "issue": "https://github.com/mahmoudchaer/BaladiGuard/issues/189",
       "owner": "mobile-platform",
-      "rationale": "Transitive Expo SDK 54 tooling dependencies; upgrade requires coordinated Expo SDK migration.",
+      "rationale": "Transitive Expo SDK 54 tooling dependencies; upgrade requires coordinated Expo SDK migration. image-size currently has no patched release for the DoS advisories; uuid v7 is pinned by Expo tooling.",
       "compensatingControl": "These packages are build-time transitive dependencies; no server-side user input is passed to their vulnerable parsers. Dependabot remains enabled and the exception expires before the next release train."
     }
   ],

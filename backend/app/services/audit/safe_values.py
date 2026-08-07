@@ -68,6 +68,18 @@ def contains_forbidden_audit_key(payload: Any) -> bool:
     return False
 
 
+# Broader than key-name checks: bare "code" is too common in free text / IDs.
+_STRING_SENSITIVE_MARKERS = frozenset(
+    marker for marker in FORBIDDEN_AUDIT_KEYS if marker != "code"
+)
+
+
+def _string_contains_sensitive_material(value: str) -> bool:
+    """Detect secret-like key material embedded in free-form audit strings."""
+    normalized = _normalize_key(value)
+    return any(marker in normalized for marker in _STRING_SENSITIVE_MARKERS)
+
+
 def sanitize_audit_mapping(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return only safe staff fields; drop everything else."""
     if not payload:
@@ -88,7 +100,17 @@ def safe_audit_value(payload: dict[str, Any] | str | None) -> str | None:
         return None
     if isinstance(payload, str):
         stripped = payload.strip()
-        return stripped or None
+        if not stripped:
+            return None
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return safe_audit_value(parsed)
+        if _string_contains_sensitive_material(stripped):
+            raise ValueError("Audit string payload contains forbidden sensitive material.")
+        return stripped
     cleaned = sanitize_audit_mapping(payload)
     if cleaned is None:
         return None
