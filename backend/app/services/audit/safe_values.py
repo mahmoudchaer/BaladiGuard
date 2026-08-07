@@ -69,9 +69,7 @@ def contains_forbidden_audit_key(payload: Any) -> bool:
 
 
 # Broader than key-name checks: bare "code" is too common in free text / IDs.
-_STRING_SENSITIVE_MARKERS = frozenset(
-    marker for marker in FORBIDDEN_AUDIT_KEYS if marker != "code"
-)
+_STRING_SENSITIVE_MARKERS = frozenset(marker for marker in FORBIDDEN_AUDIT_KEYS if marker != "code")
 
 
 def _string_contains_sensitive_material(value: str) -> bool:
