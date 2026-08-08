@@ -343,8 +343,8 @@ describe('TicketListPage', () => {
       ticketNumber: 'BG-2026-0010',
       trackingCode: 'SUBM01',
       status: 'SUBMITTED',
-      departmentId: null,
-      departmentName: null,
+      departmentId: undefined,
+      departmentName: undefined,
     };
     vi.mocked(fetchTickets).mockImplementation(async (filters) =>
       applyFetchFilters([submitted, ...tickets], filters),
@@ -386,8 +386,8 @@ describe('TicketListPage', () => {
       ticketNumber: 'BG-2026-0011',
       trackingCode: 'UNAS01',
       status: 'SUBMITTED',
-      departmentId: null,
-      departmentName: null,
+      departmentId: undefined,
+      departmentName: undefined,
     };
     vi.mocked(fetchTickets).mockResolvedValue([unassigned, ...tickets]);
     vi.mocked(assignTicketDepartment).mockResolvedValue({
