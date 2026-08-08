@@ -33,9 +33,7 @@ function isOpenTicket(ticket: Ticket): boolean {
 function applyQueueView(tickets: Ticket[], view: QueueViewId, now = Date.now()): Ticket[] {
   switch (view) {
     case 'critical':
-      return tickets.filter(
-        (ticket) => isOpenTicket(ticket) && ticket.priority === 'critical',
-      );
+      return tickets.filter((ticket) => isOpenTicket(ticket) && ticket.priority === 'critical');
     case 'high':
       return tickets.filter((ticket) => isOpenTicket(ticket) && ticket.priority === 'high');
     case 'unassigned':

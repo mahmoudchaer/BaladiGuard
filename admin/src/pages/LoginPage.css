@@ -12,12 +12,7 @@
     linear-gradient(90deg, var(--lb-red) 0 34%, var(--lb-white) 34% 66%, var(--lb-red) 66% 100%),
     radial-gradient(900px 420px at 12% 18%, rgb(0 122 61 / 42%), transparent 58%),
     radial-gradient(720px 360px at 88% 78%, rgb(206 17 38 / 22%), transparent 55%),
-    linear-gradient(
-      145deg,
-      #083222 0%,
-      #0b3d28 38%,
-      #16324a 100%
-    );
+    linear-gradient(145deg, #083222 0%, #0b3d28 38%, #16324a 100%);
   background-repeat: no-repeat;
   background-size:
     100% 3px,
