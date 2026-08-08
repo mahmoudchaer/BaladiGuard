@@ -16,8 +16,7 @@
   height: 100%;
   padding: 2rem 1.5rem;
   background:
-    radial-gradient(500px 220px at 100% 0%, rgb(0 122 61 / 8%), transparent 60%),
-    var(--lb-white);
+    radial-gradient(500px 220px at 100% 0%, rgb(0 122 61 / 8%), transparent 60%), var(--lb-white);
 }
 
 .ticket-preview__empty-title {

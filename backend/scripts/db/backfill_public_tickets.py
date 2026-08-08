@@ -59,9 +59,7 @@ def backfill(*, dry_run: bool = False) -> int:
                 continue
 
             published_at = (
-                item.get("publicPublishedAt")
-                or item.get("updatedAt")
-                or item.get("createdAt")
+                item.get("publicPublishedAt") or item.get("updatedAt") or item.get("createdAt")
             )
             draft = {
                 **item,

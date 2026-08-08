@@ -118,9 +118,7 @@ def map_ticket_to_public_response(
     if not public_description or not public_location_label:
         raise ValueError("Ticket is missing approved public content.")
 
-    photo_url = (
-        build_image_url(ticket.image_object_key) if ticket.image_object_key else None
-    )
+    photo_url = build_image_url(ticket.image_object_key) if ticket.image_object_key else None
 
     return PublicTicketResponse(
         ticketNumber=ticket.ticket_number,

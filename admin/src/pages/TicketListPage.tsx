@@ -141,7 +141,10 @@ export function TicketListPage() {
   }, [allTickets, filteredTickets, selectedTicketId, tickets]);
 
   useEffect(() => {
-    if (selectedTicketId && !filteredTickets.some((ticket) => ticket.ticketId === selectedTicketId)) {
+    if (
+      selectedTicketId &&
+      !filteredTickets.some((ticket) => ticket.ticketId === selectedTicketId)
+    ) {
       setSelectedTicketId(null);
     }
   }, [filteredTickets, selectedTicketId]);

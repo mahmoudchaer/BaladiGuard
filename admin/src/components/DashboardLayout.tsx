@@ -143,9 +143,7 @@ export function DashboardLayout({
         </header>
 
         {/* Keep page title available for screen readers / tests when search occupies the topbar. */}
-        {search ? (
-          <h1 className="sr-only">{title}</h1>
-        ) : null}
+        {search ? <h1 className="sr-only">{title}</h1> : null}
 
         <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>{children}</main>
       </div>

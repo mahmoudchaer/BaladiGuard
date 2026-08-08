@@ -187,8 +187,7 @@
 
 .ticket-map__pin--selected {
   transform: scale(1.12);
-  filter:
-    drop-shadow(0 0 0 3px rgb(0 122 61 / 22%)) drop-shadow(0 4px 8px rgb(26 35 50 / 35%));
+  filter: drop-shadow(0 0 0 3px rgb(0 122 61 / 22%)) drop-shadow(0 4px 8px rgb(26 35 50 / 35%));
 }
 
 /* ---------- Apple/Google-like controls ---------- */

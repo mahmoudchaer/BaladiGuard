@@ -243,9 +243,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               className="ticket-preview__btn"
               onClick={() => void handleSaveCategory()}
               disabled={
-                isSavingCategory ||
-                ticket.ai?.aiProcessingStatus === 'pending' ||
-                !selectedCategory
+                isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending' || !selectedCategory
               }
             >
               {isSavingCategory ? 'Saving…' : 'Save final category'}
