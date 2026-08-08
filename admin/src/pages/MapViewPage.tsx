@@ -131,6 +131,13 @@ export function MapViewPage() {
             onCategoryChange={setCategoryFilter}
             onUrgencyChange={setUrgencyFilter}
             onDepartmentChange={setDepartmentFilter}
+            onClearFilters={() => {
+              setSearchQuery('');
+              setStatusFilter('ALL');
+              setCategoryFilter('ALL');
+              setUrgencyFilter('ALL');
+              setDepartmentFilter('ALL');
+            }}
           />
 
           {errorMessage && !isRefreshing && (

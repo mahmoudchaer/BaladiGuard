@@ -356,9 +356,10 @@ export async function confirmStaffPasswordReset(input: {
   newPassword: string;
 }): Promise<PasswordResetResult> {
   if (config.useMockData) {
+    // Keep demo/reset UX usable in mock mode (request already succeeds in mock).
     return {
-      ok: false,
-      error: 'Password reset requires the live staff API. Disable mock data to continue.',
+      ok: true,
+      message: 'Password updated. Sign in with your new password.',
     };
   }
 

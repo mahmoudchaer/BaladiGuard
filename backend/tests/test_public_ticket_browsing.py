@@ -112,6 +112,9 @@ def test_public_ticket_feed_is_guest_readable_and_privacy_safe(anonymous_client)
         "longitude": 35.478,
     }
     assert item["attribution"] == {"displayName": "Community member", "isNamed": False}
+    assert "photoUrl" in item
+    # Presigned URL is optional (null without S3); raw object keys stay forbidden.
+    assert item["photoUrl"] is None or item["photoUrl"].startswith("http")
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(item)
     assert "Private Reporter" not in str(item)
     assert "+96170111111" not in str(item)

@@ -102,7 +102,7 @@ describe('TicketListPage', () => {
     expect(screen.getByText('Loading tickets…')).toBeInTheDocument();
   });
 
-  it('renders dashboard stats and ticket rows after a successful load', async () => {
+  it('renders attention summary and ticket rows after a successful load', async () => {
     renderWithProviders(<TicketListPage />);
 
     expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
@@ -110,11 +110,12 @@ describe('TicketListPage', () => {
     expect(screen.getByText('Hamra, Beirut')).toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
     expect(screen.getByText('Downtown Beirut')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Work queue' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Citizen reports' })).toBeInTheDocument();
     const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
-    expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('2');
-    expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('1');
-    expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('1');
-    expect(stats.getByText('Completed Tickets').previousElementSibling).toHaveTextContent('1');
+    expect(stats.getByText('Critical')).toBeInTheDocument();
+    expect(stats.getByText('Unassigned')).toBeInTheDocument();
+    expect(stats.getByText('Aging (3d+)')).toBeInTheDocument();
   });
 
   it('filters the rendered ticket list by search text', async () => {
@@ -285,10 +286,35 @@ describe('TicketListPage', () => {
       screen.getByText('Submitted citizen reports will appear here once they are available.'),
     ).toBeInTheDocument();
     const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
-    expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('Completed Tickets').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Critical').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Unassigned').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Aging (3d+)').previousElementSibling).toHaveTextContent('0');
+  });
+
+  it('filters the queue to critical urgency from the attention strip', async () => {
+    const user = userEvent.setup();
+    const criticalTicket: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_critical',
+      ticketNumber: 'BG-2026-0009',
+      trackingCode: 'CRIT01',
+      priority: 'critical',
+      status: 'SUBMITTED',
+    };
+    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
+      applyFetchFilters([...tickets, criticalTicket], filters),
+    );
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: /Critical/i }));
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ urgency: 'critical' }),
+      ),
+    );
   });
 
   it('shows a failure state when tickets cannot be loaded', async () => {

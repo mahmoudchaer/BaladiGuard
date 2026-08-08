@@ -1,5 +1,5 @@
 :root {
-  /* Lebanese civic palette */
+  /* Lebanese civic brand (Direction A: Civic Command Desk) */
   --lb-red: #ce1126;
   --lb-red-dark: #a50e1f;
   --lb-red-soft: #fde8eb;
@@ -8,51 +8,150 @@
   --lb-green-soft: #e6f4ec;
   --lb-white: #ffffff;
 
-  /* Brand mapping */
+  /*
+   * Lebanese BaladiGuard identity (not Italy tricolor):
+   * - Cedar green = product/brand foundation + cedar mark fill
+   * - Red–white–red micro accents only (never equal green-white-red bands)
+   * - Cedar mark = brand symbol only (wordmark/auth/empty-success), not UI icons
+   * - Red also reserved for urgency / danger
+   */
+  --color-brand: var(--lb-green);
+  --color-brand-dark: var(--lb-green-dark);
+  --color-brand-soft: var(--lb-green-soft);
+
+  /* Legacy aliases (existing screens): primary≈red accent, accent≈green brand */
   --color-primary: var(--lb-red);
   --color-primary-dark: var(--lb-red-dark);
   --color-primary-light: var(--lb-red-soft);
-  --color-accent: var(--lb-green);
-  --color-accent-soft: var(--lb-green-soft);
+  --color-accent: var(--color-brand);
+  --color-accent-soft: var(--color-brand-soft);
 
-  /* Surfaces */
-  --color-bg: #f0f2f5;
+  /* Surfaces — Capacity-style civic desk */
+  --color-bg: #e7ecf1;
+  --color-bg-subtle: #f2f5f8;
   --color-bg-elevated: var(--lb-white);
+  --color-surface: var(--color-bg-elevated);
+  --color-surface-subtle: var(--color-bg-subtle);
+  --color-desk: #e7ecf1;
+  --color-shell: #0b3d28;
+  --color-rail: #083222;
+  --color-views: #f5f7f9;
   --color-sidebar: var(--lb-white);
-  --color-sidebar-hover: #f5f6f8;
-  --color-sidebar-active: var(--lb-red-soft);
+  --color-sidebar-hover: var(--color-bg-subtle);
+  --color-sidebar-active: var(--color-brand-soft);
   --color-sidebar-text: #5a6472;
-  --color-sidebar-text-active: var(--lb-red-dark);
+  --color-sidebar-text-active: var(--color-brand-dark);
 
   /* Text */
   --color-text: #1a2332;
   --color-text-secondary: #4f5d6f;
   --color-text-muted: #7a8796;
+  --color-text-inverse: var(--lb-white);
 
   /* Semantic */
   --color-success: var(--lb-green);
+  --color-success-soft: var(--lb-green-soft);
   --color-warning: #b45309;
+  --color-warning-soft: #fef3e2;
   --color-danger: var(--lb-red);
+  --color-danger-soft: var(--lb-red-soft);
+  --color-info: #1d5a7a;
+  --color-info-soft: #e8f0f6;
 
-  /* Borders & shadows */
-  --color-border: #dde2e8;
-  --color-border-light: #eceff3;
-  --shadow-sm: 0 1px 2px rgb(26 35 50 / 5%);
-  --shadow-md: 0 4px 12px rgb(26 35 50 / 8%);
+  /* Borders & elevation (prefer borders over shadows) */
+  --color-border: #d5dde6;
+  --color-border-light: #e7ebf0;
+  --color-border-strong: #b8c2ce;
+  --shadow-sm: 0 1px 2px rgb(26 35 50 / 4%);
+  --shadow-md: 0 4px 12px rgb(26 35 50 / 7%);
   --shadow-lg: 0 12px 28px rgb(26 35 50 / 10%);
 
-  /* Radius */
-  --radius-sm: 0.35rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.65rem;
-  --radius-xl: 0.85rem;
+  /* Urgency */
+  --urgency-low-fg: #4f5d6f;
+  --urgency-low-bg: #eef1f4;
+  --urgency-low-border: #cdd5de;
+  --urgency-medium-fg: #8f4a08;
+  --urgency-medium-bg: #fef3e2;
+  --urgency-medium-border: #e8c99a;
+  --urgency-high-fg: var(--lb-red-dark);
+  --urgency-high-bg: var(--lb-red-soft);
+  --urgency-high-border: #f0b8c0;
+  --urgency-critical-fg: #6d121d;
+  --urgency-critical-bg: #fde4e8;
+  --urgency-critical-border: #e7929d;
 
-  /* Layout */
-  --sidebar-width: 15.5rem;
-  --header-height: 4rem;
+  /* Ticket statuses — each status must remain visually distinct */
+  --status-submitted-fg: #1a4d6e;
+  --status-submitted-bg: #e8f0f6;
+  --status-submitted-border: #b8d0e0;
+  --status-submitted-dot: #3d6d8f;
+
+  --status-under-review-fg: #5b4510;
+  --status-under-review-bg: #f7f0df;
+  --status-under-review-border: #e0cfa0;
+  --status-under-review-dot: #b0892c;
+
+  /* Cyan — distinct from submitted (slate-blue) and resolved (green) */
+  --status-assigned-fg: #0e7490;
+  --status-assigned-bg: #ecfeff;
+  --status-assigned-border: #a5f3fc;
+  --status-assigned-dot: #0891b2;
+
+  --status-in-progress-fg: var(--lb-red-dark);
+  --status-in-progress-bg: var(--lb-red-soft);
+  --status-in-progress-border: #f0b8c0;
+  --status-in-progress-dot: var(--lb-red);
+
+  --status-resolved-fg: var(--lb-green-dark);
+  --status-resolved-bg: var(--lb-green-soft);
+  --status-resolved-border: #b8dcc8;
+  --status-resolved-dot: var(--lb-green);
+
+  --status-closed-fg: #4a4a4a;
+  --status-closed-bg: #f0f0f0;
+  --status-closed-border: #d4d4d4;
+  --status-closed-dot: #7a7a7a;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  /* Radius — tight, operational */
+  --radius-xs: 0.2rem;
+  --radius-sm: 0.3rem;
+  --radius-md: 0.45rem;
+  --radius-lg: 0.6rem;
+  --radius-xl: 0.75rem;
+  --radius-pill: 999px;
 
   /* Typography */
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --text-page-title: 1.35rem;
+  --text-section-title: 1.05rem;
+  --text-body: 0.9375rem;
+  --text-body-compact: 0.875rem;
+  --text-metadata: 0.75rem;
+  --text-label: 0.72rem;
+  --text-control: 0.8125rem;
+  --text-helper: 0.75rem;
+
+  /* Interaction */
+  --focus-ring: 0 0 0 3px rgb(0 122 61 / 22%);
+  --focus-ring-danger: 0 0 0 3px rgb(206 17 38 / 18%);
+  --touch-target-min: 2.75rem;
+
+  /* Layout */
+  --sidebar-width: 15.5rem;
+  --rail-width: 4.5rem;
+  --views-width: 14.5rem;
+  --header-height: 3.9rem;
 }
 
 *,
@@ -66,6 +165,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: var(--font-body);
+  font-size: var(--text-body);
   line-height: 1.5;
   font-weight: 400;
   color: var(--color-text);
@@ -85,6 +185,17 @@ h2,
 h3 {
   font-family: var(--font-body);
   font-weight: 700;
+  color: var(--color-text);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:not([tabindex='-1']):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
 }
 
 .sr-only {
@@ -97,4 +208,15 @@ h3 {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

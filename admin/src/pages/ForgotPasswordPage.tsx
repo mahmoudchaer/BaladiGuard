@@ -1,6 +1,8 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { BrandMark } from '@/components/BrandMark';
 import { requestStaffPasswordReset } from '@/services/auth';
+import '@/components/BrandMark.css';
 import './LoginPage.css';
 
 export function ForgotPasswordPage() {
@@ -9,6 +11,7 @@ export function ForgotPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const errorId = useId();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +39,7 @@ export function ForgotPasswordPage() {
       <section className="login-panel" aria-labelledby="forgot-title">
         <div className="login-panel__brand">
           <span className="login-panel__logo" aria-hidden="true">
-            BG
+            <BrandMark size={24} />
           </span>
           <div>
             <p className="login-panel__eyebrow">Municipal Staff Portal</p>
@@ -45,8 +48,8 @@ export function ForgotPasswordPage() {
         </div>
 
         <p className="login-form__hint">
-          Enter your staff username. If an account exists, a reset code will be issued through the
-          configured staff recovery channel (local/dev adapter in demo environments).
+          Enter your staff username. If an account exists, we will send a reset code through your
+          organization’s recovery channel.
         </p>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -59,11 +62,14 @@ export function ForgotPasswordPage() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               required
+              disabled={isSubmitting}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
             />
           </label>
 
           {error && (
-            <p className="login-form__error" role="alert">
+            <p className="login-form__error" role="alert" id={errorId}>
               {error}
             </p>
           )}

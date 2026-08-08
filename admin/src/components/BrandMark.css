@@ -1,0 +1,39 @@
+.brand-stripe {
+  display: block;
+  height: 3px;
+  width: 2.75rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--lb-red) 0%,
+    var(--lb-red) 34%,
+    var(--lb-white) 34%,
+    var(--lb-white) 66%,
+    var(--lb-red) 66%,
+    var(--lb-red) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgb(206 17 38 / 12%);
+}
+
+.brand-mark-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  background: var(--lb-green-soft);
+  border: 1px solid #b8dcc8;
+  color: var(--lb-green-dark);
+  flex-shrink: 0;
+}
+
+.brand-mark-tile--lg {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.brand-mark-tile--auth {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}

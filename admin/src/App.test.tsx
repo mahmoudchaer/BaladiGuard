@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/App';
+import { config } from '@/services/config';
 import { fetchTickets } from '@/services/tickets';
 import type { Ticket } from '@/types/ticket';
 
@@ -342,6 +343,9 @@ describe('App staff authentication', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'Password updated. Sign in with your new password.',
     );
-    expect(fetchMock).toHaveBeenCalled();
+    // Live API stubs fetch; mock mode short-circuits without network calls.
+    if (!config.useMockData) {
+      expect(fetchMock).toHaveBeenCalled();
+    }
   });
 });

@@ -141,6 +141,8 @@ class PublicTicketResponse(BaseModel):
     map_location: PublicTicketMapLocation = Field(alias="mapLocation")
     department: CitizenTicketDepartment | None = None
     attribution: PublicTicketAttribution
+    # Time-limited presigned URL only — never expose raw object keys publicly.
+    photo_url: str | None = Field(default=None, alias="photoUrl")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
 

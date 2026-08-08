@@ -22,6 +22,7 @@ from app.schemas.citizen_auth import (
     CitizenOtpVerifyRequest,
     CitizenOtpVerifyResponse,
 )
+from app.services.citizens.otp_delivery import deliver_citizen_otp
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
     CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
@@ -107,7 +108,7 @@ def request_citizen_otp(
         auth_user_id = principal.user_id if principal is not None else None
 
     try:
-        challenge_id, expires_in, _code = citizen_service.request_otp(
+        challenge_id, expires_in, code = citizen_service.request_otp(
             phone=payload.phone,
             region=payload.region,
             purpose=payload.purpose,
@@ -118,6 +119,14 @@ def request_citizen_otp(
         if payload.purpose == LOGIN_OR_SIGNUP_PURPOSE and exc.code == "VALIDATION_ERROR":
             return _service_error_response(request, exc)
         return _service_error_response(request, exc)
+
+    # HTTP response stays code-free; delivery is side-effect only.
+    deliver_citizen_otp(
+        phone=payload.phone,
+        region=payload.region,
+        code=code,
+        settings=settings,
+    )
 
     return CitizenOtpRequestResponse(
         challengeId=challenge_id,

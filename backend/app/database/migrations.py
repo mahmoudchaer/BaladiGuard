@@ -36,6 +36,7 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
             if error.response["Error"]["Code"] != "ResourceInUseException":
                 raise
             print(f"Table already exists: {table_name}")
+            _ensure_missing_gsis(client, table_name, definition)
 
     for table_name in created_tables:
         wait_for_table(client, table_name)
@@ -52,6 +53,57 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
     _ensure_ttl(client, staff_reset_table, attribute_name="ttl")
 
     return created_tables
+
+
+def _ensure_missing_gsis(client, table_name: str, definition: dict[str, Any]) -> None:
+    """Add GSIs defined in code but missing on an already-created table."""
+    desired = definition.get("global_secondary_indexes") or []
+    if not desired:
+        return
+
+    wait_for_table(client, table_name)
+    description = client.describe_table(TableName=table_name)["Table"]
+    existing = {
+        index["IndexName"] for index in description.get("GlobalSecondaryIndexes", []) or []
+    }
+    attribute_defs = {
+        item["AttributeName"]: item for item in description.get("AttributeDefinitions", [])
+    }
+    for attr in definition.get("attribute_definitions") or []:
+        attribute_defs[attr["AttributeName"]] = attr
+
+    for index in desired:
+        name = index["IndexName"]
+        if name in existing:
+            continue
+        print(f"Creating missing GSI on {table_name}: {name}")
+        # DynamoDB allows only one GSI create/delete at a time per table.
+        wait_for_table(client, table_name)
+        client.update_table(
+            TableName=table_name,
+            AttributeDefinitions=list(attribute_defs.values()),
+            GlobalSecondaryIndexUpdates=[
+                {
+                    "Create": {
+                        "IndexName": name,
+                        "KeySchema": index["KeySchema"],
+                        "Projection": index["Projection"],
+                    }
+                }
+            ],
+        )
+        _wait_for_gsi(client, table_name, name)
+        print(f"GSI ready: {table_name}.{name}")
+
+
+def _wait_for_gsi(client, table_name: str, index_name: str) -> None:
+    while True:
+        description = client.describe_table(TableName=table_name)["Table"]
+        indexes = description.get("GlobalSecondaryIndexes") or []
+        match = next((item for item in indexes if item["IndexName"] == index_name), None)
+        if match and match.get("IndexStatus") == "ACTIVE":
+            return
+        time.sleep(2)
 
 
 def _ensure_ttl(client, table_name: str, *, attribute_name: str) -> None:

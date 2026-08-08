@@ -14,6 +14,7 @@ import {
   OTP_NETWORK_MESSAGE,
   PROFILE_UPDATE_SUCCESS_MESSAGE,
 } from '@/services/api/citizenAuth';
+import { colors, radii, spacing } from '@/theme';
 import type { CitizenOtpVerifyResponse, CitizenProfileUpdatePayload } from '@/types/citizen';
 
 type ProfileMode = 'view' | 'edit' | 'changePhone';
@@ -96,7 +97,7 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <View style={styles.centered} testID="profile-loading">
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
             Loading profile…
           </Text>
@@ -113,13 +114,24 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <View style={styles.container} testID="profile-empty">
-          <Banner visible icon="account-alert">
+          <Banner visible icon="account-alert" style={styles.banner}>
             No profile is available for this session.
           </Banner>
-          <Button mode="contained" onPress={() => void reload()} testID="retry-profile-button">
+          <Button
+            mode="contained"
+            onPress={() => void reload()}
+            buttonColor={colors.brand}
+            textColor={colors.textInverse}
+            testID="retry-profile-button"
+          >
             Retry
           </Button>
-          <Button mode="text" onPress={() => void handleLogout()} testID="profile-logout-button">
+          <Button
+            mode="text"
+            onPress={() => void handleLogout()}
+            textColor={colors.textSecondary}
+            testID="profile-logout-button"
+          >
             Sign out
           </Button>
         </View>
@@ -152,7 +164,7 @@ export default function ProfileScreen() {
 
           {isRefreshing ? (
             <View style={styles.refreshRow} testID="profile-refreshing">
-              <ActivityIndicator />
+              <ActivityIndicator color={colors.brand} />
               <Text variant="bodySmall" style={styles.muted}>
                 Refreshing…
               </Text>
@@ -192,6 +204,7 @@ export default function ProfileScreen() {
               mode="text"
               onPress={() => void reload()}
               disabled={isRefreshing}
+              textColor={colors.brandDark}
               testID="refresh-profile-button"
             >
               Refresh profile
@@ -206,32 +219,33 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   scroll: {
     flexGrow: 1,
   },
   container: {
     flex: 1,
-    padding: 24,
-    gap: 12,
+    padding: spacing[5],
+    gap: spacing[3],
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    padding: 24,
+    gap: spacing[3],
+    padding: spacing[5],
   },
   muted: {
-    color: '#64748B',
+    color: colors.textMuted,
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
   },
   refreshRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing[2],
   },
 });
