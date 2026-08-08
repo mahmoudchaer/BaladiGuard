@@ -196,6 +196,30 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "notification-deliveries",
+        "key_schema": [{"AttributeName": "deliveryId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "deliveryId", "AttributeType": "S"},
+            {"AttributeName": "idempotencyKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "idempotencyKey-index",
+                "KeySchema": [{"AttributeName": "idempotencyKey", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
+        # Atomic emit claim authority for multi-instance notification delivery (#183).
+        "suffix": "notification-claims",
+        "key_schema": [{"AttributeName": "idempotencyKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "idempotencyKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
         "attribute_definitions": [

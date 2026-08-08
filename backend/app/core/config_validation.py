@@ -290,6 +290,28 @@ def validate_configuration(
                     ),
                 )
             )
+        elif not str(_raw(env_map, "SES_FROM_EMAIL") or cfg.ses_from_email or "").strip():
+            # Email is the primary documented production channel; SMS can run as well.
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_SES_FROM_EMAIL",
+                    message=(
+                        "Production NOTIFICATION_ADAPTER=real requires SES_FROM_EMAIL "
+                        "(verified SES identity)."
+                    ),
+                )
+            )
+        if cfg.notification_sandbox:
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_NOTIFICATION_SANDBOX",
+                    message=(
+                        "Production should set NOTIFICATION_SANDBOX=false after SES/SNS leave "
+                        "sandbox and allowlists are no longer required."
+                    ),
+                    severity="warning",
+                )
+            )
 
         secret = _raw(env_map, "SECRET_KEY")
         if secret is None or _is_unsafe_secret(secret):

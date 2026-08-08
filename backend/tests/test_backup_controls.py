@@ -20,6 +20,8 @@ def test_backup_scope_covers_persistent_mvp_data():
         "ticket-status-history",
         "ticket-audit-history",
         "account-audit",
+        "notification-deliveries",
+        "notification-claims",
         "duplicate-groups",
         "rate-limit-buckets",
     }.issubset(DEFAULT_TABLE_SUFFIXES)

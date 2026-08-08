@@ -29,6 +29,8 @@ DEFAULT_TABLE_SUFFIXES = (
     "ticket-status-history",
     "ticket-audit-history",
     "account-audit",
+    "notification-deliveries",
+    "notification-claims",
     "ai-outputs",
     "duplicate-groups",
     "municipalities",

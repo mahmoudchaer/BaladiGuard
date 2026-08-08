@@ -60,7 +60,16 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `DUPLICATE_MIN_SCORE` | No | `0.4` | 0..1 |
 | `DUPLICATE_SAME_CATEGORY_WEIGHT` | No | `1.0` | 0..1 |
 | `DUPLICATE_SIMILAR_CATEGORY_WEIGHT` | No | `0.7` | 0..1 |
-| `NOTIFICATION_ADAPTER` | Yes (prod: `real`) | `mock` | `mock` \| `real` |
+| `NOTIFICATION_ADAPTER` | Yes (prod: `real`) | `mock` | `mock` \| `real` (SES+SNS when real) |
+| `SES_FROM_EMAIL` | Production (with real) | empty | Verified SES identity for ticket emails |
+| `SES_CONFIGURATION_SET` | No | empty | Optional SES configuration set |
+| `SNS_SMS_SENDER_ID` | No | empty | Optional SNS SMS sender id |
+| `NOTIFICATION_ALLOW_SMS_ONLY_REAL` | No | `true` | Allow real SMS without SES from-address |
+| `NOTIFICATION_SANDBOX` | No | `true` for local/test/development; else `false` | Restrict real sends to allowlists |
+| `NOTIFICATION_ALLOWLIST_EMAILS` | Sandbox/testing | empty | Comma-separated allowlist |
+| `NOTIFICATION_ALLOWLIST_PHONES` | Sandbox/testing | empty | Comma-separated E.164 allowlist |
+| `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
+| `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
 | `RATE_LIMIT_TICKET_TRACK_LIMIT` / `_WINDOW_SECONDS` | No | `60` / `60` | Public tracking lookup |
@@ -123,14 +132,15 @@ Before deploy (#74):
 
 1. `APP_ENV=production`
 2. `DATABASE_BACKEND=dynamodb` with empty `DYNAMODB_ENDPOINT_URL` (real AWS)
-3. `NOTIFICATION_ADAPTER=real`
-4. Strong `SECRET_KEY` (not empty / not a placeholder)
-5. Non-demo `STAFF_PASSWORD` (not the local demo default)
-6. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
-7. `AWS_S3_BUCKET=<bucket>`
-8. `SEED_SAMPLE_TICKETS=false`
-9. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-10. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+3. `NOTIFICATION_ADAPTER=real` and `SES_FROM_EMAIL=<verified SES identity>`
+4. After SES/SNS leave sandbox: `NOTIFICATION_SANDBOX=false` (and clear temporary allowlists)
+5. Strong `SECRET_KEY` (not empty / not a placeholder)
+6. Non-demo staff secrets (no demo `DEMO_STAFF_PASSWORD` in production)
+7. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
+8. `AWS_S3_BUCKET=<bucket>`
+9. `SEED_SAMPLE_TICKETS=false`
+10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
 
 ## Health payload
 

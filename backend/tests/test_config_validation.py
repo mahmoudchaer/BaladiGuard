@@ -145,6 +145,8 @@ def test_production_valid_configuration_passes():
         "APP_ENV": "production",
         "DATABASE_BACKEND": "dynamodb",
         "NOTIFICATION_ADAPTER": "real",
+        "SES_FROM_EMAIL": "noreply@baladiguard.example",
+        "NOTIFICATION_SANDBOX": "false",
         "SECRET_KEY": "prod-rotation-key-not-a-placeholder",
         "SEED_DEMO_STAFF": "false",
         "AWS_REGION": "us-east-1",
