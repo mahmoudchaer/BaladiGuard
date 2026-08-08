@@ -243,7 +243,10 @@ export default function HomeScreen() {
             {reports.map((report) => (
               <View key={report.ticketNumber} style={styles.reportRow}>
                 <Pressable
-                  style={({ pressed }) => [styles.reportPressable, pressed && styles.reportRowPressed]}
+                  style={({ pressed }) => [
+                    styles.reportPressable,
+                    pressed && styles.reportRowPressed,
+                  ]}
                   onPress={() => openPublicReport(report.ticketNumber)}
                   testID={`public-report-card-${report.ticketNumber}`}
                   accessibilityRole="button"

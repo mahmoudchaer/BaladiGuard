@@ -1,11 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  TextInput as RNTextInput,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, TextInput as RNTextInput, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';

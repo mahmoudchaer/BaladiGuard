@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { Image, StyleSheet, View, type StyleProp, type ImageStyle, type ViewStyle } from 'react-native';
+import {
+  Image,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ImageStyle,
+  type ViewStyle,
+} from 'react-native';
 import { Text } from 'react-native-paper';
 
 import { colors, radii, spacing, typography } from '@/theme';
