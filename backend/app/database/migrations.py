@@ -63,9 +63,7 @@ def _ensure_missing_gsis(client, table_name: str, definition: dict[str, Any]) ->
 
     wait_for_table(client, table_name)
     description = client.describe_table(TableName=table_name)["Table"]
-    existing = {
-        index["IndexName"] for index in description.get("GlobalSecondaryIndexes", []) or []
-    }
+    existing = {index["IndexName"] for index in description.get("GlobalSecondaryIndexes", []) or []}
     attribute_defs = {
         item["AttributeName"]: item for item in description.get("AttributeDefinitions", [])
     }
@@ -111,17 +109,18 @@ def _wait_for_gsi(
         description = client.describe_table(TableName=table_name)["Table"]
         indexes = description.get("GlobalSecondaryIndexes") or []
         match = next((item for item in indexes if item["IndexName"] == index_name), None)
+        # DescribeTable is eventually consistent after UpdateTable — a missing match
+        # is a transient window, not an immediate failure.
         if match is None:
-            raise RuntimeError(
-                f"GSI {table_name}.{index_name} was not found while waiting for ACTIVE"
-            )
-        last_status = match.get("IndexStatus")
-        if last_status == "ACTIVE":
-            return
-        if last_status in {"DELETING"}:
-            raise RuntimeError(
-                f"GSI {table_name}.{index_name} entered terminal status {last_status}"
-            )
+            last_status = None
+        else:
+            last_status = match.get("IndexStatus")
+            if last_status == "ACTIVE":
+                return
+            if last_status in {"DELETING"}:
+                raise RuntimeError(
+                    f"GSI {table_name}.{index_name} entered terminal status {last_status}"
+                )
         if time.monotonic() >= deadline:
             raise TimeoutError(
                 f"Timed out waiting for GSI {table_name}.{index_name} to become ACTIVE "

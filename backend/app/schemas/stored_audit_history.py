@@ -11,6 +11,7 @@ AuditActionType = Literal[
     "CATEGORY_REVIEW",
     "DEPARTMENT_ASSIGN",
     "DUPLICATE_MERGE",
+    "PUBLIC_CONTENT_UPDATE",
 ]
 
 AUDIT_ACTION_TYPES: tuple[AuditActionType, ...] = (
@@ -18,6 +19,7 @@ AUDIT_ACTION_TYPES: tuple[AuditActionType, ...] = (
     "CATEGORY_REVIEW",
     "DEPARTMENT_ASSIGN",
     "DUPLICATE_MERGE",
+    "PUBLIC_CONTENT_UPDATE",
 )
 
 

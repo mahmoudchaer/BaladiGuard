@@ -15,6 +15,7 @@ from app.schemas.ticket_response import (
     PublicTicketListResponse,
     PublicTicketResponse,
     TicketResponse,
+    UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
 from app.services.citizens.service import snapshot_contact_for_ticket
@@ -25,6 +26,7 @@ from app.services.complaints.status_workflow import (
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
     DuplicateMergeError,
+    PublicContentUpdateError,
     StaffScopeForbiddenError,
     TicketNotFoundError,
     ticket_service,
@@ -261,6 +263,37 @@ def review_ticket_category(
             message="You do not have permission to assign the department for this category.",
             request_id=get_request_id(request),
             status_code=403,
+        )
+
+
+@router.patch("/tickets/{ticket_id}/public", response_model=TicketResponse)
+def update_ticket_public_content(
+    ticket_id: str,
+    payload: UpdateTicketPublicContentRequest,
+    request: Request,
+    principal: StaffDep,
+) -> TicketResponse | JSONResponse:
+    """Staff-approved public projection, including optional public photo approval."""
+    try:
+        verified_payload = payload.model_copy(update={"updated_by": principal.staff_id})
+        return ticket_service.update_ticket_public_content(
+            ticket_id,
+            verified_payload,
+            staff_principal=principal,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except PublicContentUpdateError as exc:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message=str(exc),
+            request_id=get_request_id(request),
+            status_code=400,
         )
 
 

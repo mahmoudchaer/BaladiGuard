@@ -23,6 +23,7 @@ from app.schemas.ticket_response import (
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketImageReference,
+    TicketPublicFields,
     TicketResponse,
     TicketStatusHistoryEntry,
 )
@@ -209,6 +210,13 @@ def map_ticket_to_response(
         updatedAt=ticket.updated_at,
         updatedBy=ticket.updated_by,
         ai=build_ticket_ai_fields(ticket),
+        public=TicketPublicFields(
+            status=ticket.public_status,
+            description=ticket.public_description,
+            locationLabel=ticket.public_location_label,
+            imageObjectKey=ticket.public_image_object_key,
+            publishedAt=ticket.public_published_at,
+        ),
         statusHistory=[
             TicketStatusHistoryEntry(
                 status=entry.new_status,

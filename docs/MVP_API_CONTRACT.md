@@ -421,7 +421,7 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 
 ## Staff audit boundaries (issues #143 / #181)
 
-**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department,
+**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department, public content,
 and duplicate-merge mutations only. Entries store action type, target ticket, timestamp, summary,
 previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal.
 
@@ -819,6 +819,53 @@ to `auditHistory`.
 | `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist.                                                                    |
 | `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
 | `VALIDATION_ERROR` |    400 | The category is missing, pending, or not in the supported category catalog.                  |
+
+## `PATCH /v1/tickets/{ticketId}/public`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Sets the staff-approved public projection used by guest browsing. Raw citizen description and the
+exact stored address are never copied automatically. Public photos require an explicit approval:
+either approve the original upload (`approveOriginalPhoto`) or set an alternate/redacted
+`publicImageObjectKey`. Omitting both leaves any existing public photo unchanged;
+`clearPublicPhoto` removes it. Publishability still requires `publicStatus=PUBLISHED`, a
+staff-reviewed final category, and non-empty public description + coarse location label; the photo
+is optional.
+
+### Request body
+
+```json
+{
+  "publicStatus": "PUBLISHED",
+  "publicDescription": "Staff-approved public summary of the road hazard.",
+  "publicLocationLabel": "Hamra, Beirut",
+  "approveOriginalPhoto": true
+}
+```
+
+| Field                   | Type    | Required | Notes                                                                                         |
+| ----------------------- | ------- | -------: | --------------------------------------------------------------------------------------------- |
+| `publicStatus`          | string  |      Yes | `DRAFT`, `PUBLISHED`, or `UNPUBLISHED`.                                                       |
+| `publicDescription`     | string  |      Yes | Required non-empty when publishing.                                                           |
+| `publicLocationLabel`   | string  |      Yes | Coarse neighborhood/area label; required non-empty when publishing.                           |
+| `approveOriginalPhoto`  | boolean |       No | When `true`, copies the ticket's private `imageObjectKey` into `publicImageObjectKey`.        |
+| `clearPublicPhoto`      | boolean |       No | When `true`, clears `publicImageObjectKey`. Mutually exclusive with approve/set.              |
+| `publicImageObjectKey`  | string  |       No | Optional alternate/redacted object key. Mutually exclusive with approve/clear.                |
+| `updatedBy`             | string  |       No | Ignored for trust decisions; actor identity comes from the verified staff principal.          |
+
+### Response `200`
+
+Returns the updated `TicketResponse`, including a staff-only `public` object with
+`status`, `description`, `locationLabel`, `imageObjectKey`, and `publishedAt`. Staff responses also
+append a `PUBLIC_CONTENT_UPDATE` entry to `auditHistory`.
+
+### Public content error codes
+
+| Code               | Status | Meaning                                                                                 |
+| ------------------ | -----: | --------------------------------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                                        |
+| `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist (or is outside the staff principal's scope).                   |
+| `VALIDATION_ERROR` |    400 | Missing final category/public text when publishing, or conflicting photo-mode flags.    |
 
 ## `PATCH /v1/tickets/{ticketId}/department`
 
@@ -1258,7 +1305,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `statusHistory[].changedBy`             | string         | Actor identifier when available.                                                                                                                   |
 | `statusHistory[].note`                  | string         | Human-readable note when available.                                                                                                                |
 | `auditHistory`                          | array          | Staff-only ticket mutation audit trail from issue #143 (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
-| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`.                                                                     |
+| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, or `PUBLIC_CONTENT_UPDATE`.                                         |
 | `auditHistory[].actorId`                | string         | Verified staff actor id from the authenticated principal (client actor fields are not trusted).                                                   |
 | `auditHistory[].actorRole`              | enum           | Verified actor role: `municipal_staff` or `administrator` (issue #181).                                                                           |
 | `auditHistory[].summary`                | string         | Concise change summary.                                                                                                                            |

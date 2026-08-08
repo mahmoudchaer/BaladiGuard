@@ -38,6 +38,7 @@ from app.schemas.ticket_response import (
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketResponse,
+    UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
 from app.schemas.ticket_status import TicketStatus
@@ -91,6 +92,10 @@ class DuplicateMergeError(ValueError):
 
 
 class StaffScopeForbiddenError(PermissionError):
+    pass
+
+
+class PublicContentUpdateError(ValueError):
     pass
 
 
@@ -612,6 +617,84 @@ class TicketService:
             previous_value=previous_category,
             new_value=payload.final_category,
             created_at=reviewed_at,
+        )
+        return self._map_ticket(updated_ticket)
+
+    def update_ticket_public_content(
+        self,
+        ticket_id: str,
+        payload: UpdateTicketPublicContentRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> TicketResponse:
+        """Persist staff-approved public projection fields, including public photo approval."""
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
+            raise TicketNotFoundError(ticket_id)
+
+        description = payload.public_description.strip()
+        location_label = payload.public_location_label.strip()
+        if payload.public_status == "PUBLISHED":
+            if not ticket.final_category:
+                raise PublicContentUpdateError(
+                    "A staff-reviewed final category is required before publishing."
+                )
+            if not description or not location_label:
+                raise PublicContentUpdateError(
+                    "Published tickets require a public description and coarse location label."
+                )
+
+        actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        update_fields: dict[str, object] = {
+            "public_status": payload.public_status,
+            "public_description": description or None,
+            "public_location_label": location_label or None,
+            "updated_at": updated_at,
+            "updated_by": actor_id,
+        }
+
+        if payload.clear_public_photo:
+            update_fields["public_image_object_key"] = None
+        elif payload.approve_original_photo:
+            if not ticket.image_object_key:
+                raise PublicContentUpdateError("This ticket has no original upload to approve.")
+            update_fields["public_image_object_key"] = ticket.image_object_key
+        elif payload.public_image_object_key is not None:
+            key = payload.public_image_object_key.strip()
+            if not key:
+                raise PublicContentUpdateError("publicImageObjectKey cannot be empty.")
+            update_fields["public_image_object_key"] = key
+
+        if payload.public_status == "PUBLISHED":
+            update_fields["public_published_at"] = ticket.public_published_at or updated_at
+        elif payload.public_status in {"DRAFT", "UNPUBLISHED"} and ticket.public_published_at:
+            # Keep historical publishedAt for audit; unpublish removes feed visibility via status.
+            pass
+
+        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
+
+        photo_note = "photo unchanged"
+        if payload.clear_public_photo:
+            photo_note = "public photo cleared"
+        elif payload.approve_original_photo:
+            photo_note = "original photo approved"
+        elif payload.public_image_object_key is not None:
+            photo_note = "public photo key set"
+
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="PUBLIC_CONTENT_UPDATE",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=f"Public content set to {payload.public_status} ({photo_note}).",
+            previous_value=ticket.public_status,
+            new_value=payload.public_status,
+            created_at=updated_at,
         )
         return self._map_ticket(updated_ticket)
 

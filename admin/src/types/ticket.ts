@@ -83,6 +83,16 @@ export type TicketDuplicateSuggestion = {
   categoryMatch?: 'same' | 'similar';
 };
 
+export type PublicTicketStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
+
+export type TicketPublicFields = {
+  status: PublicTicketStatus;
+  description?: string | null;
+  locationLabel?: string | null;
+  imageObjectKey?: string | null;
+  publishedAt?: string | null;
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -109,6 +119,7 @@ export type Ticket = {
   updatedAt: string | null;
   updatedBy?: string | null;
   ai?: TicketAiFields;
+  public?: TicketPublicFields;
 };
 
 export type TicketListItem = Pick<

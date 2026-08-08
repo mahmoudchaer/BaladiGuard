@@ -4,6 +4,7 @@ import type { Ticket, TicketStatus } from '@/types/ticket';
 import {
   assignTicketDepartment,
   reviewTicketCategory,
+  updateTicketPublicContent,
   updateTicketStatus,
 } from '@/services/tickets';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -31,9 +32,13 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
+  const [publicDescription, setPublicDescription] = useState('');
+  const [publicLocationLabel, setPublicLocationLabel] = useState('');
+  const [approveOriginalPhoto, setApproveOriginalPhoto] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
+  const [isSavingPublic, setIsSavingPublic] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -44,6 +49,9 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setPendingStatus(ticket.status);
     setSelectedCategory(ticket.ai?.finalCategory ?? ticket.ai?.aiSuggestedCategory ?? '');
     setSelectedDepartmentId(ticket.departmentId ?? '');
+    setPublicDescription(ticket.public?.description ?? '');
+    setPublicLocationLabel(ticket.public?.locationLabel ?? '');
+    setApproveOriginalPhoto(Boolean(ticket.public?.imageObjectKey));
     setActionError(null);
     setActionSuccess(null);
   }, [ticket]);
@@ -154,6 +162,39 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       setActionError(error instanceof Error ? error.message : 'Unable to save department.');
     } finally {
       setIsSavingDepartment(false);
+    }
+  }
+
+  async function handleSavePublicContent(publicStatus: 'PUBLISHED' | 'UNPUBLISHED') {
+    if (!ticket) {
+      return;
+    }
+    setIsSavingPublic(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const hadPublicPhoto = Boolean(ticket.public?.imageObjectKey);
+      const updated = await updateTicketPublicContent(ticket.ticketId, {
+        publicStatus,
+        publicDescription,
+        publicLocationLabel,
+        approveOriginalPhoto: approveOriginalPhoto && !hadPublicPhoto ? true : undefined,
+        clearPublicPhoto: !approveOriginalPhoto && hadPublicPhoto ? true : undefined,
+      });
+      if (!updated) {
+        setActionError('Unable to update public content.');
+        return;
+      }
+      onTicketUpdated?.(updated);
+      setActionSuccess(
+        publicStatus === 'PUBLISHED'
+          ? 'Published to the public feed.'
+          : 'Removed from the public feed.',
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to update public content.');
+    } finally {
+      setIsSavingPublic(false);
     }
   }
 
@@ -318,6 +359,64 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
           />
           <p className="ticket-preview__description">{ticket.description}</p>
           <p className="ticket-preview__location">{ticket.location.addressText}</p>
+        </section>
+
+        <section className="ticket-preview__section">
+          <h3 className="ticket-preview__section-title">Public feed</h3>
+          <p className="ticket-preview__hint">
+            Approve a coarse public summary before publishing. Photos stay private until explicitly
+            approved.
+          </p>
+          <label className="ticket-preview__field">
+            <span>Public description</span>
+            <textarea
+              value={publicDescription}
+              onChange={(event) => setPublicDescription(event.target.value)}
+              rows={3}
+              disabled={isSavingPublic}
+            />
+          </label>
+          <label className="ticket-preview__field">
+            <span>Public location label</span>
+            <input
+              type="text"
+              value={publicLocationLabel}
+              onChange={(event) => setPublicLocationLabel(event.target.value)}
+              placeholder="e.g. Hamra, Beirut"
+              disabled={isSavingPublic}
+            />
+          </label>
+          <label className="ticket-preview__check">
+            <input
+              type="checkbox"
+              checked={approveOriginalPhoto}
+              onChange={(event) => setApproveOriginalPhoto(event.target.checked)}
+              disabled={isSavingPublic}
+            />
+            <span>Approve original photo for the public feed</span>
+          </label>
+          <p className="ticket-preview__meta">
+            Status: {ticket.public?.status ?? 'DRAFT'}
+            {ticket.public?.imageObjectKey ? ' · photo approved' : ' · no public photo'}
+          </p>
+          <div className="ticket-preview__row">
+            <button
+              type="button"
+              className="ticket-preview__btn ticket-preview__btn--primary"
+              onClick={() => void handleSavePublicContent('PUBLISHED')}
+              disabled={isSavingPublic || !publicDescription.trim() || !publicLocationLabel.trim()}
+            >
+              {isSavingPublic ? 'Saving…' : 'Publish'}
+            </button>
+            <button
+              type="button"
+              className="ticket-preview__btn"
+              onClick={() => void handleSavePublicContent('UNPUBLISHED')}
+              disabled={isSavingPublic || (ticket.public?.status ?? 'DRAFT') === 'DRAFT'}
+            >
+              Unpublish
+            </button>
+          </div>
         </section>
 
         {actionError ? (
