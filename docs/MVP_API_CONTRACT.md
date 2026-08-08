@@ -417,6 +417,21 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 | `400` | `RESET_EXPIRED` | Code past TTL                                                       |
 | `429` | `RATE_LIMITED`  | Too many confirm attempts on the challenge (or shared HTTP limit)   |
 
+## Staff audit boundaries (issues #143 / #181)
+
+**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department,
+and duplicate-merge mutations only. Entries store action type, target ticket, timestamp, summary,
+previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal.
+
+**Account audit** is a separate store (`account-audit`) for Sprint 6 staff-account events:
+create/role/scope/activation changes, password-reset completion, and session revoke/logout.
+It is not exposed on ticket responses. Account-audit values never include passwords, hashes,
+tokens, reset codes, or unnecessary citizen data. Write failures are logged and do not fail the
+main account action.
+
+Administrator account mutations are available through
+`backend/app/services/staff/admin_accounts.py` (service boundary for `AdminStaffDep` routes).
+
 ## Endpoints
 
 ## `GET /health`
@@ -1163,7 +1178,8 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
   "auditHistory": [
     {
       "actionType": "STATUS_CHANGE",
-      "actorId": "staff-1",
+      "actorId": "staff_admin_001",
+      "actorRole": "administrator",
       "summary": "Status changed from SUBMITTED to UNDER_REVIEW.",
       "previousValue": "SUBMITTED",
       "newValue": "UNDER_REVIEW",
@@ -1239,9 +1255,10 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `statusHistory[].changedAt`             | string         | ISO 8601 timestamp for the change.                                                                                                                 |
 | `statusHistory[].changedBy`             | string         | Actor identifier when available.                                                                                                                   |
 | `statusHistory[].note`                  | string         | Human-readable note when available.                                                                                                                |
-| `auditHistory`                          | array          | Staff-only mutation audit trail (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
+| `auditHistory`                          | array          | Staff-only ticket mutation audit trail from issue #143 (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
 | `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`.                                                                     |
-| `auditHistory[].actorId`                | string         | Staff actor identifier when available.                                                                                                             |
+| `auditHistory[].actorId`                | string         | Verified staff actor id from the authenticated principal (client actor fields are not trusted).                                                   |
+| `auditHistory[].actorRole`              | enum           | Verified actor role: `municipal_staff` or `administrator` (issue #181).                                                                           |
 | `auditHistory[].summary`                | string         | Concise change summary.                                                                                                                            |
 | `auditHistory[].previousValue`          | string         | Previous value when applicable.                                                                                                                    |
 | `auditHistory[].newValue`               | string         | New value when applicable.                                                                                                                         |

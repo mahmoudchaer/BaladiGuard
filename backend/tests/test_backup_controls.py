@@ -19,6 +19,7 @@ def test_backup_scope_covers_persistent_mvp_data():
         "staff-password-reset-challenges",
         "ticket-status-history",
         "ticket-audit-history",
+        "account-audit",
         "duplicate-groups",
         "rate-limit-buckets",
     }.issubset(DEFAULT_TABLE_SUFFIXES)

@@ -80,7 +80,7 @@ def staff_logout(
     principal: StaffDep,
 ) -> Response:
     try:
-        revoke_staff_sessions(principal.staff_id)
+        revoke_staff_sessions(principal.staff_id, actor=principal)
     except StaffAuthError:
         raise unauthorized(request) from None
     return Response(status_code=204)

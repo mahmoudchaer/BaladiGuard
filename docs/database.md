@@ -239,24 +239,70 @@ accounts separately.
 
 ## 5a. TicketAuditHistory
 
-Staff-only audit trail for ticket mutations (issue #143). Complements `TicketStatusHistory`
-without replacing it. Persisted in both in-memory and DynamoDB-backed modes
+Staff-only audit trail for **ticket** mutations (issue #143), hardened for verified
+actors/roles in Sprint 6 (issue #181). Complements `TicketStatusHistory` without
+replacing it. Persisted in both in-memory and DynamoDB-backed modes
 (`{prefix}ticket-audit-history`, PK `auditId`, GSI `ticketId-index`).
 
 Audit append and read failures are logged and do **not** roll back a successful primary
 mutation or staff ticket response. When audit history cannot be loaded, staff responses return
 an empty `auditHistory` array.
 
+`actorId` and `actorRole` come from the authenticated staff principal on HTTP mutations.
+Client-provided `updatedBy` / `categoryReviewedBy` / `mergedBy` fields are not trusted.
+
 | Attribute | Type | Description |
 | --- | --- | --- |
 | `auditId` | string | Primary key. |
 | `ticketId` | string | Parent ticket. |
 | `actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`. |
-| `actorId` | string, nullable | Staff actor identifier when available. |
+| `actorId` | string, nullable | Verified staff actor identifier when available. |
+| `actorRole` | enum, nullable | `municipal_staff` or `administrator` from the verified principal (issue #181). |
 | `summary` | string | Concise human-readable change summary. |
 | `previousValue` | string, nullable | Previous value when applicable. |
 | `newValue` | string, nullable | New value when applicable. |
 | `createdAt` | string | ISO 8601 timestamp. |
+
+## 5b. AccountAudit
+
+Separate store for **staff/admin account** events (issue #181). Not ticket-scoped and never
+mixed into `TicketAuditHistory`. Persisted as `{prefix}account-audit` (PK `auditId`, GSI
+`targetStaffId-index`).
+
+Use this boundary for create/role/scope/activation changes, password-reset completion, and
+session revoke/logout. Local write failures are logged and never block the primary action.
+
+Payloads must never include passwords, password hashes, access tokens, reset codes, or
+unnecessary citizen data. Safe previous/new values are limited to fields such as
+`staffId`, `username`, `name`, `role`, `municipalityId`, `departmentIds`, and `active`.
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `auditId` | string | Primary key. |
+| `actionType` | enum | See action types below. |
+| `actorId` | string, nullable | Verified admin/staff actor when known. |
+| `actorRole` | enum, nullable | Actor role when known. |
+| `targetStaffId` | string | Account that was created or changed. |
+| `summary` | string | Safe human-readable summary. |
+| `previousValue` | string, nullable | Safe JSON snapshot or simple value. |
+| `newValue` | string, nullable | Safe JSON snapshot or simple value. |
+| `createdAt` | string | ISO 8601 timestamp. |
+
+Account audit action types:
+
+```text
+STAFF_CREATED
+STAFF_ROLE_CHANGED
+STAFF_SCOPE_CHANGED
+STAFF_DEACTIVATED
+STAFF_REACTIVATED
+STAFF_PASSWORD_RESET_COMPLETED
+STAFF_SESSION_REVOKED
+```
+
+Admin account mutations are implemented at
+`backend/app/services/staff/admin_accounts.py` with safe append via
+`backend/app/services/staff/account_audit.py`.
 
 ## 6. AiOutput
 
@@ -324,6 +370,9 @@ Ticket (1)
 ├── TicketAuditHistory (N)
 ├── AiOutput (1)
 └── DuplicateGroup (N:1)
+
+StaffUser (1)
+└── AccountAudit (N)
 ```
 
 ## Enums

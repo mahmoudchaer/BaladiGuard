@@ -19,6 +19,7 @@ from app.database.store_factory import (
 from app.database.ticket_store import TicketStore
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.staff_user import StaffRole
 from app.schemas.stored_audit_history import AuditActionType, StoredAuditHistory
 from app.schemas.stored_duplicate_group import StoredDuplicateGroup
 from app.schemas.stored_status_history import StoredStatusHistory
@@ -471,6 +472,7 @@ class TicketService:
         if payload.status == "ASSIGNED" and ticket.department_id not in department_ids():
             raise MissingDepartmentAssignmentError()
 
+        actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         # Partial update so concurrent merges/AI writes are not overwritten.
         updated_ticket = self._store.patch_fields(
@@ -478,7 +480,7 @@ class TicketService:
             {
                 "status": payload.status,
                 "updated_at": updated_at,
-                "updated_by": payload.updated_by,
+                "updated_by": actor_id,
             },
         )
         if updated_ticket is None:
@@ -487,14 +489,15 @@ class TicketService:
             ticket_id=ticket_id,
             previous_status=ticket.status,
             new_status=payload.status,
-            updated_by=payload.updated_by,
+            updated_by=actor_id,
             note=payload.note,
             created_at=updated_at,
         )
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="STATUS_CHANGE",
-            actor_id=payload.updated_by,
+            actor_id=actor_id,
+            actor_role=actor_role,
             summary=f"Status changed from {ticket.status} to {payload.status}.",
             previous_value=ticket.status,
             new_value=payload.status,
@@ -566,14 +569,15 @@ class TicketService:
         if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
             raise TicketNotFoundError(ticket_id)
 
+        actor_id, actor_role = self._verified_actor(staff_principal, payload.category_reviewed_by)
         reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         update_fields: dict[str, object] = {
             "final_category": payload.final_category,
             "category": payload.final_category,
-            "category_reviewed_by": payload.category_reviewed_by,
+            "category_reviewed_by": actor_id,
             "category_reviewed_at": reviewed_at,
             "updated_at": reviewed_at,
-            "updated_by": payload.category_reviewed_by,
+            "updated_by": actor_id,
         }
         suggested_department_id = suggest_department_id(category_id=payload.final_category)
         previous_category_id = effective_ticket_category(ticket)
@@ -602,7 +606,8 @@ class TicketService:
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="CATEGORY_REVIEW",
-            actor_id=payload.category_reviewed_by,
+            actor_id=actor_id,
+            actor_role=actor_role,
             summary=f"Category reviewed as {payload.final_category}.",
             previous_value=previous_category,
             new_value=payload.final_category,
@@ -627,13 +632,14 @@ class TicketService:
             if not staff_can_assign_department(staff_principal, payload.department_id):
                 raise StaffScopeForbiddenError(payload.department_id)
 
+        actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         updated_ticket = self._store.patch_fields(
             ticket_id,
             {
                 "department_id": payload.department_id,
                 "updated_at": updated_at,
-                "updated_by": payload.updated_by,
+                "updated_by": actor_id,
             },
         )
         if updated_ticket is None:
@@ -641,7 +647,8 @@ class TicketService:
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="DEPARTMENT_ASSIGN",
-            actor_id=payload.updated_by,
+            actor_id=actor_id,
+            actor_role=actor_role,
             summary=(
                 f"Department assignment changed from "
                 f"{ticket.department_id or 'unassigned'} to {payload.department_id}."
@@ -715,6 +722,7 @@ class TicketService:
                 )
 
         merged_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        actor_id, actor_role = self._verified_actor(staff_principal, payload.merged_by)
         if existing_group is not None:
             # Append to the staff-chosen main ticket's existing group.
             group_id = existing_group.duplicate_group_id
@@ -731,7 +739,7 @@ class TicketService:
                 canonicalTicketId=canonical_id,
                 ticketIds=[canonical_id, *duplicate_ids],
                 createdAt=merged_at,
-                createdBy=payload.merged_by,
+                createdBy=actor_id,
             )
 
         # Stamp members first and persist the group row last so a failure never
@@ -746,7 +754,7 @@ class TicketService:
                     {
                         "duplicate_group_id": group_id,
                         "updated_at": merged_at,
-                        "updated_by": payload.merged_by,
+                        "updated_by": actor_id,
                     },
                 )
                 if updated is None:
@@ -779,7 +787,8 @@ class TicketService:
             self._record_audit_history(
                 ticket_id=ticket_id,
                 action_type="DUPLICATE_MERGE",
-                actor_id=payload.merged_by,
+                actor_id=actor_id,
+                actor_role=actor_role,
                 summary=(
                     f"Ticket marked as {role} in duplicate group {group_id} "
                     f"(members: {member_summary})."
@@ -956,6 +965,16 @@ class TicketService:
                 type(exc).__name__,
             )
 
+    def _verified_actor(
+        self,
+        staff_principal: StaffPrincipal | None,
+        fallback_actor_id: str | None,
+    ) -> tuple[str | None, StaffRole | None]:
+        """Actor ID and role always prefer the authenticated principal over client fields."""
+        if staff_principal is not None:
+            return staff_principal.staff_id, staff_principal.role
+        return fallback_actor_id, None
+
     def _record_status_history(
         self,
         *,
@@ -987,6 +1006,7 @@ class TicketService:
         previous_value: str | None,
         new_value: str | None,
         created_at: str,
+        actor_role: StaffRole | None = None,
     ) -> None:
         """Persist a staff audit row without blocking the primary mutation on failure."""
         entry = StoredAuditHistory(
@@ -994,6 +1014,7 @@ class TicketService:
             ticketId=ticket_id,
             actionType=action_type,
             actorId=actor_id,
+            actorRole=actor_role,
             summary=summary,
             previousValue=previous_value,
             newValue=new_value,
