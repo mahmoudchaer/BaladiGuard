@@ -269,6 +269,18 @@ class StaffPasswordResetService:
 
         _dev_reset_codes.pop(challenge.challenge_id, None)
         logger.info("staff_recovery_completed staff_id=%s", staff.staff_id)
+        from app.services.staff.account_audit import account_audit_service
+
+        account_audit_service.record_safe(
+            action_type="STAFF_PASSWORD_RESET_COMPLETED",
+            actor_id=staff.staff_id,
+            actor_role=staff.role,
+            target_staff_id=staff.staff_id,
+            summary="Staff credential recovery completed.",
+            previous_value=None,
+            new_value=None,
+            created_at=stamped,
+        )
         return RESET_SUCCESS_MESSAGE
 
 

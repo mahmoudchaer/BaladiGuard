@@ -35,6 +35,7 @@ def test_status_change_writes_audit_and_keeps_status_history(client):
     assert audits[0] == {
         "actionType": "STATUS_CHANGE",
         "actorId": ADMIN_STAFF_ID,
+        "actorRole": "administrator",
         "summary": "Status changed from SUBMITTED to UNDER_REVIEW.",
         "previousValue": "SUBMITTED",
         "newValue": "UNDER_REVIEW",
@@ -55,6 +56,7 @@ def test_category_review_writes_audit_record(client):
     audits = _audit_by_type(body, "CATEGORY_REVIEW")
     assert len(audits) == 1
     assert audits[0]["actorId"] == ADMIN_STAFF_ID
+    assert audits[0]["actorRole"] == "administrator"
     assert audits[0]["newValue"] == "waste"
     assert audits[0]["previousValue"] in {"PENDING_CLASSIFICATION", "road_damage"}
     assert "Category reviewed as waste." in audits[0]["summary"]
@@ -73,6 +75,7 @@ def test_department_assignment_writes_audit_record(client):
     audits = _audit_by_type(body, "DEPARTMENT_ASSIGN")
     assert len(audits) == 1
     assert audits[0]["actorId"] == ADMIN_STAFF_ID
+    assert audits[0]["actorRole"] == "administrator"
     assert audits[0]["previousValue"] == ROAD_MAINTENANCE
     assert audits[0]["newValue"] == WASTE_MANAGEMENT
     assert audits[0]["summary"].startswith("Department assignment changed from")
@@ -96,6 +99,7 @@ def test_duplicate_merge_writes_audit_for_canonical_and_duplicate(client):
     canonical_audits = _audit_by_type(body, "DUPLICATE_MERGE")
     assert len(canonical_audits) == 1
     assert canonical_audits[0]["actorId"] == ADMIN_STAFF_ID
+    assert canonical_audits[0]["actorRole"] == "administrator"
     assert canonical_audits[0]["previousValue"] is None
     assert canonical_audits[0]["newValue"] == body["duplicateGroupId"]
     assert "canonical" in canonical_audits[0]["summary"]

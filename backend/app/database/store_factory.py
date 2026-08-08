@@ -1,8 +1,10 @@
 from app.config import Settings, get_settings
+from app.database.account_audit_store import AccountAuditStore
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.citizen_store import CitizenStore
 from app.database.duplicate_group_store import DuplicateGroupStore
 from app.database.memory import ticket_store
+from app.database.memory_account_audit import account_audit_store
 from app.database.memory_audit_history import audit_history_store
 from app.database.memory_citizen import citizen_store
 from app.database.memory_citizen_otp import citizen_otp_store
@@ -41,6 +43,15 @@ def build_audit_history_store(settings: Settings | None = None) -> AuditHistoryS
 
         return DynamoAuditHistoryStore(settings)
     return audit_history_store
+
+
+def build_account_audit_store(settings: Settings | None = None) -> AccountAuditStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_account_audit_store import DynamoAccountAuditStore
+
+        return DynamoAccountAuditStore(settings)
+    return account_audit_store
 
 
 def build_duplicate_group_store(settings: Settings | None = None) -> DuplicateGroupStore:
@@ -107,6 +118,10 @@ def get_status_history_store() -> StatusHistoryStore:
 
 def get_audit_history_store() -> AuditHistoryStore:
     return build_audit_history_store(get_settings())
+
+
+def get_account_audit_store() -> AccountAuditStore:
+    return build_account_audit_store(get_settings())
 
 
 def get_duplicate_group_store() -> DuplicateGroupStore:
