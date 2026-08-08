@@ -149,13 +149,45 @@ export function TicketListPage() {
     }
   }, [filteredTickets, selectedTicketId]);
 
+  function ticketMatchesActiveServerFilters(ticket: Ticket): boolean {
+    if (statusFilter !== 'ALL' && ticket.status !== statusFilter) {
+      return false;
+    }
+    if (categoryFilter !== 'ALL' && ticket.category !== categoryFilter) {
+      return false;
+    }
+    if (urgencyFilter !== 'ALL' && ticket.priority !== urgencyFilter) {
+      return false;
+    }
+    if (departmentFilter !== 'ALL' && ticket.departmentId !== departmentFilter) {
+      return false;
+    }
+    return true;
+  }
+
   function handleTicketUpdated(updated: Ticket) {
-    setTickets((current) =>
-      current.map((ticket) => (ticket.ticketId === updated.ticketId ? updated : ticket)),
-    );
-    setAllTickets((current) =>
-      current.map((ticket) => (ticket.ticketId === updated.ticketId ? updated : ticket)),
-    );
+    // Keep the unfiltered cache current for attention stats / category options.
+    setAllTickets((current) => {
+      const exists = current.some((ticket) => ticket.ticketId === updated.ticketId);
+      if (!exists) {
+        return current;
+      }
+      return current.map((ticket) => (ticket.ticketId === updated.ticketId ? updated : ticket));
+    });
+
+    // Drop or replace in the active server-filtered list so preview actions do not
+    // leave stale rows under the wrong status/category/urgency/department view.
+    setTickets((current) => {
+      const matches = ticketMatchesActiveServerFilters(updated);
+      const exists = current.some((ticket) => ticket.ticketId === updated.ticketId);
+      if (!matches) {
+        return current.filter((ticket) => ticket.ticketId !== updated.ticketId);
+      }
+      if (exists) {
+        return current.map((ticket) => (ticket.ticketId === updated.ticketId ? updated : ticket));
+      }
+      return current;
+    });
   }
 
   const queueTitle = hasActiveFilters ? 'Matching reports' : 'Citizen reports';

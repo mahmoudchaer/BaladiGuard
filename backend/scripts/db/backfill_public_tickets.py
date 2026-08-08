@@ -1,7 +1,12 @@
-"""Backfill public browse fields so GET /v1/tickets/public can return items.
+"""Repair public browse index fields for already-published tickets.
 
-Idempotent: only fills missing public* attributes for tickets that have a
-description and location label. Safe for local/dev DynamoDB repair.
+Idempotent and privacy-safe: only rebuilds ``publicSortKey`` (and fills a
+missing ``publicPublishedAt`` from existing timestamps) for tickets that are
+already ``PUBLISHED`` with staff-approved ``publicDescription`` and
+``publicLocationLabel``.
+
+Never promotes DRAFT/UNPUBLISHED rows, and never copies raw citizen
+``description`` or exact ``location.addressText`` into public fields.
 """
 
 from __future__ import annotations
@@ -21,17 +26,6 @@ from app.database.serialization import PUBLIC_TICKET_STATUS_PUBLISHED, build_pub
 from app.schemas.stored_ticket import StoredTicket
 
 
-def _category_for_public(item: dict) -> str | None:
-    final = (item.get("finalCategory") or "").strip()
-    if final and final != "PENDING_CLASSIFICATION":
-        return final
-    category = (item.get("category") or "").strip()
-    if category and category != "PENDING_CLASSIFICATION":
-        return category
-    # Prefer a real category; fall back so older demo rows still appear publicly.
-    return final or category or None
-
-
 def backfill(*, dry_run: bool = False) -> int:
     settings = get_settings()
     table_name = build_table_name(settings.dynamodb_table_prefix, "tickets")
@@ -42,38 +36,38 @@ def backfill(*, dry_run: bool = False) -> int:
     while True:
         response = table.scan(**scan_kwargs)
         for item in response.get("Items", []):
-            description = (item.get("description") or "").strip()
-            address = ((item.get("location") or {}).get("addressText") or "").strip()
-            category = _category_for_public(item)
-            if not description or not address or not category:
+            if item.get("publicStatus") != PUBLIC_TICKET_STATUS_PUBLISHED:
                 continue
 
-            if (
-                item.get("publicStatus") == PUBLIC_TICKET_STATUS_PUBLISHED
-                and item.get("publicDescription")
-                and item.get("publicLocationLabel")
-                and item.get("publicPublishedAt")
-                and item.get("publicSortKey")
-                and item.get("finalCategory")
-            ):
+            public_description = (item.get("publicDescription") or "").strip()
+            public_location_label = (item.get("publicLocationLabel") or "").strip()
+            final_category = (item.get("finalCategory") or "").strip()
+            if not public_description or not public_location_label or not final_category:
+                # Missing staff-approved projection — do not invent public copy.
                 continue
 
             published_at = (
                 item.get("publicPublishedAt") or item.get("updatedAt") or item.get("createdAt")
             )
+            if not published_at:
+                continue
+
             draft = {
                 **item,
-                "finalCategory": item.get("finalCategory") or category,
+                "finalCategory": final_category,
                 "publicStatus": PUBLIC_TICKET_STATUS_PUBLISHED,
-                "publicDescription": item.get("publicDescription") or description,
-                "publicLocationLabel": item.get("publicLocationLabel") or address,
+                "publicDescription": public_description,
+                "publicLocationLabel": public_location_label,
                 "publicPublishedAt": published_at,
             }
             ticket = StoredTicket.model_validate(draft)
             sort_key = build_public_sort_key(ticket)
 
+            if item.get("publicSortKey") == sort_key and item.get("publicPublishedAt"):
+                continue
+
             print(
-                f"{'DRY-RUN ' if dry_run else ''}publish {item.get('ticketNumber')} "
+                f"{'DRY-RUN ' if dry_run else ''}repair-index {item.get('ticketNumber')} "
                 f"category={ticket.final_category}"
             )
             if dry_run:
@@ -83,18 +77,9 @@ def backfill(*, dry_run: bool = False) -> int:
             table.update_item(
                 Key={"ticketId": item["ticketId"]},
                 UpdateExpression=(
-                    "SET finalCategory = :finalCategory, "
-                    "publicStatus = :publicStatus, "
-                    "publicDescription = :publicDescription, "
-                    "publicLocationLabel = :publicLocationLabel, "
-                    "publicPublishedAt = :publicPublishedAt, "
-                    "publicSortKey = :publicSortKey"
+                    "SET publicPublishedAt = :publicPublishedAt, publicSortKey = :publicSortKey"
                 ),
                 ExpressionAttributeValues={
-                    ":finalCategory": ticket.final_category,
-                    ":publicStatus": PUBLIC_TICKET_STATUS_PUBLISHED,
-                    ":publicDescription": ticket.public_description,
-                    ":publicLocationLabel": ticket.public_location_label,
                     ":publicPublishedAt": ticket.public_published_at,
                     ":publicSortKey": sort_key,
                 },
@@ -110,7 +95,9 @@ def backfill(*, dry_run: bool = False) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Backfill public ticket browse fields.")
+    parser = argparse.ArgumentParser(
+        description="Repair publicSortKey for already-published tickets."
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     count = backfill(dry_run=args.dry_run)

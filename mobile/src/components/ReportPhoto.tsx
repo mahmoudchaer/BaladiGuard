@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Image,
   StyleSheet,
@@ -31,6 +31,10 @@ export function ReportPhoto({
 }: ReportPhotoProps) {
   const [failed, setFailed] = useState(false);
   const isHero = variant === 'hero';
+
+  useEffect(() => {
+    setFailed(false);
+  }, [uri]);
 
   if (!uri || failed) {
     return (

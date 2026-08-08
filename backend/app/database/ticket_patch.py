@@ -21,6 +21,7 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "public_description": "publicDescription",
     "public_location_label": "publicLocationLabel",
     "public_published_at": "publicPublishedAt",
+    "public_image_object_key": "publicImageObjectKey",
     "duplicate_group_id": "duplicateGroupId",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",

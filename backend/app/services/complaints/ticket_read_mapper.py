@@ -118,7 +118,11 @@ def map_ticket_to_public_response(
     if not public_description or not public_location_label:
         raise ValueError("Ticket is missing approved public content.")
 
-    photo_url = build_image_url(ticket.image_object_key) if ticket.image_object_key else None
+    # Only staff-approved public photos are projected. Raw upload keys stay private.
+    # Presigned URLs may include the approved key in the path; that is expected for
+    # time-limited GET access and is not the same as exposing imageObjectKey in JSON.
+    approved_photo_key = (ticket.public_image_object_key or "").strip()
+    photo_url = build_image_url(approved_photo_key) if approved_photo_key else None
 
     return PublicTicketResponse(
         ticketNumber=ticket.ticket_number,

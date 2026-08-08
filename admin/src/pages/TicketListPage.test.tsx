@@ -3,13 +3,21 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TicketListPage } from '@/pages/TicketListPage';
-import { fetchTickets } from '@/services/tickets';
+import { assignTicketDepartment, fetchTickets, updateTicketStatus } from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
 import type { Ticket } from '@/types/ticket';
 
-vi.mock('@/services/tickets', () => ({
-  fetchTickets: vi.fn(),
-}));
+vi.mock('@/services/tickets', async () => {
+  const actual = await vi.importActual<typeof import('@/services/tickets')>('@/services/tickets');
+  return {
+    ...actual,
+    fetchTickets: vi.fn(),
+    updateTicketStatus: vi.fn(),
+    assignTicketDepartment: vi.fn(),
+    acceptAiCategory: vi.fn(),
+    updateTicketCategory: vi.fn(),
+  };
+});
 
 type FetchTicketsTestFilters = Parameters<typeof fetchTickets>[0];
 
@@ -325,5 +333,86 @@ describe('TicketListPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load tickets');
     expect(screen.getByText('Unable to reach backend.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument());
+  });
+
+  it('removes a ticket from the active status filter after a preview status change', async () => {
+    const user = userEvent.setup();
+    const submitted: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_submitted',
+      ticketNumber: 'BG-2026-0010',
+      trackingCode: 'SUBM01',
+      status: 'SUBMITTED',
+      departmentId: null,
+      departmentName: null,
+    };
+    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
+      applyFetchFilters([submitted, ...tickets], filters),
+    );
+    vi.mocked(updateTicketStatus).mockResolvedValue({
+      ...submitted,
+      status: 'UNDER_REVIEW',
+    });
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0010');
+    await user.click(screen.getByRole('button', { name: 'Submitted' }));
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'SUBMITTED' }),
+      ),
+    );
+    expect(screen.getByText('BG-2026-0010')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0010' }));
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(within(preview).getByRole('heading', { name: 'BG-2026-0010' })).toBeInTheDocument();
+    const statusSelect = within(preview).getByRole('combobox', { name: /^Status$/i });
+    await user.selectOptions(statusSelect, 'UNDER_REVIEW');
+    await user.click(within(preview).getByRole('button', { name: 'Apply status change' }));
+
+    await waitFor(() => expect(updateTicketStatus).toHaveBeenCalled());
+    expect(
+      screen.queryByRole('button', { name: 'Select ticket BG-2026-0010' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('removes a ticket from the Unassigned view after assigning a department in preview', async () => {
+    const user = userEvent.setup();
+    const unassigned: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_unassigned',
+      ticketNumber: 'BG-2026-0011',
+      trackingCode: 'UNAS01',
+      status: 'SUBMITTED',
+      departmentId: null,
+      departmentName: null,
+    };
+    vi.mocked(fetchTickets).mockResolvedValue([unassigned, ...tickets]);
+    vi.mocked(assignTicketDepartment).mockResolvedValue({
+      ...unassigned,
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      departmentName: 'Road Maintenance',
+    });
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0011');
+    await user.click(screen.getByRole('button', { name: /Unassigned/i }));
+    expect(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' }));
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(within(preview).getByRole('heading', { name: 'BG-2026-0011' })).toBeInTheDocument();
+    const departmentSelect = within(preview).getByRole('combobox', { name: /Department/i });
+    await user.selectOptions(departmentSelect, 'd1111111-1111-1111-1111-111111111111');
+    await user.click(within(preview).getByRole('button', { name: 'Save department' }));
+
+    await waitFor(() => expect(assignTicketDepartment).toHaveBeenCalled());
+    // Unassigned queue view is client-side; assigned ticket must leave that list.
+    expect(
+      screen.queryByRole('button', { name: 'Select ticket BG-2026-0011' }),
+    ).not.toBeInTheDocument();
   });
 });

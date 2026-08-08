@@ -23,6 +23,15 @@ def _mask_phone(phone: str) -> str:
     return f"{phone[:4]}…{phone[-2:]}"
 
 
+def _local_otp_fallback(canonical: str, code: str, *, reason: str) -> None:
+    logger.warning(
+        "LOCAL OTP FALLBACK phone=%s code=%s reason=%s",
+        _mask_phone(canonical),
+        code,
+        reason,
+    )
+
+
 def deliver_citizen_otp(
     *,
     phone: str,
@@ -46,19 +55,17 @@ def deliver_citizen_otp(
         )
         return
 
-    # Sandbox: only allowlisted E.164 numbers receive SMS.
-    if cfg.notification_sandbox and cfg.notification_allowlist_phones:
-        if canonical not in set(cfg.notification_allowlist_phones):
+    # Sandbox fails closed: empty allowlist blocks all real SMS destinations.
+    if cfg.notification_sandbox:
+        allowlist = set(cfg.notification_allowlist_phones)
+        if not allowlist or canonical not in allowlist:
             logger.warning(
-                "OTP SMS blocked by notification sandbox allowlist phone=%s",
+                "OTP SMS blocked by notification sandbox allowlist phone=%s allowlist_empty=%s",
                 _mask_phone(canonical),
+                not allowlist,
             )
             if cfg.app_env in {"local", "development"}:
-                logger.warning(
-                    "LOCAL OTP FALLBACK phone=%s code=%s",
-                    _mask_phone(canonical),
-                    code,
-                )
+                _local_otp_fallback(canonical, code, reason="sandbox_block")
             return
 
     client = boto3.client("sns", region_name=cfg.aws_region)
@@ -79,11 +86,7 @@ def deliver_citizen_otp(
         logger.exception("Citizen OTP SMS publish failed phone=%s", _mask_phone(canonical))
         # Local-friendly fallback so verify can still be completed while debugging SNS.
         if cfg.app_env in {"local", "development"}:
-            logger.warning(
-                "LOCAL OTP FALLBACK phone=%s code=%s",
-                _mask_phone(canonical),
-                code,
-            )
+            _local_otp_fallback(canonical, code, reason="sns_publish_failed")
             return
         raise
 
