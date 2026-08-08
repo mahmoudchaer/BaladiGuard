@@ -1,7 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
-import type { TicketStatus, TicketStatusHistoryEntry } from '@/types/ticket';
+import { colors, radii, spacing, typography } from '@/theme';
+import { formatStatusLabel } from '@/theme/labels';
+import type { TicketStatusHistoryEntry } from '@/types/ticket';
 import { normalizeTimelineEvents } from '@/utils/timeline';
 
 export type TicketTimelineVariant = 'staff' | 'citizen';
@@ -14,15 +16,6 @@ export type TicketTimelineProps = {
    */
   variant?: TicketTimelineVariant;
   emptyMessage?: string;
-};
-
-const STATUS_LABELS: Record<TicketStatus, string> = {
-  SUBMITTED: 'Submitted',
-  UNDER_REVIEW: 'Under Review',
-  ASSIGNED: 'Assigned',
-  IN_PROGRESS: 'In Progress',
-  RESOLVED: 'Resolved',
-  CLOSED: 'Closed',
 };
 
 function formatTimelineDate(isoDate: string): string {
@@ -60,7 +53,7 @@ export function TicketTimeline({
             <View style={[styles.marker, isLatest ? styles.markerLatest : null]} />
             <View style={styles.content}>
               <Text variant="titleSmall" style={styles.status}>
-                {STATUS_LABELS[event.status] ?? event.status}
+                {formatStatusLabel(event.status)}
               </Text>
               <Text variant="bodySmall" style={styles.time}>
                 {formatTimelineDate(event.changedAt)}
@@ -85,11 +78,11 @@ export function TicketTimeline({
 
 const styles = StyleSheet.create({
   list: {
-    gap: 12,
+    gap: spacing[3],
   },
   item: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing[3],
     alignItems: 'flex-start',
   },
   itemLatest: {},
@@ -97,14 +90,14 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     marginTop: 4,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 2,
-    borderColor: '#94A3B8',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
   },
   markerLatest: {
-    borderColor: '#0F766E',
-    backgroundColor: '#0F766E',
+    borderColor: colors.brand,
+    backgroundColor: colors.brand,
   },
   content: {
     flex: 1,
@@ -112,19 +105,23 @@ const styles = StyleSheet.create({
   },
   status: {
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.text,
+    fontSize: typography.bodyCompact,
   },
   time: {
-    color: '#64748B',
+    color: colors.textMuted,
+    fontSize: typography.metadata,
   },
   meta: {
-    color: '#475569',
+    color: colors.textSecondary,
+    fontSize: typography.metadata,
   },
   note: {
-    color: '#475569',
+    color: colors.textSecondary,
+    fontSize: typography.metadata,
     fontStyle: 'italic',
   },
   empty: {
-    color: '#64748B',
+    color: colors.textMuted,
   },
 });

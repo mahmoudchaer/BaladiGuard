@@ -1,33 +1,17 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import { ActivityIndicator, Banner, Card, Text } from 'react-native-paper';
+import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ReportPhoto } from '@/components/ReportPhoto';
+import { StatusChip } from '@/components/StatusChip';
 import { getPublicTicketByNumber } from '@/services/api/tickets';
+import { colors, radii, spacing, typography } from '@/theme';
+import { formatCategoryLabel } from '@/theme/labels';
 import type { PublicTicketResponse } from '@/types/ticket';
-
-const categoryLabels: Record<string, string> = {
-  road_damage: 'Road Damage',
-  waste: 'Waste',
-  street_lighting: 'Street Lighting',
-  water_leak: 'Water Leak',
-  noise: 'Noise',
-  sidewalk_damage: 'Sidewalk Damage',
-  traffic_signal: 'Traffic Signal',
-  drainage: 'Drainage',
-  public_facilities: 'Public Facilities',
-};
-
-const statusLabels: Record<PublicTicketResponse['status'], string> = {
-  SUBMITTED: 'Submitted',
-  UNDER_REVIEW: 'Under Review',
-  ASSIGNED: 'Assigned',
-  IN_PROGRESS: 'In Progress',
-  RESOLVED: 'Resolved',
-  CLOSED: 'Closed',
-};
+import { openInMapsApp } from '@/utils/openMaps';
 
 export default function PublicReportDetailScreen() {
   const { ticketNumber } = useLocalSearchParams<{ ticketNumber?: string | string[] }>();
@@ -78,8 +62,10 @@ export default function PublicReportDetailScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {isLoading ? (
           <View style={styles.loading} testID="public-report-detail-loading">
-            <ActivityIndicator />
-            <Text variant="bodyMedium">Loading public report...</Text>
+            <ActivityIndicator color={colors.brand} />
+            <Text variant="bodyMedium" style={styles.loadingText}>
+              Loading public report...
+            </Text>
           </View>
         ) : null}
 
@@ -95,50 +81,76 @@ export default function PublicReportDetailScreen() {
               <Text variant="headlineSmall" style={styles.ticketNumber}>
                 {report.ticketNumber}
               </Text>
-              <Text variant="labelLarge" style={styles.statusPill}>
-                {statusLabels[report.status]}
-              </Text>
+              <StatusChip status={report.status} />
             </View>
 
-            <MapView
-              style={styles.map}
-              initialRegion={{
-                latitude: report.mapLocation.latitude,
-                longitude: report.mapLocation.longitude,
-                latitudeDelta: 0.025,
-                longitudeDelta: 0.025,
-              }}
-            >
-              <Marker
-                coordinate={{
+            <ReportPhoto
+              uri={report.photoUrl}
+              accessibilityLabel={`Photo for report ${report.ticketNumber}`}
+              testID="public-report-detail-photo"
+              variant="hero"
+            />
+
+            <View style={styles.mapWrap}>
+              <MapView
+                style={styles.map}
+                initialRegion={{
                   latitude: report.mapLocation.latitude,
                   longitude: report.mapLocation.longitude,
+                  latitudeDelta: 0.025,
+                  longitudeDelta: 0.025,
                 }}
-                title={report.ticketNumber}
-                description={report.mapLocation.addressText}
-              />
-            </MapView>
+              >
+                <Marker
+                  coordinate={{
+                    latitude: report.mapLocation.latitude,
+                    longitude: report.mapLocation.longitude,
+                  }}
+                  title={report.ticketNumber}
+                  description={report.mapLocation.addressText}
+                  pinColor={colors.status[report.status]?.fg ?? colors.brand}
+                />
+              </MapView>
+              <Button
+                mode="contained"
+                icon="map-marker-outline"
+                style={styles.mapsButton}
+                contentStyle={styles.mapsButtonContent}
+                buttonColor={colors.brand}
+                textColor={colors.textInverse}
+                onPress={() => {
+                  void openInMapsApp({
+                    latitude: report.mapLocation.latitude,
+                    longitude: report.mapLocation.longitude,
+                    label: report.mapLocation.addressText || report.ticketNumber,
+                  });
+                }}
+                testID="public-report-detail-maps"
+                accessibilityLabel="Open this report location in maps"
+              >
+                Open in Maps
+              </Button>
+            </View>
 
-            <Card style={styles.card}>
-              <Card.Content style={styles.cardContent}>
-                <Text variant="titleMedium">Summary</Text>
-                <Text variant="bodyMedium">{report.description}</Text>
+            <View style={styles.card}>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                Summary
+              </Text>
+              <Text variant="bodyMedium" style={styles.description}>
+                {report.description}
+              </Text>
+              <Text variant="bodySmall" style={styles.metaText}>
+                {formatCategoryLabel(report.category)} · {report.location.addressText}
+              </Text>
+              {report.department ? (
                 <Text variant="bodySmall" style={styles.metaText}>
-                  {report.category
-                    ? (categoryLabels[report.category] ?? report.category)
-                    : 'Category pending'}{' '}
-                  - {report.location.addressText}
+                  Assigned to {report.department.name}
                 </Text>
-                {report.department ? (
-                  <Text variant="bodySmall" style={styles.metaText}>
-                    Assigned to {report.department.name}
-                  </Text>
-                ) : null}
-                <Text variant="bodySmall" style={styles.metaText}>
-                  Reported by {report.attribution.displayName}
-                </Text>
-              </Card.Content>
-            </Card>
+              ) : null}
+              <Text variant="bodySmall" style={styles.metaText}>
+                Reported by {report.attribution.displayName}
+              </Text>
+            </View>
           </View>
         ) : null}
       </ScrollView>
@@ -149,48 +161,77 @@ export default function PublicReportDetailScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   container: {
-    padding: 24,
-    gap: 16,
+    padding: spacing[5],
+    gap: spacing[4],
+    paddingBottom: spacing[8],
   },
   loading: {
     minHeight: 160,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing[2],
+  },
+  loadingText: {
+    color: colors.textSecondary,
   },
   errorBanner: {
-    backgroundColor: '#FEF2F2',
+    borderRadius: radii.md,
+    backgroundColor: colors.dangerSoft,
   },
   content: {
-    gap: 16,
+    gap: spacing[4],
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing[3],
   },
   ticketNumber: {
-    color: '#0B5FFF',
+    color: colors.brandDark,
     fontWeight: '700',
+    flexShrink: 1,
   },
-  statusPill: {
-    color: '#166534',
+  mapWrap: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    gap: spacing[3],
+    paddingBottom: spacing[3],
   },
   map: {
-    height: 240,
-    borderRadius: 8,
+    height: 220,
+  },
+  mapsButton: {
+    marginHorizontal: spacing[3],
+    borderRadius: radii.md,
+  },
+  mapsButtonContent: {
+    minHeight: 44,
   },
   card: {
-    borderRadius: 8,
+    gap: spacing[2],
+    padding: spacing[4],
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  cardContent: {
-    gap: 8,
+  cardTitle: {
+    fontWeight: '700',
+    color: colors.text,
+  },
+  description: {
+    color: colors.text,
+    lineHeight: 21,
   },
   metaText: {
-    color: '#64748B',
+    color: colors.textMuted,
+    fontSize: typography.metadata,
   },
 });

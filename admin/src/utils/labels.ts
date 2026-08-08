@@ -68,3 +68,25 @@ export function formatCreatedDate(isoDate: string): string {
     timeStyle: 'short',
   }).format(new Date(isoDate));
 }
+
+/** Compact age label for operational scanning (e.g. "2h", "3d"). */
+export function formatTicketAge(isoDate: string, now = Date.now()): string {
+  const createdAt = Date.parse(isoDate);
+  if (!Number.isFinite(createdAt)) {
+    return '—';
+  }
+
+  const elapsedMs = Math.max(0, now - createdAt);
+  const minutes = Math.floor(elapsedMs / (60 * 1000));
+  if (minutes < 60) {
+    return `${Math.max(1, minutes)}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) {
+    return `${hours}h`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}

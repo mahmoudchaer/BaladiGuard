@@ -11,6 +11,7 @@ import {
   type PhoneOtpRequestValues,
 } from '@/schemas/citizenOtpSchema';
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose } from '@/types/citizen';
 import { validatePhoneInput } from '@/utils/phone';
 
@@ -33,7 +34,7 @@ export function PhoneEntryForm({
   onSuccess,
   purpose = 'LOGIN_OR_SIGNUP',
   title = 'Sign in with phone',
-  subtitle = 'Enter your mobile number to receive a one-time verification code. No password needed.',
+  subtitle = 'Enter your mobile number to receive a one-time verification code by SMS. No password needed.',
   submitLabel = 'Send verification code',
 }: PhoneEntryFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -104,45 +105,52 @@ export function PhoneEntryForm({
         </Banner>
       ) : null}
 
-      <Controller
-        control={control}
-        name="region"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <TextInput
-            mode="outlined"
-            label="Country / region"
-            placeholder="LB"
-            autoCapitalize="characters"
-            maxLength={2}
-            value={value}
-            onChangeText={(text) => onChange(text.toUpperCase())}
-            onBlur={onBlur}
-            testID="phone-region-input"
-          />
-        )}
-      />
-      <HelperText type="info" visible>
-        Use an ISO country code (for example LB) with a national number, or enter an E.164 number
-        like +96170123456.
+      <View style={styles.fieldRow}>
+        <Controller
+          control={control}
+          name="region"
+          render={({ field: { value, onChange, onBlur } }) => (
+            <TextInput
+              mode="outlined"
+              label="Region"
+              placeholder="LB"
+              autoCapitalize="characters"
+              maxLength={2}
+              value={value}
+              onChangeText={(text) => onChange(text.toUpperCase())}
+              onBlur={onBlur}
+              outlineColor={colors.border}
+              activeOutlineColor={colors.brand}
+              style={styles.regionInput}
+              testID="phone-region-input"
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field: { value, onChange, onBlur } }) => (
+            <TextInput
+              mode="outlined"
+              label="Phone number"
+              keyboardType="phone-pad"
+              placeholder="70123456"
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={Boolean(errors.phone)}
+              outlineColor={colors.border}
+              activeOutlineColor={colors.brand}
+              style={styles.phoneInput}
+              testID="phone-input"
+            />
+          )}
+        />
+      </View>
+      <HelperText type="info" visible style={styles.helper}>
+        Use an ISO country code (for example LB) with a national number, or enter a full E.164
+        number like +96170123456.
       </HelperText>
-
-      <Controller
-        control={control}
-        name="phone"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <TextInput
-            mode="outlined"
-            label="Phone number"
-            keyboardType="phone-pad"
-            placeholder="+96170123456 or 70123456"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={Boolean(errors.phone)}
-            testID="phone-input"
-          />
-        )}
-      />
       {errors.phone ? (
         <HelperText type="error" visible testID="phone-error">
           {errors.phone.message}
@@ -155,6 +163,10 @@ export function PhoneEntryForm({
         loading={isSubmitting}
         disabled={isSubmitting}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        labelStyle={styles.controlLabel}
+        buttonColor={colors.brand}
+        textColor={colors.textInverse}
         testID="request-otp-button"
       >
         {submitLabel}
@@ -165,20 +177,44 @@ export function PhoneEntryForm({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: spacing[3],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: spacing[1],
+    lineHeight: 21,
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  regionInput: {
+    flexBasis: 96,
+  },
+  phoneInput: {
+    flex: 1,
+  },
+  helper: {
+    marginTop: -spacing[1],
   },
   button: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
+    marginTop: spacing[1],
+    width: '100%',
+    borderRadius: radii.md,
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
+  },
+  controlLabel: {
+    fontSize: typography.control,
+    fontWeight: '700',
   },
 });

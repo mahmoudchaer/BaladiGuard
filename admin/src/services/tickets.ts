@@ -1,5 +1,6 @@
 import type {
   AiProcessingStatus,
+  PublicTicketStatus,
   Ticket,
   TicketAiFields,
   TicketDuplicateReference,
@@ -478,6 +479,24 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
     ai: normalizeTicketAiFields(data.ai),
+    public: normalizeTicketPublicFields(data.public),
+  };
+}
+
+function normalizeTicketPublicFields(data: unknown): Ticket['public'] {
+  if (!isRecord(data)) {
+    return undefined;
+  }
+  const status = data.status;
+  if (status !== 'DRAFT' && status !== 'PUBLISHED' && status !== 'UNPUBLISHED') {
+    return undefined;
+  }
+  return {
+    status,
+    description: typeof data.description === 'string' ? data.description : null,
+    locationLabel: typeof data.locationLabel === 'string' ? data.locationLabel : null,
+    imageObjectKey: typeof data.imageObjectKey === 'string' ? data.imageObjectKey : null,
+    publishedAt: typeof data.publishedAt === 'string' ? data.publishedAt : null,
   };
 }
 
@@ -836,4 +855,85 @@ export async function assignTicketDepartment(
   }
 
   return assignTicketDepartmentFromApi(ticketId, input);
+}
+
+export type UpdateTicketPublicContentInput = {
+  publicStatus: PublicTicketStatus;
+  publicDescription: string;
+  publicLocationLabel: string;
+  approveOriginalPhoto?: boolean;
+  clearPublicPhoto?: boolean;
+};
+
+async function updateMockTicketPublicContent(
+  ticketId: string,
+  input: UpdateTicketPublicContentInput,
+): Promise<Ticket | null> {
+  const ticket = await fetchMockTicketById(ticketId);
+  if (!ticket) {
+    return null;
+  }
+
+  const publishedAt =
+    input.publicStatus === 'PUBLISHED'
+      ? (ticket.public?.publishedAt ?? new Date().toISOString())
+      : (ticket.public?.publishedAt ?? null);
+
+  let imageObjectKey = ticket.public?.imageObjectKey ?? null;
+  if (input.clearPublicPhoto) {
+    imageObjectKey = null;
+  } else if (input.approveOriginalPhoto) {
+    imageObjectKey = ticket.imageObjectKey;
+  }
+
+  return {
+    ...ticket,
+    updatedAt: new Date().toISOString(),
+    public: {
+      status: input.publicStatus,
+      description: input.publicDescription.trim() || null,
+      locationLabel: input.publicLocationLabel.trim() || null,
+      imageObjectKey,
+      publishedAt,
+    },
+  };
+}
+
+async function updateTicketPublicContentFromApi(
+  ticketId: string,
+  input: UpdateTicketPublicContentInput,
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/public`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getStaffAuthHeaders(),
+      },
+      body: JSON.stringify(input),
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to update public content.');
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function updateTicketPublicContent(
+  ticketId: string,
+  input: UpdateTicketPublicContentInput,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return updateMockTicketPublicContent(ticketId, input);
+  }
+
+  return updateTicketPublicContentFromApi(ticketId, input);
 }

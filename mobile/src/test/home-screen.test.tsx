@@ -22,6 +22,7 @@ const publicTickets = {
       },
       department: { name: 'Road Maintenance' },
       attribution: { displayName: 'Community member', isNamed: false },
+      photoUrl: 'https://example.com/report-photo.jpg',
       createdAt: '2026-07-07T00:00:00Z',
       updatedAt: '2026-07-07T02:00:00Z',
     },
@@ -77,7 +78,10 @@ describe('HomeScreen', () => {
   it('loads and renders the public report feed without auth', async () => {
     const screen = await renderWithProvidersAsync(<HomeScreen />);
 
-    expect(getPublicTickets).toHaveBeenCalledWith({ limit: 20 });
+    expect(getPublicTickets).toHaveBeenCalledWith({
+      limit: 20,
+      signal: expect.any(AbortSignal),
+    });
     expect(screen.root.findByProps({ testID: 'public-report-feed' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Public reports' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'BG-2026-0001' })).toBeTruthy();
@@ -87,6 +91,14 @@ describe('HomeScreen', () => {
       }),
     ).toBeTruthy();
     expect(hasTextContaining(screen, 'Reported by Community member')).toBe(true);
+    expect(
+      screen.root.findAll(
+        (node) =>
+          node.props.testID === 'public-report-photo-BG-2026-0001' ||
+          node.props.testID === 'public-report-photo-BG-2026-0001-fallback',
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.root.findByProps({ testID: 'public-report-maps-BG-2026-0001' })).toBeTruthy();
     expect(screen.root.findAll((node) => String(node.type) === 'Marker')).toHaveLength(1);
   });
 

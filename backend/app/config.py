@@ -161,6 +161,11 @@ class Settings:
             "RATE_LIMIT_SMOKE_LIMIT", default=1000, minimum=1
         )
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
+        # Unsafe local helper: print OTP codes to process stdout (never via logger).
+        # Ignored outside local/development/test. Prefer peek_dev_otp_code in tests.
+        self.otp_dev_plaintext_stdout = (
+            os.getenv("OTP_DEV_PLAINTEXT_STDOUT", "false").strip().lower() == "true"
+        )
 
         # Staff auth (issue #175). Individual staff accounts are persisted;
         # DEMO_STAFF_PASSWORD is only used when bootstrapping local/test seed

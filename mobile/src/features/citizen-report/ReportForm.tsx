@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import {
-  ActivityIndicator,
-  Banner,
-  Button,
-  Card,
-  HelperText,
-  Text,
-  TextInput,
-} from 'react-native-paper';
-import { Controller, useForm } from 'react-hook-form';
+import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useCitizenAuth } from '@/auth';
+import { DetailsStep } from '@/features/citizen-report/components/DetailsStep';
 import { LocationFields } from '@/features/citizen-report/components/LocationFields';
 import { PhotoPickerField } from '@/features/citizen-report/components/PhotoPickerField';
+import { ReportSuccess } from '@/features/citizen-report/components/ReportSuccess';
+import { ReviewSummary } from '@/features/citizen-report/components/ReviewSummary';
+import {
+  REPORT_WIZARD_STEP_ORDER,
+  StepProgress,
+  type ReportWizardStepKey,
+} from '@/features/citizen-report/components/StepProgress';
 import {
   defaultReportFormValues,
   reportFormSchema,
@@ -22,6 +22,7 @@ import {
 } from '@/schemas/reportFormSchema';
 import { submitReport, type SubmitReportPhase } from '@/services/api/tickets';
 import { appConfig } from '@/services/config';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
 const submitPhaseLabels: Record<SubmitReportPhase, string> = {
@@ -29,8 +30,32 @@ const submitPhaseLabels: Record<SubmitReportPhase, string> = {
   'submitting-report': 'Submitting report...',
 };
 
+/** Fields validated before a step is allowed to advance. */
+const STEP_FIELDS: Record<ReportWizardStepKey, Array<keyof ReportFormValues>> = {
+  details: ['description'],
+  photo: ['photoUri'],
+  location: ['addressText', 'latitude', 'longitude'],
+  review: [],
+};
+
+const STEP_TITLES: Record<ReportWizardStepKey, string> = {
+  details: 'Report an issue',
+  photo: 'Add a photo',
+  location: 'Where is it?',
+  review: 'Review your report',
+};
+
+const STEP_SUBTITLES: Record<ReportWizardStepKey, string> = {
+  details: 'Tell us about an infrastructure problem in your area. It only takes a minute.',
+  photo: 'A clear photo helps crews confirm and prioritize the issue.',
+  location: 'We use this to route your report to the right department.',
+  review: 'Make sure everything looks right, then send it in.',
+};
+
 export function ReportForm() {
   const { profile } = useCitizenAuth();
+  const [step, setStep] = useState<ReportWizardStepKey>('details');
+  const [returnToReview, setReturnToReview] = useState(false);
   const [selectedPlaceholderId, setSelectedPlaceholderId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<SubmitReportPhase | null>(null);
@@ -40,6 +65,7 @@ export function ReportForm() {
     control,
     handleSubmit,
     setValue,
+    trigger,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ReportFormValues>({
@@ -47,6 +73,40 @@ export function ReportForm() {
     defaultValues: defaultReportFormValues,
     mode: 'onBlur',
   });
+
+  const stepIndex = REPORT_WIZARD_STEP_ORDER.indexOf(step);
+
+  const goToStep = (target: ReportWizardStepKey) => {
+    setReturnToReview(step === 'review');
+    setStep(target);
+  };
+
+  const goBack = () => {
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep('review');
+      return;
+    }
+    if (stepIndex > 0) {
+      setStep(REPORT_WIZARD_STEP_ORDER[stepIndex - 1]);
+    }
+  };
+
+  const goNext = async () => {
+    const fields = STEP_FIELDS[step];
+    const isValid = fields.length > 0 ? await trigger(fields) : true;
+    if (!isValid) {
+      return;
+    }
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep('review');
+      return;
+    }
+    if (stepIndex < REPORT_WIZARD_STEP_ORDER.length - 1) {
+      setStep(REPORT_WIZARD_STEP_ORDER[stepIndex + 1]);
+    }
+  };
 
   const onSubmit = async (values: ReportFormValues) => {
     setSubmitError(null);
@@ -72,40 +132,15 @@ export function ReportForm() {
     setSubmitError(null);
     setSubmitPhase(null);
     setSuccessResult(null);
+    setReturnToReview(false);
+    setStep('details');
   };
 
   if (successResult) {
     return (
-      <Card style={styles.successCard}>
-        <Card.Content style={styles.successContent}>
-          <Text variant="headlineSmall" style={styles.successTitle}>
-            Report submitted
-          </Text>
-          <Text variant="bodyMedium">{successResult.message}</Text>
-          <View style={styles.successDetails}>
-            <Text variant="titleMedium">Ticket number</Text>
-            <Text variant="headlineMedium" style={styles.ticketNumber}>
-              {successResult.ticketNumber}
-            </Text>
-            <Text variant="bodySmall" style={styles.trackingHint}>
-              Save this number and tracking code to follow your report later.
-            </Text>
-            <Text variant="labelLarge" style={styles.trackingLabel}>
-              Ticket ID
-            </Text>
-            <Text variant="bodyMedium" style={styles.ticketId}>
-              {successResult.ticketId}
-            </Text>
-            <Text variant="labelLarge" style={styles.trackingLabel}>
-              Tracking code
-            </Text>
-            <Text variant="titleLarge">{successResult.trackingCode}</Text>
-          </View>
-          <Button mode="contained" onPress={handleReset}>
-            Submit another report
-          </Button>
-        </Card.Content>
-      </Card>
+      <ScrollView contentContainerStyle={styles.successScroll} keyboardShouldPersistTaps="handled">
+        <ReportSuccess result={successResult} onReportAnother={handleReset} />
+      </ScrollView>
     );
   }
 
@@ -113,13 +148,14 @@ export function ReportForm() {
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <Text variant="headlineMedium" style={styles.title}>
-          Report an issue
+          {STEP_TITLES[step]}
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Tell us about an infrastructure problem in your area. Required fields are marked through
-          validation when you submit.
+          {STEP_SUBTITLES[step]}
         </Text>
       </View>
+
+      <StepProgress currentStep={step} />
 
       {appConfig.enableMockApi ? (
         <Banner visible icon="information">
@@ -127,164 +163,151 @@ export function ReportForm() {
         </Banner>
       ) : null}
 
-      {submitError ? (
+      {step === 'review' && submitError ? (
         <Banner visible icon="alert-circle" style={styles.errorBanner}>
           {submitError}
         </Banner>
       ) : null}
 
-      <View style={styles.section}>
-        <Text variant="titleMedium" style={styles.label}>
-          Description
-        </Text>
-        <Controller
-          control={control}
-          name="description"
-          render={({ field: { value, onChange, onBlur } }) => (
-            <TextInput
-              mode="outlined"
-              label="What is the problem?"
-              placeholder="Describe the pothole, broken light, waste pile, etc."
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              multiline
-              numberOfLines={5}
-              style={styles.textArea}
-              error={Boolean(errors.description)}
-            />
-          )}
-        />
-        {errors.description ? (
-          <HelperText type="error" visible>
-            {errors.description.message}
-          </HelperText>
+      <View style={styles.stepContent}>
+        {step === 'details' ? <DetailsStep control={control} errors={errors} /> : null}
+
+        {step === 'photo' ? (
+          <PhotoPickerField control={control} errors={errors} setValue={setValue} />
         ) : null}
+
+        {step === 'location' ? (
+          <>
+            <View style={styles.identityNotice} testID="verified-identity-notice">
+              <Text variant="labelLarge">Verified contributor</Text>
+              <Text variant="bodyMedium" style={styles.identityText}>
+                {profile?.fullName
+                  ? `${profile.fullName} is signed in by verified phone. Contact details are taken from your profile.`
+                  : 'You are signed in by verified phone. Contact details are taken from your profile.'}
+              </Text>
+            </View>
+            <LocationFields
+              control={control}
+              errors={errors}
+              setValue={setValue}
+              selectedPlaceholderId={selectedPlaceholderId}
+              onSelectPlaceholder={setSelectedPlaceholderId}
+            />
+          </>
+        ) : null}
+
+        {step === 'review' ? <ReviewSummary control={control} onEditStep={goToStep} /> : null}
       </View>
 
-      <View style={styles.section}>
-        <PhotoPickerField control={control} errors={errors} setValue={setValue} />
-      </View>
+      <View style={styles.navRow}>
+        {stepIndex > 0 ? (
+          <Button
+            mode="outlined"
+            onPress={goBack}
+            disabled={isSubmitting}
+            style={styles.navButton}
+            contentStyle={styles.navButtonContent}
+            textColor={colors.brandDark}
+          >
+            Back
+          </Button>
+        ) : null}
 
-      <View style={styles.identityNotice} testID="verified-identity-notice">
-        <Text variant="labelLarge">Verified contributor</Text>
-        <Text variant="bodyMedium" style={styles.identityText}>
-          {profile?.fullName
-            ? `${profile.fullName} is signed in by verified phone. Contact details are taken from your profile.`
-            : 'You are signed in by verified phone. Contact details are taken from your profile.'}
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <LocationFields
-          control={control}
-          errors={errors}
-          setValue={setValue}
-          selectedPlaceholderId={selectedPlaceholderId}
-          onSelectPlaceholder={setSelectedPlaceholderId}
-        />
-      </View>
-
-      <Button
-        mode="contained"
-        onPress={handleSubmit(onSubmit)}
-        disabled={isSubmitting}
-        style={styles.submitButton}
-        contentStyle={styles.submitButtonContent}
-      >
-        {isSubmitting ? (
-          <View style={styles.submittingContent}>
-            <ActivityIndicator animating color="#FFFFFF" />
-            <Text style={styles.submittingText}>
-              {submitPhaseLabels[submitPhase ?? 'uploading-photo']}
-            </Text>
-          </View>
+        {step === 'review' ? (
+          <Button
+            mode="contained"
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting}
+            style={[styles.navButton, styles.primaryNavButton]}
+            contentStyle={styles.navButtonContent}
+          >
+            {isSubmitting ? (
+              <View style={styles.submittingContent}>
+                <ActivityIndicator animating color={colors.textInverse} />
+                <Text style={styles.submittingText}>
+                  {submitPhaseLabels[submitPhase ?? 'uploading-photo']}
+                </Text>
+              </View>
+            ) : (
+              'Submit report'
+            )}
+          </Button>
         ) : (
-          'Submit report'
+          <Button
+            mode="contained"
+            onPress={() => {
+              void goNext();
+            }}
+            style={[styles.navButton, styles.primaryNavButton]}
+            contentStyle={styles.navButtonContent}
+          >
+            {returnToReview ? 'Back to review' : 'Continue'}
+          </Button>
         )}
-      </Button>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-    gap: 20,
+    padding: spacing[5],
+    paddingBottom: spacing[8],
+    gap: spacing[5],
+  },
+  successScroll: {
+    flexGrow: 1,
   },
   header: {
-    gap: 8,
+    gap: spacing[2],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
+    color: colors.textSecondary,
   },
-  section: {
-    gap: 8,
+  stepContent: {
+    gap: spacing[5],
   },
   identityNotice: {
-    gap: 4,
-    borderRadius: 8,
+    gap: spacing[1],
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
-    backgroundColor: '#F0F9FF',
-    padding: 12,
+    borderColor: colors.border,
+    backgroundColor: colors.infoSoft,
+    padding: spacing[3],
   },
   identityText: {
-    color: '#334155',
+    color: colors.textSecondary,
   },
-  label: {
-    fontWeight: '600',
+  navRow: {
+    flexDirection: 'row',
+    gap: spacing[3],
+    marginTop: spacing[2],
   },
-  textArea: {
-    minHeight: 140,
+  navButton: {
+    borderRadius: radii.md,
+    flexGrow: 1,
   },
-  submitButton: {
-    marginTop: 8,
+  primaryNavButton: {
+    flexGrow: 2,
   },
-  submitButtonContent: {
-    paddingVertical: 6,
+  navButtonContent: {
+    minHeight: touchTargetMin,
   },
   submittingContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing[2],
   },
   submittingText: {
-    color: '#FFFFFF',
+    color: colors.textInverse,
     fontWeight: '600',
+    fontSize: typography.bodyCompact,
   },
   errorBanner: {
-    backgroundColor: '#FEF2F2',
-  },
-  successCard: {
-    margin: 20,
-  },
-  successContent: {
-    gap: 16,
-  },
-  successTitle: {
-    fontWeight: '700',
-  },
-  successDetails: {
-    gap: 6,
-    paddingVertical: 8,
-  },
-  ticketNumber: {
-    color: '#0B5FFF',
-    fontWeight: '700',
-  },
-  trackingHint: {
-    color: '#64748B',
-    marginBottom: 8,
-  },
-  ticketId: {
-    color: '#334155',
-  },
-  trackingLabel: {
-    marginTop: 4,
+    backgroundColor: colors.dangerSoft,
   },
 });

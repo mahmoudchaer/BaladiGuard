@@ -1,6 +1,8 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useId, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrandMark } from '@/components/BrandMark';
 import { confirmStaffPasswordReset } from '@/services/auth';
+import '@/components/BrandMark.css';
 import './LoginPage.css';
 
 type ResetLocationState = {
@@ -15,9 +17,12 @@ export function ResetPasswordPage() {
   const [username, setUsername] = useState(incoming?.username ?? '');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice] = useState<string | null>(incoming?.notice ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const errorId = useId();
+  const noticeId = useId();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +49,7 @@ export function ResetPasswordPage() {
       <section className="login-panel" aria-labelledby="reset-title">
         <div className="login-panel__brand">
           <span className="login-panel__logo" aria-hidden="true">
-            BG
+            <BrandMark size={24} />
           </span>
           <div>
             <p className="login-panel__eyebrow">Municipal Staff Portal</p>
@@ -53,10 +58,14 @@ export function ResetPasswordPage() {
         </div>
 
         {notice && (
-          <p className="login-form__success" role="status">
+          <p className="login-form__success" role="status" id={noticeId}>
             {notice}
           </p>
         )}
+
+        <p className="login-form__hint">
+          Enter the reset code you received, then choose a new password (at least 8 characters).
+        </p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-form__field">
@@ -68,6 +77,7 @@ export function ResetPasswordPage() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               required
+              disabled={isSubmitting}
             />
           </label>
 
@@ -81,24 +91,39 @@ export function ResetPasswordPage() {
               value={code}
               onChange={(event) => setCode(event.target.value)}
               required
+              disabled={isSubmitting}
+              aria-describedby={notice ? noticeId : undefined}
             />
           </label>
 
           <label className="login-form__field">
             <span>New password</span>
-            <input
-              autoComplete="new-password"
-              name="newPassword"
-              type="password"
-              minLength={8}
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              required
-            />
+            <span className="login-form__password-wrap">
+              <input
+                autoComplete="new-password"
+                name="newPassword"
+                type={showPassword ? 'text' : 'password'}
+                minLength={8}
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                required
+                disabled={isSubmitting}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
+              />
+              <button
+                type="button"
+                className="login-form__toggle"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </span>
           </label>
 
           {error && (
-            <p className="login-form__error" role="alert">
+            <p className="login-form__error" role="alert" id={errorId}>
               {error}
             </p>
           )}

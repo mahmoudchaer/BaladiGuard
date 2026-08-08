@@ -193,16 +193,18 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, staff-reviewed
 `category`, staff-approved `publicDescription` as `description`, coarse `publicLocationLabel` as
-`location.addressText`, `mapLocation`, optional name-only `department`, `attribution`, `createdAt`,
-and `updatedAt`. A report is publishable only when `publicStatus` is `PUBLISHED`, a final category is
-present, and both approved public fields are non-empty; otherwise public list omits it and public
-detail returns `404`. `mapLocation` contains the same coarse label plus latitude and longitude rounded
-to 3 decimal places (about a 110 m latitude grid); it never contains the stored
+`location.addressText`, `mapLocation`, optional name-only `department`, `attribution`, optional
+`photoUrl` (only when staff set `publicImageObjectKey`; never derived from the raw upload key),
+`createdAt`, and `updatedAt`. A report is publishable only when `publicStatus` is `PUBLISHED`, a
+final category is present, and both approved public text fields are non-empty; otherwise public list
+omits it and public detail returns `404`. `mapLocation` contains the same coarse label plus latitude
+and longitude rounded to 3 decimal places (about a 110 m latitude grid); it never contains the stored
 `location.addressText`, stored location source, or exact coordinates. They must not expose
 `ticketId`, `trackingCode`, `ownerUserId`, phone, email, contact snapshot, device metadata, internal
 notes, staff actors, department/municipality IDs, duplicate internals, audit history, raw
-descriptions, cleaned AI descriptions, or AI/provider internals. The implementation must use a
-dedicated public projection and fail closed rather than serialize a staff model.
+descriptions, cleaned AI descriptions, raw `imageObjectKey`, or AI/provider internals. The
+implementation must use a dedicated public projection and fail closed rather than serialize a staff
+model.
 
 Public browsing uses the `publicStatus-publicSortKey-index` storage query for stable keyset
 pagination and the existing `ticketNumber-index` for detail lookup. The public mapper must not scan
@@ -263,7 +265,7 @@ Route permissions are explicit:
 | OTP request/verify                                                                                                                 | Login/signup purpose only |       Own phone-change purpose |                                        N/A |                            N/A |
 | Current profile, logout, and own history                                                                                           |                      Deny |                  Own resources |                                        N/A |                            N/A |
 | `POST /v1/uploads/report-photo` and `POST /v1/tickets`                                                                             |                      Deny | Contribution-ready own session |                                        N/A |                            N/A |
-| Staff ticket list/detail and all staff ticket mutations, including status/category/department actions and `POST /v1/tickets/merge` |                      Deny |                           Deny |                             Scoped tickets |                    All tickets |
+| Staff ticket list/detail and all staff ticket mutations, including status/category/department/public actions and `POST /v1/tickets/merge` |                      Deny |                           Deny |                             Scoped tickets |                    All tickets |
 | Staff identity/contact fields                                                                                                      |                      Deny |                           Deny | Authorized operational need and scope only | Authorized administrative need |
 | Staff/role, municipality, and department administration                                                                            |                      Deny |                           Deny |                                       Deny |                          Allow |
 
@@ -419,7 +421,7 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 
 ## Staff audit boundaries (issues #143 / #181)
 
-**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department,
+**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department, public content,
 and duplicate-merge mutations only. Entries store action type, target ticket, timestamp, summary,
 previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal.
 
@@ -817,6 +819,53 @@ to `auditHistory`.
 | `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist.                                                                    |
 | `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
 | `VALIDATION_ERROR` |    400 | The category is missing, pending, or not in the supported category catalog.                  |
+
+## `PATCH /v1/tickets/{ticketId}/public`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Sets the staff-approved public projection used by guest browsing. Raw citizen description and the
+exact stored address are never copied automatically. Public photos require an explicit approval of
+**this ticket's** private upload via `approveOriginalPhoto` (server copies `imageObjectKey` into
+`publicImageObjectKey`). `clearPublicPhoto` removes the public photo. Caller-supplied object keys
+are rejected — alternate/redacted keys are deferred until a ticket-bound upload/artifact record
+exists. Omitting both approve and clear leaves any existing public photo unchanged. Publishability
+still requires `publicStatus=PUBLISHED`, a staff-reviewed final category, and non-empty public
+description + coarse location label; the photo is optional.
+
+### Request body
+
+```json
+{
+  "publicStatus": "PUBLISHED",
+  "publicDescription": "Staff-approved public summary of the road hazard.",
+  "publicLocationLabel": "Hamra, Beirut",
+  "approveOriginalPhoto": true
+}
+```
+
+| Field                   | Type    | Required | Notes                                                                                         |
+| ----------------------- | ------- | -------: | --------------------------------------------------------------------------------------------- |
+| `publicStatus`          | string  |      Yes | `DRAFT`, `PUBLISHED`, or `UNPUBLISHED`.                                                       |
+| `publicDescription`     | string  |      Yes | Required non-empty when publishing.                                                           |
+| `publicLocationLabel`   | string  |      Yes | Coarse neighborhood/area label; required non-empty when publishing.                           |
+| `approveOriginalPhoto`  | boolean |       No | When `true`, copies this ticket's private `imageObjectKey` into `publicImageObjectKey`.       |
+| `clearPublicPhoto`      | boolean |       No | When `true`, clears `publicImageObjectKey`. Mutually exclusive with approve.                  |
+| `updatedBy`             | string  |       No | Ignored for trust decisions; actor identity comes from the verified staff principal.          |
+
+### Response `200`
+
+Returns the updated `TicketResponse`, including a staff-only `public` object with
+`status`, `description`, `locationLabel`, `imageObjectKey`, and `publishedAt`. Staff responses also
+append a `PUBLIC_CONTENT_UPDATE` entry to `auditHistory`.
+
+### Public content error codes
+
+| Code               | Status | Meaning                                                                                 |
+| ------------------ | -----: | --------------------------------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                                        |
+| `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist (or is outside the staff principal's scope).                   |
+| `VALIDATION_ERROR` |    400 | Missing final category/public text when publishing, conflicting photo-mode flags, or unknown fields (including caller-supplied `publicImageObjectKey`). |
 
 ## `PATCH /v1/tickets/{ticketId}/department`
 
@@ -1256,7 +1305,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `statusHistory[].changedBy`             | string         | Actor identifier when available.                                                                                                                   |
 | `statusHistory[].note`                  | string         | Human-readable note when available.                                                                                                                |
 | `auditHistory`                          | array          | Staff-only ticket mutation audit trail from issue #143 (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
-| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`.                                                                     |
+| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, or `PUBLIC_CONTENT_UPDATE`.                                         |
 | `auditHistory[].actorId`                | string         | Verified staff actor id from the authenticated principal (client actor fields are not trusted).                                                   |
 | `auditHistory[].actorRole`              | enum           | Verified actor role: `municipal_staff` or `administrator` (issue #181).                                                                           |
 | `auditHistory[].summary`                | string         | Concise change summary.                                                                                                                            |

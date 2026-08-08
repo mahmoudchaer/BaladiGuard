@@ -13,6 +13,7 @@ import {
   type ProfileEditValues,
 } from '@/schemas/citizenProfileSchema';
 import { CitizenAuthApiError, PROFILE_UPDATE_SUCCESS_MESSAGE } from '@/services/api/citizenAuth';
+import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { CitizenProfile, CitizenProfileUpdatePayload } from '@/types/citizen';
 
 type ProfileEditFormProps = {
@@ -106,6 +107,8 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
             onChangeText={onChange}
             onBlur={onBlur}
             error={Boolean(errors.fullName)}
+            outlineColor={colors.border}
+            activeOutlineColor={colors.brand}
             testID="edit-full-name-input"
           />
         )}
@@ -130,6 +133,8 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
             onChangeText={onChange}
             onBlur={onBlur}
             error={Boolean(errors.email)}
+            outlineColor={colors.border}
+            activeOutlineColor={colors.brand}
             testID="edit-email-input"
           />
         )}
@@ -159,6 +164,8 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
                 compact
                 onPress={() => onChange(option.value)}
                 style={styles.optionButton}
+                buttonColor={value === option.value ? colors.brand : undefined}
+                textColor={value === option.value ? colors.textInverse : colors.brandDark}
                 testID={`ticket-updates-${option.value}`}
               >
                 {option.label}
@@ -179,7 +186,12 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         render={({ field: { value, onChange } }) => (
           <View style={styles.switchRow}>
             <Text variant="bodyLarge">Municipality announcements</Text>
-            <Switch value={value} onValueChange={onChange} testID="edit-announcements-switch" />
+            <Switch
+              value={value}
+              onValueChange={onChange}
+              color={colors.brand}
+              testID="edit-announcements-switch"
+            />
           </View>
         )}
       />
@@ -191,7 +203,12 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
           <View style={styles.switchBlock}>
             <View style={styles.switchRow}>
               <Text variant="bodyLarge">Show my name on reports</Text>
-              <Switch value={value} onValueChange={onChange} testID="edit-public-name-switch" />
+              <Switch
+                value={value}
+                onValueChange={onChange}
+                color={colors.brand}
+                testID="edit-public-name-switch"
+              />
             </View>
             <HelperText type="info" visible testID="edit-public-name-help">
               {PUBLIC_NAME_VISIBLE_HELP}
@@ -206,11 +223,22 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         loading={isSubmitting}
         disabled={isSubmitting}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        buttonColor={colors.brand}
+        textColor={colors.textInverse}
         testID="save-profile-button"
       >
         Save changes
       </Button>
-      <Button mode="text" onPress={onCancel} disabled={isSubmitting} testID="cancel-edit-button">
+      <Button
+        mode="text"
+        onPress={onCancel}
+        disabled={isSubmitting}
+        style={styles.button}
+        contentStyle={styles.controlContent}
+        textColor={colors.textSecondary}
+        testID="cancel-edit-button"
+      >
         Cancel
       </Button>
     </View>
@@ -219,41 +247,49 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: spacing[3],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: spacing[1],
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
   },
   sectionLabel: {
-    color: '#64748B',
-    marginTop: 4,
+    color: colors.textMuted,
+    marginTop: spacing[1],
   },
   optionRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing[2],
   },
   optionButton: {
     marginRight: 0,
+    borderRadius: radii.md,
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: spacing[3],
+    minHeight: touchTargetMin,
   },
   switchBlock: {
     gap: 0,
   },
   button: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
+    width: '100%',
+    marginTop: spacing[1],
+    borderRadius: radii.md,
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
   },
 });

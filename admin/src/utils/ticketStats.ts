@@ -9,7 +9,15 @@ export type TicketStats = {
   inProgress: number;
 };
 
+/** Compact operational attention counts for the work queue. */
+export type QueueAttentionStats = {
+  critical: number;
+  unassigned: number;
+  aging: number;
+};
+
 const OPEN_STATUSES: TicketStatus[] = ['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS'];
+const AGING_MS = 3 * 24 * 60 * 60 * 1000;
 
 export function computeTicketStats(tickets: Ticket[]): TicketStats {
   return {
@@ -18,6 +26,28 @@ export function computeTicketStats(tickets: Ticket[]): TicketStats {
     highUrgency: tickets.filter((t) => t.priority === 'high' || t.priority === 'critical').length,
     completed: tickets.filter((t) => t.status === 'RESOLVED' || t.status === 'CLOSED').length,
     inProgress: tickets.filter((t) => t.status === 'IN_PROGRESS').length,
+  };
+}
+
+function isOpenTicket(ticket: Ticket): boolean {
+  return OPEN_STATUSES.includes(ticket.status);
+}
+
+export function computeQueueAttentionStats(
+  tickets: Ticket[],
+  now = Date.now(),
+): QueueAttentionStats {
+  return {
+    critical: tickets.filter((ticket) => isOpenTicket(ticket) && ticket.priority === 'critical')
+      .length,
+    unassigned: tickets.filter((ticket) => isOpenTicket(ticket) && !ticket.departmentId).length,
+    aging: tickets.filter((ticket) => {
+      if (!isOpenTicket(ticket)) {
+        return false;
+      }
+      const createdAt = Date.parse(ticket.createdAt);
+      return Number.isFinite(createdAt) && now - createdAt >= AGING_MS;
+    }).length,
   };
 }
 

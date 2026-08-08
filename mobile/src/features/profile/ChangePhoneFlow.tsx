@@ -4,6 +4,7 @@ import { Banner, Button, Text } from 'react-native-paper';
 
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
+import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { CitizenOtpVerifyResponse } from '@/types/citizen';
 
 type ChangePhoneFlowProps = {
@@ -82,6 +83,8 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
         onPress={onCancel}
         disabled={busy}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        textColor={colors.textSecondary}
         testID="cancel-phone-change-button"
       >
         {successMessage ? 'Back to profile' : 'Cancel'}
@@ -92,19 +95,25 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: spacing[3],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: spacing[1],
+    lineHeight: 21,
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
   },
   button: {
-    alignSelf: 'flex-start',
+    width: '100%',
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
   },
 });

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Banner, Button, HelperText, Text, TextInput } from 'react-native-paper';
+import { Banner, Button, HelperText, Text } from 'react-native-paper';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
+import { OtpCodeInput } from '@/components/OtpCodeInput';
 import {
   defaultOtpVerifyValues,
   otpVerifySchema,
@@ -14,6 +15,7 @@ import {
   requestCitizenOtp,
   verifyCitizenOtp,
 } from '@/services/api/citizenAuth';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose, CitizenOtpVerifyResponse } from '@/types/citizen';
 
 type OtpVerifyFormProps = {
@@ -145,7 +147,8 @@ export function OtpVerifyForm({
         Enter verification code
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        We sent a 6-digit code to {phone}. It expires in {formatCountdown(secondsLeft)}.
+        We sent a 6-digit code by SMS to {phone}. Enter it below to continue — it expires in{' '}
+        {formatCountdown(secondsLeft)}.
       </Text>
 
       {formError ? (
@@ -164,15 +167,12 @@ export function OtpVerifyForm({
         control={control}
         name="code"
         render={({ field: { value, onChange, onBlur } }) => (
-          <TextInput
-            mode="outlined"
-            label="Verification code"
-            keyboardType="number-pad"
-            maxLength={6}
+          <OtpCodeInput
             value={value}
             onChangeText={onChange}
             onBlur={onBlur}
             error={Boolean(errors.code)}
+            disabled={isSubmitting}
             testID="otp-code-input"
           />
         )}
@@ -189,6 +189,10 @@ export function OtpVerifyForm({
         loading={isSubmitting}
         disabled={isSubmitting || expired}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        labelStyle={styles.controlLabel}
+        buttonColor={colors.brand}
+        textColor={colors.textInverse}
         testID="verify-otp-button"
       >
         Verify code
@@ -200,6 +204,8 @@ export function OtpVerifyForm({
         loading={isResending}
         disabled={isResending || resendCooldown > 0}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        textColor={colors.brandDark}
         testID="resend-otp-button"
       >
         {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
@@ -210,19 +216,30 @@ export function OtpVerifyForm({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: spacing[3],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: spacing[1],
+    lineHeight: 21,
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
   },
   button: {
-    alignSelf: 'flex-start',
+    width: '100%',
+    borderRadius: radii.md,
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
+  },
+  controlLabel: {
+    fontSize: typography.control,
+    fontWeight: '700',
   },
 });

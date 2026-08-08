@@ -8,6 +8,7 @@ import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-m
 import { PLACEHOLDER_LOCATIONS } from '@/constants/locations';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import {
   defaultMapRegion,
   locationSourceForMapPin,
@@ -33,6 +34,8 @@ export function LocationFields({
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [gpsHint, setGpsHint] = useState<string | null>(null);
+  // Manual entry starts collapsed; a confirmed pin keeps it tucked away until requested.
+  const [manualOpen, setManualOpen] = useState(false);
 
   const addressText = useWatch({ control, name: 'addressText' });
   const latitude = useWatch({ control, name: 'latitude' });
@@ -41,6 +44,7 @@ export function LocationFields({
 
   const mapRegion: Region = defaultMapRegion({ latitude, longitude });
   const hasPin = latitude !== undefined && longitude !== undefined;
+  const showManualEntry = manualOpen || (!hasPin && !isDetectingGps);
 
   // Prevent a late GPS response from overwriting a choice the user already made.
   const userAdjustedRef = useRef(false);
@@ -154,7 +158,7 @@ export function LocationFields({
     }
     autoDetectStartedRef.current = true;
     void detectCurrentLocation();
-    // Auto-detect once when the report form opens.
+    // Auto-detect once when the location step first opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -229,8 +233,8 @@ export function LocationFields({
         Location
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        We try to use your current location automatically. You can still move the pin, look up an
-        address, or pick a sample Beirut location.
+        We try to find your current location automatically. Confirm it on the map, or enter an
+        address if that&apos;s easier.
       </Text>
 
       <Button
@@ -240,117 +244,16 @@ export function LocationFields({
         }}
         disabled={isBusy}
         icon="crosshairs-gps"
+        style={styles.gpsButton}
+        contentStyle={styles.gpsButtonContent}
       >
         {isDetectingGps ? 'Detecting location…' : 'Use my current location'}
       </Button>
 
-      <Controller
-        control={control}
-        name="addressText"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <TextInput
-            mode="outlined"
-            label="Address or landmark"
-            placeholder="e.g. Near AUB Main Gate, Hamra"
-            value={value}
-            onChangeText={(text) => {
-              markUserAdjusted();
-              onChange(text);
-              setLocationError(null);
-              setGpsHint(null);
-              setValue('latitude', undefined);
-              setValue('longitude', undefined);
-              setValue('locationSource', 'MANUAL');
-              if (selectedPlaceholderId) {
-                onSelectPlaceholder('');
-              }
-            }}
-            onBlur={onBlur}
-            error={Boolean(errors.addressText) || Boolean(locationError)}
-          />
-        )}
-      />
-
-      <Button
-        mode="outlined"
-        onPress={() => {
-          void handleLookupAddress();
-        }}
-        disabled={isBusy}
-        icon="map-search"
-      >
-        {isValidating && !isDetectingGps ? 'Validating…' : 'Look up address'}
-      </Button>
-
-      <View style={styles.chipRow}>
-        {PLACEHOLDER_LOCATIONS.map((location) => (
-          <Chip
-            key={location.id}
-            selected={selectedPlaceholderId === location.id}
-            onPress={() => {
-              markUserAdjusted();
-              onSelectPlaceholder(location.id);
-              setLocationError(null);
-              setGpsHint(null);
-              applyValidatedLocation({
-                latitude: location.latitude,
-                longitude: location.longitude,
-                addressText: location.addressText,
-                source: 'PLACEHOLDER',
-              });
-            }}
-            style={styles.chip}
-            disabled={isBusy}
-          >
-            {location.label}
-          </Chip>
-        ))}
-      </View>
-
-      {Platform.OS === 'web' ? (
-        <View style={styles.mapPlaceholder}>
-          <Text variant="labelLarge">Map picker</Text>
-          <Text variant="bodySmall" style={styles.mapText}>
-            Interactive map pins are available in the iOS/Android app. On web, use current location,
-            address lookup, or a sample location.
-          </Text>
-          {hasPin ? (
-            <Text variant="bodySmall" style={styles.coordinates}>
-              Selected: {latitude?.toFixed(5)}, {longitude?.toFixed(5)}
-            </Text>
-          ) : null}
-        </View>
-      ) : (
-        <View style={styles.mapContainer}>
-          <MapView
-            style={styles.map}
-            initialRegion={mapRegion}
-            region={hasPin ? mapRegion : undefined}
-            onPress={(event) => {
-              void handleMapPress(event);
-            }}
-          >
-            {hasPin ? (
-              <Marker
-                coordinate={{
-                  latitude: latitude as number,
-                  longitude: longitude as number,
-                }}
-                title="Report location"
-                description={addressText}
-              />
-            ) : null}
-          </MapView>
-          <Text variant="bodySmall" style={styles.mapHint}>
-            Tap the map to place or move the pin.
-          </Text>
-        </View>
-      )}
-
       {isBusy ? (
         <View style={styles.validatingRow}>
-          <ActivityIndicator animating />
-          <Text variant="bodySmall">
+          <ActivityIndicator animating color={colors.brand} />
+          <Text variant="bodySmall" style={styles.validatingText}>
             {isDetectingGps ? 'Detecting your current location…' : 'Checking location…'}
           </Text>
         </View>
@@ -360,6 +263,129 @@ export function LocationFields({
         <HelperText type="info" visible>
           {gpsHint}
         </HelperText>
+      ) : null}
+
+      {hasPin ? (
+        <View style={styles.confirmedBlock}>
+          {Platform.OS === 'web' ? (
+            <View style={styles.mapPlaceholder}>
+              <Text variant="labelLarge">Map picker</Text>
+              <Text variant="bodySmall" style={styles.mapText}>
+                Interactive map pins are available in the iOS/Android app. On web, use current
+                location, address lookup, or a sample location.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.mapContainer}>
+              <MapView
+                style={styles.map}
+                initialRegion={mapRegion}
+                region={mapRegion}
+                onPress={(event) => {
+                  void handleMapPress(event);
+                }}
+              >
+                <Marker
+                  coordinate={{
+                    latitude: latitude as number,
+                    longitude: longitude as number,
+                  }}
+                  title="Report location"
+                  description={addressText}
+                />
+              </MapView>
+              <Text variant="bodySmall" style={styles.mapHint}>
+                Tap the map to move the pin.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.confirmedRow}>
+            <Text variant="bodyMedium" style={styles.confirmedText}>
+              Pinned near {addressText || 'the selected point'}
+            </Text>
+            <Button
+              mode="text"
+              compact
+              textColor={colors.brandDark}
+              onPress={() => setManualOpen(true)}
+            >
+              Change
+            </Button>
+          </View>
+        </View>
+      ) : null}
+
+      {showManualEntry ? (
+        <View style={styles.manualBlock}>
+          <Controller
+            control={control}
+            name="addressText"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <TextInput
+                mode="outlined"
+                label="Address or landmark"
+                placeholder="e.g. Near AUB Main Gate, Hamra"
+                value={value}
+                onChangeText={(text) => {
+                  markUserAdjusted();
+                  onChange(text);
+                  setLocationError(null);
+                  setGpsHint(null);
+                  setValue('latitude', undefined);
+                  setValue('longitude', undefined);
+                  setValue('locationSource', 'MANUAL');
+                  if (selectedPlaceholderId) {
+                    onSelectPlaceholder('');
+                  }
+                }}
+                onBlur={onBlur}
+                error={Boolean(errors.addressText) || Boolean(locationError)}
+              />
+            )}
+          />
+
+          <Button
+            mode="outlined"
+            onPress={() => {
+              void handleLookupAddress();
+            }}
+            disabled={isBusy}
+            icon="map-search"
+            style={styles.lookupButton}
+            contentStyle={styles.lookupButtonContent}
+          >
+            {isValidating && !isDetectingGps ? 'Validating…' : 'Look up address'}
+          </Button>
+
+          <Text variant="bodySmall" style={styles.helper}>
+            Or pick a sample Beirut location:
+          </Text>
+          <View style={styles.chipRow}>
+            {PLACEHOLDER_LOCATIONS.map((location) => (
+              <Chip
+                key={location.id}
+                selected={selectedPlaceholderId === location.id}
+                onPress={() => {
+                  markUserAdjusted();
+                  onSelectPlaceholder(location.id);
+                  setLocationError(null);
+                  setGpsHint(null);
+                  applyValidatedLocation({
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    addressText: location.addressText,
+                    source: 'PLACEHOLDER',
+                  });
+                }}
+                style={styles.chip}
+                disabled={isBusy}
+              >
+                {location.label}
+              </Chip>
+            ))}
+          </View>
+        </View>
       ) : null}
 
       {locationError ? (
@@ -376,8 +402,7 @@ export function LocationFields({
 
       {hasPin ? (
         <HelperText type="info" visible>
-          Coordinates ready ({latitude?.toFixed(5)}, {longitude?.toFixed(5)}) · source{' '}
-          {locationSource}
+          Coordinates ready ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
         </HelperText>
       ) : null}
     </View>
@@ -386,57 +411,90 @@ export function LocationFields({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 10,
+    gap: spacing[3],
   },
   label: {
     fontWeight: '600',
   },
   helper: {
-    color: '#64748B',
+    color: colors.textMuted,
+  },
+  gpsButton: {
+    borderRadius: radii.md,
+  },
+  gpsButtonContent: {
+    minHeight: touchTargetMin,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing[2],
   },
   chip: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+  },
+  confirmedBlock: {
+    gap: spacing[2],
+  },
+  confirmedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[2],
+  },
+  confirmedText: {
+    color: colors.text,
+    flexShrink: 1,
+  },
+  manualBlock: {
+    gap: spacing[2],
+    padding: spacing[3],
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  lookupButton: {
+    borderRadius: radii.md,
+  },
+  lookupButtonContent: {
+    minHeight: touchTargetMin,
   },
   mapContainer: {
-    borderRadius: 12,
+    borderRadius: radii.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    gap: 6,
+    borderColor: colors.border,
+    gap: spacing[1],
   },
   map: {
     width: '100%',
     height: 220,
   },
   mapHint: {
-    color: '#64748B',
-    paddingHorizontal: 12,
-    paddingBottom: 10,
+    color: colors.textMuted,
+    paddingHorizontal: spacing[3],
+    paddingBottom: spacing[2],
   },
   mapPlaceholder: {
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border,
     borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: '#F8FAFC',
-    gap: 6,
+    borderRadius: radii.lg,
+    padding: spacing[4],
+    backgroundColor: colors.surfaceSubtle,
+    gap: spacing[2],
   },
   mapText: {
-    color: '#64748B',
-  },
-  coordinates: {
-    color: '#334155',
-    marginTop: 4,
+    color: colors.textMuted,
   },
   validatingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing[2],
+  },
+  validatingText: {
+    color: colors.textSecondary,
+    fontSize: typography.bodyCompact,
   },
 });

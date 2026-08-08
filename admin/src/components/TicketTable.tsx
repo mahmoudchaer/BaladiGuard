@@ -1,17 +1,68 @@
-import { useNavigate } from 'react-router-dom';
-import { IconTicket } from '@/components/icons';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Ticket } from '@/types/ticket';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
-import { formatCreatedDate } from '@/utils/labels';
+import { formatDepartment } from '@/utils/departments';
+import { formatTicketAge } from '@/utils/labels';
 import './TicketTable.css';
+
+function QueueThumb({ ticket }: { ticket: Ticket }) {
+  const [failed, setFailed] = useState(false);
+  const url = ticket.imageUrl;
+
+  if (!url || failed) {
+    return (
+      <span className="ticket-queue__thumb ticket-queue__thumb--empty" aria-hidden="true">
+        No photo
+      </span>
+    );
+  }
+
+  return (
+    <img
+      className="ticket-queue__thumb"
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 type TicketTableProps = {
   tickets: Ticket[];
+  title?: string;
+  selectedTicketId?: string | null;
+  onSelectTicket?: (ticketId: string) => void;
 };
 
-export function TicketTable({ tickets }: TicketTableProps) {
+function departmentLabel(ticket: Ticket): string {
+  if (ticket.departmentName) {
+    return ticket.departmentName;
+  }
+  if (ticket.departmentId) {
+    return formatDepartment(ticket.departmentId);
+  }
+  return 'Unassigned';
+}
+
+function departmentInitials(label: string): string {
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
+
+export function TicketTable({
+  tickets,
+  title = 'Citizen reports',
+  selectedTicketId = null,
+  onSelectTicket,
+}: TicketTableProps) {
   const navigate = useNavigate();
 
   const openTicket = (ticketId: string) => {
@@ -21,72 +72,99 @@ export function TicketTable({ tickets }: TicketTableProps) {
   return (
     <div className="ticket-table-panel">
       <div className="ticket-table-panel__header">
-        <h2 className="ticket-table-panel__title">All Tickets</h2>
+        <div>
+          <h2 className="ticket-table-panel__title">{title}</h2>
+          <p className="ticket-table-panel__subtitle">
+            Select a report to preview · open for full municipal actions
+          </p>
+        </div>
+        <Link to="/map" className="ticket-table-panel__map-link">
+          Open map view
+        </Link>
       </div>
-      <div className="ticket-table-wrapper">
-        <table className="ticket-table">
-          <caption className="sr-only">Submitted infrastructure tickets</caption>
-          <thead>
-            <tr>
-              <th scope="col">Ticket ID</th>
-              <th scope="col">Category</th>
-              <th scope="col">Location</th>
-              <th scope="col">Status</th>
-              <th scope="col">Urgency</th>
-              <th scope="col">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tickets.map((ticket) => (
-              <tr
-                key={ticket.ticketId}
-                className="ticket-table__row ticket-table__row--clickable"
-                onClick={() => openTicket(ticket.ticketId)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openTicket(ticket.ticketId);
-                  }
+
+      <div className="ticket-queue" role="list" aria-label="Submitted infrastructure tickets">
+        {tickets.map((ticket) => {
+          const owner = departmentLabel(ticket);
+          const isUnassigned = !ticket.departmentId;
+          const isCritical = ticket.priority === 'critical';
+          const selected = selectedTicketId === ticket.ticketId;
+
+          return (
+            <div
+              key={ticket.ticketId}
+              className={[
+                'ticket-queue__item',
+                selected ? 'ticket-queue__item--selected' : '',
+                isCritical ? 'ticket-queue__item--critical' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              role="listitem"
+            >
+              <button
+                type="button"
+                className="ticket-queue__select"
+                onClick={() => {
+                  onSelectTicket?.(ticket.ticketId);
                 }}
-                tabIndex={0}
-                role="link"
+                aria-pressed={selected}
+                aria-label={`Select ticket ${ticket.ticketNumber}`}
+              >
+                <div className="ticket-queue__row">
+                  <QueueThumb ticket={ticket} />
+                  <div className="ticket-queue__content">
+                    <div className="ticket-queue__top">
+                      <span className="ticket-queue__number">{ticket.ticketNumber}</span>
+                      <time className="ticket-queue__age" dateTime={ticket.createdAt}>
+                        {formatTicketAge(ticket.createdAt)}
+                      </time>
+                    </div>
+
+                    <p className="ticket-queue__description" title={ticket.description}>
+                      {ticket.description}
+                    </p>
+
+                    <div className="ticket-queue__meta">
+                      <StatusBadge status={ticket.status} />
+                      <PriorityBadge priority={ticket.priority} />
+                      <CategoryBadge category={ticket.category} />
+                    </div>
+
+                    <div className="ticket-queue__footer">
+                      <span className="ticket-queue__location">{ticket.location.addressText}</span>
+                      <span
+                        className={`ticket-queue__owner${
+                          isUnassigned ? ' ticket-queue__owner--unassigned' : ''
+                        }`}
+                        title={owner}
+                      >
+                        <span className="ticket-queue__avatar" aria-hidden="true">
+                          {departmentInitials(owner) || '—'}
+                        </span>
+                        <span className="ticket-queue__owner-label">{owner}</span>
+                      </span>
+                    </div>
+
+                    <span className="ticket-queue__tracking">{ticket.trackingCode}</span>
+                    {ticket.duplicateGroupId ? (
+                      <span className="ticket-queue__grouped">Grouped</span>
+                    ) : null}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className="ticket-queue__open"
+                onClick={() => openTicket(ticket.ticketId)}
                 aria-label={`View ticket ${ticket.ticketNumber}`}
               >
-                <td data-label="Ticket ID">
-                  <div className="ticket-table__id-cell">
-                    <span className="ticket-table__id-icon" aria-hidden="true">
-                      <IconTicket />
-                    </span>
-                    <div>
-                      <span className="ticket-table__ticket-number">{ticket.ticketNumber}</span>
-                      <span className="ticket-table__tracking-code">{ticket.trackingCode}</span>
-                      {ticket.duplicateGroupId && (
-                        <span className="ticket-table__grouped-badge">Grouped</span>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td data-label="Category">
-                  <CategoryBadge category={ticket.category} />
-                </td>
-                <td data-label="Location">
-                  <span className="ticket-table__location">{ticket.location.addressText}</span>
-                </td>
-                <td data-label="Status">
-                  <StatusBadge status={ticket.status} />
-                </td>
-                <td data-label="Urgency">
-                  <PriorityBadge priority={ticket.priority} />
-                </td>
-                <td data-label="Created">
-                  <time className="ticket-table__date" dateTime={ticket.createdAt}>
-                    {formatCreatedDate(ticket.createdAt)}
-                  </time>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                Open
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

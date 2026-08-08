@@ -341,6 +341,15 @@ class CitizenService:
     def clear_dev_otp_codes(self) -> None:
         _dev_otp_codes.clear()
 
+    def invalidate_otp_challenge(self, challenge_id: str) -> None:
+        """Mark a live challenge superseded (e.g. after delivery failure)."""
+        store = self._resolved_otp()
+        challenge = store.get(challenge_id.strip())
+        if challenge is None or challenge.consumed_at or challenge.superseded_at:
+            return
+        store.save(challenge.model_copy(update={"superseded_at": _iso(_utcnow())}))
+        _dev_otp_codes.pop(challenge_id, None)
+
     def request_otp(
         self,
         *,

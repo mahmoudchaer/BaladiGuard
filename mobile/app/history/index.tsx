@@ -1,60 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, Card, Text } from 'react-native-paper';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { Banner, Button, Text } from 'react-native-paper';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
+import { StatusChip } from '@/components/StatusChip';
 import {
   getCitizenTicketHistory,
   TICKET_HISTORY_UNAUTHORIZED_MESSAGE,
 } from '@/services/api/tickets';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
+import { formatCategoryLabel } from '@/theme/labels';
 import type { CitizenTicketHistoryItem } from '@/types/ticket';
 
 const PAGE_SIZE = 20;
-
-const STATUS_LABELS: Record<CitizenTicketHistoryItem['status'], string> = {
-  SUBMITTED: 'Submitted',
-  UNDER_REVIEW: 'Under Review',
-  ASSIGNED: 'Assigned',
-  IN_PROGRESS: 'In Progress',
-  RESOLVED: 'Resolved',
-  CLOSED: 'Closed',
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  drainage: 'Drainage',
-  noise: 'Noise',
-  public_facilities: 'Public Facilities',
-  road_damage: 'Road Damage',
-  sidewalk_damage: 'Sidewalk Damage',
-  street_lighting: 'Street Lighting',
-  traffic_signal: 'Traffic Signal',
-  waste: 'Waste',
-  water_leak: 'Water Leak',
-};
 
 function formatDisplayDate(isoDate: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
-}
-
-function formatCategory(category: string | null): string {
-  if (!category) {
-    return 'Pending review';
-  }
-  const normalizedCategory = category.toLowerCase();
-  return (
-    CATEGORY_LABELS[normalizedCategory] ??
-    normalizedCategory
-      .split('_')
-      .filter(Boolean)
-      .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-      .join(' ')
-  );
 }
 
 export default function CitizenTicketHistoryScreen() {
@@ -118,7 +92,7 @@ export default function CitizenTicketHistoryScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <View style={styles.centered} testID="history-auth-loading">
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
             Loading account...
           </Text>
@@ -139,34 +113,53 @@ export default function CitizenTicketHistoryScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => void loadHistory(null, 'refresh')}
+            colors={[colors.brand]}
+            tintColor={colors.brand}
           />
         }
       >
         <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>
+          <Text variant="headlineMedium" style={styles.title} accessibilityRole="header">
             Report history
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            Reports submitted from your signed-in account.
+            Reports submitted from your signed-in account. Tap any report to see its full status
+            timeline.
           </Text>
         </View>
 
         {errorMessage ? (
-          <Banner visible icon="alert-circle-outline" style={styles.banner} testID="history-error">
-            {errorMessage}
-          </Banner>
+          <View style={styles.errorBlock}>
+            <Banner
+              visible
+              icon="alert-circle-outline"
+              style={styles.banner}
+              testID="history-error"
+            >
+              {errorMessage}
+            </Banner>
+            <Button
+              mode="outlined"
+              onPress={() => void loadHistory(null, 'refresh')}
+              textColor={colors.brandDark}
+              style={styles.retryButton}
+              testID="history-retry"
+            >
+              Try again
+            </Button>
+          </View>
         ) : null}
 
         {isInitialLoading ? (
           <View style={styles.centeredBlock} testID="history-loading">
-            <ActivityIndicator />
+            <ActivityIndicator color={colors.brand} />
             <Text variant="bodyMedium" style={styles.muted}>
               Loading your reports...
             </Text>
           </View>
         ) : null}
 
-        {!isInitialLoading && items.length === 0 ? (
+        {!isInitialLoading && items.length === 0 && !errorMessage ? (
           <View style={styles.emptyState} testID="history-empty">
             <Text variant="titleMedium" style={styles.emptyTitle}>
               No reports yet
@@ -179,46 +172,48 @@ export default function CitizenTicketHistoryScreen() {
               icon="clipboard-text-outline"
               onPress={() => router.push('/report' as Href)}
               style={styles.inlineButton}
+              contentStyle={styles.controlContent}
+              buttonColor={colors.brand}
+              textColor={colors.textInverse}
             >
               Report an issue
             </Button>
           </View>
         ) : null}
 
-        {items.map((item) => (
-          <Card key={`${item.trackingCode}-${item.submittedAt}`} style={styles.card}>
-            <Card.Content style={styles.cardContent}>
-              <View style={styles.cardHeader}>
-                <Text variant="titleMedium" style={styles.trackingCode}>
-                  {item.trackingCode}
-                </Text>
-                <Text variant="labelLarge" style={styles.status}>
-                  {STATUS_LABELS[item.status] ?? item.status}
-                </Text>
-              </View>
-              <Text variant="bodyMedium" style={styles.location}>
-                {item.locationAddress}
-              </Text>
-              <Text variant="bodySmall" style={styles.muted}>
-                {formatCategory(item.category)} - Submitted {formatDisplayDate(item.submittedAt)}
-              </Text>
-              <Button
-                mode="outlined"
-                icon="magnify"
+        {items.length > 0 ? (
+          <View style={styles.list}>
+            {items.map((item) => (
+              <Pressable
+                key={`${item.trackingCode}-${item.submittedAt}`}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                 onPress={() =>
                   router.push({
                     pathname: '/track',
                     params: { trackingCode: item.trackingCode },
                   })
                 }
-                style={styles.inlineButton}
                 testID={`history-open-${item.trackingCode}`}
+                accessibilityRole="button"
+                accessibilityLabel={`View report ${item.trackingCode}`}
               >
-                View details
-              </Button>
-            </Card.Content>
-          </Card>
-        ))}
+                <View style={styles.rowHeader}>
+                  <Text variant="titleSmall" style={styles.trackingCode}>
+                    {item.trackingCode}
+                  </Text>
+                  <StatusChip status={item.status} />
+                </View>
+                <Text variant="bodyMedium" style={styles.location} numberOfLines={2}>
+                  {item.locationAddress}
+                </Text>
+                <Text variant="bodySmall" style={styles.muted}>
+                  {formatCategoryLabel(item.category)} · Submitted{' '}
+                  {formatDisplayDate(item.submittedAt)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         {nextCursor ? (
           <Button
@@ -228,6 +223,7 @@ export default function CitizenTicketHistoryScreen() {
             loading={isLoadingMore}
             disabled={isLoadingMore}
             style={styles.inlineButton}
+            textColor={colors.brandDark}
             testID="history-load-more"
           >
             {isLoadingMore ? 'Loading more...' : 'Load more'}
@@ -241,71 +237,95 @@ export default function CitizenTicketHistoryScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   scroll: {
-    padding: 24,
-    gap: 16,
-    paddingBottom: 48,
+    padding: spacing[5],
+    gap: spacing[4],
+    paddingBottom: spacing[8],
   },
   header: {
-    gap: 8,
+    gap: spacing[2],
   },
   title: {
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
+    color: colors.textSecondary,
+    lineHeight: 21,
   },
   muted: {
-    color: '#64748B',
+    color: colors.textMuted,
+  },
+  errorBlock: {
+    gap: spacing[3],
   },
   banner: {
-    borderRadius: 8,
+    borderRadius: radii.md,
+    backgroundColor: colors.dangerSoft,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    borderColor: colors.brand,
+    borderRadius: radii.md,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    padding: 24,
+    gap: spacing[3],
+    padding: spacing[5],
   },
   centeredBlock: {
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 32,
+    gap: spacing[3],
+    paddingVertical: spacing[8],
   },
   emptyState: {
-    gap: 10,
-    paddingVertical: 16,
+    gap: spacing[2],
+    paddingVertical: spacing[4],
   },
   emptyTitle: {
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.text,
   },
-  card: {
-    borderRadius: 8,
+  list: {
+    gap: spacing[2],
   },
-  cardContent: {
-    gap: 10,
+  row: {
+    gap: spacing[1],
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[3],
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    minHeight: touchTargetMin,
   },
-  cardHeader: {
+  rowPressed: {
+    backgroundColor: colors.brandSoft,
+    borderColor: colors.brand,
+  },
+  rowHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    alignItems: 'center',
+    gap: spacing[2],
   },
   trackingCode: {
-    color: '#0F172A',
+    color: colors.text,
     fontWeight: '700',
-  },
-  status: {
-    color: '#0F766E',
+    flexShrink: 1,
   },
   location: {
-    color: '#334155',
+    color: colors.text,
   },
   inlineButton: {
     alignSelf: 'flex-start',
+    borderRadius: radii.md,
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
   },
 });

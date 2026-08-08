@@ -23,6 +23,7 @@ from app.schemas.ticket_response import (
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketImageReference,
+    TicketPublicFields,
     TicketResponse,
     TicketStatusHistoryEntry,
 )
@@ -118,6 +119,12 @@ def map_ticket_to_public_response(
     if not public_description or not public_location_label:
         raise ValueError("Ticket is missing approved public content.")
 
+    # Only staff-approved public photos are projected. Raw upload keys stay private.
+    # Presigned URLs may include the approved key in the path; that is expected for
+    # time-limited GET access and is not the same as exposing imageObjectKey in JSON.
+    approved_photo_key = (ticket.public_image_object_key or "").strip()
+    photo_url = build_image_url(approved_photo_key) if approved_photo_key else None
+
     return PublicTicketResponse(
         ticketNumber=ticket.ticket_number,
         status=ticket.status,
@@ -131,6 +138,7 @@ def map_ticket_to_public_response(
         ),
         department=_citizen_visible_department(ticket),
         attribution=_public_attribution(ticket, owner=owner),
+        photoUrl=photo_url,
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
     )
@@ -202,6 +210,13 @@ def map_ticket_to_response(
         updatedAt=ticket.updated_at,
         updatedBy=ticket.updated_by,
         ai=build_ticket_ai_fields(ticket),
+        public=TicketPublicFields(
+            status=ticket.public_status,
+            description=ticket.public_description,
+            locationLabel=ticket.public_location_label,
+            imageObjectKey=ticket.public_image_object_key,
+            publishedAt=ticket.public_published_at,
+        ),
         statusHistory=[
             TicketStatusHistoryEntry(
                 status=entry.new_status,
