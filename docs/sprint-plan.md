@@ -78,6 +78,10 @@ shown dynamically only when the citizen opts in. Staff authentication remains se
 
 By the end of this sprint, citizens should be able to check ticket progress, and staff-only actions should be protected.
 
+**Sprint 6 testing:** role-permission coverage is tracked in
+[sprint6-role-permission-matrix.md](./sprint6-role-permission-matrix.md) (issue #182) and indexed from
+[sprint6-testing.md](./sprint6-testing.md).
+
 #### Required issue alignment after #193
 
 The following wording is the implementation interpretation for the existing issue bodies. The issue

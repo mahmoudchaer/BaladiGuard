@@ -160,47 +160,96 @@ def authenticate_staff_credentials(
     return principal_from_user(user)
 
 
+def deactivate_staff_account(
+    staff_id: str,
+    *,
+    staff_store=None,
+    actor: StaffPrincipal | None = None,
+) -> StoredStaffUser:
+    """Mark inactive and revoke sessions (used by tests / admin tooling)."""
+    from app.database.store_factory import get_staff_store
+    from app.services.audit.safe_values import staff_snapshot_for_audit
+    from app.services.staff.account_audit import account_audit_service
+
+    store = staff_store if staff_store is not None else get_staff_store()
+    user = store.get(staff_id)
+    if user is None:
+        raise StaffNotFoundError("Staff account not found.")
+    previous = staff_snapshot_for_audit(
+        staff_id=user.staff_id,
+        username=user.username,
+        name=user.name,
+        role=user.role,
+        municipality_id=user.municipality_id,
+        department_ids=user.department_ids,
+        active=user.active,
+    )
+    stamped = _iso_now()
+    updated = user.model_copy(
+        update={
+            "active": False,
+            "session_epoch": user.session_epoch + 1,
+            "updated_at": stamped,
+        }
+    )
+    stored = store.update(updated)
+    account_audit_service.record_safe(
+        action_type="STAFF_DEACTIVATED",
+        actor=actor,
+        target_staff_id=stored.staff_id,
+        summary="Staff account deactivated.",
+        previous_value=previous,
+        new_value=staff_snapshot_for_audit(
+            staff_id=stored.staff_id,
+            username=stored.username,
+            name=stored.name,
+            role=stored.role,
+            municipality_id=stored.municipality_id,
+            department_ids=stored.department_ids,
+            active=stored.active,
+        ),
+        created_at=stamped,
+    )
+    return stored
+
+
 def revoke_staff_sessions(
     staff_id: str,
     *,
     staff_store=None,
+    actor: StaffPrincipal | None = None,
 ) -> StaffPrincipal:
     """Bump sessionEpoch so all outstanding tokens for the account become invalid."""
     from app.database.store_factory import get_staff_store
+    from app.services.staff.account_audit import account_audit_service
 
     store = staff_store if staff_store is not None else get_staff_store()
     user = store.get(staff_id)
     if user is None:
         raise StaffAuthError("Staff account not found.")
+    stamped = _iso_now()
     updated = user.model_copy(
         update={
             "session_epoch": user.session_epoch + 1,
-            "updated_at": _iso_now(),
+            "updated_at": stamped,
         }
     )
     try:
         stored = store.update(updated)
     except StaffNotFoundError as exc:
         raise StaffAuthError("Staff account not found.") from exc
-    return principal_from_user(stored)
-
-
-def deactivate_staff_account(staff_id: str, *, staff_store=None) -> StoredStaffUser:
-    """Mark inactive and revoke sessions (used by tests / admin tooling)."""
-    from app.database.store_factory import get_staff_store
-
-    store = staff_store if staff_store is not None else get_staff_store()
-    user = store.get(staff_id)
-    if user is None:
-        raise StaffNotFoundError("Staff account not found.")
-    updated = user.model_copy(
-        update={
-            "active": False,
-            "session_epoch": user.session_epoch + 1,
-            "updated_at": _iso_now(),
-        }
+    account_audit_service.record_safe(
+        action_type="STAFF_SESSION_REVOKED",
+        actor=actor,
+        actor_id=actor.staff_id if actor is not None else staff_id,
+        actor_role=actor.role if actor is not None else stored.role,
+        target_staff_id=stored.staff_id,
+        summary="Staff sessions revoked.",
+        previous_value=None,
+        new_value=None,
+        created_at=stamped,
     )
-    return store.update(updated)
+    return principal_from_user(stored)
 
 
 def unauthorized(

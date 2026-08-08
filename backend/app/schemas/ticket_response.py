@@ -58,7 +58,7 @@ class TicketStatusHistoryEntry(BaseModel):
 
 
 class TicketAuditHistoryEntry(BaseModel):
-    """Staff-only audit entry for ticket mutations (issue #143)."""
+    """Staff-only audit entry for ticket mutations (issues #143 / #181)."""
 
     action_type: Literal[
         "STATUS_CHANGE",
@@ -67,6 +67,10 @@ class TicketAuditHistoryEntry(BaseModel):
         "DUPLICATE_MERGE",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
+    actor_role: Literal["municipal_staff", "administrator"] | None = Field(
+        default=None,
+        alias="actorRole",
+    )
     summary: str
     previous_value: str | None = Field(default=None, alias="previousValue")
     new_value: str | None = Field(default=None, alias="newValue")

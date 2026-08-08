@@ -181,6 +181,21 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "account-audit",
+        "key_schema": [{"AttributeName": "auditId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "auditId", "AttributeType": "S"},
+            {"AttributeName": "targetStaffId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "targetStaffId-index",
+                "KeySchema": [{"AttributeName": "targetStaffId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "notification-deliveries",
         "key_schema": [{"AttributeName": "deliveryId", "KeyType": "HASH"}],
         "attribute_definitions": [

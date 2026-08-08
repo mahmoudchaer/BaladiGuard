@@ -27,6 +27,7 @@ get_settings.cache_clear()
 
 from app.core.rate_limit import clear_rate_limiter_cache, public_ticket_rate_limiter  # noqa: E402
 from app.database.memory import ticket_store  # noqa: E402
+from app.database.memory_account_audit import account_audit_store  # noqa: E402
 from app.database.memory_audit_history import audit_history_store  # noqa: E402
 from app.database.memory_citizen import citizen_store  # noqa: E402
 from app.database.memory_citizen_otp import citizen_otp_store  # noqa: E402
@@ -125,6 +126,7 @@ def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
     audit_history_store.clear()
+    account_audit_store.clear()
     duplicate_group_store.clear()
     notification_delivery_store.clear()
     citizen_store.clear()
