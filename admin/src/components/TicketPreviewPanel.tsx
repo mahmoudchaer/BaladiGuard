@@ -141,7 +141,9 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setActionError(null);
     setActionSuccess(null);
     try {
-      const updated = await assignTicketDepartment(ticket.ticketId, selectedDepartmentId);
+      const updated = await assignTicketDepartment(ticket.ticketId, {
+        departmentId: selectedDepartmentId,
+      });
       if (!updated) {
         setActionError('Unable to save department.');
         return;
