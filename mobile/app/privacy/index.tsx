@@ -3,6 +3,7 @@ import { Text } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { appConfig } from '@/services/config';
 import { colors, spacing } from '@/theme';
 
 /**
@@ -52,6 +53,9 @@ export default function PrivacyNoticeScreen() {
           <Text variant="bodySmall" style={styles.footnote}>
             Full retention periods, deletion behavior, and privacy request handling are documented
             in the BaladiGuard privacy lifecycle policy.
+          </Text>
+          <Text variant="bodySmall" style={styles.footnote} testID="privacy-policy-url">
+            Policy reference: {appConfig.privacyPolicyUrl}
           </Text>
         </View>
       </ScrollView>

@@ -106,11 +106,16 @@ Vite embeds these values in the browser bundle. They are not backend secrets.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8000/v1` | API base |
-| `EXPO_PUBLIC_ENABLE_MOCK_API` | `false` | Opt-in mock submit |
-| `EXPO_PUBLIC_APP_ENV` | `local` | App label |
+| `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8000/v1` | API base. Release/production binaries require absolute **HTTPS** (not localhost). |
+| `EXPO_PUBLIC_ENABLE_MOCK_API` | `false` | Opt-in mock submit. **Rejected** when `EXPO_PUBLIC_APP_ENV=production` or in any release binary (`!__DEV__`). |
+| `EXPO_PUBLIC_APP_ENV` | `local` | `local` \| `development` \| `preview` \| `production` |
+| `EXPO_PUBLIC_PRIVACY_POLICY_URL` | GitHub privacy-lifecycle doc | Optional HTTPS privacy URL for store/in-app metadata |
 | `EXPO_PUBLIC_SUPABASE_URL` | empty | Reserved / unused for MVP core path |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | empty | Reserved / unused for MVP core path |
+| `EAS_PROJECT_ID` | empty | Optional; normally written by `eas init` into app config |
+
+Signed Android/iOS release process, credential handling, and rollback steps:
+[mobile-release.md](mobile-release.md).
 
 ## Local development (explicit)
 
@@ -142,6 +147,10 @@ Before deploy (#74):
 9. `SEED_SAMPLE_TICKETS=false`
 10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
 11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+12. Mobile production EAS profile: `EXPO_PUBLIC_APP_ENV=production`,
+    `EXPO_PUBLIC_ENABLE_MOCK_API=false`, HTTPS `EXPO_PUBLIC_API_BASE_URL`,
+    signing credentials only in Expo/secret manager (see [mobile-release.md](mobile-release.md))
+13. Run `cd mobile && npm run check:release` before cutting a mobile release tag
 
 ## Health payload
 

@@ -20,7 +20,8 @@ export async function getCurrentDeviceLocation(): Promise<DeviceLocationResult> 
       return {
         ok: false,
         reason: 'permission_denied',
-        message: 'Location permission is required to use your current position.',
+        message:
+          'Location permission is required to use your current position. You can enable it in your device settings, or choose a place on the map instead.',
       };
     }
 

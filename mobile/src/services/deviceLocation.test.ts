@@ -46,6 +46,8 @@ describe('getCurrentDeviceLocation', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.reason).toBe('permission_denied');
+      expect(result.message).toMatch(/device settings/i);
+      expect(result.message).toMatch(/map/i);
     }
     expect(getCurrentPositionAsync).not.toHaveBeenCalled();
   });

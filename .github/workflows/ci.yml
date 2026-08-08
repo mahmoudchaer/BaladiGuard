@@ -85,6 +85,10 @@ jobs:
         working-directory: mobile
         run: npm run check:routes
 
+      - name: Check mobile release readiness
+        working-directory: mobile
+        run: npm run check:release
+
       - name: Run mobile typecheck
         working-directory: mobile
         run: npm run typecheck

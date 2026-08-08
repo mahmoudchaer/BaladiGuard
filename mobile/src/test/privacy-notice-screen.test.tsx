@@ -11,5 +11,6 @@ describe('PrivacyNoticeScreen', () => {
     expect(screen.root.findByProps({ children: 'Privacy notice' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'What we collect' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Your controls' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'privacy-policy-url' })).toBeTruthy();
   });
 });
