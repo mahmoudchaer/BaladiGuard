@@ -78,7 +78,10 @@ describe('HomeScreen', () => {
   it('loads and renders the public report feed without auth', async () => {
     const screen = await renderWithProvidersAsync(<HomeScreen />);
 
-    expect(getPublicTickets).toHaveBeenCalledWith({ limit: 20 });
+    expect(getPublicTickets).toHaveBeenCalledWith({
+      limit: 20,
+      signal: expect.any(AbortSignal),
+    });
     expect(screen.root.findByProps({ testID: 'public-report-feed' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Public reports' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'BG-2026-0001' })).toBeTruthy();

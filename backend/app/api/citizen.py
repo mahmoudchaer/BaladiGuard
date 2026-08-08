@@ -121,12 +121,17 @@ def request_citizen_otp(
         return _service_error_response(request, exc)
 
     # HTTP response stays code-free; delivery is side-effect only.
-    deliver_citizen_otp(
-        phone=payload.phone,
-        region=payload.region,
-        code=code,
-        settings=settings,
-    )
+    # If real delivery raises, invalidate the unused challenge so it cannot linger.
+    try:
+        deliver_citizen_otp(
+            phone=payload.phone,
+            region=payload.region,
+            code=code,
+            settings=settings,
+        )
+    except Exception:
+        citizen_service.invalidate_otp_challenge(challenge_id)
+        raise
 
     return CitizenOtpRequestResponse(
         challengeId=challenge_id,

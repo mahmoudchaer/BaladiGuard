@@ -309,8 +309,16 @@ describe('TicketListPage', () => {
       priority: 'critical',
       status: 'SUBMITTED',
     };
+    const closedCritical: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_closed_critical',
+      ticketNumber: 'BG-2026-0011',
+      trackingCode: 'CLCRIT',
+      priority: 'critical',
+      status: 'CLOSED',
+    };
     vi.mocked(fetchTickets).mockImplementation(async (filters) =>
-      applyFetchFilters([...tickets, criticalTicket], filters),
+      applyFetchFilters([...tickets, criticalTicket, closedCritical], filters),
     );
 
     renderWithProviders(<TicketListPage />);
@@ -323,6 +331,8 @@ describe('TicketListPage', () => {
         expect.objectContaining({ urgency: 'critical' }),
       ),
     );
+    expect(await screen.findByText('BG-2026-0009')).toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0011')).not.toBeInTheDocument();
   });
 
   it('shows a failure state when tickets cannot be loaded', async () => {

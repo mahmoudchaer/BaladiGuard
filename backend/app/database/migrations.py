@@ -96,14 +96,38 @@ def _ensure_missing_gsis(client, table_name: str, definition: dict[str, Any]) ->
         print(f"GSI ready: {table_name}.{name}")
 
 
-def _wait_for_gsi(client, table_name: str, index_name: str) -> None:
+def _wait_for_gsi(
+    client,
+    table_name: str,
+    index_name: str,
+    *,
+    timeout_seconds: float = 300,
+    poll_seconds: float = 2,
+) -> None:
+    """Poll until a GSI is ACTIVE, or fail with a bounded timeout / terminal state."""
+    deadline = time.monotonic() + timeout_seconds
+    last_status: str | None = None
     while True:
         description = client.describe_table(TableName=table_name)["Table"]
         indexes = description.get("GlobalSecondaryIndexes") or []
         match = next((item for item in indexes if item["IndexName"] == index_name), None)
-        if match and match.get("IndexStatus") == "ACTIVE":
+        if match is None:
+            raise RuntimeError(
+                f"GSI {table_name}.{index_name} was not found while waiting for ACTIVE"
+            )
+        last_status = match.get("IndexStatus")
+        if last_status == "ACTIVE":
             return
-        time.sleep(2)
+        if last_status in {"DELETING"}:
+            raise RuntimeError(
+                f"GSI {table_name}.{index_name} entered terminal status {last_status}"
+            )
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"Timed out waiting for GSI {table_name}.{index_name} to become ACTIVE "
+                f"(last status={last_status})"
+            )
+        time.sleep(poll_seconds)
 
 
 def _ensure_ttl(client, table_name: str, *, attribute_name: str) -> None:

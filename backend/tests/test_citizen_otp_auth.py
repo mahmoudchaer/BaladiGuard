@@ -488,3 +488,29 @@ def test_otp_challenge_stores_hash_only(anonymous_client: TestClient) -> None:
     assert code not in stored.model_dump_json()
     assert stored.code_hash
     assert len(stored.code_hash) == 64
+
+
+def test_otp_request_invalidates_challenge_when_delivery_raises(
+    anonymous_client: TestClient, monkeypatch
+) -> None:
+    def _boom(**_kwargs):
+        raise RuntimeError("sns unavailable")
+
+    monkeypatch.setattr(
+        "app.api.citizen.deliver_citizen_otp",
+        _boom,
+    )
+
+    status, body = _request_otp(anonymous_client, phone="+96170123456")
+    assert status == 500
+
+    # Challenge must not remain live after a failed delivery.
+    live = [
+        challenge
+        for challenge in citizen_otp_store._challenges.values()  # noqa: SLF001
+        if challenge.phone == "+96170123456"
+        and challenge.consumed_at is None
+        and challenge.superseded_at is None
+    ]
+    assert live == []
+    assert "challengeId" not in body or body.get("challengeId") is None

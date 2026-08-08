@@ -265,6 +265,12 @@ describe('ReportForm', () => {
     expect(descriptionInput.props.value).toBe(
       'Large pothole near the university gate causing traffic disruption.',
     );
+
+    // Editing from Review returns there instead of forcing the remaining wizard steps.
+    expect(hasText(screen, 'Back to review')).toBe(true);
+    await pressButton(screen, 'Back to review');
+    expect(hasText(screen, 'Review your report')).toBe(true);
+    expect(hasText(screen, 'Submit report')).toBe(true);
   });
 
   it('submits a complete report and shows the ticket number and tracking code, but never the internal ticket id', async () => {

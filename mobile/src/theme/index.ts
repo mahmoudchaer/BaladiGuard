@@ -20,7 +20,7 @@ export const colors = {
 
   text: '#1A2332',
   textSecondary: '#4F5D6F',
-  textMuted: '#7A8796',
+  textMuted: '#667085',
   textInverse: '#FFFFFF',
 
   success: '#007A3D',

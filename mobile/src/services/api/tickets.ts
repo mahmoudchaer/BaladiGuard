@@ -49,6 +49,7 @@ type SubmitReportOptions = {
 type PublicTicketListOptions = {
   limit?: number;
   cursor?: string | null;
+  signal?: AbortSignal;
 };
 
 const buildSubmitPayload = (
@@ -210,6 +211,7 @@ export async function getCitizenTicketHistory({
 export async function getPublicTickets({
   limit = 20,
   cursor,
+  signal,
 }: PublicTicketListOptions = {}): Promise<PublicTicketListResponse> {
   if (appConfig.enableMockApi) {
     return getPublicTicketsMock({ limit });
@@ -225,8 +227,12 @@ export async function getPublicTickets({
     response = await fetch(`${appConfig.apiBaseUrl}/tickets/public?${params.toString()}`, {
       method: 'GET',
       headers: getAuthHeaders(),
+      signal,
     });
   } catch (error) {
+    if (signal?.aborted) {
+      throw error;
+    }
     if (isOfflineError(error)) {
       throw new Error(PUBLIC_TICKETS_NETWORK_MESSAGE);
     }

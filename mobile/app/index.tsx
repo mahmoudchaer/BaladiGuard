@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
@@ -23,24 +23,43 @@ export default function HomeScreen() {
   const [reports, setReports] = useState<PublicTicketResponse[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
   const [reportError, setReportError] = useState<string | null>(null);
+  const loadSeqRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadReports = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const seq = ++loadSeqRef.current;
+
     setIsLoadingReports(true);
     setReportError(null);
     try {
-      const response = await getPublicTickets({ limit: 20 });
+      const response = await getPublicTickets({ limit: 20, signal: controller.signal });
+      if (seq !== loadSeqRef.current) {
+        return;
+      }
       setReports(response.items);
     } catch (error) {
+      if (seq !== loadSeqRef.current || controller.signal.aborted) {
+        return;
+      }
       setReportError(
         error instanceof Error ? error.message : 'Unable to load public reports right now.',
       );
     } finally {
-      setIsLoadingReports(false);
+      if (seq === loadSeqRef.current) {
+        setIsLoadingReports(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadReports();
+    return () => {
+      loadSeqRef.current += 1;
+      abortRef.current?.abort();
+    };
   }, [loadReports]);
 
   const openPublicReport = (ticketNumber: string) => {

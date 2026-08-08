@@ -35,10 +35,17 @@ export function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || !password) {
+      setError('Enter your username and password.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const result = await login(username, password);
+      const result = await login(trimmedUsername, password);
 
       if (!result.ok) {
         setPassword('');
@@ -65,7 +72,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit} noValidate>
+        <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-form__field">
             <span>Username</span>
             <input

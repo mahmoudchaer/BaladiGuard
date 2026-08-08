@@ -55,6 +55,7 @@ const STEP_SUBTITLES: Record<ReportWizardStepKey, string> = {
 export function ReportForm() {
   const { profile } = useCitizenAuth();
   const [step, setStep] = useState<ReportWizardStepKey>('details');
+  const [returnToReview, setReturnToReview] = useState(false);
   const [selectedPlaceholderId, setSelectedPlaceholderId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<SubmitReportPhase | null>(null);
@@ -76,10 +77,16 @@ export function ReportForm() {
   const stepIndex = REPORT_WIZARD_STEP_ORDER.indexOf(step);
 
   const goToStep = (target: ReportWizardStepKey) => {
+    setReturnToReview(step === 'review');
     setStep(target);
   };
 
   const goBack = () => {
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep('review');
+      return;
+    }
     if (stepIndex > 0) {
       setStep(REPORT_WIZARD_STEP_ORDER[stepIndex - 1]);
     }
@@ -89,6 +96,11 @@ export function ReportForm() {
     const fields = STEP_FIELDS[step];
     const isValid = fields.length > 0 ? await trigger(fields) : true;
     if (!isValid) {
+      return;
+    }
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep('review');
       return;
     }
     if (stepIndex < REPORT_WIZARD_STEP_ORDER.length - 1) {
@@ -120,6 +132,7 @@ export function ReportForm() {
     setSubmitError(null);
     setSubmitPhase(null);
     setSuccessResult(null);
+    setReturnToReview(false);
     setStep('details');
   };
 
@@ -228,7 +241,7 @@ export function ReportForm() {
             style={[styles.navButton, styles.primaryNavButton]}
             contentStyle={styles.navButtonContent}
           >
-            Continue
+            {returnToReview ? 'Back to review' : 'Continue'}
           </Button>
         )}
       </View>
