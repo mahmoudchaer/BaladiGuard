@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.core.citizen_auth import CitizenDep, OptionalCitizenDep
 from app.core.errors import build_error_response, get_request_id
+from app.core.metrics import emit_metric
 from app.core.rate_limit import enforce_rate_limit
 from app.schemas.citizen import (
     CitizenDataExportResponse,
@@ -38,6 +39,8 @@ router = APIRouter(prefix="/v1/citizen", tags=["citizen"])
 
 
 def _service_error_response(request: Request, exc: CitizenServiceError) -> JSONResponse:
+    if exc.status_code == 401:
+        emit_metric("AuthFailures", dimensions={"kind": "citizen", "code": exc.code})
     response = build_error_response(
         code=exc.code,
         message=exc.message,

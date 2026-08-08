@@ -1,0 +1,164 @@
+# Production observability runbook
+
+Operator handoff for issue #185: structured logs, metrics, distinct health
+probes, CloudWatch dashboards, and alerts that page on sustained failures — not
+single expected blips.
+
+## Probe contract
+
+| Probe | Path | HTTP behavior | Use for |
+| --- | --- | --- | --- |
+| Liveness | `GET /health/live` | Always `200` while the process can answer | Container `HEALTHCHECK`, kube liveness |
+| Readiness | `GET /health/ready` | `200` when DB + config OK; `503` otherwise | Load balancer / deploy gate |
+| Composite | `GET /health` | Always `200` when process is up; body may be `degraded` | Humans, demos, dashboards |
+
+AI queue depth is reported on readiness/composite for local memory backends and
+published as CloudWatch metrics from AI workers / startup recovery in DynamoDB
+deployments. Queue backlog **does not** fail readiness (it pages via
+`AiQueuePending` instead of removing healthy capacity).
+
+Set `APP_VERSION` on deploy so logs and probe payloads show the running build.
+
+## Structured logs
+
+Production should set:
+
+```bash
+LOG_FORMAT=json
+LOG_LEVEL=INFO
+APP_VERSION=<git-sha-or-release>
+APP_ENV=production
+# METRICS_EMF defaults to true when APP_ENV=production
+```
+
+Each JSON log line includes `timestamp`, `level`, `logger`, `message`,
+`service`, `env`, `version`, and `request_id` when serving HTTP. Sensitive keys
+matching password / token / secret / otp / credential / authorization patterns
+are replaced with `[REDACTED]` in structured extras. Notification mock delivery
+logs use redacted phone/email hints only.
+
+Metric lines look like:
+
+```text
+metric_event name=Http5xx value=1.0 unit=Count env=production ...
+```
+
+When EMF is enabled, a second stdout JSON object (CloudWatch Embedded Metric
+Format) is emitted for the `BaladiGuard` namespace.
+
+## Metrics catalog
+
+| Metric | Meaning |
+| --- | --- |
+| `HttpRequests` / `HttpRequestDuration` / `Http5xx` | Request count, latency, server errors |
+| `AuthFailures` | Staff login / citizen 401 auth failures |
+| `RateLimitExceeded` | Shared abuse limiter rejections |
+| `DynamoDbErrors` / `S3Errors` | Persistence and photo-storage provider errors |
+| `AiQueuePending` / `AiProcessingSucceeded` / `AiProcessingFailed` | AI queue health and terminal failures |
+| `NotificationSucceeded` / `NotificationFailed` | Citizen notification outcomes |
+| `ReadyProbeSuccess` | `1` ready / `0` not ready (from `/health/ready`) |
+
+## Apply dashboard and alarms
+
+From `backend/`, with production credentials:
+
+```bash
+python scripts/observability/apply_observability.py
+python scripts/observability/apply_observability.py \
+  --apply \
+  --alarm-actions arn:aws:sns:us-east-1:123456789012:baladiguard-ops \
+  --output observability-evidence/latest.json
+```
+
+Checked-in definitions live under `infra/observability/`. Dry-run (default)
+validates that every acceptance alarm exists, thresholds require multiple
+datapoints, and descriptions link this runbook.
+
+## Staging exercise (prove alerts reach the team)
+
+Run in **staging** before production cutover. Record evidence (SNS delivery +
+alarm history screenshots or JSON) in the ops evidence store.
+
+1. Apply staging dashboard/alarms with the staging SNS topic subscribed by the
+   on-call channel.
+2. **Sustained 5xx**: temporarily point a staging dependency wrong or deploy a
+   canary that returns 500 on a test route; generate >10 failures across two
+   5-minute windows. Confirm `BaladiGuard-Sustained5xx` fires with request IDs
+   visible in log groups.
+3. **Readiness failure**: stop DynamoDB Local / revoke table access so
+   `/health/ready` returns `503` for ≥3 minutes. Confirm
+   `BaladiGuard-ReadinessFailure`.
+4. **Notification spike**: force the real adapter into a permanent failure
+   category (invalid SES identity in staging) and emit >10 failures across two
+   windows. Confirm `BaladiGuard-NotificationFailureSpike`.
+5. Restore staging, wait for OK actions, and attach the SNS messages showing
+   alarm name, metric, and runbook link.
+
+A single forced 500 or one bad login must **not** page — thresholds require
+sustained datapoints.
+
+## Triage playbooks
+
+### Sustained 5xx
+
+1. Open the BaladiGuard dashboard → HTTP 5xx widget; note start time.
+2. Filter JSON logs for `"level": "ERROR"` and the deploy `version`.
+3. Correlate `request_id` / `X-Request-Id` with the failing path group.
+4. Check readiness and DynamoDB/S3 error widgets before rolling back.
+
+### Readiness failure
+
+1. Hit `/health/ready` and inspect `database` / `config` (no secret values).
+2. Confirm `APP_ENV`, table prefix, and IAM for `DescribeTable` / ticket table.
+3. Do not restart in a loop if config validation is aborting startup — fix env.
+
+### AI queue backlog
+
+1. Check `AiQueuePending` and `AiProcessingFailed`.
+2. Confirm Bedrock model access and `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS`.
+3. Restart one healthy task to run startup recovery; watch pending decline.
+
+### AI failures
+
+1. Inspect logs for `AI processing failed` / partial success warnings.
+2. Verify model id and region; distinguish provider outages from bad inputs.
+3. Failed tickets remain staff-visible — do not re-submit citizen reports.
+
+### Storage / provider failures
+
+1. Split S3 vs DynamoDB widgets.
+2. For `S3_UPLOAD_FAILED` (HTTP 502): bucket policy, KMS, and network path.
+3. For DynamoDB: throttling, missing tables, wrong endpoint URL in prod.
+
+### Notification failures
+
+1. Check `NOTIFICATION_ADAPTER`, SES sandbox, and `SES_FROM_EMAIL`.
+2. Prefer delivery ledger / redacted destination hints — never raw PII from logs.
+3. Ticket mutations must remain committed; retry only via notification path.
+
+### Auth failures
+
+1. Distinguish staff login spikes from citizen 401s via `kind` dimension.
+2. Confirm rate limits (`staff-login`, OTP policies) are engaging.
+3. Single wrong passwords are expected; only sustained spikes page.
+
+## Retention and access controls
+
+| Telemetry | Retention | Access |
+| --- | --- | --- |
+| Application logs (CloudWatch Logs) | 30 days hot (staging 14 days); export optional to S3 for 365 days | Engineering + on-call roles only; no broad account-wide read |
+| EMF / custom metrics | 15 months (CloudWatch standard) | Same ops roles; dashboards are read-only for developers |
+| Alarms + SNS | Alarm history 14 days in console; SNS delivery logs per topic policy | Alarm actions limited to the ops SNS topic; no email blast to all staff |
+| Evidence (staging drills) | Keep latest JSON + screenshots in the protected ops evidence store | Break-glass admin only for deletion |
+
+Do not grant production log read access to citizen-facing support tools. PII in
+tickets remains in DynamoDB with existing app authz — logs must keep redaction
+rules above. Rotate SNS topic subscriptions when on-call rotations change.
+
+## Local verification
+
+```bash
+cd backend
+pytest tests/test_health.py tests/test_observability.py tests/test_logging_metrics.py -q
+python scripts/observability/apply_observability.py
+```

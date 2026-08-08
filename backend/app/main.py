@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -24,6 +25,8 @@ from app.core.errors import (
     validation_exception_handler as base_validation_exception_handler,
 )
 from app.core.logging import configure_logging
+from app.core.metrics import emit_metric, normalize_path_group, timed_metric
+from app.core.request_context import reset_request_id, set_request_id
 from app.core.upload_abuse import reject_upload_abuse_early
 from app.services.complaints.ticket_service import ticket_service
 
@@ -179,39 +182,63 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next):
         request.state.request_id = create_request_id()
-        # Upload abuse checks must run before call_next so FastAPI never spools
-        # multipart bodies for over-limit / over-quota report-photo requests.
-        early_upload_rejection = reject_upload_abuse_early(request)
-        if early_upload_rejection is not None:
-            return _with_request_id_header(early_upload_rejection, request.state.request_id)
+        context_token = set_request_id(request.state.request_id)
+        started_at = time.perf_counter()
+        path_group = normalize_path_group(request.url.path)
         try:
-            response = await call_next(request)
-        except Exception:
-            # BaseHTTPMiddleware can re-raise past exception handlers; still return
-            # a correlated 500 so clients get X-Request-Id on both body and header.
-            logger.exception(
-                "Unhandled request error method=%s path=%s request_id=%s",
-                request.method,
-                request.url.path,
-                request.state.request_id,
+            # Upload abuse checks must run before call_next so FastAPI never spools
+            # multipart bodies for over-limit / over-quota report-photo requests.
+            early_upload_rejection = reject_upload_abuse_early(request)
+            if early_upload_rejection is not None:
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=early_upload_rejection.status_code,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(early_upload_rejection, request.state.request_id)
+            try:
+                response = await call_next(request)
+            except Exception:
+                # BaseHTTPMiddleware can re-raise past exception handlers; still return
+                # a correlated 500 so clients get X-Request-Id on both body and header.
+                logger.exception(
+                    "Unhandled request error method=%s path=%s request_id=%s",
+                    request.method,
+                    request.url.path,
+                    request.state.request_id,
+                )
+                response = build_error_response(
+                    code="INTERNAL_ERROR",
+                    message="An unexpected server error occurred.",
+                    request_id=request.state.request_id,
+                    status_code=500,
+                )
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=500,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(response, request.state.request_id)
+            response.headers["X-Request-Id"] = request.state.request_id
+            if response.status_code >= 500:
+                logger.error(
+                    "Request failed method=%s path=%s status=%s request_id=%s",
+                    request.method,
+                    request.url.path,
+                    response.status_code,
+                    request.state.request_id,
+                )
+            _record_http_metrics(
+                method=request.method,
+                path_group=path_group,
+                status_code=response.status_code,
+                started_at=started_at,
             )
-            response = build_error_response(
-                code="INTERNAL_ERROR",
-                message="An unexpected server error occurred.",
-                request_id=request.state.request_id,
-                status_code=500,
-            )
-            return _with_request_id_header(response, request.state.request_id)
-        response.headers["X-Request-Id"] = request.state.request_id
-        if response.status_code >= 500:
-            logger.error(
-                "Request failed method=%s path=%s status=%s request_id=%s",
-                request.method,
-                request.url.path,
-                response.status_code,
-                request.state.request_id,
-            )
-        return response
+            return response
+        finally:
+            reset_request_id(context_token)
 
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
@@ -224,6 +251,25 @@ def create_app() -> FastAPI:
     app.include_router(uploads_router)
 
     return app
+
+
+def _record_http_metrics(
+    *,
+    method: str,
+    path_group: str,
+    status_code: int,
+    started_at: float,
+) -> None:
+    dims = {
+        "method": method.upper(),
+        "path": path_group,
+        "status": str(status_code),
+        "status_class": f"{status_code // 100}xx",
+    }
+    emit_metric("HttpRequests", dimensions=dims)
+    timed_metric("HttpRequestDuration", dimensions=dims, started_at=started_at)
+    if status_code >= 500:
+        emit_metric("Http5xx", dimensions=dims)
 
 
 app = create_app()

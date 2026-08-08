@@ -74,6 +74,9 @@ class PhotoUploadService:
                 ContentType=file.content_type or f"image/{extension}",
             )
         except (BotoCoreError, ClientError) as exc:
+            from app.core.metrics import emit_metric
+
+            emit_metric("S3Errors", dimensions={"operation": "put_report_photo"})
             raise S3UploadError("Failed to upload image to storage.") from exc
 
         return storage_key

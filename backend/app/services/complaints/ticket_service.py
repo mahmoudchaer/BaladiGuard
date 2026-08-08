@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from threading import Lock
 
 from app.config import get_settings
+from app.core.metrics import emit_metric
 from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket, staff_can_assign_department
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.duplicate_group_store import DuplicateGroupStore
@@ -287,6 +288,7 @@ class TicketService:
                     "AI processing produced no output for ticket %s.",
                     ticket_id,
                 )
+                emit_metric("AiProcessingFailed", dimensions={"outcome": "no_output"})
             elif not (classification_ok and cleaning_ok):
                 logger.warning(
                     "AI processing partially succeeded for ticket %s "
@@ -295,12 +297,25 @@ class TicketService:
                     classification_ok,
                     cleaning_ok,
                 )
+                emit_metric(
+                    "AiProcessingSucceeded",
+                    dimensions={"outcome": "partial"},
+                )
+            else:
+                emit_metric(
+                    "AiProcessingSucceeded",
+                    dimensions={"outcome": "completed"},
+                )
             return True
         except Exception as exc:
             logger.error(
                 "AI processing failed for ticket %s (%s).",
                 ticket_id,
                 type(exc).__name__,
+            )
+            emit_metric(
+                "AiProcessingFailed",
+                dimensions={"outcome": "exception", "error": type(exc).__name__},
             )
             try:
                 urgency = self._score_ticket_urgency(ticket=ticket)
@@ -318,6 +333,10 @@ class TicketService:
                     "Could not persist failed AI status for ticket %s (%s).",
                     ticket_id,
                     type(persistence_exc).__name__,
+                )
+                emit_metric(
+                    "DynamoDbErrors",
+                    dimensions={"operation": "persist_ai_failure"},
                 )
             return True
         finally:
@@ -367,6 +386,21 @@ class TicketService:
                 recovered,
                 len(recoverable_ids),
                 skipped_active_claims,
+            )
+        # Publish queue depth for CloudWatch (DynamoDB-safe: uses the recovery scan
+        # already performed above, not a separate health-time table scan).
+        emit_metric(
+            "AiQueuePending",
+            value=float(len(recoverable_ids)),
+            unit="Count",
+            dimensions={"source": "startup_recovery"},
+        )
+        if len(recoverable_ids) > 0:
+            emit_metric(
+                "AiQueueBacklog",
+                value=float(len(recoverable_ids)),
+                unit="Count",
+                dimensions={"source": "startup_recovery"},
             )
         return recovered
 

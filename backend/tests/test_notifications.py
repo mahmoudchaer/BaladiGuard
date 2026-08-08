@@ -91,7 +91,9 @@ def test_emit_success_uses_mock_adapter_and_recipient(caplog):
     assert adapter.calls[0][1] is not None
     assert adapter.calls[0][1].phone == "+96170123456"
     assert any("Notification mock delivery mode=mock" in r.message for r in caplog.records)
-    assert any("recipient_phone=+96170123456" in r.message for r in caplog.records)
+    # Raw phone must never appear in logs; only a redacted hint is allowed.
+    assert not any("+96170123456" in r.message for r in caplog.records)
+    assert any("recipient_phone=+***3456" in r.message for r in caplog.records)
 
 
 def test_emit_skips_duplicate_for_same_event_ticket_status(caplog):

@@ -1,0 +1,110 @@
+{
+  "namespace": "BaladiGuard",
+  "runbookUrl": "docs/production-observability.md",
+  "alarms": [
+    {
+      "alarmName": "BaladiGuard-Sustained5xx",
+      "metricName": "Http5xx",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 10,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "Sustained HTTP 5xx errors. Single blips do not page. Triage: docs/production-observability.md#sustained-5xx"
+    },
+    {
+      "alarmName": "BaladiGuard-ReadinessFailure",
+      "metricName": "ReadyProbeSuccess",
+      "statistic": "Minimum",
+      "periodSeconds": 60,
+      "evaluationPeriods": 3,
+      "datapointsToAlarm": 3,
+      "threshold": 1,
+      "comparisonOperator": "LessThanThreshold",
+      "treatMissingData": "breaching",
+      "severity": "critical",
+      "description": "Readiness probe unsuccessful for 3 minutes. Triage: docs/production-observability.md#readiness-failure"
+    },
+    {
+      "alarmName": "BaladiGuard-AiQueueBacklog",
+      "metricName": "AiQueuePending",
+      "statistic": "Maximum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 3,
+      "datapointsToAlarm": 3,
+      "threshold": 50,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "AI pending queue sustained above 50. Triage: docs/production-observability.md#ai-queue-backlog"
+    },
+    {
+      "alarmName": "BaladiGuard-AiProcessingFailures",
+      "metricName": "AiProcessingFailed",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 5,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "AI processing failure spike (dead-letter style terminal failures). Triage: docs/production-observability.md#ai-failures"
+    },
+    {
+      "alarmName": "BaladiGuard-StorageProviderErrors",
+      "metricName": "S3Errors",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 5,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "S3 upload/provider errors sustained. Also check DynamoDbErrors on the dashboard. Triage: docs/production-observability.md#storage-provider-failures"
+    },
+    {
+      "alarmName": "BaladiGuard-DynamoDbErrors",
+      "metricName": "DynamoDbErrors",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 5,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "DynamoDB error spike. Triage: docs/production-observability.md#storage-provider-failures"
+    },
+    {
+      "alarmName": "BaladiGuard-NotificationFailureSpike",
+      "metricName": "NotificationFailed",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 10,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "Notification delivery failure spike. Triage: docs/production-observability.md#notification-failures"
+    },
+    {
+      "alarmName": "BaladiGuard-AuthFailureSpike",
+      "metricName": "AuthFailures",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 50,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "warning",
+      "description": "Auth failure spike (possible credential stuffing). Single bad logins do not page. Triage: docs/production-observability.md#auth-failures"
+    }
+  ]
+}

@@ -87,9 +87,16 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `STAFF_USERNAME` | Legacy | `staff` | Deprecated; ignored for authentication |
 | `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` |
+| `LOG_FORMAT` | No | `text` | `text` \| `json` — use `json` in deployed environments (#185) |
+| `APP_VERSION` | No | `0.1.0` | Deployed build label in structured logs and health payloads |
+| `METRICS_EMF` | No | on when `APP_ENV=production` | `true` \| `false` — CloudWatch Embedded Metric Format on stdout |
+| `OBSERVABILITY_ALARM_ACTIONS` | Apply script | empty | Comma-separated SNS ARNs for `apply_observability.py --apply` |
 
 Optional eval-only vars (`CLASSIFICATION_EVAL_*`, `OPENAI_API_KEY`) are documented in
 `.env.example` and are not required for runtime.
+
+Production observability (dashboards, alarms, retention, staging drill) is documented in
+[production-observability.md](production-observability.md).
 
 ## Admin dashboard (`admin/`)
 
@@ -141,21 +148,45 @@ Before deploy (#74):
 8. `AWS_S3_BUCKET=<bucket>`
 9. `SEED_SAMPLE_TICKETS=false`
 10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+11. Confirm process starts (validation aborts on failure), `/health/live` is `200`, `/health/ready` is `200`, and `/health` is `ok`
+
+Also set `LOG_FORMAT=json` and `APP_VERSION=<release>` on deploy, then apply
+CloudWatch dashboards/alarms with `python scripts/observability/apply_observability.py --apply`
+(see [production-observability.md](production-observability.md)).
 
 ## Health payload
 
-`GET /health` includes a `config` object:
+Distinct probes (#185):
+
+- `GET /health/live` — process up only (always HTTP 200 when the app answers)
+- `GET /health/ready` — database + config (HTTP 503 when not ready)
+- `GET /health` — composite for humans/demos (HTTP 200; body may be `degraded`)
+
+`GET /health` includes `config`, `ai`, `version`, and `probes`:
 
 ```json
 {
   "status": "ok",
   "service": "baladiguard-api",
   "env": "local",
+  "version": "0.1.0",
   "database": { "backend": "memory", "status": "ok" },
   "config": {
     "status": "ok",
     "issues": []
+  },
+  "ai": {
+    "status": "ok",
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "source": "memory_store",
+    "backlogWarnThreshold": 25
+  },
+  "probes": {
+    "liveness": "/health/live",
+    "readiness": "/health/ready",
+    "composite": "/health"
   }
 }
 ```
