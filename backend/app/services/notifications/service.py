@@ -136,9 +136,7 @@ def emit_ticket_notification(
                 ticket_id,
                 ",".join(f"{item.channel}:{item.status}" for item in results) or "none",
             )
-            failed_channels = [
-                item for item in results if item.status.startswith("FAILED")
-            ]
+            failed_channels = [item for item in results if item.status.startswith("FAILED")]
             if failed_channels:
                 emit_metric(
                     "NotificationFailed",
