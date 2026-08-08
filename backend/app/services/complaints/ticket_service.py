@@ -656,17 +656,13 @@ class TicketService:
             "updated_by": actor_id,
         }
 
+        # Only approve this ticket's bound upload, or clear. Never accept a caller-supplied key.
         if payload.clear_public_photo:
             update_fields["public_image_object_key"] = None
         elif payload.approve_original_photo:
             if not ticket.image_object_key:
                 raise PublicContentUpdateError("This ticket has no original upload to approve.")
             update_fields["public_image_object_key"] = ticket.image_object_key
-        elif payload.public_image_object_key is not None:
-            key = payload.public_image_object_key.strip()
-            if not key:
-                raise PublicContentUpdateError("publicImageObjectKey cannot be empty.")
-            update_fields["public_image_object_key"] = key
 
         if payload.public_status == "PUBLISHED":
             update_fields["public_published_at"] = ticket.public_published_at or updated_at
@@ -683,8 +679,6 @@ class TicketService:
             photo_note = "public photo cleared"
         elif payload.approve_original_photo:
             photo_note = "original photo approved"
-        elif payload.public_image_object_key is not None:
-            photo_note = "public photo key set"
 
         self._record_audit_history(
             ticket_id=ticket_id,

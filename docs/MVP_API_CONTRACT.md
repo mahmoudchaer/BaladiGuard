@@ -825,12 +825,13 @@ to `auditHistory`.
 Staff-only. Requires `Authorization: Bearer <accessToken>`.
 
 Sets the staff-approved public projection used by guest browsing. Raw citizen description and the
-exact stored address are never copied automatically. Public photos require an explicit approval:
-either approve the original upload (`approveOriginalPhoto`) or set an alternate/redacted
-`publicImageObjectKey`. Omitting both leaves any existing public photo unchanged;
-`clearPublicPhoto` removes it. Publishability still requires `publicStatus=PUBLISHED`, a
-staff-reviewed final category, and non-empty public description + coarse location label; the photo
-is optional.
+exact stored address are never copied automatically. Public photos require an explicit approval of
+**this ticket's** private upload via `approveOriginalPhoto` (server copies `imageObjectKey` into
+`publicImageObjectKey`). `clearPublicPhoto` removes the public photo. Caller-supplied object keys
+are rejected — alternate/redacted keys are deferred until a ticket-bound upload/artifact record
+exists. Omitting both approve and clear leaves any existing public photo unchanged. Publishability
+still requires `publicStatus=PUBLISHED`, a staff-reviewed final category, and non-empty public
+description + coarse location label; the photo is optional.
 
 ### Request body
 
@@ -848,9 +849,8 @@ is optional.
 | `publicStatus`          | string  |      Yes | `DRAFT`, `PUBLISHED`, or `UNPUBLISHED`.                                                       |
 | `publicDescription`     | string  |      Yes | Required non-empty when publishing.                                                           |
 | `publicLocationLabel`   | string  |      Yes | Coarse neighborhood/area label; required non-empty when publishing.                           |
-| `approveOriginalPhoto`  | boolean |       No | When `true`, copies the ticket's private `imageObjectKey` into `publicImageObjectKey`.        |
-| `clearPublicPhoto`      | boolean |       No | When `true`, clears `publicImageObjectKey`. Mutually exclusive with approve/set.              |
-| `publicImageObjectKey`  | string  |       No | Optional alternate/redacted object key. Mutually exclusive with approve/clear.                |
+| `approveOriginalPhoto`  | boolean |       No | When `true`, copies this ticket's private `imageObjectKey` into `publicImageObjectKey`.       |
+| `clearPublicPhoto`      | boolean |       No | When `true`, clears `publicImageObjectKey`. Mutually exclusive with approve.                  |
 | `updatedBy`             | string  |       No | Ignored for trust decisions; actor identity comes from the verified staff principal.          |
 
 ### Response `200`
@@ -865,7 +865,7 @@ append a `PUBLIC_CONTENT_UPDATE` entry to `auditHistory`.
 | ------------------ | -----: | --------------------------------------------------------------------------------------- |
 | `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                                        |
 | `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist (or is outside the staff principal's scope).                   |
-| `VALIDATION_ERROR` |    400 | Missing final category/public text when publishing, or conflicting photo-mode flags.    |
+| `VALIDATION_ERROR` |    400 | Missing final category/public text when publishing, conflicting photo-mode flags, or unknown fields (including caller-supplied `publicImageObjectKey`). |
 
 ## `PATCH /v1/tickets/{ticketId}/department`
 

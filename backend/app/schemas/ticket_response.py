@@ -189,32 +189,25 @@ class UpdateTicketStatusRequest(BaseModel):
 
 
 class UpdateTicketPublicContentRequest(BaseModel):
-    """Staff-approved public projection fields, including optional public photo approval."""
+    """Staff-approved public projection fields, including optional public photo approval.
+
+    Public photos may only be approved from this ticket's own ``imageObjectKey`` or cleared.
+    Arbitrary/unbound object keys are rejected (``extra='forbid'``).
+    """
 
     public_status: PublicTicketStatus = Field(alias="publicStatus")
     public_description: str = Field(default="", alias="publicDescription", max_length=2000)
     public_location_label: str = Field(default="", alias="publicLocationLabel", max_length=200)
     approve_original_photo: bool = Field(default=False, alias="approveOriginalPhoto")
     clear_public_photo: bool = Field(default=False, alias="clearPublicPhoto")
-    public_image_object_key: str | None = Field(
-        default=None,
-        alias="publicImageObjectKey",
-        max_length=512,
-    )
     updated_by: str | None = Field(default=None, alias="updatedBy", max_length=120)
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "extra": "forbid"}
 
     @model_validator(mode="after")
     def validate_photo_modes(self) -> "UpdateTicketPublicContentRequest":
         if self.approve_original_photo and self.clear_public_photo:
             raise ValueError("Cannot both approve and clear the public photo in one request.")
-        if self.public_image_object_key is not None and self.clear_public_photo:
-            raise ValueError("Cannot set and clear the public photo in one request.")
-        if self.public_image_object_key is not None and self.approve_original_photo:
-            raise ValueError(
-                "Provide either approveOriginalPhoto or publicImageObjectKey, not both."
-            )
         return self
 
 

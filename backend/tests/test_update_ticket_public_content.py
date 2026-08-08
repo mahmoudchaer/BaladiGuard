@@ -174,6 +174,34 @@ def test_public_content_update_requires_staff_auth(anonymous_client):
     assert response.status_code == 401
 
 
+def test_public_content_rejects_caller_supplied_object_key(client):
+    """Staff cannot bind an arbitrary/foreign S3 key as this ticket's public photo."""
+    created = _submit_report(client, phone="+96170888894")
+    token = issue_test_staff_token(client)
+    _review_category(client, created["ticketId"], token)
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    foreign_key = "reports/other-ticket/private-upload.jpg"
+
+    response = client.patch(
+        f"/v1/tickets/{created['ticketId']}/public",
+        json={
+            "publicStatus": "PUBLISHED",
+            "publicDescription": "Attempting to bind a foreign key.",
+            "publicLocationLabel": "Hamra",
+            "publicImageObjectKey": foreign_key,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "VALIDATION_ERROR"
+    stored_after = ticket_store.get(created["ticketId"])
+    assert stored_after is not None
+    assert stored_after.public_image_object_key is None
+    assert stored_after.public_status == "DRAFT"
+
+
 def test_unpublish_removes_ticket_from_public_feed(client):
     created = _submit_report(client, phone="+96170888893")
     token = issue_test_staff_token(client)
