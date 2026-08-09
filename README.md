@@ -220,6 +220,8 @@ Project documentation is located in the `docs/` directory.
 - [Urgency Scoring Rules](docs/urgency-scoring.md)
 - [Notification Message Templates](docs/notification-templates.md)
 - [Sprint 6 testing / role-permission matrix](docs/sprint6-testing.md)
+- [Release readiness index](docs/release-readiness.md)
+- [Capacity validation (#191)](docs/capacity-validation.md)
 - [Local Database Setup](docs/local-database-setup.md)
 - [Cloud Setup (AWS DynamoDB + S3)](docs/cloud-setup.md)
 - Design Decisions

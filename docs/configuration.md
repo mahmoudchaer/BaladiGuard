@@ -152,6 +152,7 @@ Before deploy (#74):
 9. `SEED_SAMPLE_TICKETS=false`
 10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
 11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+12. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
 
 ## Health payload
 
