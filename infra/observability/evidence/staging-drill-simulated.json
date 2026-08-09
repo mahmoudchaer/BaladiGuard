@@ -1,0 +1,56 @@
+{
+  "ok": true,
+  "mode": "simulated",
+  "env": "staging",
+  "region": "us-east-1",
+  "timestamp": "2026-08-09T10:02:27.917189Z",
+  "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team",
+  "stableDimensionKeys": [
+    "env"
+  ],
+  "readinessAlarmPayload": {
+    "AlarmName": "BaladiGuard-ReadinessFailure",
+    "AlarmDescription": "Readiness probe unsuccessful for 3 minutes. Continuous producer: in-process readiness publisher (READINESS_PROBE_INTERVAL_SECONDS). Triage: docs/production-observability.md#readiness-failure",
+    "Namespace": "BaladiGuard",
+    "MetricName": "ReadyProbeSuccess",
+    "Dimensions": [
+      {
+        "Name": "env",
+        "Value": "staging"
+      }
+    ],
+    "Statistic": "Minimum",
+    "Period": 60,
+    "EvaluationPeriods": 3,
+    "DatapointsToAlarm": 3,
+    "Threshold": 1.0,
+    "ComparisonOperator": "LessThanThreshold",
+    "TreatMissingData": "breaching",
+    "ActionsEnabled": true,
+    "AlarmActions": [
+      "arn:aws:sns:us-east-1:0:baladiguard-drill"
+    ],
+    "OKActions": [
+      "arn:aws:sns:us-east-1:0:baladiguard-drill"
+    ]
+  },
+  "dashboardMetricSample": [
+    "BaladiGuard",
+    "HttpRequests",
+    "env",
+    "staging"
+  ],
+  "transitions": {
+    "healthy": "OK",
+    "failure": "ALARM",
+    "restored": "OK"
+  },
+  "alarmActions": [
+    "arn:aws:sns:us-east-1:0:baladiguard-drill"
+  ],
+  "notes": [
+    "EMF publish dimensions are env-only (see app.core.metrics.build_emf_record).",
+    "In-process readiness publisher emits ReadyProbeSuccess continuously.",
+    "Live mode SetAlarmState exercises SNS subscriptions; confirm channel delivery."
+  ]
+}

@@ -87,7 +87,16 @@ async def lifespan(_: FastAPI):
         name="ai-pending-recovery",
         daemon=True,
     ).start()
+    # Continuous ReadyProbeSuccess publisher for CloudWatch alarms (issue #185).
+    # Liveness stays on /health/live; this loop is independent of Docker HEALTHCHECK.
+    from app.core.readiness_probe import (
+        start_readiness_probe_publisher,
+        stop_readiness_probe_publisher,
+    )
+
+    start_readiness_probe_publisher()
     yield
+    stop_readiness_probe_publisher()
     logger.info("BaladiGuard API shutting down.")
 
 

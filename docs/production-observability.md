@@ -17,7 +17,21 @@ published as CloudWatch metrics from AI workers / startup recovery in DynamoDB
 deployments. Queue backlog **does not** fail readiness (it pages via
 `AiQueuePending` instead of removing healthy capacity).
 
+### Continuous readiness metric producer
+
+Docker `HEALTHCHECK` uses `/health/live` on purpose. The
+`BaladiGuard-ReadinessFailure` alarm therefore cannot rely on that probe.
+
+Each API process runs an in-process publisher (`app.core.readiness_probe`) that
+evaluates readiness and emits `ReadyProbeSuccess` every
+`READINESS_PROBE_INTERVAL_SECONDS` (default `30`). Disable only for tests with
+`READINESS_PROBE_PUBLISHER=false`. Load balancers may still poll `/health/ready`;
+the publisher is the guaranteed CloudWatch signal so
+`treatMissingData: breaching` does not false-page a healthy service.
+
 Set `APP_VERSION` on deploy so logs and probe payloads show the running build.
+CloudWatch EMF / alarm identity uses the stable dimension `env` only — never
+`version` — so selectors survive deploys.
 
 ## Structured logs
 
@@ -79,20 +93,37 @@ datapoints, and descriptions link this runbook.
 Run in **staging** before production cutover. Record evidence (SNS delivery +
 alarm history screenshots or JSON) in the ops evidence store.
 
-1. Apply staging dashboard/alarms with the staging SNS topic subscribed by the
-   on-call channel.
-2. **Sustained 5xx**: temporarily point a staging dependency wrong or deploy a
+Apply + automated readiness drill (required evidence artifact):
+
+```bash
+cd backend
+python scripts/observability/apply_observability.py --apply --env staging \
+  --alarm-actions "$STAGING_OPS_SNS_ARN" \
+  --output observability-evidence/apply-staging.json
+python scripts/observability/staging_drill.py --live --env staging \
+  --alarm-actions "$STAGING_OPS_SNS_ARN" \
+  --output observability-evidence/staging-drill.json
+```
+
+CI runs the same drill in **simulated** (moto) mode to prove alarm payloads
+select `Dimensions=[{Name=env,Value=...}]` matching EMF and that readiness
+transitions `OK → ALARM → OK`. Live mode additionally exercises SNS actions —
+confirm the on-call channel received the ALARM notification, then the OK clear.
+
+Manual supplements:
+
+1. **Sustained 5xx**: temporarily point a staging dependency wrong or deploy a
    canary that returns 500 on a test route; generate >10 failures across two
    5-minute windows. Confirm `BaladiGuard-Sustained5xx` fires with request IDs
    visible in log groups.
-3. **Readiness failure**: stop DynamoDB Local / revoke table access so
-   `/health/ready` returns `503` for ≥3 minutes. Confirm
-   `BaladiGuard-ReadinessFailure`.
-4. **Notification spike**: force the real adapter into a permanent failure
+2. **Readiness failure (organic)**: stop DynamoDB access so `/health/ready`
+   returns `503` and the in-process publisher emits `ReadyProbeSuccess=0` for
+   ≥3 minutes (in addition to the SetAlarmState drill above).
+3. **Notification spike**: force the real adapter into a permanent failure
    category (invalid SES identity in staging) and emit >10 failures across two
    windows. Confirm `BaladiGuard-NotificationFailureSpike`.
-5. Restore staging, wait for OK actions, and attach the SNS messages showing
-   alarm name, metric, and runbook link.
+4. Attach SNS messages / `staging-drill.json` showing alarm name, `env`
+   dimension, and runbook link.
 
 A single forced 500 or one bad login must **not** page — thresholds require
 sustained datapoints.

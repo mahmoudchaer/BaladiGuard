@@ -90,6 +90,9 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `LOG_FORMAT` | No | `text` | `text` \| `json` — use `json` in deployed environments (#185) |
 | `APP_VERSION` | No | `0.1.0` | Deployed build label in structured logs and health payloads |
 | `METRICS_EMF` | No | on when `APP_ENV=production` | `true` \| `false` — CloudWatch Embedded Metric Format on stdout |
+| `READINESS_PROBE_PUBLISHER` | No | `true` | In-process `ReadyProbeSuccess` publisher for readiness alarms |
+| `READINESS_PROBE_INTERVAL_SECONDS` | No | `30` | Publisher interval (≥ 5) |
+| `OBSERVABILITY_ENV` | Apply script | `APP_ENV` / `production` | Stable CloudWatch `env` dimension for alarms/dashboard |
 | `OBSERVABILITY_ALARM_ACTIONS` | Apply script | empty | Comma-separated SNS ARNs for `apply_observability.py --apply` |
 
 Optional eval-only vars (`CLASSIFICATION_EVAL_*`, `OPENAI_API_KEY`) are documented in

@@ -1,6 +1,7 @@
 {
   "namespace": "BaladiGuard",
   "runbookUrl": "docs/production-observability.md",
+  "dimensionKeys": ["env"],
   "alarms": [
     {
       "alarmName": "BaladiGuard-Sustained5xx",
@@ -26,7 +27,7 @@
       "comparisonOperator": "LessThanThreshold",
       "treatMissingData": "breaching",
       "severity": "critical",
-      "description": "Readiness probe unsuccessful for 3 minutes. Triage: docs/production-observability.md#readiness-failure"
+      "description": "Readiness probe unsuccessful for 3 minutes. Continuous producer: in-process readiness publisher (READINESS_PROBE_INTERVAL_SECONDS). Triage: docs/production-observability.md#readiness-failure"
     },
     {
       "alarmName": "BaladiGuard-AiQueueBacklog",

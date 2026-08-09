@@ -10,6 +10,9 @@ from app.config import Settings, get_settings
 
 os.environ["DATABASE_BACKEND"] = "memory"
 os.environ["APP_ENV"] = "test"
+# Avoid background readiness publisher threads across the suite; dedicated tests
+# exercise the publisher explicitly.
+os.environ["READINESS_PROBE_PUBLISHER"] = "false"
 # Tests must use the curated local place index even when the shared team .env
 # configures a live Amazon Location index.
 os.environ["LOCATION_PLACE_INDEX_NAME"] = ""

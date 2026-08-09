@@ -3,6 +3,10 @@
 Default mode is dry-run validation of checked-in JSON. ``--apply`` requires AWS
 credentials and creates/updates the dashboard and metric alarms. Thresholds are
 intentionally multi-period so a single expected failure does not page.
+
+Alarms and dashboard widgets always select the stable EMF dimension set
+(``env`` only) so they match ``app.core.metrics.emit_metric`` CloudWatch series.
+``version`` is intentionally excluded from metric identity.
 """
 
 from __future__ import annotations
@@ -17,6 +21,9 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ALARMS = REPO_ROOT / "infra" / "observability" / "alarms.json"
 DEFAULT_DASHBOARD = REPO_ROOT / "infra" / "observability" / "dashboard.json"
+
+# Must stay aligned with app.core.metrics.STABLE_EMF_DIMENSION_KEYS.
+STABLE_DIMENSION_KEYS = ("env",)
 
 REQUIRED_ALARM_METRICS = {
     "Http5xx",
@@ -48,12 +55,33 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def resolve_env_dimension(explicit: str | None = None) -> str:
+    raw = (
+        (explicit or "").strip()
+        or os.getenv("OBSERVABILITY_ENV", "").strip()
+        or os.getenv("APP_ENV", "").strip()
+        or os.getenv("ENVIRONMENT", "").strip()
+        or "production"
+    )
+    return raw.lower()
+
+
+def dimension_pairs(env: str) -> list[dict[str, str]]:
+    return [{"Name": key, "Value": env} for key in STABLE_DIMENSION_KEYS]
+
+
 def validate_alarms(doc: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if doc.get("namespace") != "BaladiGuard":
         errors.append("alarms.namespace must be BaladiGuard")
     if not doc.get("runbookUrl"):
         errors.append("alarms.runbookUrl is required")
+    declared_dims = tuple(doc.get("dimensionKeys") or ())
+    if declared_dims != STABLE_DIMENSION_KEYS:
+        errors.append(
+            f"alarms.dimensionKeys must equal {list(STABLE_DIMENSION_KEYS)} "
+            "to match EMF publish dimensions"
+        )
     alarms = doc.get("alarms")
     if not isinstance(alarms, list) or not alarms:
         errors.append("alarms.alarms must be a non-empty list")
@@ -104,14 +132,44 @@ def validate_dashboard(doc: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _cloudwatch_client(region: str):
-    import boto3
+def build_alarm_put_kwargs(
+    alarm: dict[str, Any],
+    *,
+    namespace: str,
+    env: str,
+    alarm_actions: list[str],
+) -> dict[str, Any]:
+    """Build the exact kwargs passed to ``put_metric_alarm`` (testable without AWS)."""
+    kwargs: dict[str, Any] = {
+        "AlarmName": alarm["alarmName"],
+        "AlarmDescription": alarm.get("description") or "",
+        "Namespace": namespace,
+        "MetricName": alarm["metricName"],
+        "Dimensions": dimension_pairs(env),
+        "Statistic": alarm.get("statistic") or "Sum",
+        "Period": int(alarm["periodSeconds"]),
+        "EvaluationPeriods": int(alarm["evaluationPeriods"]),
+        "DatapointsToAlarm": int(alarm["datapointsToAlarm"]),
+        "Threshold": float(alarm["threshold"]),
+        "ComparisonOperator": alarm["comparisonOperator"],
+        "TreatMissingData": alarm.get("treatMissingData") or "notBreaching",
+        "ActionsEnabled": bool(alarm_actions),
+    }
+    if alarm_actions:
+        kwargs["AlarmActions"] = alarm_actions
+        kwargs["OKActions"] = alarm_actions
+    return kwargs
 
-    return boto3.client("cloudwatch", region_name=region)
 
-
-def apply_dashboard(client, doc: dict[str, Any], namespace: str) -> None:
-    widgets = []
+def build_dashboard_body(
+    doc: dict[str, Any],
+    *,
+    namespace: str,
+    env: str,
+    region: str,
+) -> dict[str, Any]:
+    """Build the dashboard widget document with env-dimension metric queries."""
+    widgets: list[dict[str, Any]] = []
     x = 0
     y = 0
     for index, widget in enumerate(doc["widgets"]):
@@ -134,7 +192,11 @@ def apply_dashboard(client, doc: dict[str, Any], namespace: str) -> None:
             continue
         metrics = []
         for metric_name in widget.get("metrics") or []:
-            metrics.append([namespace, metric_name])
+            # CloudWatch dashboard metric array: [ns, name, dimName, dimValue, ...]
+            entry: list[Any] = [namespace, metric_name]
+            for key in STABLE_DIMENSION_KEYS:
+                entry.extend([key, env])
+            metrics.append(entry)
         body = {
             "type": "metric",
             "x": x,
@@ -145,7 +207,7 @@ def apply_dashboard(client, doc: dict[str, Any], namespace: str) -> None:
                 "title": widget.get("title") or f"Widget {index}",
                 "view": "timeSeries",
                 "stacked": False,
-                "region": client.meta.region_name,
+                "region": region,
                 "stat": widget.get("stat") or "Sum",
                 "period": int(widget.get("periodSeconds") or 60),
                 "metrics": metrics,
@@ -156,40 +218,53 @@ def apply_dashboard(client, doc: dict[str, Any], namespace: str) -> None:
         if x >= 24:
             x = 0
             y += height
+    return {"widgets": widgets}
+
+
+def _cloudwatch_client(region: str):
+    import boto3
+
+    return boto3.client("cloudwatch", region_name=region)
+
+
+def apply_dashboard(
+    client,
+    doc: dict[str, Any],
+    *,
+    namespace: str,
+    env: str,
+) -> dict[str, Any]:
+    body = build_dashboard_body(
+        doc,
+        namespace=namespace,
+        env=env,
+        region=client.meta.region_name,
+    )
     client.put_dashboard(
         DashboardName=doc["dashboardName"],
-        DashboardBody=json.dumps({"widgets": widgets}),
+        DashboardBody=json.dumps(body),
     )
+    return body
 
 
 def apply_alarms(
     client,
     doc: dict[str, Any],
     *,
+    env: str,
     alarm_actions: list[str],
-) -> list[str]:
-    applied: list[str] = []
+) -> list[dict[str, Any]]:
+    applied: list[dict[str, Any]] = []
     namespace = doc["namespace"]
     for alarm in doc["alarms"]:
-        kwargs: dict[str, Any] = {
-            "AlarmName": alarm["alarmName"],
-            "AlarmDescription": alarm.get("description") or "",
-            "Namespace": namespace,
-            "MetricName": alarm["metricName"],
-            "Statistic": alarm.get("statistic") or "Sum",
-            "Period": int(alarm["periodSeconds"]),
-            "EvaluationPeriods": int(alarm["evaluationPeriods"]),
-            "DatapointsToAlarm": int(alarm["datapointsToAlarm"]),
-            "Threshold": float(alarm["threshold"]),
-            "ComparisonOperator": alarm["comparisonOperator"],
-            "TreatMissingData": alarm.get("treatMissingData") or "notBreaching",
-            "ActionsEnabled": bool(alarm_actions),
-        }
-        if alarm_actions:
-            kwargs["AlarmActions"] = alarm_actions
-            kwargs["OKActions"] = alarm_actions
+        kwargs = build_alarm_put_kwargs(
+            alarm,
+            namespace=namespace,
+            env=env,
+            alarm_actions=alarm_actions,
+        )
         client.put_metric_alarm(**kwargs)
-        applied.append(alarm["alarmName"])
+        applied.append(kwargs)
     return applied
 
 
@@ -206,6 +281,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--alarm-actions",
         default=os.getenv("OBSERVABILITY_ALARM_ACTIONS", ""),
         help="Comma-separated SNS ARNs for alarm notifications.",
+    )
+    parser.add_argument(
+        "--env",
+        default="",
+        help="Environment dimension value (default: OBSERVABILITY_ENV / APP_ENV / production).",
     )
     parser.add_argument(
         "--region",
@@ -225,16 +305,36 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     alarms_doc = load_json(args.alarms)
     dashboard_doc = load_json(args.dashboard)
+    env = resolve_env_dimension(args.env)
     errors = validate_alarms(alarms_doc) + validate_dashboard(dashboard_doc)
+    preview_alarms = [
+        build_alarm_put_kwargs(
+            alarm,
+            namespace=alarms_doc.get("namespace") or "BaladiGuard",
+            env=env,
+            alarm_actions=["arn:aws:sns:us-east-1:0:preview"],
+        )
+        for alarm in (alarms_doc.get("alarms") or [])
+    ]
+    preview_dashboard = build_dashboard_body(
+        dashboard_doc,
+        namespace=alarms_doc.get("namespace") or "BaladiGuard",
+        env=env,
+        region=args.region,
+    )
     result: dict[str, Any] = {
         "ok": not errors,
         "errors": errors,
         "alarmsPath": str(args.alarms),
         "dashboardPath": str(args.dashboard),
         "apply": bool(args.apply),
+        "env": env,
+        "stableDimensionKeys": list(STABLE_DIMENSION_KEYS),
         "alarmCount": len(alarms_doc.get("alarms") or []),
         "widgetCount": len(dashboard_doc.get("widgets") or []),
         "appliedAlarms": [],
+        "previewAlarmPayloads": preview_alarms,
+        "previewDashboardBody": preview_dashboard,
     }
     if errors:
         print(json.dumps(result, indent=2))
@@ -256,8 +356,18 @@ def main(argv: list[str] | None = None) -> int:
                 args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
             return 1
         client = _cloudwatch_client(args.region)
-        apply_dashboard(client, dashboard_doc, alarms_doc["namespace"])
-        result["appliedAlarms"] = apply_alarms(client, alarms_doc, alarm_actions=actions)
+        result["appliedDashboardBody"] = apply_dashboard(
+            client,
+            dashboard_doc,
+            namespace=alarms_doc["namespace"],
+            env=env,
+        )
+        result["appliedAlarms"] = apply_alarms(
+            client,
+            alarms_doc,
+            env=env,
+            alarm_actions=actions,
+        )
         result["dashboardName"] = dashboard_doc["dashboardName"]
 
     print(json.dumps(result, indent=2))

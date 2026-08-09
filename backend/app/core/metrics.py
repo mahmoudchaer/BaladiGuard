@@ -1,4 +1,9 @@
-"""Low-cardinality metric events for CloudWatch filters / EMF (issue #185)."""
+"""Low-cardinality metric events for CloudWatch filters / EMF (issue #185).
+
+EMF CloudWatch series use a **stable** dimension set of ``env`` only so alarms
+and dashboards can select the same time series across deploys. High-cardinality
+context (path, version, outcome, …) stays on ``metric_event`` log lines.
+"""
 
 from __future__ import annotations
 
@@ -7,10 +12,15 @@ import logging
 import os
 import re
 import time
+from typing import Any
 
 from app.core.request_context import get_request_id
 
 logger = logging.getLogger("app.metrics")
+
+NAMESPACE = "BaladiGuard"
+# Alarm/dashboard selector — must match infra/observability/*.json + apply script.
+STABLE_EMF_DIMENSION_KEYS = ("env",)
 
 _UUID_RE = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
@@ -53,25 +63,35 @@ def normalize_path_group(path: str) -> str:
     return grouped
 
 
-# Keep EMF cardinality bounded. High-cardinality keys stay in metric_event logs only.
-_EMF_DIMENSION_KEYS = frozenset(
-    {
-        "env",
-        "version",
-        "method",
-        "status_class",
-        "kind",
-        "policy",
-        "operation",
-        "outcome",
-        "event",
-        "category",
-        "source",
-        "backend",
-        "error",
-        "code",
+def stable_emf_dimensions(*, env: str | None = None) -> dict[str, str]:
+    """Return the dimension map published into CloudWatch EMF / alarm selectors."""
+    return {"env": (env or _app_env())}
+
+
+def build_emf_record(
+    name: str,
+    *,
+    value: float,
+    unit: str,
+    env: str | None = None,
+    timestamp_ms: int | None = None,
+) -> dict[str, Any]:
+    """Build the EMF JSON object that CloudWatch agents parse from stdout."""
+    emf_dims = stable_emf_dimensions(env=env)
+    return {
+        "_aws": {
+            "Timestamp": int(timestamp_ms if timestamp_ms is not None else time.time() * 1000),
+            "CloudWatchMetrics": [
+                {
+                    "Namespace": NAMESPACE,
+                    "Dimensions": [list(STABLE_EMF_DIMENSION_KEYS)],
+                    "Metrics": [{"Name": name, "Unit": unit}],
+                }
+            ],
+        },
+        name: value,
+        **emf_dims,
     }
-)
 
 
 def emit_metric(
@@ -84,6 +104,8 @@ def emit_metric(
     """Emit a filter-friendly metric log line and optional CloudWatch EMF record."""
     dims = {key: str(dim_value)[:64] for key, dim_value in (dimensions or {}).items()}
     dims.setdefault("env", _app_env())
+    # Version stays in logs for triage; it is intentionally excluded from EMF
+    # identity so alarms do not need per-deploy selector updates.
     dims.setdefault("version", _app_version())
     request_id = get_request_id()
     dim_text = " ".join(f"{key}={dim_value}" for key, dim_value in sorted(dims.items()))
@@ -98,23 +120,7 @@ def emit_metric(
     )
     if not metrics_emf_enabled():
         return
-    emf_dims = {key: value for key, value in dims.items() if key in _EMF_DIMENSION_KEYS}
-    if not emf_dims:
-        emf_dims = {"env": dims["env"], "version": dims["version"]}
-    emf = {
-        "_aws": {
-            "Timestamp": int(time.time() * 1000),
-            "CloudWatchMetrics": [
-                {
-                    "Namespace": "BaladiGuard",
-                    "Dimensions": [sorted(emf_dims.keys())],
-                    "Metrics": [{"Name": name, "Unit": unit}],
-                }
-            ],
-        },
-        name: value,
-        **emf_dims,
-    }
+    emf = build_emf_record(name, value=value, unit=unit, env=dims["env"])
     # EMF must be a single JSON object on stdout for the CloudWatch agent.
     print(json.dumps(emf, default=str, ensure_ascii=True), flush=True)
 
