@@ -467,9 +467,13 @@ def run_drill(
         namespace=alarms_doc["namespace"],
         env=env,
     )
+    readiness_definition = next(
+        alarm for alarm in alarms_doc["alarms"] if alarm["alarmName"] == READINESS_ALARM
+    )
+    drill_alarms_doc = {**alarms_doc, "alarms": [readiness_definition]}
     applied = apply_alarms(
         client,
-        alarms_doc,
+        drill_alarms_doc,
         env=env,
         alarm_actions=actions,
     )
@@ -575,6 +579,12 @@ def run_drill(
     time.sleep(0.5 if not live else 2.0)
     ok_notifications = receive_notifications()
 
+    alarm_notifications = [
+        item for item in alarm_notifications if item.get("alarmName") == READINESS_ALARM
+    ]
+    ok_notifications = [
+        item for item in ok_notifications if item.get("alarmName") == READINESS_ALARM
+    ]
     delivery_states = [
         item.get("newStateValue")
         for item in (alarm_notifications + ok_notifications)
@@ -588,7 +598,7 @@ def run_drill(
     )
 
     preview = build_alarm_put_kwargs(
-        next(a for a in alarms_doc["alarms"] if a["alarmName"] == READINESS_ALARM),
+        readiness_definition,
         namespace=alarms_doc["namespace"],
         env=env,
         alarm_actions=actions,
