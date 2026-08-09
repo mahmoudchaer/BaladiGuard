@@ -201,12 +201,21 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
-        photo_upload_service.claim_for_ticket(
+        photo_claimed = photo_upload_service.claim_for_ticket(
             payload.image_object_key,
             owner_user_id=owner_user_id,
             ticket_id=ticket_id,
         )
-        self._store.save(stored_ticket)
+        try:
+            self._store.save(stored_ticket)
+        except Exception:
+            if photo_claimed:
+                photo_upload_service.rollback_ticket_claim(
+                    payload.image_object_key,
+                    owner_user_id=owner_user_id,
+                    ticket_id=ticket_id,
+                )
+            raise
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=None,

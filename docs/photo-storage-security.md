@@ -17,8 +17,12 @@ public bucket URL.
 - Objects are written with AES-256 server-side encryption and initially tagged
   `upload-state=orphan`.
 
-Ticket submission verifies the owner scope and S3 ownership tag, prevents reuse,
-and changes the object to `upload-state=linked`. Legacy keys created before this
+Ticket submission verifies the owner scope and S3 ownership tag, then acquires a
+conditional record in `photo-upload-claims`. That DynamoDB conditional write (or
+the locked in-memory equivalent) gives concurrent submissions exactly one
+winner before the object changes to `upload-state=linked`. If ticket persistence
+fails, the service restores the orphan tag and conditionally releases the claim,
+so the citizen can safely retry the same upload. Legacy keys created before this
 scheme remain readable for migration, but new uploads always use
 `reports/photos/v2/`.
 

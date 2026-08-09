@@ -13,6 +13,7 @@ def test_backup_scope_covers_persistent_mvp_data():
         "tickets",
         "users",
         "phone-claims",
+        "photo-upload-claims",
         "citizen-otp-challenges",
         "citizen-sessions",
         "staff-users",

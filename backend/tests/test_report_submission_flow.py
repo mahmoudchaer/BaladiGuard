@@ -1,5 +1,6 @@
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
+from app.services.complaints.ticket_service import ticket_service
 from app.services.uploads.photo_upload_service import photo_upload_service
 from tests.conftest import contribution_ready_auth_headers
 from tests.test_upload_report_photo import FakeS3Client, image_bytes, set_aws_env
@@ -147,3 +148,41 @@ def test_photo_can_only_be_attached_once(client, monkeypatch):
     assert first.status_code == 201
     assert second.status_code == 400
     assert second.json()["error"]["code"] == "PHOTO_ALREADY_USED"
+
+
+def test_ticket_save_failure_releases_photo_for_safe_retry(client, monkeypatch):
+    fake = FakeS3Client()
+    set_aws_env(monkeypatch)
+    monkeypatch.setattr(photo_upload_service, "_s3_client", fake)
+    headers = contribution_ready_auth_headers(phone="+96170111004")
+    uploaded = client.post(
+        "/v1/uploads/report-photo",
+        files={"file": ("photo.png", image_bytes(), "image/png")},
+        headers=headers,
+    )
+    key = uploaded.json()["imageObjectKey"]
+    real_save = ticket_service._store.save
+
+    def fail_save(*_: object, **__: object) -> None:
+        raise RuntimeError("ticket storage unavailable")
+
+    monkeypatch.setattr(ticket_service._store, "save", fail_save)
+    failed = client.post(
+        "/v1/tickets",
+        json={**TICKET_PAYLOAD, "imageObjectKey": key},
+        headers=headers,
+    )
+
+    assert failed.status_code == 500
+    assert fake.tags[key]["upload-state"] == "orphan"
+    assert "ticket-scope" not in fake.tags[key]
+    assert ticket_store.list() == []
+
+    monkeypatch.setattr(ticket_service._store, "save", real_save)
+    retried = client.post(
+        "/v1/tickets",
+        json={**TICKET_PAYLOAD, "imageObjectKey": key},
+        headers=headers,
+    )
+    assert retried.status_code == 201
+    assert fake.tags[key]["upload-state"] == "linked"

@@ -12,6 +12,9 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from app.config import get_settings
+from app.database.photo_claim_store import PhotoClaimStore
+
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 FORMAT_DETAILS = {
@@ -104,16 +107,28 @@ class PhotoUploadService:
             raise S3UploadError("Failed to upload image to storage.") from exc
         return storage_key
 
-    def claim_for_ticket(self, object_key: str, *, owner_user_id: str, ticket_id: str) -> None:
+    @staticmethod
+    def _get_claim_store() -> PhotoClaimStore:
+        if get_settings().use_dynamodb:
+            from app.database.dynamo_photo_claim_store import DynamoPhotoClaimStore
+
+            return DynamoPhotoClaimStore()
+        from app.database.memory_photo_claim import photo_claim_store
+
+        return photo_claim_store
+
+    def claim_for_ticket(self, object_key: str, *, owner_user_id: str, ticket_id: str) -> bool:
         """Bind a new v2 upload to its owner/ticket; legacy fixture keys are untouched."""
         if not object_key.startswith(f"{KEY_PREFIX}/"):
-            return
+            return False
         owner_scope = self.owner_scope(owner_user_id)
         if not object_key.startswith(f"{KEY_PREFIX}/{owner_scope}/"):
             raise InvalidUploadError(
                 code="PHOTO_NOT_OWNED",
                 message="The selected photo does not belong to this account.",
             )
+        claim_store = self._get_claim_store()
+        claim_acquired = False
         try:
             tags = (
                 self._get_s3_client()
@@ -131,6 +146,16 @@ class PhotoUploadService:
                     code="PHOTO_ALREADY_USED",
                     message="The selected photo is already attached to a report.",
                 )
+            claim_acquired = claim_store.claim(
+                object_key,
+                owner_scope=owner_scope,
+                ticket_id=ticket_id,
+            )
+            if not claim_acquired:
+                raise InvalidUploadError(
+                    code="PHOTO_ALREADY_USED",
+                    message="The selected photo is already attached to a report.",
+                )
             self._get_s3_client().put_object_tagging(
                 Bucket=self._get_bucket_name(),
                 Key=object_key,
@@ -140,19 +165,53 @@ class PhotoUploadService:
                         {"Key": "owner-scope", "Value": owner_scope},
                         {
                             "Key": "ticket-scope",
-                            "Value": hashlib.sha256(ticket_id.encode()).hexdigest()[:24],
+                            "Value": self.ticket_scope(ticket_id),
                         },
                     ]
                 },
             )
+            return True
         except InvalidUploadError:
             raise
         except (BotoCoreError, ClientError) as exc:
+            if claim_acquired:
+                claim_store.release(object_key, ticket_id=ticket_id)
             raise S3UploadError("Could not verify photo ownership.") from exc
+
+    def rollback_ticket_claim(
+        self,
+        object_key: str,
+        *,
+        owner_user_id: str,
+        ticket_id: str,
+    ) -> None:
+        """Restore the orphan state after ticket persistence fails."""
+        if not object_key.startswith(f"{KEY_PREFIX}/"):
+            return
+        owner_scope = self.owner_scope(owner_user_id)
+        try:
+            self._get_s3_client().put_object_tagging(
+                Bucket=self._get_bucket_name(),
+                Key=object_key,
+                Tagging={
+                    "TagSet": [
+                        {"Key": "upload-state", "Value": "orphan"},
+                        {"Key": "owner-scope", "Value": owner_scope},
+                    ]
+                },
+            )
+            if not self._get_claim_store().release(object_key, ticket_id=ticket_id):
+                raise S3UploadError("Could not release photo claim after ticket save failure.")
+        except (BotoCoreError, ClientError) as exc:
+            raise S3UploadError("Could not release photo claim after ticket save failure.") from exc
 
     @staticmethod
     def owner_scope(owner_user_id: str) -> str:
         return hashlib.sha256(owner_user_id.encode()).hexdigest()[:OWNER_SCOPE_LENGTH]
+
+    @staticmethod
+    def ticket_scope(ticket_id: str) -> str:
+        return hashlib.sha256(ticket_id.encode()).hexdigest()[:OWNER_SCOPE_LENGTH]
 
     @staticmethod
     def _sanitize_image(contents: bytes) -> SanitizedImage:

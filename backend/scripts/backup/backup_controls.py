@@ -21,6 +21,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "tickets",
     "users",
     "phone-claims",
+    "photo-upload-claims",
     "citizen-otp-challenges",
     "citizen-sessions",
     "staff-users",
