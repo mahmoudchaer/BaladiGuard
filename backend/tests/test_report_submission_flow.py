@@ -28,7 +28,10 @@ def test_upload_then_submit_report_flow(client, monkeypatch):
     upload_response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("pothole.jpg", b"image-bytes", "image/jpeg")},
-        headers={"X-Client-Version": "mobile-0.1.0"},
+        headers={
+            "X-Client-Version": "mobile-0.1.0",
+            **contribution_ready_auth_headers(),
+        },
     )
 
     assert upload_response.status_code == 200
@@ -87,6 +90,7 @@ def test_upload_failure_prevents_ticket_creation(client, monkeypatch):
     upload_response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("pothole.jpg", b"image-bytes", "image/jpeg")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert upload_response.status_code == 502

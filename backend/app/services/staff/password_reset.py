@@ -207,7 +207,7 @@ class StaffPasswordResetService:
 
         if challenge.attempt_count >= RESET_MAX_ATTEMPTS:
             raise StaffPasswordResetError(
-                "RATE_LIMITED",
+                "RATE_LIMIT_EXCEEDED",
                 "Too many reset attempts. Request a new code.",
                 status_code=429,
             )
@@ -223,7 +223,7 @@ class StaffPasswordResetService:
                 )
             if updated.attempt_count >= RESET_MAX_ATTEMPTS:
                 raise StaffPasswordResetError(
-                    "RATE_LIMITED",
+                    "RATE_LIMIT_EXCEEDED",
                     "Too many reset attempts. Request a new code.",
                     status_code=429,
                 )

@@ -70,7 +70,7 @@ service.
 
 ### Citizen OTP and session routes
 
-Implemented by issue #170 (except `GET /v1/citizen/tickets`, which remains planned for #174).
+Implemented by issues #170 and #174 (account history at `GET /v1/citizen/me/tickets`).
 
 | Route                               |                  Guest | Authenticated citizen | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ----------------------------------- | ---------------------: | --------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,7 +168,7 @@ a phone is not recoverable through email in the MVP; exceptional recovery requir
 approved design.
 
 Malformed phone/challenge input returns `400 VALIDATION_ERROR`. OTP request throttling and exhausted
-verification attempts return `429 RATE_LIMITED` (with `Retry-After` where known). An incorrect code
+verification attempts return `429 RATE_LIMIT_EXCEEDED` (with `Retry-After` where known). An incorrect code
 returns `400 INVALID_OTP`; an expired, consumed, or superseded challenge returns `400 OTP_EXPIRED`.
 These responses are deliberately account-neutral. A successful verify consumes the challenge in the
 same conditional operation that establishes its result so concurrent replay has at most one winner.
@@ -417,7 +417,7 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 | ----- | --------------- | ------------------------------------------------------------------- |
 | `400` | `RESET_INVALID` | Unknown username, wrong/consumed/superseded code, or inactive staff |
 | `400` | `RESET_EXPIRED` | Code past TTL                                                       |
-| `429` | `RATE_LIMITED`  | Too many confirm attempts on the challenge (or shared HTTP limit)   |
+| `429` | `RATE_LIMIT_EXCEEDED` | Too many confirm attempts on the challenge (or shared HTTP limit)   |
 
 ## Staff audit boundaries (issues #143 / #181)
 
@@ -1098,10 +1098,11 @@ This endpoint stores only the image file. It does not create or update a ticket 
 Shared HTTP rate limits apply with a stricter upload budget (`public-upload-report-photo`;
 default 10 / 60s) and return `429 RATE_LIMIT_EXCEEDED` with `Retry-After` when exceeded.
 
-### Auth (Sprint 6 target)
+### Auth
 
-Requires a contribution-ready citizen Bearer session because it creates a persistent report artifact.
-Missing authentication returns `401`; an incomplete citizen returns `403`. Enforcement is #194 work.
+Requires a contribution-ready citizen Bearer session (same gate as `POST /v1/tickets`, issues
+#173 / #194 / #53). Guests receive `401 UNAUTHORIZED`; authenticated citizens whose profile is
+not contribution-ready receive `403 CONTRIBUTION_PROFILE_REQUIRED`.
 
 ### Request body
 
@@ -1131,10 +1132,12 @@ Upload errors use the common error format.
 
 | Code                | Status | Meaning                                                   |
 | ------------------- | -----: | --------------------------------------------------------- |
-| `MISSING_FILE`      |    400 | No file was provided in the `file` field.                 |
-| `INVALID_FILE_TYPE` |    400 | File extension or content type is not allowed.            |
-| `FILE_TOO_LARGE`    |    400 | File is larger than `5MB`.                                |
-| `S3_UPLOAD_FAILED`  |    502 | The backend could not upload the file to project storage. |
+| `UNAUTHORIZED`                  |    401 | Missing, invalid, or expired citizen session.             |
+| `CONTRIBUTION_PROFILE_REQUIRED` |    403 | Session valid but profile is not contribution-ready.      |
+| `MISSING_FILE`                  |    400 | No file was provided in the `file` field.                 |
+| `INVALID_FILE_TYPE`             |    400 | File extension or content type is not allowed.            |
+| `FILE_TOO_LARGE`                |    400 | File is larger than `5MB`.                                |
+| `S3_UPLOAD_FAILED`              |    502 | The backend could not upload the file to project storage. |
 
 ## Error Format
 

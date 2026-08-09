@@ -125,6 +125,15 @@ def authenticated_test_client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
+def force_mock_notification_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep HTTP workflow tests on the mock adapter even if local `.env` sets real SES/SNS."""
+    monkeypatch.setenv("NOTIFICATION_ADAPTER", "mock")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()

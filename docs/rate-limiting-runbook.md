@@ -61,8 +61,9 @@ Retry-After: 42
 }
 ```
 
-Challenge-scoped citizen OTP attempt exhaustion may still use `RATE_LIMITED` from the auth
-contract; that is separate from this IP/edge HTTP limiter.
+Challenge-scoped citizen OTP and staff password-reset attempt exhaustion also use
+`RATE_LIMIT_EXCEEDED` (same client-facing code as the IP/edge HTTP limiter) so agents can
+treat all 429s uniformly.
 
 ## Observability
 
