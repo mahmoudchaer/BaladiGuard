@@ -190,6 +190,22 @@ def test_organic_ready_verdict_helper():
     assert organic_ready_verdict([1.0, 0.0]) == "INSUFFICIENT_DATA"
 
 
+def test_staging_evidence_masks_aws_account_ids():
+    from scripts.observability.staging_drill import mask_account_ids, sanitize_notification
+
+    arn = "arn:aws:sns:us-east-1:123456789012:baladiguard-staging-alerts"
+    assert mask_account_ids({"AlarmActions": [arn]}) == {
+        "AlarmActions": ["arn:aws:sns:us-east-1:****:baladiguard-staging-alerts"]
+    }
+    notice = sanitize_notification(
+        {
+            "Subject": f"Successfully executed action {arn}",
+            "AlarmName": "BaladiGuard-ReadinessFailure",
+        }
+    )
+    assert "123456789012" not in notice["subject"]
+
+
 def test_recovery_samples_are_scheduled_in_subsequent_clean_periods():
     now = datetime(2026, 8, 9, 12, 34, 40, tzinfo=UTC)
     failures = completed_period_sample_times(3, period_seconds=60, now=now)

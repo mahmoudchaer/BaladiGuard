@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -145,9 +146,20 @@ def sanitize_notification(payload: dict[str, Any] | str) -> dict[str, Any]:
     return {
         "alarmName": alarm_name,
         "newStateValue": new_state,
-        "newStateReason": str(reason)[:240],
-        "subject": payload.get("Subject"),
+        "newStateReason": mask_account_ids(str(reason)[:240]),
+        "subject": mask_account_ids(payload.get("Subject")),
     }
+
+
+def mask_account_ids(value: Any) -> Any:
+    """Mask 12-digit AWS account components in evidence strings or containers."""
+    if isinstance(value, str):
+        return re.sub(r"(?<=:)\d{12}(?=:)", "****", value)
+    if isinstance(value, list):
+        return [mask_account_ids(item) for item in value]
+    if isinstance(value, dict):
+        return {key: mask_account_ids(item) for key, item in value.items()}
+    return value
 
 
 def put_ready_samples(
@@ -280,6 +292,9 @@ def _cloudwatch_and_messaging(
                 MaxRecords=10,
             ).get("AlarmHistoryItems", [])
             for item in history:
+                history_summary = str(item.get("HistorySummary") or "")
+                if topic_arn not in history_summary:
+                    continue
                 data_raw = item.get("HistoryData") or "{}"
                 try:
                     data = json.loads(data_raw)
@@ -293,7 +308,7 @@ def _cloudwatch_and_messaging(
                         "newStateReason": str(
                             (data.get("newState") or {}).get("stateReason") or ""
                         )[:240],
-                        "subject": item.get("HistorySummary"),
+                        "subject": mask_account_ids(history_summary),
                         "source": "cloudwatch-alarm-history",
                     }
                 )
@@ -633,7 +648,7 @@ def run_drill(
         "appliedAlarmPolicy": observed_policy,
         "checkedInAlarmPolicy": expected_policy,
         "alarmPolicyMatchesCheckedIn": policy_matches,
-        "readinessAlarmPayload": preview,
+        "readinessAlarmPayload": mask_account_ids(preview),
         "dashboardMetricSample": dashboard_body["widgets"][0]["properties"]["metrics"][0],
         "organicEvaluation": {
             "description": (
