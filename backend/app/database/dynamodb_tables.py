@@ -235,6 +235,15 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        # Durable AI work queue. The deterministic jobId makes enqueue idempotent.
+        "suffix": "ai-processing-jobs",
+        "key_schema": [{"AttributeName": "jobId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "jobId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "duplicate-groups",
         "key_schema": [{"AttributeName": "duplicateGroupId", "KeyType": "HASH"}],
         "attribute_definitions": [

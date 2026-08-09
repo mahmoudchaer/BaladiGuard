@@ -32,6 +32,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "notification-deliveries",
     "notification-claims",
     "ai-outputs",
+    "ai-processing-jobs",
     "duplicate-groups",
     "municipalities",
     "departments",

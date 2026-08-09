@@ -1,5 +1,4 @@
 import logging
-import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -28,7 +27,6 @@ from app.core.logging import configure_logging
 from app.core.metrics import emit_metric, normalize_path_group, timed_metric
 from app.core.request_context import reset_request_id, set_request_id
 from app.core.upload_abuse import reject_upload_abuse_early
-from app.services.complaints.ticket_service import ticket_service
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +78,8 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     if not settings.use_dynamodb:
         ensure_demo_staff_accounts(settings=settings)
-    # A worker crash between the 201 response and the terminal AI status leaves
-    # tickets stuck in "pending"; sweep them off the request path at startup.
-    threading.Thread(
-        target=ticket_service.recover_pending_ai_tickets,
-        name="ai-pending-recovery",
-        daemon=True,
-    ).start()
+    # AI work is processed by ``python -m app.workers.ai_worker``. Keeping the
+    # worker outside the web process prevents API restarts from losing accepted work.
     # Continuous ReadyProbeSuccess publisher for CloudWatch alarms (issue #185).
     # Liveness stays on /health/live; this loop is independent of Docker HEALTHCHECK.
     from app.core.readiness_probe import (

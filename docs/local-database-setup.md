@@ -176,6 +176,31 @@ So yes: for a real run (not just CI), you still need DynamoDB Local up, migratio
 
 Issue #9 DynamoDB persistence is covered in `tests/test_submit_ticket_dynamodb.py` with moto (no Docker). Seed data is optional for submit/get-by-ID; migrations create the ticket tables required for persistence.
 
+## Durable AI worker
+
+Ticket submission persists the ticket with `aiProcessingStatus=pending` before
+returning `201`; that pending state is the durable outbox. The API then makes a
+best-effort idempotent write to `ai-processing-jobs`. If that second write is
+temporarily unavailable, the accepted response is unchanged (so clients do not
+retry and duplicate the report), and the worker recreates the missing job from
+the pending ticket on its next poll. AI calls do not run inside the API process.
+Start a separate deterministic local worker in another terminal:
+
+```bash
+make ai-worker
+```
+
+`make ai-worker-once` processes at most one available job and
+`make ai-worker-drain` processes all jobs whose backoff delay has elapsed. After
+a crash, the worker reconciles pending tickets, recovers expired claims, and
+continues. Exhausted jobs remain `dead_lettered` with a safe operator reason.
+Replay one after fixing the cause with:
+
+```bash
+cd backend
+python -m app.workers.ai_worker --replay ai:tkt_<ticket-id> --once
+```
+
 ## Verify setup
 
 1. Run `make db-migrate` — all tables should report as created or already existing.
