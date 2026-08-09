@@ -57,6 +57,11 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | AI classification / cleaning |
 | `LOCATION_PLACE_INDEX_NAME` | Production | empty → local index | Geocoding |
 | `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` | No | `300` | Integer ≥ 1 |
+| `AI_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
+| `AI_JOB_TIMEOUT_SECONDS` | No | `300` | Expired worker claims become eligible for recovery |
+| `AI_JOB_BACKOFF_BASE_SECONDS` | No | `5` | First retry delay; later retries double |
+| `AI_JOB_BACKOFF_MAX_SECONDS` | No | `300` | Upper bound for retry delay |
+| `AI_JOB_POLL_SECONDS` | No | `1` | Idle worker polling interval |
 | `DUPLICATE_DISTANCE_THRESHOLD_M` | No | `100` | Meters, ≥ 1 |
 | `DUPLICATE_MIN_SCORE` | No | `0.4` | 0..1 |
 | `DUPLICATE_SAME_CATEGORY_WEIGHT` | No | `1.0` | 0..1 |

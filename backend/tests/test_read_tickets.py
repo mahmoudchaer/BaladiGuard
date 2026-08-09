@@ -1,4 +1,5 @@
 from app.database.memory import ticket_store
+from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -11,6 +12,7 @@ def create_ticket(client, description: str = VALID_PAYLOAD["description"]) -> di
         headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
+    assert ai_job_queue.run_once().outcome == "succeeded"
     return response.json()
 
 

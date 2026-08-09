@@ -52,6 +52,19 @@ class Settings:
             self.ai_processing_claim_timeout_seconds = max(1, int(raw_claim_timeout))
         except ValueError:
             self.ai_processing_claim_timeout_seconds = 300
+        self.ai_job_max_attempts = self._int_setting("AI_JOB_MAX_ATTEMPTS", default=5, minimum=1)
+        self.ai_job_timeout_seconds = self._int_setting(
+            "AI_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.ai_job_backoff_base_seconds = self._int_setting(
+            "AI_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.ai_job_backoff_max_seconds = self._int_setting(
+            "AI_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
+        self.ai_job_poll_seconds = self._float_setting(
+            "AI_JOB_POLL_SECONDS", default=1.0, minimum=0.05
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",

@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
+from uuid import uuid4
 
 from app.config import get_settings
 from app.core.metrics import emit_metric
@@ -98,6 +99,10 @@ class StaffScopeForbiddenError(PermissionError):
 
 
 class PublicContentUpdateError(ValueError):
+    pass
+
+
+class AiProcessingClaimLostError(RuntimeError):
     pass
 
 
@@ -243,7 +248,7 @@ class TicketService:
             createdAt=created_at_iso,
         )
 
-    def process_ticket_ai(self, ticket_id: str) -> bool:
+    def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
         """Process one pending ticket without exposing failures to the submit request.
 
         Returns ``True`` when this call persisted a terminal AI status. Repeated or
@@ -258,7 +263,8 @@ class TicketService:
             if ticket_id in self._processing_ticket_ids:
                 return False
             claimed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-            ticket = self._store.claim_ai_processing(ticket_id, claimed_at)
+            active_claim_token = claim_token or uuid4().hex
+            ticket = self._store.claim_ai_processing(ticket_id, claimed_at, active_claim_token)
             if ticket is None:
                 return False
             self._processing_ticket_ids.add(ticket_id)
@@ -297,6 +303,7 @@ class TicketService:
                     priority=urgency.urgency_level,
                     aiProcessingStatus="failed" if processing_failed else "completed",
                 ),
+                claim_token=active_claim_token,
             )
             if processing_failed:
                 logger.warning(
@@ -322,6 +329,9 @@ class TicketService:
                     dimensions={"outcome": "completed"},
                 )
             return True
+        except AiProcessingClaimLostError:
+            logger.info("AI processing claim was superseded ticket_id=%s", ticket_id)
+            return False
         except Exception as exc:
             logger.error(
                 "AI processing failed for ticket %s (%s).",
@@ -342,6 +352,7 @@ class TicketService:
                         priority=urgency.urgency_level,
                         aiProcessingStatus="failed",
                     ),
+                    claim_token=active_claim_token,
                 )
             except Exception as persistence_exc:
                 logger.error(
@@ -572,6 +583,8 @@ class TicketService:
         self,
         ticket_id: str,
         payload: SaveTicketAiOutputRequest,
+        *,
+        claim_token: str | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
@@ -605,7 +618,12 @@ class TicketService:
         )
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
-        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        if claim_token is not None:
+            updated_ticket = self._store.patch_ai_fields(ticket_id, claim_token, update_fields)
+            if updated_ticket is None:
+                raise AiProcessingClaimLostError(ticket_id)
+        else:
+            updated_ticket = self._store.patch_fields(ticket_id, update_fields)
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
         return self._map_ticket(updated_ticket)
