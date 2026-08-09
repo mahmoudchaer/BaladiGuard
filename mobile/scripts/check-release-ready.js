@@ -89,13 +89,7 @@ if (!fs.existsSync(path.join(root, '..', 'docs', 'mobile-release.md'))) {
   errors.push('Missing docs/mobile-release.md release runbook.');
 }
 
-const configSourcePath = requireFile('app.config.ts');
-if (configSourcePath) {
-  const source = fs.readFileSync(configSourcePath, 'utf8');
-  if (!source.includes('microphonePermission: false')) {
-    errors.push('app.config.ts must set expo-image-picker microphonePermission: false.');
-  }
-}
+requireFile('app.config.ts');
 
 const configSourceRuntime = requireFile('src/services/config.ts');
 if (configSourceRuntime) {
@@ -116,12 +110,13 @@ if (configSourceRuntime) {
   }
 }
 
-// Resolved Expo config (catches plugin/permission drift beyond source tokens).
+// Introspected Expo config applies config plugins and exposes the generated
+// native manifest, catching permission drift beyond source tokens.
 try {
   if (!fs.existsSync(expoCli)) {
     throw new Error('expo CLI missing — run npm ci in mobile/');
   }
-  const resolvedResult = runNodeScript(expoCli, ['config', '--json', '--type', 'public']);
+  const resolvedResult = runNodeScript(expoCli, ['config', '--json', '--type', 'introspect']);
   if (resolvedResult.status !== 0) {
     throw new Error(
       (resolvedResult.stderr || resolvedResult.stdout || 'expo config failed').trim(),
@@ -162,6 +157,18 @@ try {
     errors.push(
       'Resolved Expo config must set expo-image-picker.microphonePermission=false (no RECORD_AUDIO).',
     );
+  }
+  const manifest = resolved._internal?.modResults?.android?.manifest?.manifest;
+  const usesPermissions = manifest?.['uses-permission'] || [];
+  const activeRecordAudio = usesPermissions.some((permission) => {
+    const attributes = permission?.$ || {};
+    return (
+      attributes['android:name'] === 'android.permission.RECORD_AUDIO' &&
+      attributes['tools:node'] !== 'remove'
+    );
+  });
+  if (activeRecordAudio) {
+    errors.push('Generated Android manifest must not request android.permission.RECORD_AUDIO.');
   }
 } catch (error) {
   errors.push(`Failed to resolve Expo config: ${error.message || error}`);
