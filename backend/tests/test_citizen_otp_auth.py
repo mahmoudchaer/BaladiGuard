@@ -241,7 +241,7 @@ def test_attempt_limit_returns_rate_limited(anonymous_client: TestClient) -> Non
         code="000000",
     )
     assert status == 429
-    assert body["error"]["code"] == "RATE_LIMITED"
+    assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
 
 
 def test_concurrent_verify_has_single_winner(anonymous_client: TestClient) -> None:

@@ -1,6 +1,8 @@
 from botocore.exceptions import ClientError
 
+from app.services.citizens.service import citizen_service
 from app.services.uploads.photo_upload_service import photo_upload_service
+from tests.conftest import contribution_ready_auth_headers
 
 
 def set_aws_env(monkeypatch):
@@ -32,6 +34,7 @@ def test_upload_report_photo_success(client, monkeypatch):
     response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("pothole.png", b"image-bytes", "image/png")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert response.status_code == 200
@@ -47,8 +50,42 @@ def test_upload_report_photo_success(client, monkeypatch):
     assert call["ContentType"] == "image/png"
 
 
+def test_upload_report_photo_requires_auth(client, monkeypatch):
+    set_aws_env(monkeypatch)
+    monkeypatch.setattr(photo_upload_service, "_s3_client", FakeS3Client())
+
+    response = client.post(
+        "/v1/uploads/report-photo",
+        files={"file": ("pothole.png", b"image-bytes", "image/png")},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_upload_report_photo_rejects_incomplete_profile(client, monkeypatch):
+    set_aws_env(monkeypatch)
+    monkeypatch.setattr(photo_upload_service, "_s3_client", FakeS3Client())
+    # Phone-only account: authenticated but not contribution-ready.
+    user = citizen_service.create_citizen(phone="+96170999888")
+    token = citizen_service.issue_session(user.user_id)
+
+    response = client.post(
+        "/v1/uploads/report-photo",
+        files={"file": ("pothole.png", b"image-bytes", "image/png")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "CONTRIBUTION_PROFILE_REQUIRED"
+
+
 def test_upload_report_photo_rejects_missing_file(client):
-    response = client.post("/v1/uploads/report-photo", files={})
+    response = client.post(
+        "/v1/uploads/report-photo",
+        files={},
+        headers=contribution_ready_auth_headers(),
+    )
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "MISSING_FILE"
@@ -58,6 +95,7 @@ def test_upload_report_photo_rejects_invalid_file_type(client):
     response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("notes.txt", b"not-an-image", "text/plain")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert response.status_code == 400
@@ -68,6 +106,7 @@ def test_upload_report_photo_rejects_invalid_content_type(client):
     response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("fake.jpg", b"not-an-image", "text/plain")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert response.status_code == 400
@@ -78,6 +117,7 @@ def test_upload_report_photo_rejects_large_file(client):
     response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("large.jpg", b"x" * (5 * 1024 * 1024 + 1), "image/jpeg")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert response.status_code == 400
@@ -91,6 +131,7 @@ def test_upload_report_photo_handles_s3_upload_failure(client, monkeypatch):
     response = client.post(
         "/v1/uploads/report-photo",
         files={"file": ("pothole.webp", b"image-bytes", "image/webp")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert response.status_code == 502
