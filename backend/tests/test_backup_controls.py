@@ -4,6 +4,7 @@ from scripts.backup.backup_controls import (
     DEFAULT_TABLE_SUFFIXES,
     _merged_s3_lifecycle,
     _s3_lifecycle,
+    apply,
 )
 
 
@@ -33,6 +34,10 @@ def test_photo_lifecycle_retains_noncurrent_versions_and_aborts_multipart_upload
     assert rule["Filter"]["Prefix"] == "reports/photos/"
     assert rule["NoncurrentVersionExpiration"]["NoncurrentDays"] == 90
     assert rule["AbortIncompleteMultipartUpload"]["DaysAfterInitiation"] == 7
+    orphan = _s3_lifecycle()["Rules"][1]
+    assert orphan["ID"] == "OrphanReportPhotoCleanup"
+    assert orphan["Filter"]["And"]["Tags"] == [{"Key": "upload-state", "Value": "orphan"}]
+    assert orphan["Expiration"]["Days"] == 2
 
 
 def test_photo_lifecycle_upsert_preserves_unrelated_rules():
@@ -45,6 +50,7 @@ def test_photo_lifecycle_upsert_preserves_unrelated_rules():
     assert [rule["ID"] for rule in merged["Rules"]] == [
         "KeepLogCleanup",
         "ReportPhotoVersionRetention",
+        "OrphanReportPhotoCleanup",
     ]
     assert merged["Rules"][1]["Status"] == "Enabled"
 
@@ -54,3 +60,35 @@ def test_photo_lifecycle_health_requires_expected_rule():
     assert rule["ID"] == "ReportPhotoVersionRetention"
     assert rule["Filter"]["Prefix"] == "reports/photos/"
     assert rule["NoncurrentVersionExpiration"]["NoncurrentDays"] == 90
+
+
+def test_apply_enforces_encryption_and_complete_public_access_block():
+    class Dynamo:
+        pass
+
+    class S3:
+        def __init__(self):
+            self.encryption = None
+            self.public = None
+
+        def put_bucket_versioning(self, **kwargs):
+            pass
+
+        def put_bucket_encryption(self, **kwargs):
+            self.encryption = kwargs["ServerSideEncryptionConfiguration"]
+
+        def put_public_access_block(self, **kwargs):
+            self.public = kwargs["PublicAccessBlockConfiguration"]
+
+        def get_bucket_lifecycle_configuration(self, **kwargs):
+            return {"Rules": []}
+
+        def put_bucket_lifecycle_configuration(self, **kwargs):
+            pass
+
+    s3 = S3()
+    apply(Dynamo(), s3, {"dynamodb": []}, "private-reports")
+    assert s3.encryption["Rules"][0]["ApplyServerSideEncryptionByDefault"] == {
+        "SSEAlgorithm": "AES256"
+    }
+    assert all(s3.public.values())

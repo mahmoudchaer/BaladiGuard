@@ -46,8 +46,12 @@ def build_image_url(object_key: str) -> str | None:
     try:
         return get_s3_client().generate_presigned_url(
             "get_object",
-            Params={"Bucket": settings.aws_s3_bucket, "Key": object_key},
-            ExpiresIn=3600,
+            Params={
+                "Bucket": settings.aws_s3_bucket,
+                "Key": object_key,
+                "ResponseContentDisposition": "inline",
+            },
+            ExpiresIn=settings.s3_presigned_url_ttl_seconds,
         )
     except (BotoCoreError, ClientError):
         return None
