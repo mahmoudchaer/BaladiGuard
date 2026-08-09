@@ -107,20 +107,26 @@ python scripts/observability/staging_drill.py --live --env staging \
   --output infra/observability/evidence/staging-drill-live.json
 ```
 
-The drill records **two separate proofs** in one JSON artifact:
+The drill records **three separate proofs** in one JSON artifact:
 
 1. **`organicEvaluation`** — publishes `ReadyProbeSuccess` samples and applies the
    same Minimum&lt;1 / 3-datapoint rule as `BaladiGuard-ReadinessFailure`. With
    `--organic-wait-seconds` in live mode, also polls CloudWatch until the alarm
-   itself enters ALARM from those metrics (not from `SetAlarmState`).
-2. **`snsDelivery`** — forces ALARM→OK via `SetAlarmState` so AlarmActions fire,
-   then records sanitized notification / alarm-history payloads proving the ops
-   SNS topic received both states.
+   itself enters ALARM from those metrics (not from `SetAlarmState`). After the
+   delivery section it publishes **recovery samples** and requires an organic OK
+   so failure datapoints cannot re-page staging.
+2. **`snsDelivery`** — forces ALARM→OK via `SetAlarmState` (or CloudWatch-driven
+   actions in the live TreatMissingData path) so AlarmActions fire, then records
+   sanitized notification / alarm-history payloads proving the ops topic received
+   both states.
+3. **Recovery** — `recoveryVerified` must be true before `evidence.ok` is true.
+
+Checked-in live evidence: `infra/observability/evidence/staging-drill-live.json`
+(CloudWatch evaluated ALARM/OK and SNS delivered both notifications).
 
 CI runs the same drill in **simulated** (moto) mode: organic verdicts from
-samples + SNS→SQS capture of CloudWatch-shaped ALARM/OK messages. Commit or
-attach the **live** evidence JSON (plus a redacted team-channel screenshot) in
-the ops evidence store before production cutover.
+samples + SNS→SQS capture of CloudWatch-shaped ALARM/OK messages + recovery
+samples.
 
 Manual supplements:
 

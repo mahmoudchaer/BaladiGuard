@@ -31,8 +31,9 @@ _SENSITIVE_ASSIGN_KEY = (
     r"otp|credential|access[_-]?token|refresh[_-]?token|session"
 )
 
-# Authorization: Bearer|Basic|Digest <credential>
-_AUTH_HEADER_RE = re.compile(r"(?i)\b(authorization\s*[:=]\s*)?(bearer|basic|digest)\s+(\S+)")
+# Bearer/Basic: single credential token. Digest: full parameter list (may include spaces).
+_AUTH_BEARER_BASIC_RE = re.compile(r"(?i)\b(authorization\s*[:=]\s*)?(bearer|basic)\s+(\S+)")
+_AUTH_DIGEST_RE = re.compile(r"(?i)\b(authorization\s*[:=]\s*)?(digest)\s+([^\n]+)")
 
 # key="quoted value" / key='quoted value'
 _QUOTED_ASSIGN_RE = re.compile(
@@ -67,7 +68,9 @@ def redact_text(text: str) -> str:
         scheme = match.group(2)
         return f"{prefix}{scheme} {_REDACTED}"
 
-    scrubbed = _AUTH_HEADER_RE.sub(_auth_repl, text)
+    # Digest first so its comma-separated params are not truncated to one token.
+    scrubbed = _AUTH_DIGEST_RE.sub(_auth_repl, text)
+    scrubbed = _AUTH_BEARER_BASIC_RE.sub(_auth_repl, scrubbed)
     scrubbed = _QUOTED_ASSIGN_RE.sub(lambda match: f"{match.group(1)}={_REDACTED}", scrubbed)
     scrubbed = _UNQUOTED_ASSIGN_RE.sub(lambda match: f"{match.group(1)}={_REDACTED}", scrubbed)
     return scrubbed

@@ -428,12 +428,27 @@ def run_drill(
     publish_alarm_notice("OK", ok_reason)
     time.sleep(0.5 if not live else 2.0)
     ok_notifications = receive_notifications()
-    # Restore OK again if anything still pending.
-    client.set_alarm_state(
-        AlarmName=READINESS_ALARM,
-        StateValue="OK",
-        StateReason="Staging drill complete; restored to OK",
-    )
+
+    # --- Organic recovery (overwrite failure samples so staging does not re-page) ---
+    recovery_samples = [1.0, 1.0, 1.0]
+    put_ready_samples(client, env=env, values=recovery_samples)
+    organic_recovery = organic_ready_verdict(recovery_samples)
+    cloudwatch_recovery = None
+    if live and organic_wait_seconds > 0:
+        cloudwatch_recovery = wait_for_cloudwatch_state(
+            client,
+            desired="OK",
+            timeout_seconds=organic_wait_seconds,
+        )
+    else:
+        # Simulated / no-wait: restore forced OK after recovery samples are published.
+        client.set_alarm_state(
+            AlarmName=READINESS_ALARM,
+            StateValue="OK",
+            StateReason=(
+                "Staging drill complete; recovery samples published and state restored to OK"
+            ),
+        )
 
     delivery_states = [
         item.get("newStateValue")
@@ -454,12 +469,14 @@ def run_drill(
         alarm_actions=actions,
     )
 
-    organic_ok = organic_healthy == "OK" and organic_failure == "ALARM"
+    organic_ok = organic_healthy == "OK" and organic_failure == "ALARM" and organic_recovery == "OK"
     if live and organic_wait_seconds > 0:
         organic_ok = (
             organic_ok
             and bool(cloudwatch_failure)
             and cloudwatch_failure.get("StateValue") == "ALARM"
+            and bool(cloudwatch_recovery)
+            and cloudwatch_recovery.get("StateValue") == "OK"
         )
 
     topic_name = topic_arn.split(":")[-1] if topic_arn else None
@@ -478,17 +495,25 @@ def run_drill(
         "organicEvaluation": {
             "description": (
                 "Metric-driven readiness verdict using the same Minimum<1 / 3-datapoint "
-                "rule as BaladiGuard-ReadinessFailure. Separate from SetAlarmState."
+                "rule as BaladiGuard-ReadinessFailure. Separate from SetAlarmState. "
+                "Includes post-drill recovery samples so failure datapoints do not re-page."
             ),
             "healthySamples": healthy_samples,
             "failureSamples": failure_samples,
+            "recoverySamples": recovery_samples,
             "healthyVerdict": organic_healthy,
             "failureVerdict": organic_failure,
+            "recoveryVerdict": organic_recovery,
             "cloudwatchHealthyState": (cloudwatch_healthy or {}).get("StateValue"),
             "cloudwatchFailureState": (cloudwatch_failure or {}).get("StateValue"),
             "cloudwatchFailureReason": str((cloudwatch_failure or {}).get("StateReason") or "")[
                 :240
             ],
+            "cloudwatchRecoveryState": (cloudwatch_recovery or {}).get("StateValue"),
+            "cloudwatchRecoveryReason": str((cloudwatch_recovery or {}).get("StateReason") or "")[
+                :240
+            ],
+            "recoveryVerified": organic_recovery == "OK",
         },
         "snsDelivery": {
             "description": (
@@ -508,7 +533,10 @@ def run_drill(
         + [
             "EMF publish dimensions are env-only (see app.core.metrics.build_emf_record).",
             "In-process readiness publisher emits ReadyProbeSuccess continuously.",
-            "Organic evaluation and SNS delivery are recorded as separate proofs.",
+            (
+                "Organic evaluation, SNS delivery, and organic recovery are recorded "
+                "as separate proofs."
+            ),
         ],
     }
     return evidence

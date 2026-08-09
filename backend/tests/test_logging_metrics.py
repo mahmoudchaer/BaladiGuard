@@ -57,6 +57,14 @@ def test_redact_text_masks_quoted_spaced_and_auth_credentials():
     assert "secret-value" not in bearer
     assert "Bearer [REDACTED]" in bearer
 
+    digest = redact_text(
+        'Authorization: Digest username="Mufasa", realm="test", nonce="abc", response="deadbeef"'
+    )
+    assert "Mufasa" not in digest
+    assert "deadbeef" not in digest
+    assert "realm" not in digest
+    assert "Digest [REDACTED]" in digest
+
 
 def test_json_log_formatter_redacts_message_args_and_exception(monkeypatch):
     monkeypatch.setenv("APP_VERSION", "1.2.3-test")

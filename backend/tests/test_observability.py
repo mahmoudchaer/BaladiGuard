@@ -147,6 +147,8 @@ def test_staging_drill_separates_organic_evaluation_and_sns_delivery(tmp_path):
     assert evidence["mode"] == "simulated"
     assert evidence["organicEvaluation"]["healthyVerdict"] == "OK"
     assert evidence["organicEvaluation"]["failureVerdict"] == "ALARM"
+    assert evidence["organicEvaluation"]["recoveryVerdict"] == "OK"
+    assert evidence["organicEvaluation"]["recoveryVerified"] is True
     assert evidence["snsDelivery"]["deliveryConfirmed"] is True
     states = {
         item.get("newStateValue")

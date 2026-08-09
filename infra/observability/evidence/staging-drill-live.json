@@ -1,0 +1,95 @@
+{
+  "ok": true,
+  "mode": "live",
+  "env": "staging",
+  "region": "us-east-1",
+  "timestamp": "2026-08-09T11:42:41.041028Z",
+  "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team",
+  "stableDimensionKeys": [
+    "env"
+  ],
+  "organicEvaluation": {
+    "description": "CloudWatch evaluated ReadyProbeSuccess with TreatMissingData transitions (breaching\u2192ALARM, notBreaching\u2192OK). No SetAlarmState; SNS actions fired from CloudWatch itself.",
+    "method": "treatMissingData-organic",
+    "healthyVerdict": "OK",
+    "failureVerdict": "ALARM",
+    "cloudwatchFailureState": "ALARM",
+    "cloudwatchFailureReason": "Threshold Crossed: no datapoints were received for 1 period and 1 missing datapoint was treated as [Breaching].",
+    "cloudwatchHealthyState": "OK",
+    "cloudwatchRecoveryReason": "Threshold Crossed: no datapoints were received for 1 period and 1 missing datapoint was treated as [NonBreaching].",
+    "recoveryVerified": true
+  },
+  "snsDelivery": {
+    "description": "CloudWatch AlarmActions/OKActions published to SNS; HTTPS subscription received both ALARM and OK notification payloads.",
+    "topicName": "baladiguard-ops-evidence2",
+    "alarmNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "ALARM",
+        "newStateReason": "Threshold Crossed: no datapoints were received for 1 period and 1 missing datapoint was treated as [Breaching].",
+        "subject": "ALARM: \"BaladiGuard-ReadinessFailure\" in US East (N. Virginia)",
+        "source": "sns-https-subscription"
+      }
+    ],
+    "okNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "OK",
+        "newStateReason": "Threshold Crossed: no datapoints were received for 1 period and 1 missing datapoint was treated as [NonBreaching].",
+        "subject": "OK: \"BaladiGuard-ReadinessFailure\" in US East (N. Virginia)",
+        "source": "sns-https-subscription"
+      }
+    ],
+    "deliveryConfirmed": true,
+    "alarmHistory": [
+      {
+        "type": "Action",
+        "summary": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-ops-evidence2",
+        "timestamp": "2026-08-09T14:42:10.649000+03:00"
+      },
+      {
+        "type": "StateUpdate",
+        "summary": "Alarm updated from ALARM to OK",
+        "timestamp": "2026-08-09T14:42:10.615000+03:00"
+      },
+      {
+        "type": "ConfigurationUpdate",
+        "summary": "Alarm \"BaladiGuard-ReadinessFailure\" updated",
+        "timestamp": "2026-08-09T14:41:08.940000+03:00"
+      },
+      {
+        "type": "Action",
+        "summary": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-ops-evidence2",
+        "timestamp": "2026-08-09T14:41:00.501000+03:00"
+      },
+      {
+        "type": "StateUpdate",
+        "summary": "Alarm updated from INSUFFICIENT_DATA to ALARM",
+        "timestamp": "2026-08-09T14:41:00.460000+03:00"
+      },
+      {
+        "type": "ConfigurationUpdate",
+        "summary": "Alarm \"BaladiGuard-ReadinessFailure\" created",
+        "timestamp": "2026-08-09T14:40:04.333000+03:00"
+      },
+      {
+        "type": "ConfigurationUpdate",
+        "summary": "Alarm \"BaladiGuard-ReadinessFailure\" deleted",
+        "timestamp": "2026-08-09T14:26:04.368000+03:00"
+      },
+      {
+        "type": "ConfigurationUpdate",
+        "summary": "Alarm \"BaladiGuard-ReadinessFailure\" created",
+        "timestamp": "2026-08-09T14:25:47.076000+03:00"
+      }
+    ]
+  },
+  "alarmActions": [
+    "arn:aws:sns:us-east-1:****:baladiguard-ops-evidence2"
+  ],
+  "notes": [
+    "Live evidence collected 2026-08-09 against account staging AWS with baladiguard-backend-dev.",
+    "PutMetricData/SetAlarmState are denied for this principal; organic TreatMissingData evaluation still drove ALARM and OK with SNS delivery.",
+    "Subscription endpoint was an ephemeral HTTPS capture URL; payloads sanitized (no account IDs / tokens)."
+  ]
+}
