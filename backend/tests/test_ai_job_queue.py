@@ -2,6 +2,7 @@ from app.config import Settings
 from app.database.dynamo_ai_job_store import DynamoAiJobStore
 from app.database.memory import ticket_store
 from app.database.memory_ai_job import InMemoryAiJobStore, ai_job_id
+from app.database.store_factory import get_ai_job_store
 from app.schemas.ticket import ReportContact, SubmitTicketRequest
 from app.services.ai_job_queue import AiJobQueue
 from app.services.ai_job_queue import ai_job_queue as api_ai_job_queue
@@ -170,7 +171,9 @@ def test_dynamo_job_claim_retry_stale_recovery_and_replay(dynamodb_settings: Set
     assert store.get(job.job_id).status == "queued"  # type: ignore[union-attr]
 
 
-def test_api_does_not_report_success_when_durable_enqueue_fails(client, monkeypatch):
+def test_api_accepts_ticket_once_and_worker_recovers_failed_enqueue(client, monkeypatch):
+    real_enqueue = api_ai_job_queue.enqueue
+
     def fail_enqueue(*_: object, **__: object) -> None:
         raise RuntimeError("storage unavailable")
 
@@ -181,6 +184,13 @@ def test_api_does_not_report_success_when_durable_enqueue_fails(client, monkeypa
         headers=contribution_ready_auth_headers(),
     )
 
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "AI_SCHEDULING_FAILED"
+    assert response.status_code == 201
+    assert len(ticket_store.list()) == 1
+
+    monkeypatch.setattr(api_ai_job_queue, "enqueue", real_enqueue)
+    ticket_id = response.json()["ticketId"]
+    ai_job_store = get_ai_job_store()
+    assert ai_job_store.get(ai_job_id(ticket_id)) is None
+    assert api_ai_job_queue.run_once(now=100).outcome == "succeeded"
+    assert ai_job_store.get(ai_job_id(ticket_id)) is not None
     assert len(ticket_store.list()) == 1

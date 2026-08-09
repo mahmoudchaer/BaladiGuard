@@ -178,9 +178,13 @@ Issue #9 DynamoDB persistence is covered in `tests/test_submit_ticket_dynamodb.p
 
 ## Durable AI worker
 
-Ticket submission saves both the ticket and an idempotent row in
-`ai-processing-jobs` before returning `201`. AI calls do not run inside the API
-process. Start a separate deterministic local worker in another terminal:
+Ticket submission persists the ticket with `aiProcessingStatus=pending` before
+returning `201`; that pending state is the durable outbox. The API then makes a
+best-effort idempotent write to `ai-processing-jobs`. If that second write is
+temporarily unavailable, the accepted response is unchanged (so clients do not
+retry and duplicate the report), and the worker recreates the missing job from
+the pending ticket on its next poll. AI calls do not run inside the API process.
+Start a separate deterministic local worker in another terminal:
 
 ```bash
 make ai-worker

@@ -62,6 +62,10 @@ class AiJobQueue:
 
     def run_once(self, *, now: int | None = None) -> WorkerResult:
         timestamp = now if now is not None else int(time.time())
+        # Pending tickets are the transactional outbox. Reconcile on every poll
+        # so a queue write that failed after ticket persistence is recovered
+        # without an API/client retry or a worker restart.
+        self.reconcile(now=timestamp)
         self.recover_stale(now=timestamp)
         settings = get_settings()
         job = self._jobs.claim_next(

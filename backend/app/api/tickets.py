@@ -67,16 +67,13 @@ def submit_ticket(
     try:
         ai_job_queue.enqueue(response.ticket_id)
     except Exception as exc:
-        logger.error(
-            "Could not durably enqueue AI job ticket_id=%s error=%s",
+        # The persisted pending ticket is the durable outbox record. Returning
+        # success prevents a client retry from creating a duplicate report;
+        # the worker reconciles pending tickets into queue rows on every poll.
+        logger.warning(
+            "AI queue write deferred to outbox reconciliation ticket_id=%s error=%s",
             response.ticket_id,
             type(exc).__name__,
-        )
-        return build_error_response(
-            code="AI_SCHEDULING_FAILED",
-            message="The report was saved, but processing could not be scheduled. Please retry.",
-            request_id=get_request_id(request),
-            status_code=503,
         )
     return response
 
