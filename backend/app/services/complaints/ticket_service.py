@@ -60,6 +60,7 @@ from app.services.duplicates import find_nearby_duplicates
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.routing import department_ids, suggest_department_id
+from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_audit_history_id,
@@ -205,7 +206,21 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
-        self._store.save(stored_ticket)
+        photo_claimed = photo_upload_service.claim_for_ticket(
+            payload.image_object_key,
+            owner_user_id=owner_user_id,
+            ticket_id=ticket_id,
+        )
+        try:
+            self._store.save(stored_ticket)
+        except Exception:
+            if photo_claimed:
+                photo_upload_service.rollback_ticket_claim(
+                    payload.image_object_key,
+                    owner_user_id=owner_user_id,
+                    ticket_id=ticket_id,
+                )
+            raise
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=None,

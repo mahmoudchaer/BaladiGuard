@@ -81,6 +81,14 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        "suffix": "photo-upload-claims",
+        "key_schema": [{"AttributeName": "objectKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "objectKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "citizen-otp-challenges",
         "key_schema": [{"AttributeName": "challengeId", "KeyType": "HASH"}],
         "attribute_definitions": [

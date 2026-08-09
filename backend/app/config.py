@@ -33,6 +33,9 @@ class Settings:
         self.database_backend = os.getenv("DATABASE_BACKEND", "memory").strip().lower()
         self.aws_region = os.getenv("AWS_REGION", "us-east-1").strip()
         self.aws_s3_bucket = os.getenv("AWS_S3_BUCKET", "").strip() or None
+        self.s3_presigned_url_ttl_seconds = self._int_setting(
+            "S3_PRESIGNED_URL_TTL_SECONDS", default=300, minimum=30
+        )
         endpoint = os.getenv("DYNAMODB_ENDPOINT_URL", "").strip()
         self.dynamodb_endpoint_url = endpoint or None
         self.dynamodb_table_prefix = os.getenv("DYNAMODB_TABLE_PREFIX", "baladiguard-").strip()

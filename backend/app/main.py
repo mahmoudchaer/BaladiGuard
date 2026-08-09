@@ -146,6 +146,34 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return _with_request_id_header(response, request_id)
 
 
+async def invalid_upload_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    code = getattr(exc, "code", "INVALID_UPLOAD")
+    message = getattr(exc, "message", "The selected photo is not valid.")
+    response = build_error_response(
+        code=code,
+        message=message,
+        request_id=get_request_id(request),
+        status_code=400,
+    )
+    return _with_request_id_header(response, get_request_id(request))
+
+
+async def s3_upload_exception_handler(
+    request: Request,
+    _: Exception,
+) -> JSONResponse:
+    response = build_error_response(
+        code="PHOTO_STORAGE_UNAVAILABLE",
+        message="The selected photo could not be verified. Please try again.",
+        request_id=get_request_id(request),
+        status_code=503,
+    )
+    return _with_request_id_header(response, get_request_id(request))
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     request_id = get_request_id(request)
     logger.exception(
@@ -242,8 +270,12 @@ def create_app() -> FastAPI:
         finally:
             reset_request_id(context_token)
 
+    from app.services.uploads.photo_upload_service import InvalidUploadError, S3UploadError
+
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(InvalidUploadError, invalid_upload_exception_handler)
+    app.add_exception_handler(S3UploadError, s3_upload_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health_router)
     app.include_router(staff_auth_router)

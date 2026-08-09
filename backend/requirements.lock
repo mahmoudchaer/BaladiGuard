@@ -15,6 +15,7 @@ httpx==0.28.1
 idna==3.18
 MarkupSafe==3.0.3
 packaging==26.2
+pillow==12.3.0
 pydantic==2.13.4
 pydantic_core==2.46.4
 python-dateutil==2.9.0.post0

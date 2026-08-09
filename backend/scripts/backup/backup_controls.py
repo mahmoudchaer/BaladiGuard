@@ -21,6 +21,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "tickets",
     "users",
     "phone-claims",
+    "photo-upload-claims",
     "citizen-otp-challenges",
     "citizen-sessions",
     "staff-users",
@@ -65,15 +66,27 @@ def _s3_lifecycle() -> dict[str, Any]:
                 "Filter": {"Prefix": "reports/photos/"},
                 "NoncurrentVersionExpiration": {"NoncurrentDays": 90},
                 "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7},
-            }
+            },
+            {
+                "ID": "OrphanReportPhotoCleanup",
+                "Status": "Enabled",
+                "Filter": {
+                    "And": {
+                        "Prefix": "reports/photos/v2/",
+                        "Tags": [{"Key": "upload-state", "Value": "orphan"}],
+                    }
+                },
+                "Expiration": {"Days": 2},
+            },
         ]
     }
 
 
 def _merged_s3_lifecycle(existing_rules: list[dict[str, Any]]) -> dict[str, Any]:
-    desired = _s3_lifecycle()["Rules"][0]
-    rules = [rule for rule in existing_rules if rule.get("ID") != desired["ID"]]
-    rules.append(desired)
+    desired = _s3_lifecycle()["Rules"]
+    desired_ids = {rule["ID"] for rule in desired}
+    rules = [rule for rule in existing_rules if rule.get("ID") not in desired_ids]
+    rules.extend(desired)
     return {"Rules": rules}
 
 
@@ -148,6 +161,12 @@ def audit(dynamodb, s3, prefix: str, bucket: str) -> dict[str, Any]:
                 and rule.get("NoncurrentVersionExpiration", {}).get("NoncurrentDays") == 90
                 for rule in lifecycle
             ),
+            "orphanPhotoLifecycle": any(
+                rule.get("ID") == "OrphanReportPhotoCleanup"
+                and rule.get("Status") == "Enabled"
+                and rule.get("Expiration", {}).get("Days") == 2
+                for rule in lifecycle
+            ),
         },
     }
 
@@ -212,7 +231,7 @@ def main() -> int:
     healthy = healthy and all(
         report["s3"][key] for key in ("versioning", "encryption", "publicAccessBlock")
     )
-    healthy = healthy and report["s3"]["photoLifecycle"]
+    healthy = healthy and report["s3"]["photoLifecycle"] and report["s3"]["orphanPhotoLifecycle"]
     return 0 if healthy else 2
 
 

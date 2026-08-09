@@ -50,6 +50,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `AWS_ACCESS_KEY_ID` | When not using instance role | — | boto3 / uploads |
 | `AWS_SECRET_ACCESS_KEY` | When not using instance role | — | Never commit |
 | `AWS_S3_BUCKET` | Production | — | Photo uploads |
+| `S3_PRESIGNED_URL_TTL_SECONDS` | No | `300` | Authorized photo URL lifetime; minimum 30 seconds |
 | `DYNAMODB_ENDPOINT_URL` | No | empty = AWS | `http://localhost:8001` for Docker Local only |
 | `DYNAMODB_TABLE_PREFIX` | No | `baladiguard-` | Table name prefix |
 | `SEED_SAMPLE_TICKETS` | No | `false` | Must be `false` in production |
