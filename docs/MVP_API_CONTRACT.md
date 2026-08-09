@@ -436,12 +436,63 @@ Administrator account mutations are available through
 
 ## Endpoints
 
+## `GET /health/live`
+
+Liveness probe. Returns `200` whenever the API process can answer. Does **not**
+check DynamoDB, S3, or configuration. Use for container `HEALTHCHECK` / kube
+liveness.
+
+### Response `200`
+
+```json
+{
+  "status": "live",
+  "service": "baladiguard-api",
+  "env": "local",
+  "version": "0.1.0"
+}
+```
+
+## `GET /health/ready`
+
+Readiness probe for load balancers and deploy gates. Returns `200` when the
+ticket store and configuration are OK; returns `503` with `"status": "not_ready"`
+otherwise. AI queue depth may be included for operators but does **not** fail
+readiness (backlog pages via metrics/alarms).
+
+### Response `200` / `503`
+
+```json
+{
+  "status": "ready",
+  "service": "baladiguard-api",
+  "env": "local",
+  "version": "0.1.0",
+  "database": {
+    "backend": "memory",
+    "status": "ok"
+  },
+  "config": {
+    "status": "ok",
+    "issues": []
+  },
+  "ai": {
+    "status": "ok",
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "source": "memory_store",
+    "backlogWarnThreshold": 25
+  }
+}
+```
+
 ## `GET /health`
 
-Returns API health status, including optional database connectivity.
-
-The process is considered up when this endpoint responds. Inspect `status` and
-`database.status` for dependency health (`ok` or `degraded` / `error`).
+Composite health for humans and demos. The process is considered up when this
+endpoint responds with HTTP `200`. Inspect `status` and dependency fields for
+`ok` / `degraded` / `error`. Deployment automation should prefer `/health/live`
+and `/health/ready`.
 
 ### Response `200`
 
@@ -450,16 +501,34 @@ The process is considered up when this endpoint responds. Inspect `status` and
   "status": "ok",
   "service": "baladiguard-api",
   "env": "local",
+  "version": "0.1.0",
   "database": {
     "backend": "memory",
     "status": "ok"
+  },
+  "config": {
+    "status": "ok",
+    "issues": []
+  },
+  "ai": {
+    "status": "ok",
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "source": "memory_store",
+    "backlogWarnThreshold": 25
+  },
+  "probes": {
+    "liveness": "/health/live",
+    "readiness": "/health/ready",
+    "composite": "/health"
   }
 }
 ```
 
 When DynamoDB is configured and unreachable, `status` is `degraded` and
-`database.status` is `error`, but the endpoint still returns `200` so basic
-liveness checks keep working.
+`database.status` is `error`, but `/health` still returns `200` so basic demos
+keep working. `/health/ready` returns `503` in that case.
 
 ## `POST /v1/tickets`
 

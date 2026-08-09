@@ -301,16 +301,23 @@ development-only defaults.
 5. Check backend health (local or deployed):
 
 ```bash
+curl http://localhost:8000/health/live
+curl http://localhost:8000/health/ready
 curl http://localhost:8000/health
 ```
 
-Expected shape:
+- `/health/live` — liveness (process up; container healthchecks)
+- `/health/ready` — readiness (`200` / `503` for load balancers)
+- `/health` — composite human/demo payload (always `200` when the process answers)
+
+Expected composite shape:
 
 ```json
 {
   "status": "ok",
   "service": "baladiguard-api",
   "env": "local",
+  "version": "0.1.0",
   "database": {
     "backend": "memory",
     "status": "ok"
@@ -322,15 +329,16 @@ Expected shape:
 }
 ```
 
-After deployment, use the same path on the public API host, for example
-`https://<your-api-host>/health`. A `200` response means the app process is up.
-If `status` is `degraded`, or `database.status` / `config.status` is `error`, the
-API is running but connectivity or configuration needs attention. Config issue
-messages never include secret values.
+After deployment, use the same paths on the public API host. Prefer
+`/health/live` and `/health/ready` for automation. If composite `/health`
+`status` is `degraded`, or `database.status` / `config.status` is `error`, the
+API process is up but connectivity or configuration needs attention. Config
+issue messages never include secret values. Production logging/metrics/alerts
+are documented in [`docs/production-observability.md`](docs/production-observability.md).
 
 Important request errors, AI processing failures, and notification emit failures are
-written to the backend logs (`LOG_LEVEL`, default `INFO`) and do not roll back a
-successful ticket create/update.
+written to the backend logs (`LOG_LEVEL`, default `INFO`; set `LOG_FORMAT=json`
+in deployed environments) and do not roll back a successful ticket create/update.
 
 6. Verify the real cloud path (S3 + DynamoDB + API):
 

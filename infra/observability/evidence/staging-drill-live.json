@@ -1,0 +1,190 @@
+{
+  "ok": true,
+  "mode": "live",
+  "env": "staging",
+  "region": "us-east-1",
+  "timestamp": "2026-08-09T14:28:12.259624Z",
+  "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team",
+  "stableDimensionKeys": [
+    "env"
+  ],
+  "appliedAlarmPolicy": {
+    "metricName": "ReadyProbeSuccess",
+    "statistic": "Minimum",
+    "periodSeconds": 60,
+    "evaluationPeriods": 3,
+    "datapointsToAlarm": 3,
+    "threshold": 1.0,
+    "comparisonOperator": "LessThanThreshold",
+    "treatMissingData": "breaching",
+    "dimensions": [
+      {
+        "Name": "env",
+        "Value": "staging"
+      }
+    ]
+  },
+  "checkedInAlarmPolicy": {
+    "metricName": "ReadyProbeSuccess",
+    "statistic": "Minimum",
+    "periodSeconds": 60,
+    "evaluationPeriods": 3,
+    "datapointsToAlarm": 3,
+    "threshold": 1.0,
+    "comparisonOperator": "LessThanThreshold",
+    "treatMissingData": "breaching",
+    "dimensions": [
+      {
+        "Name": "env",
+        "Value": "staging"
+      }
+    ]
+  },
+  "alarmPolicyMatchesCheckedIn": true,
+  "readinessAlarmPayload": {
+    "AlarmName": "BaladiGuard-ReadinessFailure",
+    "AlarmDescription": "Readiness probe unsuccessful for 3 minutes. Continuous producer: in-process readiness publisher (READINESS_PROBE_INTERVAL_SECONDS). Triage: docs/production-observability.md#readiness-failure",
+    "Namespace": "BaladiGuard",
+    "MetricName": "ReadyProbeSuccess",
+    "Dimensions": [
+      {
+        "Name": "env",
+        "Value": "staging"
+      }
+    ],
+    "Statistic": "Minimum",
+    "Period": 60,
+    "EvaluationPeriods": 3,
+    "DatapointsToAlarm": 3,
+    "Threshold": 1.0,
+    "ComparisonOperator": "LessThanThreshold",
+    "TreatMissingData": "breaching",
+    "ActionsEnabled": true,
+    "AlarmActions": [
+      "arn:aws:sns:us-east-1:****:baladiguard-staging-alerts"
+    ],
+    "OKActions": [
+      "arn:aws:sns:us-east-1:****:baladiguard-staging-alerts"
+    ]
+  },
+  "dashboardMetricSample": [
+    "BaladiGuard",
+    "HttpRequests",
+    "env",
+    "staging"
+  ],
+  "organicEvaluation": {
+    "description": "Metric-driven readiness verdict using the checked-in Minimum<1 / three-of-three rule. Live recovery is observed only after one healthy sample is published in each of three subsequent clean periods.",
+    "healthySamples": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "healthySampleTimestamps": [
+      "2026-08-09T14:21:05+00:00",
+      "2026-08-09T14:22:05+00:00",
+      "2026-08-09T14:23:05+00:00"
+    ],
+    "failureSamples": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "failureSampleTimestamps": [
+      "2026-08-09T14:21:05+00:00",
+      "2026-08-09T14:22:05+00:00",
+      "2026-08-09T14:23:05+00:00"
+    ],
+    "recoverySamples": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "recoverySampleTimestamps": [
+      "2026-08-09T14:26:05+00:00",
+      "2026-08-09T14:27:05+00:00",
+      "2026-08-09T14:28:05+00:00"
+    ],
+    "healthyVerdict": "OK",
+    "failureVerdict": "ALARM",
+    "recoveryVerdict": "OK",
+    "cloudwatchHealthyState": "OK",
+    "cloudwatchFailureState": "ALARM",
+    "cloudwatchFailureReason": "Threshold Crossed: 3 out of the last 3 datapoints [0.0 (09/08/26 14:23:00), 0.0 (09/08/26 14:22:00), 0.0 (09/08/26 14:21:00)] were less than the threshold (1.0) (minimum 3 datapoints for OK -> ALARM transition).",
+    "cloudwatchRecoveryState": "OK",
+    "cloudwatchRecoveryReason": "Threshold Crossed: 1 out of the last 3 datapoints [1.0 (09/08/26 14:26:00)] was not less than the threshold (1.0) (minimum 1 datapoint for ALARM -> OK transition).",
+    "recoveryVerified": true
+  },
+  "snsDelivery": {
+    "description": "Live mode captures AlarmActions/OKActions from organic CloudWatch transitions; simulated mode uses SetAlarmState only for moto plumbing.",
+    "topicName": "baladiguard-staging-alerts",
+    "alarmNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "OK",
+        "newStateReason": "Threshold Crossed: 3 out of the last 3 datapoints [1.0 (09/08/26 14:23:00), 1.0 (09/08/26 14:22:00), 1.0 (09/08/26 14:21:00)] were not less than the threshold (1.0) (minimum 1 datapoint for ALARM -> OK transition).",
+        "subject": "OK: \"BaladiGuard-ReadinessFailure\" in US East (N. Virginia)"
+      },
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "ALARM",
+        "newStateReason": "Threshold Crossed: 3 out of the last 3 datapoints [0.0 (09/08/26 14:23:00), 0.0 (09/08/26 14:22:00), 0.0 (09/08/26 14:21:00)] were less than the threshold (1.0) (minimum 3 datapoints for OK -> ALARM transition).",
+        "subject": "ALARM: \"BaladiGuard-ReadinessFailure\" in US East (N. Virginia)"
+      },
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": null,
+        "newStateReason": "",
+        "subject": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-staging-alerts",
+        "source": "cloudwatch-alarm-history"
+      },
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": null,
+        "newStateReason": "",
+        "subject": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-staging-alerts",
+        "source": "cloudwatch-alarm-history"
+      }
+    ],
+    "okNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "OK",
+        "newStateReason": "Threshold Crossed: 1 out of the last 3 datapoints [1.0 (09/08/26 14:26:00)] was not less than the threshold (1.0) (minimum 1 datapoint for ALARM -> OK transition).",
+        "subject": "OK: \"BaladiGuard-ReadinessFailure\" in US East (N. Virginia)"
+      },
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": null,
+        "newStateReason": "",
+        "subject": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-staging-alerts",
+        "source": "cloudwatch-alarm-history"
+      },
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": null,
+        "newStateReason": "",
+        "subject": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-staging-alerts",
+        "source": "cloudwatch-alarm-history"
+      },
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": null,
+        "newStateReason": "",
+        "subject": "Successfully executed action arn:aws:sns:us-east-1:****:baladiguard-staging-alerts",
+        "source": "cloudwatch-alarm-history"
+      }
+    ],
+    "deliveryConfirmed": true
+  },
+  "alarmActions": [
+    "arn:aws:sns:us-east-1:****:baladiguard-staging-alerts"
+  ],
+  "notes": [
+    "live AWS CloudWatch + SNS alarm actions",
+    "live SNS\u2192SQS subscription captures notification payloads",
+    "EMF publish dimensions are env-only (see app.core.metrics.build_emf_record).",
+    "In-process readiness publisher emits ReadyProbeSuccess continuously.",
+    "Organic evaluation, SNS delivery, and organic recovery are recorded as separate proofs."
+  ]
+}
