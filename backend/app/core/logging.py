@@ -17,20 +17,33 @@ from typing import Any
 
 from app.core.request_context import get_request_id
 
-_SENSITIVE_KEY_RE = re.compile(
-    r"(password|passwd|secret|token|authorization|api[_-]?key|reset[_-]?code|"
-    r"otp|credential|access[_-]?token|refresh[_-]?token|session)",
-    re.IGNORECASE,
-)
-
-# key=value / key: value patterns commonly leaked into formatted messages.
-_SENSITIVE_ASSIGNMENT_RE = re.compile(
-    r"(?i)\b("
+# Mapping-key redaction includes authorization headers stored as structured fields.
+_SENSITIVE_KEY = (
     r"password|passwd|secret|token|authorization|api[_-]?key|reset[_-]?code|"
     r"otp|credential|access[_-]?token|refresh[_-]?token|session"
-    r")\b\s*[:=]\s*([^\s,;]+)"
 )
-_BEARER_RE = re.compile(r"(?i)\b(bearer)\s+[A-Za-z0-9._\-+=/]+")
+_SENSITIVE_KEY_RE = re.compile(rf"({_SENSITIVE_KEY})", re.IGNORECASE)
+
+# Free-text assignments exclude ``authorization`` so auth-scheme redaction below
+# is not collapsed to ``Authorization=[REDACTED]`` after Bearer/Basic handling.
+_SENSITIVE_ASSIGN_KEY = (
+    r"password|passwd|secret|token|api[_-]?key|reset[_-]?code|"
+    r"otp|credential|access[_-]?token|refresh[_-]?token|session"
+)
+
+# Authorization: Bearer|Basic|Digest <credential>
+_AUTH_HEADER_RE = re.compile(r"(?i)\b(authorization\s*[:=]\s*)?(bearer|basic|digest)\s+(\S+)")
+
+# key="quoted value" / key='quoted value'
+_QUOTED_ASSIGN_RE = re.compile(
+    rf"(?i)\b({_SENSITIVE_ASSIGN_KEY})\b\s*[:=]\s*"
+    rf"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*')"
+)
+
+# key=unquoted value that may contain spaces — consume through end of line or
+# the next structured delimiter (comma/semicolon), not the first whitespace.
+_UNQUOTED_ASSIGN_RE = re.compile(rf"(?i)\b({_SENSITIVE_ASSIGN_KEY})\b\s*[:=]\s*([^\n,;]+)")
+
 _REDACTED = "[REDACTED]"
 
 
@@ -45,15 +58,18 @@ def _app_env() -> str:
 
 
 def redact_text(text: str) -> str:
-    """Mask sensitive assignments and bearer tokens inside free-form text."""
+    """Mask sensitive assignments and auth credentials inside free-form text."""
     if not text:
         return text
-    # Bearer tokens first so "Authorization: Bearer <secret>" is fully masked.
-    scrubbed = _BEARER_RE.sub(r"\1 [REDACTED]", text)
-    scrubbed = _SENSITIVE_ASSIGNMENT_RE.sub(
-        lambda match: f"{match.group(1)}={_REDACTED}",
-        scrubbed,
-    )
+
+    def _auth_repl(match: re.Match[str]) -> str:
+        prefix = match.group(1) or ""
+        scheme = match.group(2)
+        return f"{prefix}{scheme} {_REDACTED}"
+
+    scrubbed = _AUTH_HEADER_RE.sub(_auth_repl, text)
+    scrubbed = _QUOTED_ASSIGN_RE.sub(lambda match: f"{match.group(1)}={_REDACTED}", scrubbed)
+    scrubbed = _UNQUOTED_ASSIGN_RE.sub(lambda match: f"{match.group(1)}={_REDACTED}", scrubbed)
     return scrubbed
 
 
@@ -84,6 +100,16 @@ def redact_mapping(values: dict[str, Any]) -> dict[str, Any]:
     return redacted
 
 
+def safe_exception_payload(exc_info: tuple[Any, Any, Any]) -> dict[str, str]:
+    """Allowlisted exception metadata with redacted message (no raw traceback dump)."""
+    exc_type, exc, _tb = exc_info
+    type_name = getattr(exc_type, "__name__", type(exc_type).__name__)
+    return {
+        "type": type_name,
+        "message": redact_text(str(exc) if exc is not None else ""),
+    }
+
+
 class JsonLogFormatter(logging.Formatter):
     """One JSON object per line for centralized log aggregation."""
 
@@ -105,7 +131,10 @@ class JsonLogFormatter(logging.Formatter):
         if request_id:
             payload["request_id"] = request_id
         if record.exc_info:
-            payload["exception"] = redact_text(self.formatException(record.exc_info))
+            # Prefer allowlisted structured fields; keep a redacted traceback for
+            # operators without shipping raw secret-bearing exception text.
+            payload["exception"] = safe_exception_payload(record.exc_info)
+            payload["exception_traceback"] = redact_text(self.formatException(record.exc_info))
         extras = {
             key: value
             for key, value in record.__dict__.items()

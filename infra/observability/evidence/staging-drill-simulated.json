@@ -3,7 +3,7 @@
   "mode": "simulated",
   "env": "staging",
   "region": "us-east-1",
-  "timestamp": "2026-08-09T10:02:27.917189Z",
+  "timestamp": "2026-08-09T11:24:07.950657Z",
   "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team",
   "stableDimensionKeys": [
     "env"
@@ -28,10 +28,10 @@
     "TreatMissingData": "breaching",
     "ActionsEnabled": true,
     "AlarmActions": [
-      "arn:aws:sns:us-east-1:0:baladiguard-drill"
+      "arn:aws:sns:us-east-1:123456789012:baladiguard-ops-drill"
     ],
     "OKActions": [
-      "arn:aws:sns:us-east-1:0:baladiguard-drill"
+      "arn:aws:sns:us-east-1:123456789012:baladiguard-ops-drill"
     ]
   },
   "dashboardMetricSample": [
@@ -40,17 +40,53 @@
     "env",
     "staging"
   ],
-  "transitions": {
-    "healthy": "OK",
-    "failure": "ALARM",
-    "restored": "OK"
+  "organicEvaluation": {
+    "description": "Metric-driven readiness verdict using the same Minimum<1 / 3-datapoint rule as BaladiGuard-ReadinessFailure. Separate from SetAlarmState.",
+    "healthySamples": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "failureSamples": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "healthyVerdict": "OK",
+    "failureVerdict": "ALARM",
+    "cloudwatchHealthyState": null,
+    "cloudwatchFailureState": null,
+    "cloudwatchFailureReason": ""
+  },
+  "snsDelivery": {
+    "description": "Forced SetAlarmState ALARM\u2192OK to exercise AlarmActions/OKActions. Sanitized notification payloads prove the topic received both states.",
+    "topicName": "baladiguard-ops-drill",
+    "alarmNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "ALARM",
+        "newStateReason": "Delivery drill: force ALARM to exercise SNS AlarmActions",
+        "subject": "ALARM: BaladiGuard-ReadinessFailure"
+      }
+    ],
+    "okNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "OK",
+        "newStateReason": "Delivery drill: force OK to exercise SNS OKActions",
+        "subject": "OK: BaladiGuard-ReadinessFailure"
+      }
+    ],
+    "deliveryConfirmed": true
   },
   "alarmActions": [
-    "arn:aws:sns:us-east-1:0:baladiguard-drill"
+    "arn:aws:sns:us-east-1:****:baladiguard-ops-drill"
   ],
   "notes": [
+    "moto SNS\u2192SQS captures ALARM/OK notification payloads",
+    "SetAlarmState is paired with CloudWatch-shaped SNS publishes (moto action gap).",
     "EMF publish dimensions are env-only (see app.core.metrics.build_emf_record).",
     "In-process readiness publisher emits ReadyProbeSuccess continuously.",
-    "Live mode SetAlarmState exercises SNS subscriptions; confirm channel delivery."
+    "Organic evaluation and SNS delivery are recorded as separate proofs."
   ]
 }

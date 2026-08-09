@@ -37,12 +37,25 @@ def test_redact_mapping_masks_sensitive_keys_and_nested_sequences():
     assert redacted["items"][2] == "otp=[REDACTED]"
 
 
-def test_redact_text_masks_assignments_and_bearer_tokens():
+def test_redact_text_masks_quoted_spaced_and_auth_credentials():
     assert "hunter2" not in redact_text("login failed: password=hunter2")
     assert "password=[REDACTED]" in redact_text("login failed: password=hunter2")
-    auth = redact_text("Authorization: Bearer secret-value")
-    assert "secret-value" not in auth
-    assert "[REDACTED]" in auth
+
+    quoted = redact_text('password="my secret value"')
+    assert "my secret value" not in quoted
+    assert quoted == "password=[REDACTED]" or "password=[REDACTED]" in quoted
+
+    spaced = redact_text("api_key = secret with spaces")
+    assert "secret with spaces" not in spaced
+    assert "api_key=[REDACTED]" in spaced.replace(" ", "") or "api_key=[REDACTED]" in spaced
+
+    basic = redact_text("Authorization: Basic dXNlcjpwYXNz")
+    assert "dXNlcjpwYXNz" not in basic
+    assert "Basic [REDACTED]" in basic
+
+    bearer = redact_text("Authorization: Bearer secret-value")
+    assert "secret-value" not in bearer
+    assert "Bearer [REDACTED]" in bearer
 
 
 def test_json_log_formatter_redacts_message_args_and_exception(monkeypatch):
@@ -63,7 +76,7 @@ def test_json_log_formatter_redacts_message_args_and_exception(monkeypatch):
         record.password = "nope"
         record.ticket_id = "tkt_abc"
         try:
-            raise RuntimeError("provider rejected token=abc123")
+            raise RuntimeError('provider rejected token="abc 123"')
         except RuntimeError:
             record.exc_info = sys.exc_info()
         payload = json.loads(formatter.format(record))
@@ -77,8 +90,10 @@ def test_json_log_formatter_redacts_message_args_and_exception(monkeypatch):
     assert payload["env"] == "staging"
     assert payload["extra"]["password"] == "[REDACTED]"
     assert payload["extra"]["ticket_id"] == "tkt_abc"
-    assert "abc123" not in payload["exception"]
-    assert "token=[REDACTED]" in payload["exception"]
+    assert payload["exception"]["type"] == "RuntimeError"
+    assert "abc 123" not in payload["exception"]["message"]
+    assert "token=[REDACTED]" in payload["exception"]["message"]
+    assert "abc 123" not in payload["exception_traceback"]
 
 
 def test_normalize_path_group_collapses_ids():

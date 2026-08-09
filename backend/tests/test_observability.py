@@ -127,7 +127,7 @@ def test_apply_requires_alarm_actions(tmp_path):
     assert any("alarm-actions" in err for err in evidence["errors"])
 
 
-def test_staging_drill_simulated_ok_and_alarm_transitions(tmp_path):
+def test_staging_drill_separates_organic_evaluation_and_sns_delivery(tmp_path):
     output = tmp_path / "drill.json"
     code = staging_drill_main(
         [
@@ -145,9 +145,24 @@ def test_staging_drill_simulated_ok_and_alarm_transitions(tmp_path):
     evidence = json.loads(output.read_text(encoding="utf-8"))
     assert evidence["ok"] is True
     assert evidence["mode"] == "simulated"
-    assert evidence["transitions"] == {
-        "healthy": "OK",
-        "failure": "ALARM",
-        "restored": "OK",
+    assert evidence["organicEvaluation"]["healthyVerdict"] == "OK"
+    assert evidence["organicEvaluation"]["failureVerdict"] == "ALARM"
+    assert evidence["snsDelivery"]["deliveryConfirmed"] is True
+    states = {
+        item.get("newStateValue")
+        for item in (
+            evidence["snsDelivery"]["alarmNotifications"]
+            + evidence["snsDelivery"]["okNotifications"]
+        )
     }
+    assert "ALARM" in states
+    assert "OK" in states
     assert evidence["readinessAlarmPayload"]["Dimensions"] == [{"Name": "env", "Value": "staging"}]
+
+
+def test_organic_ready_verdict_helper():
+    from scripts.observability.staging_drill import organic_ready_verdict
+
+    assert organic_ready_verdict([1.0, 1.0, 1.0]) == "OK"
+    assert organic_ready_verdict([0.0, 0.0, 0.0]) == "ALARM"
+    assert organic_ready_verdict([1.0, 0.0]) == "INSUFFICIENT_DATA"

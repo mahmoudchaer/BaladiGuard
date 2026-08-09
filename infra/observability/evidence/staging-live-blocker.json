@@ -1,0 +1,20 @@
+{
+  "ok": false,
+  "mode": "live-attempt",
+  "timestamp": "2026-08-09T11:26:00Z",
+  "env": "staging",
+  "region": "us-east-1",
+  "principal": "arn:aws:iam::265911027282:user/baladiguard-backend-dev",
+  "attempted": [
+    "sns:CreateTopic (ok)",
+    "sns:Publish (ok)",
+    "cloudwatch:PutMetricAlarm (ok)",
+    "cloudwatch:DescribeAlarms (ok)",
+    "cloudwatch:PutMetricData (AccessDenied)",
+    "cloudwatch:SetAlarmState (AccessDenied)",
+    "sqs:CreateQueue (AccessDenied)"
+  ],
+  "blocker": "Dev IAM principal can create the readiness alarm and SNS topic but cannot PutMetricData, SetAlarmState, or create an SQS capture queue. Organic CloudWatch evaluation and AlarmActions delivery proof require an ops role with those permissions.",
+  "operatorNextStep": "Run with a staging ops principal: python scripts/observability/staging_drill.py --live --env staging --alarm-actions \"$STAGING_OPS_SNS_ARN\" --delivery-queue-url \"$STAGING_OPS_SQS_URL\" --organic-wait-seconds 240 --output infra/observability/evidence/staging-drill-live.json",
+  "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team"
+}

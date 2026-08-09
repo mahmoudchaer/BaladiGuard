@@ -100,15 +100,27 @@ cd backend
 python scripts/observability/apply_observability.py --apply --env staging \
   --alarm-actions "$STAGING_OPS_SNS_ARN" \
   --output observability-evidence/apply-staging.json
+# Organic metric evaluation (CloudWatch must cross threshold) + SNS delivery:
 python scripts/observability/staging_drill.py --live --env staging \
   --alarm-actions "$STAGING_OPS_SNS_ARN" \
-  --output observability-evidence/staging-drill.json
+  --organic-wait-seconds 240 \
+  --output infra/observability/evidence/staging-drill-live.json
 ```
 
-CI runs the same drill in **simulated** (moto) mode to prove alarm payloads
-select `Dimensions=[{Name=env,Value=...}]` matching EMF and that readiness
-transitions `OK → ALARM → OK`. Live mode additionally exercises SNS actions —
-confirm the on-call channel received the ALARM notification, then the OK clear.
+The drill records **two separate proofs** in one JSON artifact:
+
+1. **`organicEvaluation`** — publishes `ReadyProbeSuccess` samples and applies the
+   same Minimum&lt;1 / 3-datapoint rule as `BaladiGuard-ReadinessFailure`. With
+   `--organic-wait-seconds` in live mode, also polls CloudWatch until the alarm
+   itself enters ALARM from those metrics (not from `SetAlarmState`).
+2. **`snsDelivery`** — forces ALARM→OK via `SetAlarmState` so AlarmActions fire,
+   then records sanitized notification / alarm-history payloads proving the ops
+   SNS topic received both states.
+
+CI runs the same drill in **simulated** (moto) mode: organic verdicts from
+samples + SNS→SQS capture of CloudWatch-shaped ALARM/OK messages. Commit or
+attach the **live** evidence JSON (plus a redacted team-channel screenshot) in
+the ops evidence store before production cutover.
 
 Manual supplements:
 
@@ -118,11 +130,11 @@ Manual supplements:
    visible in log groups.
 2. **Readiness failure (organic)**: stop DynamoDB access so `/health/ready`
    returns `503` and the in-process publisher emits `ReadyProbeSuccess=0` for
-   ≥3 minutes (in addition to the SetAlarmState drill above).
+   ≥3 minutes (complements the metric-sample organic section of the drill).
 3. **Notification spike**: force the real adapter into a permanent failure
    category (invalid SES identity in staging) and emit >10 failures across two
    windows. Confirm `BaladiGuard-NotificationFailureSpike`.
-4. Attach SNS messages / `staging-drill.json` showing alarm name, `env`
+4. Attach SNS messages / `staging-drill-live.json` showing alarm name, `env`
    dimension, and runbook link.
 
 A single forced 500 or one bad login must **not** page — thresholds require
