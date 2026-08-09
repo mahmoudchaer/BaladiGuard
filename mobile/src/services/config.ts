@@ -9,7 +9,9 @@ export type MobileRuntimeConfig = {
   isReleaseBinary: boolean;
 };
 
-const DEFAULT_LOCAL_API = 'http://localhost:8000/v1';
+// Intentionally no localhost default in this module — production export bundles
+// must not embed loopback URLs. Local/dev sets EXPO_PUBLIC_API_BASE_URL via .env
+// (see mobile/.env.example). Tests inject values through FromValues.
 const DEFAULT_PRIVACY_POLICY_URL =
   'https://github.com/mahmoudchaer/BaladiGuard/blob/main/docs/privacy-lifecycle.md';
 
@@ -80,23 +82,32 @@ export function assertMobileRuntimeConfig(config: MobileRuntimeConfig): void {
   }
 }
 
-export function buildMobileRuntimeConfig(options?: {
-  env?: NodeJS.ProcessEnv;
+/**
+ * Pure helper for tests / injected values. Prefer {@link readExpoPublicEnv} +
+ * {@link buildMobileRuntimeConfig} at runtime so Metro can inline EXPO_PUBLIC_* vars.
+ */
+export function buildMobileRuntimeConfigFromValues(input: {
+  apiBaseUrl?: string | null;
+  enableMockApi?: string | boolean | null;
+  appEnv?: string | null;
+  privacyPolicyUrl?: string | null;
   isReleaseBinary?: boolean;
 }): MobileRuntimeConfig {
-  const env = options?.env ?? process.env;
-  const isReleaseBinary = options?.isReleaseBinary ?? resolveIsReleaseBinary();
+  const isReleaseBinary = input.isReleaseBinary ?? resolveIsReleaseBinary();
   const extra = (Constants.expoConfig?.extra ?? {}) as {
     privacyPolicyUrl?: string;
   };
+  const enableMockRaw = input.enableMockApi;
+  const enableMockApi =
+    typeof enableMockRaw === 'boolean' ? enableMockRaw : enableMockRaw === 'true';
 
   const config: MobileRuntimeConfig = {
-    apiBaseUrl: (env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_LOCAL_API).trim(),
-    enableMockApi: env.EXPO_PUBLIC_ENABLE_MOCK_API === 'true',
-    appEnv: (env.EXPO_PUBLIC_APP_ENV ?? 'local').trim() || 'local',
+    apiBaseUrl: (input.apiBaseUrl ?? '').trim(),
+    enableMockApi,
+    appEnv: (input.appEnv ?? 'local').trim() || 'local',
     appVersion: Constants.expoConfig?.version ?? '0.1.0',
     privacyPolicyUrl: (
-      env.EXPO_PUBLIC_PRIVACY_POLICY_URL ??
+      input.privacyPolicyUrl ??
       extra.privacyPolicyUrl ??
       DEFAULT_PRIVACY_POLICY_URL
     ).trim(),
@@ -105,6 +116,50 @@ export function buildMobileRuntimeConfig(options?: {
 
   assertMobileRuntimeConfig(config);
   return config;
+}
+
+/**
+ * Read public Expo env via direct ``process.env.EXPO_PUBLIC_*`` member access.
+ * Metro only inlines these literal references — aliases like ``env.EXPO_PUBLIC_*``
+ * leave unresolved keys in release bundles (issue #192 review).
+ */
+export function readExpoPublicEnv(): {
+  apiBaseUrl: string | undefined;
+  enableMockApi: string | undefined;
+  appEnv: string | undefined;
+  privacyPolicyUrl: string | undefined;
+} {
+  return {
+    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
+    enableMockApi: process.env.EXPO_PUBLIC_ENABLE_MOCK_API,
+    appEnv: process.env.EXPO_PUBLIC_APP_ENV,
+    privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
+  };
+}
+
+export function buildMobileRuntimeConfig(options?: {
+  /** Test-only injection. Production/runtime must omit this so Metro inlines env. */
+  env?: NodeJS.ProcessEnv;
+  isReleaseBinary?: boolean;
+}): MobileRuntimeConfig {
+  if (options?.env) {
+    return buildMobileRuntimeConfigFromValues({
+      apiBaseUrl: options.env.EXPO_PUBLIC_API_BASE_URL,
+      enableMockApi: options.env.EXPO_PUBLIC_ENABLE_MOCK_API,
+      appEnv: options.env.EXPO_PUBLIC_APP_ENV,
+      privacyPolicyUrl: options.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
+      isReleaseBinary: options.isReleaseBinary,
+    });
+  }
+
+  const publicEnv = readExpoPublicEnv();
+  return buildMobileRuntimeConfigFromValues({
+    apiBaseUrl: publicEnv.apiBaseUrl,
+    enableMockApi: publicEnv.enableMockApi,
+    appEnv: publicEnv.appEnv,
+    privacyPolicyUrl: publicEnv.privacyPolicyUrl,
+    isReleaseBinary: options?.isReleaseBinary,
+  });
 }
 
 export const appConfig = buildMobileRuntimeConfig();

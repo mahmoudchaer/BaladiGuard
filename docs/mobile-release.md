@@ -36,10 +36,14 @@ passwords, or OTP secrets there.
 
 Runtime enforcement lives in `mobile/src/services/config.ts`:
 
+- Public env vars are read through **literal** `process.env.EXPO_PUBLIC_*`
+  references so Metro can inline them into release bundles. Do not read them
+  through an `env` alias on the production path.
 - `EXPO_PUBLIC_ENABLE_MOCK_API=true` is rejected when `EXPO_PUBLIC_APP_ENV` is
   `production` **or** the binary is a release build (`!__DEV__`).
 - Release/production builds require an absolute **HTTPS** `EXPO_PUBLIC_API_BASE_URL`
   that is not localhost/loopback.
+- `expo-image-picker` sets `microphonePermission: false` (still images only).
 
 EAS production profile hard-codes:
 
@@ -54,7 +58,10 @@ set `EXPO_PUBLIC_PRIVACY_POLICY_URL` to the municipality-hosted privacy page;
 otherwise the GitHub `docs/privacy-lifecycle.md` URL is used as a temporary
 fallback for store metadata.
 
-Static CI/local gate (no credentials required):
+Static CI/local gate (no credentials required). This now resolves Expo config,
+runs `expo-doctor` / `expo install --check`, and performs a production-like
+`expo export` asserting the HTTPS API URL is embedded and localhost/mock are
+absent:
 
 ```bash
 cd mobile
@@ -203,6 +210,22 @@ python scripts/generate_release_assets.py
 
 Requires Pillow. Re-run only when intentionally changing brand artwork; then re-run
 `npm run check:release`.
+
+## Release evidence checklist (attach to the PR / ops store)
+
+Automated (CI / `npm run check:release`):
+
+- [ ] Resolved Expo config package / bundle IDs / privacy strings / no mic permission
+- [ ] `expo-doctor` and `expo install --check` clean
+- [ ] Production-like export embeds the HTTPS API URL and omits localhost/mock
+
+Operator (requires Expo/Apple/Play access — store without secrets):
+
+- [ ] Linked EAS `projectId` committed after `eas init`
+- [ ] Credential store confirmation (Android keystore in Expo; iOS when enrolled)
+- [ ] Signed installable artifact URL / build ID from `eas build --profile production`
+- [ ] Physical-device matrix: model, OS, cold start, upgrade-from-previous, crash-free
+- [ ] Traceable build record: git SHA, EAS build ID, API host, tester sign-off
 
 ## Related docs
 

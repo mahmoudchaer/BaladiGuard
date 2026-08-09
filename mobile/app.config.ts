@@ -70,6 +70,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         photosPermission: 'Allow BaladiGuard to access your photos so you can attach issue images.',
         cameraPermission:
           'Allow BaladiGuard to access your camera so you can take a photo of the issue.',
+        // Still-image only — do not request microphone for production manifests.
+        microphonePermission: false,
       },
     ],
     [
