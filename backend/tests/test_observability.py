@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.metrics import STABLE_EMF_DIMENSION_KEYS, build_emf_record
@@ -16,7 +17,13 @@ from scripts.observability.apply_observability import (
     validate_alarms,
     validate_dashboard,
 )
-from scripts.observability.staging_drill import main as staging_drill_main
+from scripts.observability.staging_drill import (
+    clean_recovery_sample_times,
+    completed_period_sample_times,
+)
+from scripts.observability.staging_drill import (
+    main as staging_drill_main,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALARMS_PATH = REPO_ROOT / "infra" / "observability" / "alarms.json"
@@ -149,6 +156,19 @@ def test_staging_drill_separates_organic_evaluation_and_sns_delivery(tmp_path):
     assert evidence["organicEvaluation"]["failureVerdict"] == "ALARM"
     assert evidence["organicEvaluation"]["recoveryVerdict"] == "OK"
     assert evidence["organicEvaluation"]["recoveryVerified"] is True
+    assert evidence["alarmPolicyMatchesCheckedIn"] is True
+    assert evidence["appliedAlarmPolicy"] == evidence["checkedInAlarmPolicy"]
+    assert evidence["appliedAlarmPolicy"] == {
+        "metricName": "ReadyProbeSuccess",
+        "statistic": "Minimum",
+        "periodSeconds": 60,
+        "evaluationPeriods": 3,
+        "datapointsToAlarm": 3,
+        "threshold": 1.0,
+        "comparisonOperator": "LessThanThreshold",
+        "treatMissingData": "breaching",
+        "dimensions": [{"Name": "env", "Value": "staging"}],
+    }
     assert evidence["snsDelivery"]["deliveryConfirmed"] is True
     states = {
         item.get("newStateValue")
@@ -168,3 +188,36 @@ def test_organic_ready_verdict_helper():
     assert organic_ready_verdict([1.0, 1.0, 1.0]) == "OK"
     assert organic_ready_verdict([0.0, 0.0, 0.0]) == "ALARM"
     assert organic_ready_verdict([1.0, 0.0]) == "INSUFFICIENT_DATA"
+
+
+def test_recovery_samples_are_scheduled_in_subsequent_clean_periods():
+    now = datetime(2026, 8, 9, 12, 34, 40, tzinfo=UTC)
+    failures = completed_period_sample_times(3, period_seconds=60, now=now)
+    recovery = clean_recovery_sample_times(3, period_seconds=60, now=now)
+
+    assert [item.isoformat() for item in failures] == [
+        "2026-08-09T12:31:05+00:00",
+        "2026-08-09T12:32:05+00:00",
+        "2026-08-09T12:33:05+00:00",
+    ]
+    assert [item.isoformat() for item in recovery] == [
+        "2026-08-09T12:35:05+00:00",
+        "2026-08-09T12:36:05+00:00",
+        "2026-08-09T12:37:05+00:00",
+    ]
+    assert min(recovery) > max(failures)
+
+
+def test_live_drill_rejects_a_wait_shorter_than_checked_in_policy():
+    code = staging_drill_main(
+        [
+            "--live",
+            "--env",
+            "staging",
+            "--alarm-actions",
+            "arn:aws:sns:us-east-1:123456789012:ops",
+            "--organic-wait-seconds",
+            "179",
+        ]
+    )
+    assert code == 1

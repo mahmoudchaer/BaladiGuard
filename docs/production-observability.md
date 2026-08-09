@@ -110,19 +110,21 @@ python scripts/observability/staging_drill.py --live --env staging \
 The drill records **three separate proofs** in one JSON artifact:
 
 1. **`organicEvaluation`** — publishes `ReadyProbeSuccess` samples and applies the
-   same Minimum&lt;1 / 3-datapoint rule as `BaladiGuard-ReadinessFailure`. With
-   `--organic-wait-seconds` in live mode, also polls CloudWatch until the alarm
-   itself enters ALARM from those metrics (not from `SetAlarmState`). After the
-   delivery section it publishes **recovery samples** and requires an organic OK
-   so failure datapoints cannot re-page staging.
-2. **`snsDelivery`** — forces ALARM→OK via `SetAlarmState` (or CloudWatch-driven
-   actions in the live TreatMissingData path) so AlarmActions fire, then records
-   sanitized notification / alarm-history payloads proving the ops topic received
-   both states.
+   exact checked-in `Period=60`, `EvaluationPeriods=3`, and
+   `DatapointsToAlarm=3` settings. Live mode polls until CloudWatch itself enters
+   ALARM from those metrics; it never uses `SetAlarmState`. The artifact includes
+   both the checked-in and applied policy so a weakened drill alarm cannot pass.
+2. **`snsDelivery`** — in live mode, captures the AlarmActions/OKActions caused by
+   those organic CloudWatch transitions and records sanitized notification /
+   alarm-history payloads proving the ops topic received both states. Only moto
+   simulation uses forced states to compensate for its alarm-action limitation.
 3. **Recovery** — `recoveryVerified` must be true before `evidence.ok` is true.
+   The live drill publishes one healthy point in each of three subsequent clean
+   periods and requires CloudWatch's observed OK transition; it does not treat
+   same-period healthy points as overwriting earlier zero samples.
 
 Checked-in live evidence: `infra/observability/evidence/staging-drill-live.json`
-(CloudWatch evaluated ALARM/OK and SNS delivered both notifications).
+(regenerate with the command above whenever the alarm policy or drill changes).
 
 CI runs the same drill in **simulated** (moto) mode: organic verdicts from
 samples + SNS→SQS capture of CloudWatch-shaped ALARM/OK messages + recovery

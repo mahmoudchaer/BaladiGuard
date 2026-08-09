@@ -2,13 +2,12 @@
 
 Two clearly separated proofs:
 
-1. **Organic evaluation** — publish ``ReadyProbeSuccess`` samples and decide
-   ALARM/OK from the same rule CloudWatch uses (Minimum < 1 over N datapoints).
-   Live mode can also poll ``DescribeAlarms`` until CloudWatch itself crosses
-   threshold (``--organic-wait-seconds``).
-2. **SNS delivery** — force ALARM then OK via ``SetAlarmState`` so AlarmActions
-   fire, then capture the published notification payloads (moto SQS subscription
-   locally; live mode records CloudWatch alarm history + requires a real SNS ARN).
+1. **Organic evaluation** — publish ``ReadyProbeSuccess`` samples and use the
+   checked-in Minimum < 1, three-of-three policy. Live success requires
+   CloudWatch itself to report ALARM and then OK.
+2. **SNS delivery** — capture the notifications emitted by those organic live
+   transitions. Moto mode uses forced states only to compensate for moto's lack
+   of CloudWatch alarm-action delivery.
 
 Usage (real staging):
 
@@ -21,8 +20,8 @@ python scripts/observability/staging_drill.py --live --env staging \\
   --output infra/observability/evidence/staging-drill-live.json
 ```
 
-Default mode uses moto + an SQS-subscribed SNS topic so CI proves both organic
-verdicts and that ALARM/OK notifications are actually published.
+Default mode uses moto + an SQS-subscribed SNS topic so CI proves the local rule
+and notification plumbing without claiming real CloudWatch evaluation.
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -57,6 +57,45 @@ READINESS_ALARM = "BaladiGuard-ReadinessFailure"
 
 def _iso_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def completed_period_sample_times(
+    count: int,
+    *,
+    period_seconds: int,
+    now: datetime | None = None,
+) -> list[datetime]:
+    """Return one timestamp in each of the most recent completed periods."""
+    current = now or datetime.now(UTC)
+    current_epoch = int(current.timestamp())
+    current_period_start = current_epoch - (current_epoch % period_seconds)
+    first_period_start = current_period_start - (count * period_seconds)
+    offset = min(5, max(0, period_seconds - 1))
+    return [
+        datetime.fromtimestamp(
+            first_period_start + (index * period_seconds) + offset,
+            tz=UTC,
+        )
+        for index in range(count)
+    ]
+
+
+def clean_recovery_sample_times(
+    count: int,
+    *,
+    period_seconds: int,
+    now: datetime | None = None,
+) -> list[datetime]:
+    """Schedule recovery in future periods that cannot contain failure samples."""
+    current = now or datetime.now(UTC)
+    current_epoch = int(current.timestamp())
+    current_period_start = current_epoch - (current_epoch % period_seconds)
+    offset = min(5, max(0, period_seconds - 1))
+    first_sample = current_period_start + period_seconds + offset
+    return [
+        datetime.fromtimestamp(first_sample + (index * period_seconds), tz=UTC)
+        for index in range(count)
+    ]
 
 
 def organic_ready_verdict(
@@ -117,21 +156,58 @@ def put_ready_samples(
     env: str,
     values: list[float],
     period_seconds: int = 60,
-) -> None:
-    now = int(time.time())
-    for index, value in enumerate(reversed(values)):
+    timestamps: list[datetime] | None = None,
+) -> list[datetime]:
+    sample_times = timestamps or completed_period_sample_times(
+        len(values), period_seconds=period_seconds
+    )
+    if len(sample_times) != len(values):
+        raise ValueError("timestamps and values must have the same length")
+    for value, timestamp in zip(values, sample_times, strict=True):
         client.put_metric_data(
             Namespace="BaladiGuard",
             MetricData=[
                 {
                     "MetricName": "ReadyProbeSuccess",
                     "Dimensions": [{"Name": "env", "Value": env}],
-                    "Timestamp": datetime.fromtimestamp(now - (index * period_seconds), tz=UTC),
+                    "Timestamp": timestamp,
                     "Value": float(value),
                     "Unit": "None",
                 }
             ],
         )
+    return sample_times
+
+
+def publish_clean_recovery_samples(
+    client,
+    *,
+    env: str,
+    count: int,
+    period_seconds: int,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> list[datetime]:
+    """Publish one healthy point in each subsequent clean CloudWatch period."""
+    schedule = clean_recovery_sample_times(
+        count,
+        period_seconds=period_seconds,
+        now=now(),
+    )
+    published: list[datetime] = []
+    for timestamp in schedule:
+        delay = (timestamp - now()).total_seconds()
+        if delay > 0:
+            sleep(delay)
+        put_ready_samples(
+            client,
+            env=env,
+            values=[1.0],
+            period_seconds=period_seconds,
+            timestamps=[timestamp],
+        )
+        published.append(timestamp)
+    return published
 
 
 def _cloudwatch_alarm_notification(
@@ -347,6 +423,21 @@ def wait_for_cloudwatch_state(
     return last
 
 
+def alarm_policy_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    """Keep the policy fields needed to prove the checked-in alarm was exercised."""
+    return {
+        "metricName": payload.get("MetricName"),
+        "statistic": payload.get("Statistic"),
+        "periodSeconds": payload.get("Period"),
+        "evaluationPeriods": payload.get("EvaluationPeriods"),
+        "datapointsToAlarm": payload.get("DatapointsToAlarm"),
+        "threshold": payload.get("Threshold"),
+        "comparisonOperator": payload.get("ComparisonOperator"),
+        "treatMissingData": payload.get("TreatMissingData"),
+        "dimensions": payload.get("Dimensions"),
+    }
+
+
 def run_drill(
     *,
     env: str,
@@ -385,11 +476,25 @@ def run_drill(
     readiness_kwargs = next(item for item in applied if item["AlarmName"] == READINESS_ALARM)
     assert readiness_kwargs["Dimensions"] == [{"Name": "env", "Value": env}]
     assert tuple(d["Name"] for d in readiness_kwargs["Dimensions"]) == STABLE_DIMENSION_KEYS
+    expected_policy = alarm_policy_snapshot(readiness_kwargs)
+    described_alarm = client.describe_alarms(AlarmNames=[READINESS_ALARM])["MetricAlarms"][0]
+    observed_policy = alarm_policy_snapshot(described_alarm)
+    policy_matches = observed_policy == expected_policy
+    period_seconds = int(readiness_kwargs["Period"])
+    evaluation_periods = int(readiness_kwargs["EvaluationPeriods"])
+    datapoints_to_alarm = int(readiness_kwargs["DatapointsToAlarm"])
 
     # --- Organic evaluation (metric samples drive the verdict) ---
-    healthy_samples = [1.0, 1.0, 1.0]
-    put_ready_samples(client, env=env, values=healthy_samples)
-    organic_healthy = organic_ready_verdict(healthy_samples)
+    healthy_samples = [1.0] * evaluation_periods
+    healthy_times = put_ready_samples(
+        client,
+        env=env,
+        values=healthy_samples,
+        period_seconds=period_seconds,
+    )
+    organic_healthy = organic_ready_verdict(
+        healthy_samples, datapoints_to_alarm=datapoints_to_alarm
+    )
     cloudwatch_healthy = None
     if live and organic_wait_seconds > 0:
         cloudwatch_healthy = wait_for_cloudwatch_state(
@@ -398,9 +503,16 @@ def run_drill(
             timeout_seconds=organic_wait_seconds,
         )
 
-    failure_samples = [0.0, 0.0, 0.0]
-    put_ready_samples(client, env=env, values=failure_samples)
-    organic_failure = organic_ready_verdict(failure_samples)
+    failure_samples = [0.0] * evaluation_periods
+    failure_times = put_ready_samples(
+        client,
+        env=env,
+        values=failure_samples,
+        period_seconds=period_seconds,
+    )
+    organic_failure = organic_ready_verdict(
+        failure_samples, datapoints_to_alarm=datapoints_to_alarm
+    )
     cloudwatch_failure = None
     if live and organic_wait_seconds > 0:
         cloudwatch_failure = wait_for_cloudwatch_state(
@@ -409,30 +521,41 @@ def run_drill(
             timeout_seconds=organic_wait_seconds,
         )
 
-    # --- SNS delivery proof (forced state transitions fire AlarmActions) ---
-    alarm_reason = "Delivery drill: force ALARM to exercise SNS AlarmActions"
-    client.set_alarm_state(
-        AlarmName=READINESS_ALARM,
-        StateValue="ALARM",
-        StateReason=alarm_reason,
-    )
-    publish_alarm_notice("ALARM", alarm_reason)
+    # Live notifications must be caused by the metric-driven transition above.
+    # Moto cannot execute alarm actions, so only simulation uses forced states.
+    if not live:
+        alarm_reason = "Simulated delivery drill: force ALARM for moto SNS plumbing"
+        client.set_alarm_state(
+            AlarmName=READINESS_ALARM,
+            StateValue="ALARM",
+            StateReason=alarm_reason,
+        )
+        publish_alarm_notice("ALARM", alarm_reason)
     time.sleep(0.5 if not live else 2.0)
     alarm_notifications = receive_notifications()
-    ok_reason = "Delivery drill: force OK to exercise SNS OKActions"
-    client.set_alarm_state(
-        AlarmName=READINESS_ALARM,
-        StateValue="OK",
-        StateReason=ok_reason,
-    )
-    publish_alarm_notice("OK", ok_reason)
-    time.sleep(0.5 if not live else 2.0)
-    ok_notifications = receive_notifications()
 
-    # --- Organic recovery (overwrite failure samples so staging does not re-page) ---
-    recovery_samples = [1.0, 1.0, 1.0]
-    put_ready_samples(client, env=env, values=recovery_samples)
-    organic_recovery = organic_ready_verdict(recovery_samples)
+    # --- Organic recovery in subsequent clean periods ---
+    # With Statistic=Minimum, adding healthy samples to a period that already
+    # contains a zero cannot recover it. Live mode therefore waits and publishes
+    # one healthy sample in each of three later periods.
+    recovery_samples = [1.0] * evaluation_periods
+    if live:
+        recovery_times = publish_clean_recovery_samples(
+            client,
+            env=env,
+            count=evaluation_periods,
+            period_seconds=period_seconds,
+        )
+    else:
+        recovery_times = put_ready_samples(
+            client,
+            env=env,
+            values=recovery_samples,
+            period_seconds=period_seconds,
+        )
+    organic_recovery = organic_ready_verdict(
+        recovery_samples, datapoints_to_alarm=datapoints_to_alarm
+    )
     cloudwatch_recovery = None
     if live and organic_wait_seconds > 0:
         cloudwatch_recovery = wait_for_cloudwatch_state(
@@ -441,14 +564,16 @@ def run_drill(
             timeout_seconds=organic_wait_seconds,
         )
     else:
-        # Simulated / no-wait: restore forced OK after recovery samples are published.
+        # Simulated mode restores OK and publishes the CloudWatch-shaped notice.
+        ok_reason = "Simulated delivery drill: force OK for moto SNS plumbing"
         client.set_alarm_state(
             AlarmName=READINESS_ALARM,
             StateValue="OK",
-            StateReason=(
-                "Staging drill complete; recovery samples published and state restored to OK"
-            ),
+            StateReason=ok_reason,
         )
+        publish_alarm_notice("OK", ok_reason)
+    time.sleep(0.5 if not live else 2.0)
+    ok_notifications = receive_notifications()
 
     delivery_states = [
         item.get("newStateValue")
@@ -469,15 +594,20 @@ def run_drill(
         alarm_actions=actions,
     )
 
-    organic_ok = organic_healthy == "OK" and organic_failure == "ALARM" and organic_recovery == "OK"
+    organic_ok = organic_healthy == "OK" and organic_failure == "ALARM"
     if live and organic_wait_seconds > 0:
         organic_ok = (
             organic_ok
+            and policy_matches
+            and bool(cloudwatch_healthy)
+            and cloudwatch_healthy.get("StateValue") == "OK"
             and bool(cloudwatch_failure)
             and cloudwatch_failure.get("StateValue") == "ALARM"
             and bool(cloudwatch_recovery)
             and cloudwatch_recovery.get("StateValue") == "OK"
         )
+    elif not live:
+        organic_ok = organic_ok and organic_recovery == "OK"
 
     topic_name = topic_arn.split(":")[-1] if topic_arn else None
     evidence = {
@@ -490,17 +620,23 @@ def run_drill(
         "timestamp": _iso_now(),
         "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team",
         "stableDimensionKeys": list(STABLE_DIMENSION_KEYS),
+        "appliedAlarmPolicy": observed_policy,
+        "checkedInAlarmPolicy": expected_policy,
+        "alarmPolicyMatchesCheckedIn": policy_matches,
         "readinessAlarmPayload": preview,
         "dashboardMetricSample": dashboard_body["widgets"][0]["properties"]["metrics"][0],
         "organicEvaluation": {
             "description": (
-                "Metric-driven readiness verdict using the same Minimum<1 / 3-datapoint "
-                "rule as BaladiGuard-ReadinessFailure. Separate from SetAlarmState. "
-                "Includes post-drill recovery samples so failure datapoints do not re-page."
+                "Metric-driven readiness verdict using the checked-in Minimum<1 / "
+                "three-of-three rule. Live recovery is observed only after one healthy "
+                "sample is published in each of three subsequent clean periods."
             ),
             "healthySamples": healthy_samples,
+            "healthySampleTimestamps": [item.isoformat() for item in healthy_times],
             "failureSamples": failure_samples,
+            "failureSampleTimestamps": [item.isoformat() for item in failure_times],
             "recoverySamples": recovery_samples,
+            "recoverySampleTimestamps": [item.isoformat() for item in recovery_times],
             "healthyVerdict": organic_healthy,
             "failureVerdict": organic_failure,
             "recoveryVerdict": organic_recovery,
@@ -513,12 +649,16 @@ def run_drill(
             "cloudwatchRecoveryReason": str((cloudwatch_recovery or {}).get("StateReason") or "")[
                 :240
             ],
-            "recoveryVerified": organic_recovery == "OK",
+            "recoveryVerified": (
+                bool(cloudwatch_recovery) and cloudwatch_recovery.get("StateValue") == "OK"
+                if live
+                else organic_recovery == "OK"
+            ),
         },
         "snsDelivery": {
             "description": (
-                "Forced SetAlarmState ALARM→OK to exercise AlarmActions/OKActions. "
-                "Sanitized notification payloads prove the topic received both states."
+                "Live mode captures AlarmActions/OKActions from organic CloudWatch "
+                "transitions; simulated mode uses SetAlarmState only for moto plumbing."
             ),
             "topicName": topic_name,
             "alarmNotifications": alarm_notifications,
@@ -563,8 +703,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help=(
-            "When --live, poll CloudWatch until metric-driven ALARM (and optionally OK). "
-            "Use >=180 for the production 60s*3 readiness alarm."
+            "When --live, poll CloudWatch until metric-driven ALARM and OK. "
+            "Must be >=180 for the production 60s*3 readiness alarm."
         ),
     )
     parser.add_argument(
@@ -586,6 +726,20 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "ok": False,
                     "errors": ["--live requires --alarm-actions / OBSERVABILITY_ALARM_ACTIONS"],
+                },
+                indent=2,
+            )
+        )
+        return 1
+    if args.live and int(args.organic_wait_seconds or 0) < 180:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "errors": [
+                        "--live requires --organic-wait-seconds >= 180 for the checked-in "
+                        "60-second, three-period readiness policy"
+                    ],
                 },
                 indent=2,
             )
