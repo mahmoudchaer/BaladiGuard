@@ -46,15 +46,6 @@ function runNodeScript(scriptPath, args, options = {}) {
   });
 }
 
-function runNpx(args, options = {}) {
-  return spawnSync('npx', args, {
-    cwd: root,
-    encoding: 'utf8',
-    shell: true,
-    env: options.env || process.env,
-  });
-}
-
 for (const asset of [
   'assets/icon.png',
   'assets/adaptive-icon.png',
@@ -177,11 +168,13 @@ try {
 }
 
 // Native SDK compatibility (expo-doctor / install --check).
-const doctor = fs.existsSync(expoDoctorJs)
-  ? runNodeScript(expoDoctorJs, [])
-  : runNpx(['expo-doctor']);
-if (doctor.status !== 0) {
-  errors.push(`expo-doctor failed:\n${((doctor.stdout || '') + (doctor.stderr || '')).trim()}`);
+if (!fs.existsSync(expoDoctorJs)) {
+  errors.push('expo-doctor is not installed — run npm ci in mobile/.');
+} else {
+  const doctor = runNodeScript(expoDoctorJs, []);
+  if (doctor.status !== 0) {
+    errors.push(`expo-doctor failed:\n${((doctor.stdout || '') + (doctor.stderr || '')).trim()}`);
+  }
 }
 
 const installCheck = runNodeScript(expoCli, ['install', '--check']);
