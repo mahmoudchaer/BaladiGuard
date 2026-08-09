@@ -6,6 +6,7 @@ coverage is out of scope here because it needs real credentials and endpoints.
 """
 
 from app.database.memory import ticket_store
+from app.services.ai_job_queue import ai_job_queue
 from app.services.notifications.adapters import MockNotificationAdapter
 from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
@@ -40,6 +41,7 @@ def _submit_report(anonymous_client, description: str = VALID_PAYLOAD["descripti
         headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
+    assert ai_job_queue.run_once().outcome == "succeeded"
     body = response.json()
     assert body["ticketId"].startswith("tkt_")
     assert body["ticketNumber"].startswith("BG-")

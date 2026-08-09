@@ -1,4 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, Query, Request
+import logging
+
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.api.deps import ContributionReadyCitizenDep, StaffActorDep
@@ -18,6 +20,7 @@ from app.schemas.ticket_response import (
     UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
+from app.services.ai_job_queue import ai_job_queue
 from app.services.citizens.service import snapshot_contact_for_ticket
 from app.services.complaints.status_workflow import (
     InvalidStatusTransitionError,
@@ -34,12 +37,12 @@ from app.services.complaints.ticket_service import (
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
 def submit_ticket(
     payload: SubmitTicketRequest,
-    background_tasks: BackgroundTasks,
     request: Request,
     principal: ContributionReadyCitizenDep,
 ) -> SubmitTicketResponse | JSONResponse:
@@ -61,7 +64,20 @@ def submit_ticket(
         owner_user_id=principal.user_id,
         contact=snapshot_contact_for_ticket(user),
     )
-    background_tasks.add_task(ticket_service.process_ticket_ai, response.ticket_id)
+    try:
+        ai_job_queue.enqueue(response.ticket_id)
+    except Exception as exc:
+        logger.error(
+            "Could not durably enqueue AI job ticket_id=%s error=%s",
+            response.ticket_id,
+            type(exc).__name__,
+        )
+        return build_error_response(
+            code="AI_SCHEDULING_FAILED",
+            message="The report was saved, but processing could not be scheduled. Please retry.",
+            request_id=get_request_id(request),
+            status_code=503,
+        )
     return response
 
 

@@ -1,4 +1,4 @@
-.PHONY: lint format format-check typecheck test test-ai-regression eval-ai-intake quality db-up db-down db-migrate db-seed db-reset
+.PHONY: lint format format-check typecheck test test-ai-regression eval-ai-intake quality ai-worker ai-worker-once ai-worker-drain db-up db-down db-migrate db-seed db-reset
 
 lint:
 	cd mobile && npm run lint
@@ -31,6 +31,15 @@ eval-ai-intake:
 	cd backend && python scripts/eval_ai_intake.py
 
 quality: lint format-check typecheck
+
+ai-worker:
+	cd backend && python -m app.workers.ai_worker
+
+ai-worker-once:
+	cd backend && python -m app.workers.ai_worker --once
+
+ai-worker-drain:
+	cd backend && python -m app.workers.ai_worker --drain
 
 db-up:
 	docker compose up -d dynamodb-local
