@@ -151,11 +151,7 @@ Before deploy (#74):
 8. `AWS_S3_BUCKET=<bucket>`
 9. `SEED_SAMPLE_TICKETS=false`
 10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-11. Confirm process starts (validation aborts on failure), `/health/live` is `200`, `/health/ready` is `200`, and `/health` is `ok`
-
-Also set `LOG_FORMAT=json` and `APP_VERSION=<release>` on deploy, then apply
-CloudWatch dashboards/alarms with `python scripts/observability/apply_observability.py --apply`
-(see [production-observability.md](production-observability.md)).
+11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
 
 ## Health payload
 
