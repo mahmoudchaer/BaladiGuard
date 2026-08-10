@@ -143,3 +143,13 @@ def test_ambiguous_negated_and_constrained_questions_return_bounded_guidance(ano
         assert response.json()["intent"] == "unsupported"
         assert response.json()["count"] == 0
         assert response.json()["tickets"] == []
+
+
+def test_documented_generic_repeated_area_question_is_supported(anonymous_client):
+    response = anonymous_client.post(
+        "/v1/staff-assistant/query",
+        json={"question": "repeated issues in an area"},
+        headers=_headers(anonymous_client),
+    )
+    assert response.status_code == 200
+    assert response.json()["intent"] == "repeated_area_summary"

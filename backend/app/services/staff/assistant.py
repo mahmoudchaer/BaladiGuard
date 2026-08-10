@@ -37,6 +37,7 @@ _CONSTRAINT_PATTERN = re.compile(
     r"|\b(?:today|yesterday|tomorrow|week|month|year|date)\b",
     re.IGNORECASE,
 )
+_GENERIC_AREA_PATTERN = re.compile(r"\bin\s+(?:an?|the)\s+area\b", re.IGNORECASE)
 
 
 def _as_of() -> str:
@@ -45,12 +46,17 @@ def _as_of() -> str:
 
 def _intent(question: str) -> str | None:
     normalized = question.casefold()
+    # "in an/the area" is the documented generic repeated-area intent, not a
+    # named area filter. Normalize it before rejecting unsupported filters.
+    normalized_for_constraints = _GENERIC_AREA_PATTERN.sub("by area", normalized)
     high_priority = any(term in normalized for term in _HIGH_PRIORITY_TERMS)
     repeated_area = any(term in normalized for term in _REPEATED_AREA_TERMS)
     # This small deterministic surface intentionally has no filtering grammar.
     # Reject, rather than silently ignore, negation, a second intent, or a
     # location/date modifier that would alter the answer's meaning.
-    if _NEGATION_PATTERN.search(normalized) or _CONSTRAINT_PATTERN.search(normalized):
+    if _NEGATION_PATTERN.search(normalized) or _CONSTRAINT_PATTERN.search(
+        normalized_for_constraints
+    ):
         return None
     if high_priority == repeated_area:
         return None
