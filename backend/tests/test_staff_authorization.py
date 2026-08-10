@@ -9,6 +9,7 @@ import pytest
 from app.config import get_settings
 from app.core.staff_auth import issue_staff_access_token
 from app.database.memory import ticket_store
+from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -27,6 +28,7 @@ def _create_ticket(client) -> dict:
         headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
+    assert ai_job_queue.run_once().outcome == "succeeded"
     return response.json()
 
 

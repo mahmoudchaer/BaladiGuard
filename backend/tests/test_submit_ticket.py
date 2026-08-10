@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.schemas.ticket import ReportLocation
+from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import (
     DEFAULT_CITIZEN_EMAIL,
     DEFAULT_CITIZEN_FULL_NAME,
@@ -47,6 +48,7 @@ def test_submit_ticket_success(client, contribution_ready_citizen_headers):
     )
 
     assert response.status_code == 201
+    assert ai_job_queue.run_once().outcome == "succeeded"
     body = response.json()
     assert body["ticketId"].startswith("tkt_")
     assert body["ticketNumber"].startswith("BG-")

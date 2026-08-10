@@ -1,4 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, Query, Request
+import logging
+
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.api.deps import ContributionReadyCitizenDep, StaffActorDep
@@ -18,6 +20,7 @@ from app.schemas.ticket_response import (
     UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
+from app.services.ai_job_queue import ai_job_queue
 from app.services.citizens.service import snapshot_contact_for_ticket
 from app.services.complaints.status_workflow import (
     InvalidStatusTransitionError,
@@ -34,12 +37,12 @@ from app.services.complaints.ticket_service import (
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
 def submit_ticket(
     payload: SubmitTicketRequest,
-    background_tasks: BackgroundTasks,
     request: Request,
     principal: ContributionReadyCitizenDep,
 ) -> SubmitTicketResponse | JSONResponse:
@@ -61,7 +64,17 @@ def submit_ticket(
         owner_user_id=principal.user_id,
         contact=snapshot_contact_for_ticket(user),
     )
-    background_tasks.add_task(ticket_service.process_ticket_ai, response.ticket_id)
+    try:
+        ai_job_queue.enqueue(response.ticket_id)
+    except Exception as exc:
+        # The persisted pending ticket is the durable outbox record. Returning
+        # success prevents a client retry from creating a duplicate report;
+        # the worker reconciles pending tickets into queue rows on every poll.
+        logger.warning(
+            "AI queue write deferred to outbox reconciliation ticket_id=%s error=%s",
+            response.ticket_id,
+            type(exc).__name__,
+        )
     return response
 
 

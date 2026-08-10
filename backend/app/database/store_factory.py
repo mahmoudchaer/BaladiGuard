@@ -1,10 +1,12 @@
 from app.config import Settings, get_settings
 from app.database.account_audit_store import AccountAuditStore
+from app.database.ai_job_store import AiJobStore
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.citizen_store import CitizenStore
 from app.database.duplicate_group_store import DuplicateGroupStore
 from app.database.memory import ticket_store
 from app.database.memory_account_audit import account_audit_store
+from app.database.memory_ai_job import ai_job_store
 from app.database.memory_audit_history import audit_history_store
 from app.database.memory_citizen import citizen_store
 from app.database.memory_citizen_otp import citizen_otp_store
@@ -27,6 +29,15 @@ def build_ticket_store(settings: Settings | None = None) -> TicketStore:
 
         return DynamoTicketStore(settings)
     return ticket_store
+
+
+def build_ai_job_store(settings: Settings | None = None) -> AiJobStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_ai_job_store import DynamoAiJobStore
+
+        return DynamoAiJobStore(settings)
+    return ai_job_store
 
 
 def build_status_history_store(settings: Settings | None = None) -> StatusHistoryStore:
@@ -125,6 +136,10 @@ def build_staff_password_reset_store(settings: Settings | None = None):
 
 def get_ticket_store() -> TicketStore:
     return build_ticket_store(get_settings())
+
+
+def get_ai_job_store() -> AiJobStore:
+    return build_ai_job_store(get_settings())
 
 
 def get_status_history_store() -> StatusHistoryStore:

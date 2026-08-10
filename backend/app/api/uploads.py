@@ -37,7 +37,9 @@ async def upload_report_photo(
         )
 
     try:
-        image_object_key = await photo_upload_service.upload_report_photo(file)
+        image_object_key = await photo_upload_service.upload_report_photo(
+            file, owner_user_id=principal.user_id
+        )
     except InvalidUploadError as exc:
         return build_error_response(
             code=exc.code,
