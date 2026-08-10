@@ -9,6 +9,7 @@ from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
+from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
@@ -34,10 +35,20 @@ from app.services.complaints.ticket_service import (
     TicketNotFoundError,
     ticket_service,
 )
+from app.services.staff.assistant import staff_assistant_service
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
 logger = logging.getLogger(__name__)
+
+
+@router.post("/staff-assistant/query", response_model=StaffAssistantResponse)
+def query_staff_assistant(
+    payload: StaffAssistantQuery,
+    principal: StaffDep,
+) -> StaffAssistantResponse:
+    """Read-only deterministic assistant, grounded in the caller's visible tickets."""
+    return staff_assistant_service.answer(payload.question, principal=principal)
 
 
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
