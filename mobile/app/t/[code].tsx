@@ -126,16 +126,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
+    gap: spacing[3],
+    padding: spacing[5],
   },
   openingHint: {
     color: colors.textSecondary,
   },
   container: {
     flex: 1,
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: spacing[5],
+    gap: spacing[3],
   },
   title: {
     color: colors.brandDark,
