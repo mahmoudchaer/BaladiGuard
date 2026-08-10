@@ -160,10 +160,10 @@ def _run_harness(
     output: Path,
     smoke_token: str = "",
 ) -> dict:
-    harness = BACKEND_ROOT / "scripts" / "capacity" / "concurrent_http_harness.py"
-    cmd = [
-        sys.executable,
-        str(harness),
+    # Call the harness in-process (no shell/subprocess argv construction from tokens).
+    from scripts.capacity.concurrent_http_harness import main as harness_main
+
+    argv = [
         "--base-url",
         base_url,
         "--scenario",
@@ -185,23 +185,11 @@ def _run_harness(
         "--quiet",
     ]
     if smoke_token:
-        cmd.extend(["--smoke-token", smoke_token])
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(BACKEND_ROOT)
-    completed = subprocess.run(
-        cmd,
-        cwd=str(BACKEND_ROOT),
-        env=env,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode not in {0, 2} or not output.exists():
-        print(completed.stdout[-2000:] if completed.stdout else "", file=sys.stderr)
-        print(completed.stderr[-2000:] if completed.stderr else "", file=sys.stderr)
-        raise SystemExit(f"Harness failed scenario={scenario} exit={completed.returncode}")
-    if completed.stderr:
-        print(completed.stderr.strip())
+        argv.extend(["--smoke-token", smoke_token])
+
+    exit_code = harness_main(argv)
+    if exit_code not in {0, 2} or not output.exists():
+        raise SystemExit(f"Harness failed scenario={scenario} exit={exit_code}")
     return json.loads(output.read_text(encoding="utf-8"))
 
 
@@ -352,8 +340,7 @@ def _write_markdown(
             f"- **S3 uploads:** photo_upload scenario path measured ({s3_mode}).",
             "- **AI jobs:** submit creates AI background work; readiness "
             "`health_ready_ai` samples queue signals.",
-            "- **Cost drivers:** Bedrock/AI, Dynamo RCU/WCU, S3 PUT, SES/SNS "
-            "when real adapter on.",
+            "- **Cost drivers:** Bedrock/AI, Dynamo RCU/WCU, S3 PUT, SES/SNS when real adapter on.",
             "- **Config changes:** keep NOTIFICATION_ADAPTER=mock on capacity "
             "staging; raise WCU only if CloudWatch shows throttles under write-mixed.",
             "",
@@ -366,8 +353,7 @@ def _write_markdown(
             "",
             f"- Operator: automated `run_staging_equivalent_capacity.py` ({_iso_now()})",
             f"- Evidence JSON paths: {evidence_names or 'see sibling JSON'}",
-            "- Linked from [docs/release-readiness.md]"
-            "(../../../docs/release-readiness.md)",
+            "- Linked from [docs/release-readiness.md](../../../docs/release-readiness.md)",
             "",
         ]
     )
@@ -446,8 +432,7 @@ def main() -> int:
             )
             config_notes.extend(
                 [
-                    "Mode: **local staging-equivalent** "
-                    "(in-process memory ticket/account stores)",
+                    "Mode: **local staging-equivalent** (in-process memory ticket/account stores)",
                     f"Base URL: `{base_url}`",
                     "NOTIFICATION_ADAPTER=mock",
                     "DATABASE_BACKEND=memory (production-equivalent HTTP/write "

@@ -430,8 +430,7 @@ def _pick_call(
             raise SystemExit("staff-mutate requires staff credentials")
         if not ctx.ticket_ids:
             raise SystemExit(
-                "staff-mutate requires seeded tickets "
-                "(pass --citizen-token so setup can submit)"
+                "staff-mutate requires seeded tickets (pass --citizen-token so setup can submit)"
             )
         ticket_id = ctx.ticket_ids[counter % len(ctx.ticket_ids)]
         cycle = counter % 4
