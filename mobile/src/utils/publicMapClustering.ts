@@ -214,6 +214,24 @@ export function regionForReports(
   return { latitude, longitude, latitudeDelta, longitudeDelta };
 }
 
+/**
+ * Whether framing these points and re-clustering at that zoom still yields one
+ * multi-report cluster (typical for identical coordinates / same landmark).
+ * When this is false, zoom-to-expand is a no-op and callers should offer a report picker.
+ */
+export function clusterCanExpandByZoom(points: PlottablePublicReport[]): boolean {
+  if (points.length <= 1) {
+    return false;
+  }
+  const framed = regionForReports(points, 1.35);
+  const features = clusterPublicReports(points, framed);
+  if (features.length !== 1) {
+    return true;
+  }
+  const only = features[0];
+  return only.kind === 'single' || only.count < points.length;
+}
+
 export function initialRegionForPlottable(plottable: PlottablePublicReport[]): PublicMapRegion {
   if (plottable.length === 0) {
     return DEFAULT_PUBLIC_MAP_REGION;

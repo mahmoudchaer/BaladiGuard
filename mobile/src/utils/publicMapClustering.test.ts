@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { PublicTicketResponse } from '@/types/ticket';
 import {
   cellSizeForRegion,
+  clusterCanExpandByZoom,
   clusterPublicReports,
   filterPublicReports,
   isValidMapCoordinate,
@@ -159,6 +160,50 @@ describe('clusterPublicReports', () => {
       0,
     );
     expect(countSum).toBe(12);
+  });
+
+  it('keeps identical coordinates as one cluster even when framing for expand', () => {
+    const sameSpot = [
+      makeReport({ ticketNumber: 'BG-S1', latitude: 33.896, longitude: 35.478 }),
+      makeReport({ ticketNumber: 'BG-S2', latitude: 33.896, longitude: 35.478 }),
+      makeReport({ ticketNumber: 'BG-S3', latitude: 33.896, longitude: 35.478 }),
+    ];
+    const plottable = toPlottable(sameSpot);
+    const features = clusterPublicReports(plottable, regionForReports(plottable, 1.35));
+    expect(features).toHaveLength(1);
+    expect(features[0].kind).toBe('cluster');
+    if (features[0].kind === 'cluster') {
+      expect(features[0].count).toBe(3);
+    }
+  });
+});
+
+describe('clusterCanExpandByZoom', () => {
+  function toPlottable(reports: PublicTicketResponse[]): PlottablePublicReport[] {
+    return partitionPlottableReports(reports).plottable;
+  }
+
+  it('returns false for coincident coordinates (zoom is a no-op)', () => {
+    const plottable = toPlottable([
+      makeReport({ ticketNumber: 'BG-1', latitude: 33.9, longitude: 35.5 }),
+      makeReport({ ticketNumber: 'BG-2', latitude: 33.9, longitude: 35.5 }),
+    ]);
+    expect(clusterCanExpandByZoom(plottable)).toBe(false);
+  });
+
+  it('returns true when points can separate after framing', () => {
+    const plottable = toPlottable([
+      makeReport({ ticketNumber: 'BG-A', latitude: 33.89, longitude: 35.48 }),
+      makeReport({ ticketNumber: 'BG-B', latitude: 33.91, longitude: 35.5 }),
+    ]);
+    expect(clusterCanExpandByZoom(plottable)).toBe(true);
+  });
+
+  it('returns false for a single point', () => {
+    const plottable = toPlottable([
+      makeReport({ ticketNumber: 'BG-1', latitude: 33.9, longitude: 35.5 }),
+    ]);
+    expect(clusterCanExpandByZoom(plottable)).toBe(false);
   });
 });
 

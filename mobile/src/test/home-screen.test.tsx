@@ -193,7 +193,8 @@ describe('HomeScreen public map clustering', () => {
     const clusters = screen.root.findAll(
       (node) =>
         typeof node.props?.testID === 'string' &&
-        node.props.testID.startsWith('public-map-cluster-'),
+        node.props.testID.startsWith('public-map-cluster-') &&
+        !String(node.props.testID).includes('count'),
     );
     expect(clusters.length).toBeGreaterThan(0);
 
@@ -205,6 +206,59 @@ describe('HomeScreen public map clustering', () => {
     await flush();
     // After expand, maps still render and list remains available.
     expect(screen.root.findByProps({ testID: 'public-report-list' })).toBeTruthy();
+  });
+
+  it('opens a cluster report picker when all markers share the same coordinates', async () => {
+    vi.mocked(getPublicTickets).mockResolvedValue({
+      items: [
+        makeReport({ ticketNumber: 'BG-SAME-1', latitude: 33.9, longitude: 35.5 }),
+        makeReport({
+          ticketNumber: 'BG-SAME-2',
+          latitude: 33.9,
+          longitude: 35.5,
+          status: 'RESOLVED',
+          category: 'waste',
+        }),
+        makeReport({
+          ticketNumber: 'BG-SAME-3',
+          latitude: 33.9,
+          longitude: 35.5,
+          category: 'street_lighting',
+        }),
+      ],
+      nextCursor: null,
+      limit: 50,
+    });
+    const screen = await renderWithProvidersAsync(<HomeScreen />);
+    await flush();
+
+    const cluster = screen.root.findAll(
+      (node) =>
+        typeof node.props?.testID === 'string' &&
+        node.props.testID.startsWith('public-map-cluster-') &&
+        !String(node.props.testID).includes('count') &&
+        typeof node.props.onPress === 'function',
+    )[0];
+    expect(cluster).toBeTruthy();
+
+    await act(async () => {
+      cluster.props.onPress();
+    });
+    await flush();
+
+    expect(screen.root.findByProps({ testID: 'public-map-cluster-picker' }).props.visible).toBe(
+      true,
+    );
+    expect(screen.root.findByProps({ testID: 'public-map-cluster-pick-BG-SAME-1' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'public-map-cluster-pick-BG-SAME-2' })).toBeTruthy();
+
+    await act(async () => {
+      screen.root.findByProps({ testID: 'public-map-cluster-pick-BG-SAME-2' }).props.onPress();
+    });
+    expect(__getRouterMockState().pushCalls).toContainEqual({
+      pathname: '/public/[ticketNumber]',
+      params: { ticketNumber: 'BG-SAME-2' },
+    });
   });
 
   it('updates map and list consistently when status filter changes', async () => {

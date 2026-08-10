@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text as RNText } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View, Text as RNText } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
-import { Text } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 
-import { colors, radii, spacing, typography } from '@/theme';
+import { StatusChip } from '@/components/StatusChip';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
+import { formatCategoryLabel } from '@/theme/labels';
 import type { PublicTicketResponse } from '@/types/ticket';
 import {
+  clusterCanExpandByZoom,
   clusterPublicReports,
   initialRegionForPlottable,
   partitionPlottableReports,
@@ -24,11 +27,13 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
   const plottableKey = plottable.map((p) => p.ticketNumber).join('|');
 
   const [region, setRegion] = useState<PublicMapRegion>(() => initialRegionForPlottable(plottable));
+  const [clusterPicker, setClusterPicker] = useState<PublicTicketResponse[] | null>(null);
 
   useEffect(() => {
     const next = initialRegionForPlottable(plottable);
     setRegion(next);
     mapRef.current?.animateToRegion(next, 200);
+    setClusterPicker(null);
   }, [plottableKey]); // eslint-disable-line react-hooks/exhaustive-deps -- key tracks membership
 
   const features = useMemo(() => clusterPublicReports(plottable, region), [plottable, region]);
@@ -42,6 +47,11 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
     });
   }, []);
 
+  const openClusterPicker = useCallback((clusterReports: PublicTicketResponse[]) => {
+    const sorted = [...clusterReports].sort((a, b) => a.ticketNumber.localeCompare(b.ticketNumber));
+    setClusterPicker(sorted);
+  }, []);
+
   const expandCluster = useCallback(
     (clusterReports: PublicTicketResponse[]) => {
       const points = partitionPlottableReports(clusterReports).plottable;
@@ -52,9 +62,26 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
         onOpenReport(points[0].ticketNumber);
         return;
       }
+      // Identical / sub-cell coordinates never expand into singles on zoom.
+      if (!clusterCanExpandByZoom(points)) {
+        openClusterPicker(points.map((point) => point.report));
+        return;
+      }
       const next = regionForReports(points, 1.35);
       setRegion(next);
       mapRef.current?.animateToRegion(next, 280);
+    },
+    [onOpenReport, openClusterPicker],
+  );
+
+  const closeClusterPicker = useCallback(() => {
+    setClusterPicker(null);
+  }, []);
+
+  const pickReport = useCallback(
+    (ticketNumber: string) => {
+      setClusterPicker(null);
+      onOpenReport(ticketNumber);
     },
     [onOpenReport],
   );
@@ -99,6 +126,8 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
             );
           }
 
+          const points = partitionPlottableReports(feature.reports).plottable;
+          const mayExpand = clusterCanExpandByZoom(points);
           return (
             <Marker
               key={feature.id}
@@ -108,7 +137,11 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
               }}
               onPress={() => expandCluster(feature.reports)}
               testID={`public-map-cluster-${feature.id}`}
-              accessibilityLabel={`Cluster of ${feature.count} public reports. Activate to zoom in.`}
+              accessibilityLabel={
+                mayExpand
+                  ? `Cluster of ${feature.count} public reports. Activate to zoom in.`
+                  : `Cluster of ${feature.count} public reports at the same location. Activate to choose a report.`
+              }
               tracksViewChanges={false}
             >
               <View
@@ -123,7 +156,62 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
       </MapView>
       <Text variant="bodySmall" style={styles.mapHint} testID="public-map-list-hint">
         Prefer the report list below if the map is hard to use. Clusters show only public reports.
+        Same-location clusters open a short list so you can still choose a report.
       </Text>
+
+      <Modal
+        visible={clusterPicker !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeClusterPicker}
+        testID="public-map-cluster-picker"
+      >
+        <View style={styles.pickerBackdrop}>
+          <View style={styles.pickerSheet} accessibilityViewIsModal>
+            <Text variant="titleMedium" style={styles.pickerTitle}>
+              Reports at this location
+            </Text>
+            <Text variant="bodySmall" style={styles.pickerSubtitle}>
+              These public reports share the same map pin. Choose one to open.
+            </Text>
+            <ScrollView
+              style={styles.pickerList}
+              contentContainerStyle={styles.pickerListContent}
+              testID="public-map-cluster-picker-list"
+            >
+              {(clusterPicker ?? []).map((report) => (
+                <Pressable
+                  key={report.ticketNumber}
+                  style={styles.pickerRow}
+                  onPress={() => pickReport(report.ticketNumber)}
+                  testID={`public-map-cluster-pick-${report.ticketNumber}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open public report ${report.ticketNumber}`}
+                >
+                  <View style={styles.pickerRowTop}>
+                    <Text variant="titleSmall" style={styles.pickerTicket}>
+                      {report.ticketNumber}
+                    </Text>
+                    <StatusChip status={report.status} />
+                  </View>
+                  <Text variant="bodySmall" style={styles.pickerMeta} numberOfLines={2}>
+                    {formatCategoryLabel(report.category)} ·{' '}
+                    {report.location.addressText || report.mapLocation?.addressText || 'Location'}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Button
+              mode="outlined"
+              onPress={closeClusterPicker}
+              testID="public-map-cluster-picker-close"
+              accessibilityLabel="Close location report list"
+            >
+              Close
+            </Button>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -171,5 +259,55 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontWeight: '700',
     fontSize: typography.label,
+  },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 35, 50, 0.45)',
+    justifyContent: 'center',
+    padding: spacing[4],
+  },
+  pickerSheet: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing[4],
+    maxHeight: '70%',
+    gap: spacing[3],
+  },
+  pickerTitle: {
+    color: colors.brandDark,
+    fontWeight: '700',
+  },
+  pickerSubtitle: {
+    color: colors.textSecondary,
+  },
+  pickerList: {
+    maxHeight: 280,
+  },
+  pickerListContent: {
+    gap: spacing[2],
+    paddingBottom: spacing[1],
+  },
+  pickerRow: {
+    minHeight: touchTargetMin,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    padding: spacing[3],
+    backgroundColor: colors.surfaceSubtle,
+    gap: spacing[1],
+  },
+  pickerRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing[2],
+  },
+  pickerTicket: {
+    color: colors.text,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  pickerMeta: {
+    color: colors.textMuted,
   },
 });
