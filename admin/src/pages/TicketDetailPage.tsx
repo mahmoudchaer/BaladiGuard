@@ -150,12 +150,30 @@ export function TicketDetailPage() {
   useEffect(() => {
     if (!ticketId) return;
     let active = true;
-    setActivityLoading(true); setActivityError(null); setActivity([]); setComments([]);
+    setActivityLoading(true);
+    setActivityError(null);
+    setActivity([]);
+    setComments([]);
     void Promise.all([fetchTicketActivity(ticketId), fetchTicketComments(ticketId)])
-      .then(([page, loadedComments]) => { if (active) { setActivity(page.events); setNextActivityCursor(page.nextCursor); setComments(loadedComments); } })
-      .catch((error) => { if (active) setActivityError(error instanceof Error ? error.message : 'Unable to load ticket activity.'); })
-      .finally(() => { if (active) setActivityLoading(false); });
-    return () => { active = false; };
+      .then(([page, loadedComments]) => {
+        if (active) {
+          setActivity(page.events);
+          setNextActivityCursor(page.nextCursor);
+          setComments(loadedComments);
+        }
+      })
+      .catch((error) => {
+        if (active)
+          setActivityError(
+            error instanceof Error ? error.message : 'Unable to load ticket activity.',
+          );
+      })
+      .finally(() => {
+        if (active) setActivityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [ticketId]);
 
   async function handleCommentSubmit() {
@@ -167,7 +185,8 @@ export function TicketDetailPage() {
       setCommentText('');
       setComments((current) => [...current, comment]);
       const page = await fetchTicketActivity(ticketId);
-      setActivity(page.events); setNextActivityCursor(page.nextCursor);
+      setActivity(page.events);
+      setNextActivityCursor(page.nextCursor);
     } catch (error) {
       setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
     } finally {
@@ -1014,9 +1033,14 @@ export function TicketDetailPage() {
                     </button>
                   )}
                   {comments.map((comment) => (
-                    <article key={comment.commentId} aria-label={`Comment by ${comment.authorDisplayName}`}>
+                    <article
+                      key={comment.commentId}
+                      aria-label={`Comment by ${comment.authorDisplayName}`}
+                    >
                       <strong>{comment.authorDisplayName}</strong>{' '}
-                      <time dateTime={comment.createdAt}>{formatCreatedDate(comment.createdAt)}</time>
+                      <time dateTime={comment.createdAt}>
+                        {formatCreatedDate(comment.createdAt)}
+                      </time>
                       <p>{comment.text}</p>
                       {comment.mentionedStaffIds.length > 0 && (
                         <small>Mentions: {comment.mentionedStaffIds.join(', ')}</small>

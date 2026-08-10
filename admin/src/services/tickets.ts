@@ -564,35 +564,43 @@ export async function fetchTicketById(ticketId: string): Promise<Ticket | null> 
   return fetchTicketByIdFromApi(ticketId);
 }
 
-export async function fetchTicketActivity(ticketId: string, cursor?: string): Promise<ActivityPage> {
+export async function fetchTicketActivity(
+  ticketId: string,
+  cursor?: string,
+): Promise<ActivityPage> {
   if (config.useMockData) return { events: [], nextCursor: null };
   const url = new URL(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/activity`);
   if (cursor) url.searchParams.set('cursor', cursor);
-  const response = await fetch(
-    url,
-    { headers: getStaffAuthHeaders() },
-  );
+  const response = await fetch(url, { headers: getStaffAuthHeaders() });
   if (!response.ok) await throwApiError(response, 'Unable to load ticket activity.');
   const data: unknown = await response.json();
-  const events = isRecord(data) && Array.isArray(data.events)
-    ? data.events.filter(isRecord).map((event) => ({
-        eventId: String(event.eventId),
-        eventType: String(event.eventType),
-        occurredAt: String(event.occurredAt),
-        actorDisplayName:
-          typeof event.actorDisplayName === 'string' ? event.actorDisplayName : null,
-        details: (isRecord(event.details)
-          ? Object.fromEntries(
-              Object.entries(event.details).filter(([, value]) => typeof value === 'string'),
-            )
-          : {}) as Record<string, string>,
-        sourceReference: String(event.sourceReference),
-      })) : [];
-  return { events, nextCursor: isRecord(data) && typeof data.nextCursor === 'string' ? data.nextCursor : null };
+  const events =
+    isRecord(data) && Array.isArray(data.events)
+      ? data.events.filter(isRecord).map((event) => ({
+          eventId: String(event.eventId),
+          eventType: String(event.eventType),
+          occurredAt: String(event.occurredAt),
+          actorDisplayName:
+            typeof event.actorDisplayName === 'string' ? event.actorDisplayName : null,
+          details: (isRecord(event.details)
+            ? Object.fromEntries(
+                Object.entries(event.details).filter(([, value]) => typeof value === 'string'),
+              )
+            : {}) as Record<string, string>,
+          sourceReference: String(event.sourceReference),
+        }))
+      : [];
+  return {
+    events,
+    nextCursor: isRecord(data) && typeof data.nextCursor === 'string' ? data.nextCursor : null,
+  };
 }
 
 export async function fetchTicketComments(ticketId: string): Promise<StaffComment[]> {
-  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/comments`, { headers: getStaffAuthHeaders() });
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/comments`,
+    { headers: getStaffAuthHeaders() },
+  );
   if (!response.ok) await throwApiError(response, 'Unable to load ticket comments.');
   const data: unknown = await response.json();
   return Array.isArray(data) ? (data as StaffComment[]) : [];
