@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assignTicketDepartment,
+  fetchTicketActivity,
   reviewTicketCategory,
   fetchTicketById,
   fetchTickets,
@@ -17,6 +18,7 @@ import { TicketDetailPage } from '@/pages/TicketDetailPage';
 vi.mock('@/services/tickets', () => ({
   fetchTicketById: vi.fn(),
   fetchTickets: vi.fn(),
+  fetchTicketActivity: vi.fn(),
   mergeDuplicateTickets: vi.fn(),
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
@@ -78,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchTicketById).mockResolvedValue(ticket);
   vi.mocked(fetchTickets).mockResolvedValue([]);
+  vi.mocked(fetchTicketActivity).mockResolvedValue([]);
 });
 
 describe('TicketDetailPage duplicate suggestions', () => {
