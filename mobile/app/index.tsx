@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
 import { Link, useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,16 +10,32 @@ import { buildLoginHref } from '@/auth/returnTo';
 import { BrandMark, BrandStripe } from '@/components/BrandMark';
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
+import { PublicReportFilters } from '@/features/public-browse/PublicReportFilters';
+import { PublicReportsMap } from '@/features/public-browse/PublicReportsMap';
 import { getPublicTickets } from '@/services/api/tickets';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
 import type { PublicTicketResponse } from '@/types/ticket';
 import { openInMapsApp } from '@/utils/openMaps';
+import {
+  filterPublicReports,
+  partitionPlottableReports,
+  uniquePublicCategories,
+  type PublicBrowseFilters,
+} from '@/utils/publicMapClustering';
+
+const PUBLIC_FEED_LIMIT = 50;
+
+const DEFAULT_FILTERS: PublicBrowseFilters = {
+  status: 'ALL',
+  category: 'ALL',
+};
 
 export default function HomeScreen() {
   const router = useRouter();
   const { isAuthenticated, contributionReady, profile, logout, isLoading } = useCitizenAuth();
   const [reports, setReports] = useState<PublicTicketResponse[]>([]);
+  const [filters, setFilters] = useState<PublicBrowseFilters>(DEFAULT_FILTERS);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
   const [reportError, setReportError] = useState<string | null>(null);
   const loadSeqRef = useRef(0);
@@ -35,7 +50,7 @@ export default function HomeScreen() {
     setIsLoadingReports(true);
     setReportError(null);
     try {
-      const response = await getPublicTickets({ limit: 20, signal: controller.signal });
+      const response = await getPublicTickets({ limit: PUBLIC_FEED_LIMIT, signal: controller.signal });
       if (seq !== loadSeqRef.current) {
         return;
       }
@@ -61,6 +76,18 @@ export default function HomeScreen() {
       abortRef.current?.abort();
     };
   }, [loadReports]);
+
+  const filteredReports = useMemo(
+    () => filterPublicReports(reports, filters),
+    [reports, filters],
+  );
+
+  const { skippedCount } = useMemo(
+    () => partitionPlottableReports(filteredReports),
+    [filteredReports],
+  );
+
+  const categories = useMemo(() => uniquePublicCategories(reports), [reports]);
 
   const openPublicReport = (ticketNumber: string) => {
     router.push({
@@ -220,6 +247,14 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.publicContent} testID="public-report-feed">
+            {reports.length > 0 ? (
+              <PublicReportFilters
+                filters={filters}
+                categories={categories}
+                onChange={setFilters}
+              />
+            ) : null}
+
             {reports.length === 0 && !reportError ? (
               <View style={styles.emptyState}>
                 <Text variant="titleSmall" style={styles.emptyTitle}>
@@ -231,35 +266,60 @@ export default function HomeScreen() {
               </View>
             ) : null}
 
-            {reports.length > 0 ? (
-              <View style={styles.mapWrap}>
-                <MapView
-                  style={styles.map}
-                  initialRegion={{
-                    latitude: reports[0].mapLocation.latitude,
-                    longitude: reports[0].mapLocation.longitude,
-                    latitudeDelta: 0.04,
-                    longitudeDelta: 0.04,
-                  }}
+            {reports.length > 0 && filteredReports.length === 0 ? (
+              <View style={styles.emptyState} testID="public-filter-empty">
+                <Text variant="titleSmall" style={styles.emptyTitle}>
+                  No public reports match these filters
+                </Text>
+                <Text variant="bodyMedium" style={styles.emptyBody}>
+                  Clear a status or category filter to see more of the public map and list.
+                </Text>
+                <Button
+                  mode="outlined"
+                  onPress={() => setFilters(DEFAULT_FILTERS)}
+                  textColor={colors.brandDark}
+                  testID="public-filter-clear"
                 >
-                  {reports.map((report) => (
-                    <Marker
-                      key={report.ticketNumber}
-                      coordinate={{
-                        latitude: report.mapLocation.latitude,
-                        longitude: report.mapLocation.longitude,
-                      }}
-                      title={report.ticketNumber}
-                      description={report.location.addressText}
-                      pinColor={colors.status[report.status]?.fg ?? colors.brand}
-                      onPress={() => openPublicReport(report.ticketNumber)}
-                    />
-                  ))}
-                </MapView>
+                  Clear filters
+                </Button>
               </View>
             ) : null}
 
-            {reports.map((report) => (
+            {filteredReports.length > 0 ? (
+              <>
+                {skippedCount > 0 ? (
+                  <Banner
+                    visible
+                    icon="map-marker-off"
+                    style={styles.partialBanner}
+                    testID="public-map-partial-data"
+                  >
+                    {skippedCount === 1
+                      ? '1 public report is missing a map position and is list-only.'
+                      : `${skippedCount} public reports are missing map positions and are list-only.`}
+                  </Banner>
+                ) : null}
+                <PublicReportsMap reports={filteredReports} onOpenReport={openPublicReport} />
+              </>
+            ) : null}
+
+            {filteredReports.length > 0 ? (
+              <View
+                style={styles.listSection}
+                testID="public-report-list"
+                accessibilityRole="summary"
+                accessibilityLabel="Public report list alternative to the map"
+              >
+                <Text variant="titleSmall" style={styles.listTitle}>
+                  Report list
+                </Text>
+                <Text variant="bodySmall" style={styles.feedHint}>
+                  Full list of the same citizen-safe public reports shown on the map.
+                </Text>
+              </View>
+            ) : null}
+
+            {filteredReports.map((report) => (
               <View key={report.ticketNumber} style={styles.reportRow}>
                 <Pressable
                   style={({ pressed }) => [
@@ -305,6 +365,10 @@ export default function HomeScreen() {
                   contentStyle={styles.mapsButtonContent}
                   labelStyle={styles.mapsButtonLabel}
                   textColor={colors.brandDark}
+                  disabled={
+                    !Number.isFinite(report.mapLocation?.latitude) ||
+                    !Number.isFinite(report.mapLocation?.longitude)
+                  }
                   onPress={() => {
                     void openInMapsApp({
                       latitude: report.mapLocation.latitude,
@@ -441,6 +505,9 @@ const styles = StyleSheet.create({
   errorBanner: {
     backgroundColor: colors.dangerSoft,
   },
+  partialBanner: {
+    backgroundColor: colors.warningSoft,
+  },
   reportLoading: {
     minHeight: 120,
     justifyContent: 'center',
@@ -469,15 +536,13 @@ const styles = StyleSheet.create({
   emptyBody: {
     color: colors.textSecondary,
   },
-  mapWrap: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
+  listSection: {
+    gap: spacing[1],
+    marginTop: spacing[1],
   },
-  map: {
-    height: 200,
+  listTitle: {
+    fontWeight: '700',
+    color: colors.text,
   },
   reportRow: {
     gap: spacing[3],
