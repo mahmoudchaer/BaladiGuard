@@ -34,6 +34,7 @@ deploy typo cannot bypass production fail-closed rules.
 | Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | `AWS_S3_BUCKET` required |
 | Dynamo endpoint | Localhost Docker URL allowed | Must not point at localhost |
 | Sample seed | Optional synthetic mocks only | `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
+| Citizen deep links | Optional `CITIZEN_APP_BASE_URL` (defaults to `http://localhost:8081`) | Required **https**, non-localhost base for SMS/email links (#257) |
 
 Backend **startup aborts** when `APP_ENV=production` and validation finds errors.
 In other environments, the process still starts and `/health` reports `config.status`.
@@ -76,6 +77,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_ALLOWLIST_PHONES` | Sandbox/testing | empty | Comma-separated E.164 allowlist |
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
+| `CITIZEN_APP_BASE_URL` | Production | non-prod: `http://localhost:8081` when unset | Citizen app base for notification deep links (`/t/{trackingCode}`); production must be https and non-localhost (#257) |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
@@ -156,8 +158,9 @@ Before deploy (#74):
 7. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
 8. `AWS_S3_BUCKET=<bucket>`
 9. `SEED_SAMPLE_TICKETS=false`
-10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links)
+11. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+12. Confirm process starts (validation aborts on failure) and `/health` is `ok`
 
 ## Health payload
 

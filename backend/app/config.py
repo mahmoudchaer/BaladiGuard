@@ -183,6 +183,10 @@ class Settings:
             os.getenv("OTP_DEV_PLAINTEXT_STDOUT", "false").strip().lower() == "true"
         )
 
+        # Citizen-facing HTTPS base for notification deep links (issue #257).
+        # Production must set an explicit non-localhost https URL.
+        self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None
+
         # Staff auth (issue #175). Individual staff accounts are persisted;
         # DEMO_STAFF_PASSWORD is only used when bootstrapping local/test seed
         # accounts. Shared env-credential login has been removed.

@@ -35,6 +35,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="report/index" options={{ title: 'New report' }} />
             <Stack.Screen name="track/index" options={{ title: 'Track a report' }} />
+            <Stack.Screen name="t/[code]" options={{ title: 'Report link' }} />
             <Stack.Screen name="history/index" options={{ title: 'Report history' }} />
             <Stack.Screen name="login/index" options={{ title: 'Sign in' }} />
             <Stack.Screen name="profile/index" options={{ title: 'Profile' }} />

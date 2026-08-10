@@ -1,8 +1,8 @@
-# Notification Delivery (issues #39 / #40 / #183)
+# Notification Delivery (issues #39 / #40 / #183 / #257)
 
 BaladiGuard emits citizen notifications for important ticket lifecycle events.
 Templates come from issue **#40**. This document covers the **delivery** layer
-(mock MVP and real SES email + SNS SMS).
+(mock MVP and real SES email + SNS SMS) and citizen **deep links** (#257).
 
 ## Architecture
 
@@ -43,10 +43,22 @@ Each emit includes:
 
 | Field | Source |
 | --- | --- |
-| `ticketId` | Ticket |
-| `trackingCode` | Ticket (when present; also appears in rendered body) |
+| `ticketId` | Ticket (ledger / logs only — **not** in citizen-facing SMS/email bodies) |
+| `trackingCode` | Ticket (when present; appears in body; used only for deep links) |
 | `status` / event | New workflow status; event is `ticket_created`, `ticket_updated`, or `ticket_resolved` |
+| deep link | Server-built `{CITIZEN_APP_BASE_URL}/t/{TRACKING_CODE}` when base + valid code exist |
 | recipient | Account-linked tickets use the current citizen profile preference; legacy unowned tickets use the ticket contact snapshot |
+
+### Deep links (#257)
+
+| Item | Behavior |
+| --- | --- |
+| Shape | HTTPS path `/t/{trackingCode}` only (possession-based). App scheme: `baladiguard://t/{code}` |
+| Never in the link | Phone, email, access tokens, raw internal ticket IDs, private object keys |
+| Local / test | `CITIZEN_APP_BASE_URL` optional → defaults to `http://localhost:8081` |
+| Production | **Required** `CITIZEN_APP_BASE_URL` with **https**, non-localhost (startup fail-closed) |
+| Mobile landing | `mobile/app/t/[code].tsx` — malformed → safe fallback; logged-out track vs sign-in (`returnTo`); authenticated → citizen track UI. Access/error text never reveals ownership to others. |
+| Idempotency / preferences | Unchanged (`{event}:{ticketId}:{status}`, preference skip rules) |
 
 ## Citizen notification preferences
 
@@ -132,8 +144,9 @@ Each channel attempt can be stored (table suffix `notification-deliveries` on Dy
 | `NOTIFICATION_ALLOWLIST_PHONES` | empty | Comma-separated E.164 phones permitted in sandbox |
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | `10` | Max sends per destination per window |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | `60` | Throttle window |
+| `CITIZEN_APP_BASE_URL` | local default / empty | Citizen HTTPS base for deep links; **required in production** |
 
-Production validation requires `NOTIFICATION_ADAPTER=real` and `SES_FROM_EMAIL`. Leaving sandbox on in production is a **warning**.
+Production validation requires `NOTIFICATION_ADAPTER=real`, `SES_FROM_EMAIL`, and `CITIZEN_APP_BASE_URL` (https, non-localhost). Leaving sandbox on in production is a **warning**.
 
 See also [configuration.md](./configuration.md) and [cloud-setup.md](./cloud-setup.md).
 
@@ -155,4 +168,6 @@ See also [configuration.md](./configuration.md) and [cloud-setup.md](./cloud-set
 - `backend/tests/test_notifications.py` — mock adapter, preferences, recipient, idempotency, no ticket rollback
 - `backend/tests/test_notification_aws_adapter.py` — SES/SNS fakes, sandbox, throttle, permanent/transient, records
 - `backend/tests/test_notification_templates.py` — #40 wording
+- `backend/tests/test_notification_deep_links.py` — #257 link shape, prod base, no raw ticket id in body
 - `backend/tests/test_health.py` — emit never raises
+- Mobile: `src/test/notification-deep-link-screen.test.tsx`, `src/auth/returnTo.test.ts`

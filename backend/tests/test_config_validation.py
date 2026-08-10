@@ -134,10 +134,41 @@ def test_production_rejects_development_defaults():
     assert "MISSING_AWS_S3_BUCKET" in codes
     assert "UNSAFE_DYNAMODB_ENDPOINT_URL" in codes
     assert "UNSAFE_SEED_SAMPLE_TICKETS" in codes
+    assert "MISSING_CITIZEN_APP_BASE_URL" in codes
     # Secret values must never appear in issue messages.
     serialized = " ".join(issue.message for issue in result.issues).lower()
     assert "changeme" not in serialized
     assert "staff-demo-password" not in serialized
+
+
+def test_production_requires_https_citizen_app_base_url():
+    environ = {
+        "APP_ENV": "production",
+        "DATABASE_BACKEND": "dynamodb",
+        "NOTIFICATION_ADAPTER": "real",
+        "SES_FROM_EMAIL": "noreply@baladiguard.example",
+        "SECRET_KEY": "prod-rotation-key-not-a-placeholder",
+        "SEED_DEMO_STAFF": "false",
+        "AWS_REGION": "us-east-1",
+        "AWS_S3_BUCKET": "baladiguard-prod-uploads",
+        "LOCATION_PLACE_INDEX_NAME": "baladiguard-places",
+        "SEED_SAMPLE_TICKETS": "false",
+        "CITIZEN_APP_BASE_URL": "http://localhost:8081",
+    }
+    original = dict(os.environ)
+    try:
+        os.environ.clear()
+        os.environ.update(environ)
+        settings = _settings_from_env()
+        result = validate_configuration(settings, environ=environ)
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+        get_settings.cache_clear()
+
+    codes = {issue.code for issue in result.issues}
+    assert result.should_abort_startup is True
+    assert "UNSAFE_CITIZEN_APP_BASE_URL" in codes
 
 
 def test_production_valid_configuration_passes():
@@ -154,6 +185,7 @@ def test_production_valid_configuration_passes():
         "LOCATION_PLACE_INDEX_NAME": "baladiguard-places",
         "SEED_SAMPLE_TICKETS": "false",
         "DYNAMODB_ENDPOINT_URL": "",
+        "CITIZEN_APP_BASE_URL": "https://app.baladiguard.example",
     }
     original = dict(os.environ)
     try:

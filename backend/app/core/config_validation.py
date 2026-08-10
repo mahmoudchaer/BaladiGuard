@@ -415,4 +415,41 @@ def validate_configuration(
                 )
             )
 
+        # Citizen app deep links for SMS/email (issue #257). Fail closed: production
+        # must set an explicit non-localhost https base (no silent localhost default).
+        from app.services.notifications.deep_links import (
+            is_localhost_base_url,
+            is_valid_citizen_app_base_url,
+            normalize_citizen_app_base_url,
+        )
+
+        citizen_base = normalize_citizen_app_base_url(cfg.citizen_app_base_url)
+        if not citizen_base:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CITIZEN_APP_BASE_URL",
+                    message=(
+                        "Production requires CITIZEN_APP_BASE_URL "
+                        "(HTTPS base for citizen notification deep links)."
+                    ),
+                )
+            )
+        elif is_localhost_base_url(citizen_base):
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_CITIZEN_APP_BASE_URL",
+                    message=("Production must not use a localhost CITIZEN_APP_BASE_URL."),
+                )
+            )
+        elif not is_valid_citizen_app_base_url(citizen_base, require_https=True):
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_CITIZEN_APP_BASE_URL",
+                    message=(
+                        "CITIZEN_APP_BASE_URL must be a valid https URL "
+                        "(no trailing path required; e.g. https://app.example.com)."
+                    ),
+                )
+            )
+
     return result
