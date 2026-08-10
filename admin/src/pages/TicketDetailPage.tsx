@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { ActivityEvent, Ticket, TicketStatus } from '@/types/ticket';
+import type { ActivityEvent, StaffComment, Ticket, TicketStatus } from '@/types/ticket';
 import {
   assignTicketDepartment,
   fetchTicketById,
@@ -9,6 +9,7 @@ import {
   reviewTicketCategory,
   updateTicketStatus,
   createTicketComment,
+  fetchTicketComments,
   fetchTicketActivity,
 } from '@/services/tickets';
 import { useStaffAuth } from '@/auth/useStaffAuth';
@@ -68,6 +69,10 @@ export function TicketDetailPage() {
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [comments, setComments] = useState<StaffComment[]>([]);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [nextActivityCursor, setNextActivityCursor] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -144,9 +149,13 @@ export function TicketDetailPage() {
 
   useEffect(() => {
     if (!ticketId) return;
-    void fetchTicketActivity(ticketId)
-      .then(setActivity)
-      .catch(() => setActivity([]));
+    let active = true;
+    setActivityLoading(true); setActivityError(null); setActivity([]); setComments([]);
+    void Promise.all([fetchTicketActivity(ticketId), fetchTicketComments(ticketId)])
+      .then(([page, loadedComments]) => { if (active) { setActivity(page.events); setNextActivityCursor(page.nextCursor); setComments(loadedComments); } })
+      .catch((error) => { if (active) setActivityError(error instanceof Error ? error.message : 'Unable to load ticket activity.'); })
+      .finally(() => { if (active) setActivityLoading(false); });
+    return () => { active = false; };
   }, [ticketId]);
 
   async function handleCommentSubmit() {
@@ -154,9 +163,11 @@ export function TicketDetailPage() {
     setIsSubmittingComment(true);
     setCommentError(null);
     try {
-      await createTicketComment(ticketId, commentText);
+      const comment = await createTicketComment(ticketId, commentText);
       setCommentText('');
-      setActivity(await fetchTicketActivity(ticketId));
+      setComments((current) => [...current, comment]);
+      const page = await fetchTicketActivity(ticketId);
+      setActivity(page.events); setNextActivityCursor(page.nextCursor);
     } catch (error) {
       setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
     } finally {
@@ -973,6 +984,7 @@ export function TicketDetailPage() {
                 <section aria-labelledby="internal-activity-heading">
                   <h3 id="internal-activity-heading">Internal activity</h3>
                   <ol aria-label="Internal ticket activity">
+                    {activityLoading && <li>Loading internal activity…</li>}
                     {activity.map((event) => (
                       <li key={event.eventId}>
                         <time dateTime={event.occurredAt}>
@@ -982,7 +994,35 @@ export function TicketDetailPage() {
                         {event.actorDisplayName ? ` · ${event.actorDisplayName}` : ''}
                       </li>
                     ))}
+                    {!activityLoading && !activityError && activity.length === 0 && (
+                      <li>No internal activity yet.</li>
+                    )}
                   </ol>
+                  {activityError && <p role="alert">{activityError}</p>}
+                  {nextActivityCursor && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!ticketId) return;
+                        void fetchTicketActivity(ticketId, nextActivityCursor).then((page) => {
+                          setActivity((current) => [...current, ...page.events]);
+                          setNextActivityCursor(page.nextCursor);
+                        });
+                      }}
+                    >
+                      Load more activity
+                    </button>
+                  )}
+                  {comments.map((comment) => (
+                    <article key={comment.commentId} aria-label={`Comment by ${comment.authorDisplayName}`}>
+                      <strong>{comment.authorDisplayName}</strong>{' '}
+                      <time dateTime={comment.createdAt}>{formatCreatedDate(comment.createdAt)}</time>
+                      <p>{comment.text}</p>
+                      {comment.mentionedStaffIds.length > 0 && (
+                        <small>Mentions: {comment.mentionedStaffIds.join(', ')}</small>
+                      )}
+                    </article>
+                  ))}
                   <label htmlFor="internal-comment">Add internal comment</label>
                   <textarea
                     id="internal-comment"

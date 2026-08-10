@@ -9,7 +9,7 @@ import type {
   TicketStatus,
   TicketStatusHistoryEntry,
   StaffComment,
-  ActivityEvent,
+  ActivityPage,
 } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
@@ -564,15 +564,17 @@ export async function fetchTicketById(ticketId: string): Promise<Ticket | null> 
   return fetchTicketByIdFromApi(ticketId);
 }
 
-export async function fetchTicketActivity(ticketId: string): Promise<ActivityEvent[]> {
-  if (config.useMockData) return [];
+export async function fetchTicketActivity(ticketId: string, cursor?: string): Promise<ActivityPage> {
+  if (config.useMockData) return { events: [], nextCursor: null };
+  const url = new URL(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/activity`);
+  if (cursor) url.searchParams.set('cursor', cursor);
   const response = await fetch(
-    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/activity`,
+    url,
     { headers: getStaffAuthHeaders() },
   );
   if (!response.ok) await throwApiError(response, 'Unable to load ticket activity.');
   const data: unknown = await response.json();
-  return isRecord(data) && Array.isArray(data.events)
+  const events = isRecord(data) && Array.isArray(data.events)
     ? data.events.filter(isRecord).map((event) => ({
         eventId: String(event.eventId),
         eventType: String(event.eventType),
@@ -585,8 +587,15 @@ export async function fetchTicketActivity(ticketId: string): Promise<ActivityEve
             )
           : {}) as Record<string, string>,
         sourceReference: String(event.sourceReference),
-      }))
-    : [];
+      })) : [];
+  return { events, nextCursor: isRecord(data) && typeof data.nextCursor === 'string' ? data.nextCursor : null };
+}
+
+export async function fetchTicketComments(ticketId: string): Promise<StaffComment[]> {
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/comments`, { headers: getStaffAuthHeaders() });
+  if (!response.ok) await throwApiError(response, 'Unable to load ticket comments.');
+  const data: unknown = await response.json();
+  return Array.isArray(data) ? (data as StaffComment[]) : [];
 }
 
 export async function createTicketComment(ticketId: string, text: string): Promise<StaffComment> {

@@ -189,6 +189,21 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "staff-comments",
+        "key_schema": [{"AttributeName": "commentId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "commentId", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "account-audit",
         "key_schema": [{"AttributeName": "auditId", "KeyType": "HASH"}],
         "attribute_definitions": [

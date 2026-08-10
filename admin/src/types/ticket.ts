@@ -85,6 +85,8 @@ export type ActivityEvent = {
   sourceReference: string;
 };
 
+export type ActivityPage = { events: ActivityEvent[]; nextCursor: string | null };
+
 export type TicketDuplicateReference = {
   duplicateGroupId: string;
   ticketIds?: string[];

@@ -6,9 +6,9 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.core.staff_auth import StaffPrincipal, principal_from_user, staff_can_access_ticket
-from app.database.memory_staff_comments import staff_comment_store
 from app.database.store_factory import (
     get_audit_history_store,
+    get_staff_comment_store,
     get_staff_store,
     get_status_history_store,
     get_ticket_store,
@@ -80,7 +80,7 @@ class StaffCommentService:
             mentionedStaffIds=mentioned,
             createdAt=_now(),
         )
-        staff_comment_store.append(comment)
+        get_staff_comment_store().append(comment)
         get_audit_history_store().append(
             StoredAuditHistory(
                 auditId=f"audit_{uuid4().hex}",
@@ -98,7 +98,7 @@ class StaffCommentService:
         _ticket_for(principal, ticket_id)
         return [
             _comment_response(comment)
-            for comment in staff_comment_store.list_by_ticket_id(ticket_id)
+            for comment in get_staff_comment_store().list_by_ticket_id(ticket_id)
         ]
 
     def timeline(
@@ -118,7 +118,7 @@ class StaffCommentService:
                 )
             )
         for entry in get_audit_history_store().list_by_ticket_id(ticket_id):
-            if entry.action_type == "STAFF_COMMENT":
+            if entry.action_type in {"STAFF_COMMENT", "STATUS_CHANGE"}:
                 continue
             events.append(
                 ActivityEvent(
@@ -130,7 +130,7 @@ class StaffCommentService:
                     sourceReference=f"audit:{entry.audit_id}",
                 )
             )
-        for comment in staff_comment_store.list_by_ticket_id(ticket_id):
+        for comment in get_staff_comment_store().list_by_ticket_id(ticket_id):
             events.append(
                 ActivityEvent(
                     eventId=f"comment:{comment.comment_id}",
