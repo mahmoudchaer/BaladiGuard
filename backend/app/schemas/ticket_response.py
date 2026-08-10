@@ -223,6 +223,18 @@ class TicketPublicFields(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class TicketSlaFields(BaseModel):
+    state: Literal["on_track", "due_soon", "overdue", "completed", "unavailable"]
+    acknowledgement_due_at: str | None = Field(default=None, alias="acknowledgementDueAt")
+    resolution_due_at: str | None = Field(default=None, alias="resolutionDueAt")
+    target_at: str | None = Field(default=None, alias="targetAt")
+    remaining_seconds: int | None = Field(default=None, alias="remainingSeconds")
+    overdue_seconds: int | None = Field(default=None, alias="overdueSeconds")
+    policy_key: str | None = Field(default=None, alias="policyKey")
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketResponse(BaseModel):
     """Shared ticket read shape returned by staff dashboard and ticket read APIs."""
 
@@ -247,6 +259,7 @@ class TicketResponse(BaseModel):
     updated_at: str | None = Field(alias="updatedAt")
     updated_by: str | None = Field(default=None, alias="updatedBy")
     ai: TicketAiFields | None = None
+    sla: TicketSlaFields | None = None
     public: TicketPublicFields | None = None
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,

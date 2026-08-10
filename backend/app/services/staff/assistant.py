@@ -10,6 +10,7 @@ from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket
 from app.database.store_factory import get_ticket_store
 from app.schemas.staff_assistant import StaffAssistantResponse, StaffAssistantTicketReference
 from app.schemas.stored_ticket import StoredTicket
+from app.services.complaints.sla import derive_ticket_sla
 
 _HIGH_PRIORITY_TERMS = (
     "high priority",
@@ -77,6 +78,7 @@ def _reference(ticket: StoredTicket) -> StaffAssistantTicketReference:
         ticketNumber=ticket.ticket_number,
         category=ticket.final_category or ticket.category,
         priority=ticket.priority,
+        slaState=derive_ticket_sla(ticket).state,
         municipalityId=ticket.municipality_id,
         departmentId=ticket.department_id,
     )

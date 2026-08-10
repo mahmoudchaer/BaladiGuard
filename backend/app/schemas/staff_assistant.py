@@ -24,6 +24,9 @@ class StaffAssistantTicketReference(BaseModel):
     ticket_number: str = Field(alias="ticketNumber")
     category: str
     priority: str | None = None
+    sla_state: Literal["on_track", "due_soon", "overdue", "completed", "unavailable"] | None = (
+        Field(default=None, alias="slaState")
+    )
     municipality_id: str | None = Field(alias="municipalityId")
     department_id: str | None = Field(alias="departmentId")
 

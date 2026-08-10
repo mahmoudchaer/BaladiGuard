@@ -7,7 +7,7 @@ import { QueueViewsSidebar, type QueueViewId } from '@/components/QueueViewsSide
 import { TicketPreviewPanel } from '@/components/TicketPreviewPanel';
 import { CategoryDistributionChart } from '@/components/CategoryDistributionChart';
 import { DepartmentSummary } from '@/components/DepartmentSummary';
-import { TicketFilters } from '@/components/TicketFilters';
+import { TicketFilters, type SlaFilter } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
 import {
@@ -62,6 +62,7 @@ export function TicketListPage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
+  const [slaFilter, setSlaFilter] = useState<SlaFilter>('ALL');
   const [queueView, setQueueView] = useState<QueueViewId>('all');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const hasLoadedTickets = useRef(false);
@@ -70,7 +71,8 @@ export function TicketListPage() {
     statusFilter !== 'ALL' ||
     categoryFilter !== 'ALL' ||
     urgencyFilter !== 'ALL' ||
-    departmentFilter !== 'ALL';
+    departmentFilter !== 'ALL' ||
+    slaFilter !== 'ALL';
   const hasActiveFilters =
     hasActiveServerFilters || searchQuery.trim().length > 0 || queueView !== 'all';
 
@@ -92,6 +94,7 @@ export function TicketListPage() {
           category: categoryFilter,
           urgency: urgencyFilter,
           departmentId: departmentFilter,
+          slaState: slaFilter,
         });
         if (!cancelled) {
           setTickets(data);
@@ -118,7 +121,14 @@ export function TicketListPage() {
     return () => {
       cancelled = true;
     };
-  }, [categoryFilter, departmentFilter, hasActiveServerFilters, statusFilter, urgencyFilter]);
+  }, [
+    categoryFilter,
+    departmentFilter,
+    hasActiveServerFilters,
+    slaFilter,
+    statusFilter,
+    urgencyFilter,
+  ]);
 
   const attentionStats = useMemo(() => computeQueueAttentionStats(allTickets), [allTickets]);
   const categoryOptions = useMemo(() => getCategoryFilterOptions(allTickets), [allTickets]);
@@ -166,6 +176,7 @@ export function TicketListPage() {
     if (departmentFilter !== 'ALL' && ticket.departmentId !== departmentFilter) {
       return false;
     }
+    if (slaFilter !== 'ALL' && ticket.sla?.state !== slaFilter) return false;
     return true;
   }
 
@@ -202,6 +213,7 @@ export function TicketListPage() {
     setCategoryFilter('ALL');
     setUrgencyFilter('ALL');
     setDepartmentFilter('ALL');
+    setSlaFilter('ALL');
     setQueueView('all');
   }
 
@@ -264,6 +276,7 @@ export function TicketListPage() {
               categoryFilter={categoryFilter}
               urgencyFilter={urgencyFilter}
               departmentFilter={departmentFilter}
+              slaFilter={slaFilter}
               categoryOptions={categoryOptions}
               resultCount={filteredTickets.length}
               totalCount={allTickets.length}
@@ -283,6 +296,7 @@ export function TicketListPage() {
                 }
               }}
               onDepartmentChange={setDepartmentFilter}
+              onSlaChange={setSlaFilter}
               onClearFilters={clearFilters}
             />
 
