@@ -71,8 +71,12 @@ export function TicketDetailPage() {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [comments, setComments] = useState<StaffComment[]>([]);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [nextActivityCursor, setNextActivityCursor] = useState<string | null>(null);
+  const [isLoadingMoreActivity, setIsLoadingMoreActivity] = useState(false);
+  const [loadMoreActivityError, setLoadMoreActivityError] = useState<string | null>(null);
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -152,14 +156,15 @@ export function TicketDetailPage() {
     let active = true;
     setActivityLoading(true);
     setActivityError(null);
+    setCommentsError(null);
+    setLoadMoreActivityError(null);
     setActivity([]);
     setComments([]);
-    void Promise.all([fetchTicketActivity(ticketId), fetchTicketComments(ticketId)])
-      .then(([page, loadedComments]) => {
+    void fetchTicketActivity(ticketId)
+      .then((page) => {
         if (active) {
           setActivity(page.events);
           setNextActivityCursor(page.nextCursor);
-          setComments(loadedComments);
         }
       })
       .catch((error) => {
@@ -171,10 +176,45 @@ export function TicketDetailPage() {
       .finally(() => {
         if (active) setActivityLoading(false);
       });
+    void fetchTicketComments(ticketId)
+      .then((loadedComments) => {
+        if (active) setComments(loadedComments);
+      })
+      .catch((error) => {
+        if (active)
+          setCommentsError(
+            error instanceof Error ? error.message : 'Unable to load ticket comments.',
+          );
+      });
     return () => {
       active = false;
     };
-  }, [ticketId]);
+  }, [activityRefreshKey, ticketId]);
+
+  async function loadMoreActivity() {
+    if (!ticketId || !nextActivityCursor || isLoadingMoreActivity) return;
+    const requestedTicketId = ticketId;
+    const requestedCursor = nextActivityCursor;
+    setIsLoadingMoreActivity(true);
+    setLoadMoreActivityError(null);
+    try {
+      const page = await fetchTicketActivity(requestedTicketId, requestedCursor);
+      if (ticketId !== requestedTicketId) return;
+      setActivity((current) => {
+        const ids = new Set(current.map((event) => event.eventId));
+        return [...current, ...page.events.filter((event) => !ids.has(event.eventId))];
+      });
+      setNextActivityCursor(page.nextCursor);
+    } catch (error) {
+      if (ticketId === requestedTicketId) {
+        setLoadMoreActivityError(
+          error instanceof Error ? error.message : 'Unable to load more activity.',
+        );
+      }
+    } finally {
+      if (ticketId === requestedTicketId) setIsLoadingMoreActivity(false);
+    }
+  }
 
   async function handleCommentSubmit() {
     if (!ticketId || !commentText.trim()) return;
@@ -1017,20 +1057,44 @@ export function TicketDetailPage() {
                       <li>No internal activity yet.</li>
                     )}
                   </ol>
-                  {activityError && <p role="alert">{activityError}</p>}
+                  {activityError && (
+                    <p role="alert">
+                      {activityError}{' '}
+                      <button
+                        type="button"
+                        onClick={() => setActivityRefreshKey((value) => value + 1)}
+                      >
+                        Retry activity
+                      </button>
+                    </p>
+                  )}
+                  {commentsError && (
+                    <p role="alert">
+                      {commentsError}{' '}
+                      <button
+                        type="button"
+                        onClick={() => setActivityRefreshKey((value) => value + 1)}
+                      >
+                        Retry comments
+                      </button>
+                    </p>
+                  )}
                   {nextActivityCursor && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (!ticketId) return;
-                        void fetchTicketActivity(ticketId, nextActivityCursor).then((page) => {
-                          setActivity((current) => [...current, ...page.events]);
-                          setNextActivityCursor(page.nextCursor);
-                        });
-                      }}
+                      onClick={() => void loadMoreActivity()}
+                      disabled={isLoadingMoreActivity}
                     >
-                      Load more activity
+                      {isLoadingMoreActivity ? 'Loading more activity…' : 'Load more activity'}
                     </button>
+                  )}
+                  {loadMoreActivityError && (
+                    <p role="alert">
+                      {loadMoreActivityError}{' '}
+                      <button type="button" onClick={() => void loadMoreActivity()}>
+                        Retry load more
+                      </button>
+                    </p>
                   )}
                   {comments.map((comment) => (
                     <article
