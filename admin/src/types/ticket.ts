@@ -67,6 +67,9 @@ export type TicketStatusHistoryEntry = {
   note?: string | null;
 };
 
+export type StaffComment = { commentId: string; ticketId: string; authorStaffId: string; authorDisplayName: string; text: string; mentionedStaffIds: string[]; createdAt: string };
+export type ActivityEvent = { eventId: string; eventType: string; occurredAt: string; actorDisplayName?: string | null; details: Record<string, string>; sourceReference: string };
+
 export type TicketDuplicateReference = {
   duplicateGroupId: string;
   ticketIds?: string[];

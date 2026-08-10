@@ -8,6 +8,8 @@ import type {
   TicketLocation,
   TicketStatus,
   TicketStatusHistoryEntry,
+  StaffComment,
+  ActivityEvent,
 } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
@@ -560,6 +562,20 @@ export async function fetchTicketById(ticketId: string): Promise<Ticket | null> 
   }
 
   return fetchTicketByIdFromApi(ticketId);
+}
+
+export async function fetchTicketActivity(ticketId: string): Promise<ActivityEvent[]> {
+  if (config.useMockData) return [];
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/activity`, { headers: getStaffAuthHeaders() });
+  if (!response.ok) await throwApiError(response, 'Unable to load ticket activity.');
+  const data: unknown = await response.json();
+  return isRecord(data) && Array.isArray(data.events) ? data.events.filter(isRecord).map((event) => ({ eventId: String(event.eventId), eventType: String(event.eventType), occurredAt: String(event.occurredAt), actorDisplayName: typeof event.actorDisplayName === 'string' ? event.actorDisplayName : null, details: (isRecord(event.details) ? Object.fromEntries(Object.entries(event.details).filter(([, value]) => typeof value === 'string')) : {}) as Record<string, string>, sourceReference: String(event.sourceReference) })) : [];
+}
+
+export async function createTicketComment(ticketId: string, text: string): Promise<StaffComment> {
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/comments`, { method: 'POST', headers: { ...getStaffAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  if (!response.ok) await throwApiError(response, 'Unable to add comment.');
+  return (await response.json()) as StaffComment;
 }
 
 async function updateMockTicketStatus(

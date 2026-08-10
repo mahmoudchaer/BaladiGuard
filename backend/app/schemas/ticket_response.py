@@ -67,6 +67,7 @@ class TicketAuditHistoryEntry(BaseModel):
         "DEPARTMENT_ASSIGN",
         "DUPLICATE_MERGE",
         "PUBLIC_CONTENT_UPDATE",
+        "STAFF_COMMENT",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
     actor_role: Literal["municipal_staff", "administrator"] | None = Field(

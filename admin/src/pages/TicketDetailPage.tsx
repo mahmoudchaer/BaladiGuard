@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { Ticket, TicketStatus } from '@/types/ticket';
+import type { ActivityEvent, Ticket, TicketStatus } from '@/types/ticket';
 import {
   assignTicketDepartment,
   fetchTicketById,
@@ -8,6 +8,8 @@ import {
   mergeDuplicateTickets,
   reviewTicketCategory,
   updateTicketStatus,
+  createTicketComment,
+  fetchTicketActivity,
 } from '@/services/tickets';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -65,6 +67,10 @@ export function TicketDetailPage() {
   const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<string[]>([]);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [isMerging, setIsMerging] = useState(false);
+  const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   useEffect(() => {
     if (!ticketId) {
@@ -135,6 +141,19 @@ export function TicketDetailPage() {
       cancelled = true;
     };
   }, [ticketId]);
+
+  useEffect(() => {
+    if (!ticketId) return;
+    void fetchTicketActivity(ticketId).then(setActivity).catch(() => setActivity([]));
+  }, [ticketId]);
+
+  async function handleCommentSubmit() {
+    if (!ticketId || !commentText.trim()) return;
+    setIsSubmittingComment(true); setCommentError(null);
+    try { await createTicketComment(ticketId, commentText); setCommentText(''); setActivity(await fetchTicketActivity(ticketId)); }
+    catch (error) { setCommentError(error instanceof Error ? error.message : 'Unable to add comment.'); }
+    finally { setIsSubmittingComment(false); }
+  }
 
   const handleStatusChange = async (status: TicketStatus) => {
     if (!ticket || status === ticket.status) {
@@ -942,6 +961,16 @@ export function TicketDetailPage() {
                   )}
                 </dl>
                 <TicketTimeline history={ticket.statusHistory} variant="staff" />
+                <section aria-labelledby="internal-activity-heading">
+                  <h3 id="internal-activity-heading">Internal activity</h3>
+                  <ol aria-label="Internal ticket activity">
+                    {activity.map((event) => <li key={event.eventId}><time dateTime={event.occurredAt}>{formatCreatedDate(event.occurredAt)}</time> {event.eventType}{event.actorDisplayName ? ` · ${event.actorDisplayName}` : ''}</li>)}
+                  </ol>
+                  <label htmlFor="internal-comment">Add internal comment</label>
+                  <textarea id="internal-comment" value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={2000} />
+                  <button type="button" onClick={() => void handleCommentSubmit()} disabled={isSubmittingComment || !commentText.trim()}>{isSubmittingComment ? 'Posting…' : 'Post comment'}</button>
+                  {commentError && <p role="alert">{commentError}</p>}
+                </section>
               </div>
             </section>
           </div>
