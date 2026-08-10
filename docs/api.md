@@ -8,6 +8,7 @@ BaladiGuard API contracts and verification notes are maintained under `docs/`. T
 | [privacy-lifecycle.md](./privacy-lifecycle.md) | Citizen export/delete and session revocation |
 | [database.md](./database.md) | Persistence model aligned with the contract (memory + DynamoDB) |
 | [notifications.md](./notifications.md) | Ticket lifecycle notify path (no public notification HTTP API) |
+| [sprint6-mvp-acceptance.md](./sprint6-mvp-acceptance.md) | Sprint 6 full-flow acceptance checklist and demo path (#49) |
 | [sprint6-testing.md](./sprint6-testing.md) | Sprint 6 auth/permission verification index |
 | [configuration.md](./configuration.md) | Environment catalog (with [env-sync.md](./env-sync.md) for Secrets Manager pull/push) |
 

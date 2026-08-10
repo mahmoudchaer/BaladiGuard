@@ -192,6 +192,77 @@ describe('App staff authentication', () => {
     consoleLog.mockRestore();
   });
 
+  it('shows a busy sign-in control while staff authentication is in flight', async () => {
+    if (config.useMockData) {
+      return;
+    }
+
+    let resolveLogin: (value: Response) => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveLogin = resolve;
+          }),
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderApp();
+
+    await user.type(screen.getByLabelText('Username'), 'staff');
+    await user.type(screen.getByLabelText('Password'), 'staff-demo-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(screen.getByRole('button', { name: 'Signing in…' })).toBeDisabled();
+
+    resolveLogin(
+      new Response(
+        JSON.stringify({
+          accessToken: 'test-staff-token',
+          tokenType: 'Bearer',
+          staffId: 'staff_muni_001',
+          username: 'staff',
+          name: 'Demo Municipal Staff',
+          role: 'municipal_staff',
+          municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+          expiresIn: 43200,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
+  });
+
+  it('shows a reachable-service error when the staff login API is unreachable', async () => {
+    if (config.useMockData) {
+      return;
+    }
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderApp();
+
+    await user.type(screen.getByLabelText('Username'), 'staff');
+    await user.type(screen.getByLabelText('Password'), 'staff-demo-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to reach the staff authentication service.',
+    );
+    expect(window.localStorage.getItem('baladiguard.staffSession')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'BaladiGuard staff login' })).toBeInTheDocument();
+  });
+
   it('lets staff sign in and returns to the requested protected route', async () => {
     const user = userEvent.setup();
 
