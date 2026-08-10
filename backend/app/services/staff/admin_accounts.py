@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from app.core.password_hashing import hash_password
 from app.core.staff_auth import StaffPrincipal
 from app.database.staff_store import StaffNotFoundError, StaffUsernameConflictError
@@ -72,20 +74,25 @@ class StaffAccountAdminService:
     ) -> StoredStaffUser:
         _require_admin(actor)
         stamped = _iso_now()
-        user = StoredStaffUser(
-            staffId=staff_id or f"staff_{uuid4().hex[:12]}",
-            username=username,
-            name=name,
-            email=email,
-            passwordHash=hash_password(password),
-            role=role,
-            municipalityId=municipality_id,
-            departmentIds=department_ids,
-            active=True,
-            sessionEpoch=0,
-            createdAt=stamped,
-            updatedAt=stamped,
-        )
+        try:
+            user = StoredStaffUser(
+                staffId=staff_id or f"staff_{uuid4().hex[:12]}",
+                username=username,
+                name=name,
+                email=email,
+                passwordHash=hash_password(password),
+                role=role,
+                municipalityId=municipality_id,
+                departmentIds=department_ids,
+                active=True,
+                sessionEpoch=0,
+                createdAt=stamped,
+                updatedAt=stamped,
+            )
+        except ValidationError as exc:
+            raise StaffAccountAdminError(
+                "Invalid staff role, municipality, or department scope."
+            ) from exc
         try:
             created = self._store().create(user)
         except StaffUsernameConflictError as exc:
@@ -138,7 +145,11 @@ class StaffAccountAdminService:
                 "updated_at": stamped,
             }
         try:
-            updated = store.update(user.model_copy(update=update))
+            updated = store.update(StoredStaffUser.model_validate({**user.model_dump(), **update}))
+        except ValidationError as exc:
+            raise StaffAccountAdminError(
+                "Invalid staff role, municipality, or department scope."
+            ) from exc
         except StaffNotFoundError as exc:
             raise StaffAccountAdminError("Staff account not found.") from exc
 
@@ -175,14 +186,19 @@ class StaffAccountAdminService:
         stamped = _iso_now()
         try:
             updated = store.update(
-                user.model_copy(
-                    update={
+                StoredStaffUser.model_validate(
+                    {
+                        **user.model_dump(),
                         "municipality_id": municipality_id,
                         "department_ids": department_ids,
                         "updated_at": stamped,
                     }
                 )
             )
+        except ValidationError as exc:
+            raise StaffAccountAdminError(
+                "Invalid staff role, municipality, or department scope."
+            ) from exc
         except StaffNotFoundError as exc:
             raise StaffAccountAdminError("Staff account not found.") from exc
 

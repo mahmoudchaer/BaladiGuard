@@ -431,8 +431,12 @@ It is not exposed on ticket responses. Account-audit values never include passwo
 tokens, reset codes, or unnecessary citizen data. Write failures are logged and do not fail the
 main account action.
 
-Administrator account mutations are available through
-`backend/app/services/staff/admin_accounts.py` (service boundary for `AdminStaffDep` routes).
+Administrator account management is exposed only to `AdminStaffDep` through
+`/v1/admin/staff-accounts`: list/read, create, role/scope update, and explicit
+deactivate/reactivate operations. Responses exclude password hashes, reset-token
+data, session epochs, and all credential values. The existing public staff
+password-reset request/confirm endpoints remain the supported credential-reset
+flow; administrators never receive reset codes or password material.
 
 ## Endpoints
 
