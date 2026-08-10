@@ -22,7 +22,11 @@ export type FetchTicketsFilters = {
   category?: string | 'ALL';
   urgency?: Ticket['priority'] | 'ALL';
   departmentId?: string | 'ALL';
-  slaState?: Ticket['sla'] extends infer S ? S extends { state: infer T } ? T | 'ALL' : never : never;
+  slaState?: Ticket['sla'] extends infer S
+    ? S extends { state: infer T }
+      ? T | 'ALL'
+      : never
+    : never;
 };
 
 /**
