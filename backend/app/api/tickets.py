@@ -97,6 +97,7 @@ def list_tickets(
     category: str | None = Query(default=None),
     urgency: str | None = Query(default=None),
     department_id: str | None = Query(default=None, alias="departmentId"),
+    sla_state: str | None = Query(default=None, alias="slaState"),
 ) -> list[TicketResponse] | JSONResponse:
     """Staff dashboard ticket list with optional persisted-field filters (issue #142)."""
     filters, errors = parse_ticket_list_filters(
@@ -104,6 +105,7 @@ def list_tickets(
         category=category,
         urgency=urgency,
         department_id=department_id,
+        sla_state=sla_state,
     )
     if errors:
         return build_error_response(

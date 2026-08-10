@@ -343,6 +343,11 @@ export function TicketDetailPage() {
                   <CategoryBadge category={ticket.category} />
                   <StatusBadge status={ticket.status} />
                   <PriorityBadge priority={ticket.priority} />
+                  {ticket.sla && ticket.sla.state !== 'unavailable' && (
+                    <span className="ticket-detail__badge">
+                      SLA: {ticket.sla.state.replace('_', ' ')}
+                    </span>
+                  )}
                 </div>
               </div>
 
