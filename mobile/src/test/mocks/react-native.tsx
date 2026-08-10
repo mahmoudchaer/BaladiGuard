@@ -23,6 +23,20 @@ export function Image({ children, ...props }: HostProps) {
 }
 export const ActivityIndicator = createHostComponent('ActivityIndicator');
 export const RefreshControl = createHostComponent('RefreshControl');
+export const Modal = createHostComponent('Modal');
+
+export const Alert = {
+  alert: (
+    _title: string,
+    _message?: string,
+    buttons?: Array<{ text?: string; onPress?: () => void; style?: string }>,
+  ) => {
+    // Auto-confirm the last non-cancel action in tests when present.
+    const action =
+      buttons?.find((button) => button.style === 'destructive') ?? buttons?.[buttons.length - 1];
+    action?.onPress?.();
+  },
+};
 
 export const Platform = {
   OS: 'ios',

@@ -139,6 +139,7 @@ describe('submitReport', () => {
 
   it('uploads the photo before submitting the ticket in the real API path', async () => {
     const progress: string[] = [];
+    const partialStates: Array<{ clientSubmissionId: string; imageObjectKey?: string }> = [];
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: async () => mockTicketResponse,
@@ -146,21 +147,47 @@ describe('submitReport', () => {
 
     const response = await submitReport(formValues, {
       onProgress: (phase) => progress.push(phase),
+      clientSubmissionId: 'sub-fixed-key-for-tests01',
+      onPartialState: (state) => partialStates.push(state),
     });
 
     expect(uploadReportPhoto).toHaveBeenCalledOnce();
     expect(progress).toEqual(['uploading-photo', 'submitting-report']);
+    expect(partialStates[0]?.imageObjectKey).toBe('reports/photos/uploaded.jpg');
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:8000/v1/tickets',
       expect.objectContaining({
         method: 'POST',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'sub-fixed-key-for-tests01',
+        }),
         body: expect.stringContaining('"imageObjectKey":"reports/photos/uploaded.jpg"'),
       }),
     );
     const submittedBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
     expect(submittedBody).not.toHaveProperty('contact');
     expect(submittedBody).not.toHaveProperty('ownerUserId');
+    expect(submittedBody.clientSubmissionId).toBe('sub-fixed-key-for-tests01');
     expect(response).toEqual(mockTicketResponse);
+  });
+
+  it('reuses a prior imageObjectKey and skips re-upload on retry', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => mockTicketResponse,
+    } as Response);
+
+    await submitReport(formValues, {
+      clientSubmissionId: 'sub-retry-key-for-tests02',
+      imageObjectKey: 'reports/photos/already.jpg',
+    });
+
+    expect(uploadReportPhoto).not.toHaveBeenCalled();
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
+    expect(body.imageObjectKey).toBe('reports/photos/already.jpg');
+    expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({
+      'Idempotency-Key': 'sub-retry-key-for-tests02',
+    });
   });
 
   it('does not submit a ticket when photo upload fails', async () => {
@@ -176,9 +203,16 @@ describe('submitReport', () => {
       json: async () => ({ error: { message: 'Validation failed.' } }),
     } as Response);
 
-    await expect(submitReport(formValues)).rejects.toThrow(
-      'Your photo was uploaded, but the report could not be saved. Validation failed.',
-    );
+    await expect(
+      submitReport(formValues, { clientSubmissionId: 'sub-fail-key-for-tests03' }),
+    ).rejects.toMatchObject({
+      name: 'SubmitReportError',
+      code: 'submit',
+      imageObjectKey: 'reports/photos/uploaded.jpg',
+      message: expect.stringContaining(
+        'Your photo was uploaded, but the report could not be saved.',
+      ),
+    });
   });
 });
 

@@ -536,6 +536,11 @@ Creates a submitted citizen report ticket.
 Shared HTTP rate limits apply (`public-ticket-submission`; default 20 / 60s) because submit
 triggers AI intake. Exceeding the budget returns `429 RATE_LIMIT_EXCEEDED` with `Retry-After`.
 
+Optional idempotency (issue #258): send `Idempotency-Key: <key>` on the request (or body
+`clientSubmissionId`). Replays with the same key and same owner return the original `201`
+response body. A claim that is still in progress may return `409 SUBMISSION_IN_PROGRESS`. Keys
+without a valid shape are ignored (treated as non-idempotent submits).
+
 ### Auth
 
 Requires a contribution-ready citizen Bearer session (issue #173). The server derives `ownerUserId`
@@ -577,6 +582,7 @@ incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 | `location.addressText`      | string |      Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters).                                                                                                                                   |
 | `location.source`           | enum   |      Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`.                                                                                                                                                                                              |
 | `imageObjectKey`            | string |      Yes | Stable image object key/reference used by the backend.                                                                                                                                                                          |
+| `clientSubmissionId`        | string |       No | Optional client idempotency id (issue #258). Prefer the `Idempotency-Key` HTTP header. 8–128 characters matching `[A-Za-z0-9_-]`. Scoped per citizen; retries return the original success payload without creating a second ticket. |
 | `clientMetadata`            | object |      Yes | Client metadata sent by the mobile app.                                                                                                                                                                                         |
 | `clientMetadata.platform`   | string |      Yes | Example values: `ios`, `android`, `web`.                                                                                                                                                                                        |
 | `clientMetadata.appVersion` | string |      Yes | Mobile app version.                                                                                                                                                                                                             |

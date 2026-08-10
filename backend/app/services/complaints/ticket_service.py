@@ -90,6 +90,10 @@ class TicketNotFoundError(LookupError):
     pass
 
 
+class TicketSubmissionInProgressError(RuntimeError):
+    """Same Idempotency-Key is claimed but not yet completed (issue #258)."""
+
+
 class DuplicateMergeError(ValueError):
     pass
 
@@ -183,6 +187,59 @@ class TicketService:
         *,
         owner_user_id: str,
         contact: ReportContact,
+        client_submission_key: str | None = None,
+    ) -> SubmitTicketResponse:
+        from app.services.complaints.ticket_submission_idempotency import (
+            composite_submission_key,
+            get_ticket_submission_idempotency_store,
+            normalize_client_submission_key,
+        )
+
+        # Prefer explicit key (header/body already merged by the route); optional body field.
+        raw_key = client_submission_key or payload.client_submission_id
+        client_key = normalize_client_submission_key(raw_key)
+        composite_key: str | None = None
+        idem_store = None
+        if client_key:
+            idem_store = get_ticket_submission_idempotency_store()
+            composite_key = composite_submission_key(
+                owner_user_id=owner_user_id,
+                client_key=client_key,
+            )
+            existing = idem_store.get_completed(composite_key)
+            if existing is not None:
+                return existing
+            if not idem_store.try_begin(composite_key):
+                # Concurrent or prior claim: return completed result if ready.
+                existing = idem_store.get_completed(composite_key)
+                if existing is not None:
+                    return existing
+                raise TicketSubmissionInProgressError(
+                    "A submission with this idempotency key is already in progress. "
+                    "Please wait a moment and retry."
+                )
+
+        try:
+            return self._create_submitted_ticket(
+                payload,
+                owner_user_id=owner_user_id,
+                contact=contact,
+                composite_key=composite_key,
+                idem_store=idem_store,
+            )
+        except Exception:
+            if composite_key and idem_store is not None:
+                idem_store.release(composite_key)
+            raise
+
+    def _create_submitted_ticket(
+        self,
+        payload: SubmitTicketRequest,
+        *,
+        owner_user_id: str,
+        contact: ReportContact,
+        composite_key: str | None,
+        idem_store: object | None,
     ) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
@@ -239,7 +296,7 @@ class TicketService:
             recipient=ticket_notification_recipient(stored_ticket),
         )
 
-        return SubmitTicketResponse(
+        response = SubmitTicketResponse(
             ticketId=ticket_id,
             ticketNumber=ticket_number,
             trackingCode=tracking_code,
@@ -247,6 +304,11 @@ class TicketService:
             message="Your report was submitted successfully.",
             createdAt=created_at_iso,
         )
+        if composite_key and idem_store is not None:
+            complete = getattr(idem_store, "complete", None)
+            if callable(complete):
+                complete(composite_key, response)
+        return response
 
     def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
         """Process one pending ticket without exposing failures to the submit request.

@@ -160,6 +160,11 @@ def reset_ticket_store() -> None:
     from app.services.notifications import reset_delivery_ledger
 
     reset_delivery_ledger()
+    from app.services.complaints.ticket_submission_idempotency import (
+        reset_ticket_submission_idempotency_store,
+    )
+
+    reset_ticket_submission_idempotency_store()
 
 
 @pytest.fixture(autouse=True)
