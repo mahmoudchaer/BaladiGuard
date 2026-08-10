@@ -144,15 +144,24 @@ export function TicketDetailPage() {
 
   useEffect(() => {
     if (!ticketId) return;
-    void fetchTicketActivity(ticketId).then(setActivity).catch(() => setActivity([]));
+    void fetchTicketActivity(ticketId)
+      .then(setActivity)
+      .catch(() => setActivity([]));
   }, [ticketId]);
 
   async function handleCommentSubmit() {
     if (!ticketId || !commentText.trim()) return;
-    setIsSubmittingComment(true); setCommentError(null);
-    try { await createTicketComment(ticketId, commentText); setCommentText(''); setActivity(await fetchTicketActivity(ticketId)); }
-    catch (error) { setCommentError(error instanceof Error ? error.message : 'Unable to add comment.'); }
-    finally { setIsSubmittingComment(false); }
+    setIsSubmittingComment(true);
+    setCommentError(null);
+    try {
+      await createTicketComment(ticketId, commentText);
+      setCommentText('');
+      setActivity(await fetchTicketActivity(ticketId));
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
+    } finally {
+      setIsSubmittingComment(false);
+    }
   }
 
   const handleStatusChange = async (status: TicketStatus) => {
@@ -964,11 +973,30 @@ export function TicketDetailPage() {
                 <section aria-labelledby="internal-activity-heading">
                   <h3 id="internal-activity-heading">Internal activity</h3>
                   <ol aria-label="Internal ticket activity">
-                    {activity.map((event) => <li key={event.eventId}><time dateTime={event.occurredAt}>{formatCreatedDate(event.occurredAt)}</time> {event.eventType}{event.actorDisplayName ? ` · ${event.actorDisplayName}` : ''}</li>)}
+                    {activity.map((event) => (
+                      <li key={event.eventId}>
+                        <time dateTime={event.occurredAt}>
+                          {formatCreatedDate(event.occurredAt)}
+                        </time>{' '}
+                        {event.eventType}
+                        {event.actorDisplayName ? ` · ${event.actorDisplayName}` : ''}
+                      </li>
+                    ))}
                   </ol>
                   <label htmlFor="internal-comment">Add internal comment</label>
-                  <textarea id="internal-comment" value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength={2000} />
-                  <button type="button" onClick={() => void handleCommentSubmit()} disabled={isSubmittingComment || !commentText.trim()}>{isSubmittingComment ? 'Posting…' : 'Post comment'}</button>
+                  <textarea
+                    id="internal-comment"
+                    value={commentText}
+                    onChange={(event) => setCommentText(event.target.value)}
+                    maxLength={2000}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCommentSubmit()}
+                    disabled={isSubmittingComment || !commentText.trim()}
+                  >
+                    {isSubmittingComment ? 'Posting…' : 'Post comment'}
+                  </button>
                   {commentError && <p role="alert">{commentError}</p>}
                 </section>
               </div>
