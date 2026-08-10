@@ -6,7 +6,7 @@ Short index for Sprint 6 authorization, identity, security, integration, and **f
 
 | Document | Purpose |
 | --- | --- |
-| [sprint6-mvp-acceptance.md](./sprint6-mvp-acceptance.md) | **Issue #49** — full-flow checklist, demo path, UI-state smoke notes, known MVP limitations, automated acceptance command |
+| [sprint6-mvp-acceptance.md](./sprint6-mvp-acceptance.md) | **Issue #49** — full-flow checklist, demo path, **recorded UI-state evidence** (mobile/admin Vitest), known MVP limitations, automated acceptance commands |
 | [sprint6-role-permission-matrix.md](./sprint6-role-permission-matrix.md) | **Role-permission traceability matrix** (issue **#182**). Guest / citizen / municipal staff / administrator allowed vs rejected access, 401 vs 403 vs 404 rules, and links to automated tests or manual rows. |
 | [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md) | Sprint 6 citizen identity, privacy, staff, ticket, upload, and location contracts. |
 | [privacy-lifecycle.md](./privacy-lifecycle.md) | Account export/delete and session revocation expectations. |

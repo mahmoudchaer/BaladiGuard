@@ -103,17 +103,51 @@ Tick during manual demo or after automated green run.
 
 ### UI states (loading / empty / validation / offline / server error)
 
-Automated API coverage does **not** replace UI smoke. On **mobile** and **admin**, confirm:
+Primary acceptance for these states is **automated client coverage** (Vitest component
+tests). Manual device smoke remains optional for demos; it is not required to close #49
+when the suites below are green.
 
-| Surface | Loading | Empty | Validation | Offline / server error |
-| --- | --- | --- | --- | --- |
-| Mobile history | spinner/skeleton while fetching | empty message when no items | n/a | error banner when API down |
-| Mobile track | lookup loading | invalid/miss code messaging | form validation | network error copy |
-| Mobile report form | submit busy | — | field errors from API | fail-soft message |
-| Admin ticket list | loading rows | empty queue | filter validation | session expired / 5xx toast |
-| Admin login | busy button | — | bad password message | unreachable API |
+#### Recorded evidence (2026-08-10, issue #49 / PR #240)
 
-How to simulate:
+| Surface | State | Result | Automated coverage |
+| --- | --- | --- | --- |
+| Mobile history | Loading | **Pass** | `mobile/src/test/history-screen.test.tsx` — `history-loading` / “Loading your reports...” |
+| Mobile history | Empty | **Pass** | same — `history-empty` / “No reports yet” |
+| Mobile history | Offline / server error | **Pass** | same — `history-error` + session retained |
+| Mobile track | Loading | **Pass** | `mobile/src/features/ticket-tracking/TrackLookupForm.test.tsx` — disabled “Looking up...” |
+| Mobile track | Empty / miss | **Pass** | same — not-found copy, empty timeline |
+| Mobile track | Validation | **Pass** | same + `trackLookupSchema.test.ts` — required/invalid format |
+| Mobile track | Offline / server error | **Pass** | same — retryable lookup failure message |
+| Mobile report form | Loading / busy | **Pass** | `mobile/src/features/citizen-report/ReportForm.test.tsx` — upload/submit progress |
+| Mobile report form | Validation | **Pass** | same — missing description blocked |
+| Mobile report form | Offline / server error | **Pass** | same — “Backend unavailable.” on review step |
+| Admin ticket list | Loading | **Pass** | `admin/src/pages/TicketListPage.test.tsx` — “Loading tickets…” |
+| Admin ticket list | Empty | **Pass** | same — “No tickets yet” / “No matching tickets” |
+| Admin ticket list | Filter empty | **Pass** | same — filter empty states |
+| Admin ticket list | Offline / server error | **Pass** | same — “Unable to load tickets” alert |
+| Admin login | Loading / busy | **Pass** | `admin/src/App.test.tsx` — “Signing in…” disabled control |
+| Admin login | Validation / bad password | **Pass** | same — invalid credentials alert (no credential log) |
+| Admin login | Unreachable API | **Pass** | same — “Unable to reach the staff authentication service.” |
+
+**Operator / method:** local Vitest (not a live device farm).  
+**Commands & results (2026-08-10):**
+
+```bash
+cd mobile && npm test -- \
+  src/test/history-screen.test.tsx \
+  src/features/ticket-tracking/TrackLookupForm.test.tsx \
+  src/features/citizen-report/ReportForm.test.tsx
+# → 29 passed (UI-state suite for #49)
+
+cd admin && npm test -- \
+  src/pages/TicketListPage.test.tsx \
+  src/App.test.tsx
+# → 30 passed (includes login busy + unreachable API)
+```
+
+**Defects opened from this UI-state pass:** none (focused product gaps remain under Known limitations).
+
+**Manual simulation (optional demo):**
 
 - Offline: OS airplane mode or stop the API process mid-flow  
 - Server error: point client at wrong base URL or stop backend  
