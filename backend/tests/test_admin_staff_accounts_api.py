@@ -56,16 +56,23 @@ def test_admin_can_create_list_read_update_and_toggle_staff_accounts(anonymous_c
     assert read.status_code == 200
     assert read.json() == account
 
-    scoped = anonymous_client.patch(
+    department_only = anonymous_client.patch(
         f"/v1/admin/staff-accounts/{staff_id}",
-        json={
-            "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-            "departmentIds": ["d3333333-3333-3333-3333-333333333333"],
-        },
+        json={"departmentIds": ["d3333333-3333-3333-3333-333333333333"]},
         headers=admin_headers,
     )
-    assert scoped.status_code == 200, scoped.text
-    assert scoped.json()["departmentIds"] == ["d3333333-3333-3333-3333-333333333333"]
+    assert department_only.status_code == 200, department_only.text
+    assert department_only.json()["municipalityId"] == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    assert department_only.json()["departmentIds"] == ["d3333333-3333-3333-3333-333333333333"]
+
+    municipality_only = anonymous_client.patch(
+        f"/v1/admin/staff-accounts/{staff_id}",
+        json={"municipalityId": "cccccccc-cccc-cccc-cccc-cccccccccccc"},
+        headers=admin_headers,
+    )
+    assert municipality_only.status_code == 200, municipality_only.text
+    assert municipality_only.json()["municipalityId"] == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    assert municipality_only.json()["departmentIds"] == ["d3333333-3333-3333-3333-333333333333"]
 
     deactivated = anonymous_client.post(
         f"/v1/admin/staff-accounts/{staff_id}/deactivate", headers=admin_headers
@@ -94,6 +101,7 @@ def test_admin_can_create_list_read_update_and_toggle_staff_accounts(anonymous_c
     actions = [entry.action_type for entry in account_audit_store.list_by_target_staff_id(staff_id)]
     assert actions == [
         "STAFF_CREATED",
+        "STAFF_SCOPE_CHANGED",
         "STAFF_SCOPE_CHANGED",
         "STAFF_DEACTIVATED",
         "STAFF_REACTIVATED",

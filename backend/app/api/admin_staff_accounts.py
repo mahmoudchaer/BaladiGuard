@@ -95,11 +95,27 @@ def update_staff_account(
                 department_ids=payload.department_ids,
             )
         else:
+            existing = get_staff_store().get(staff_id)
+            if existing is None:
+                return build_error_response(
+                    code="STAFF_ACCOUNT_NOT_FOUND",
+                    message="Staff account not found.",
+                    request_id=get_request_id(request),
+                    status_code=404,
+                )
             user = staff_account_admin_service.change_scope(
                 principal,
                 staff_id=staff_id,
-                municipality_id=payload.municipality_id,
-                department_ids=payload.department_ids,
+                municipality_id=(
+                    payload.municipality_id
+                    if "municipality_id" in fields
+                    else existing.municipality_id
+                ),
+                department_ids=(
+                    payload.department_ids
+                    if "department_ids" in fields
+                    else existing.department_ids
+                ),
             )
     except StaffAccountAdminError as exc:
         return _error(request, exc)
