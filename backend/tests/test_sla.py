@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from app.database.memory import ticket_store
 from app.services.complaints.sla import derive_ticket_sla
+from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from tests.test_read_tickets import create_ticket
 
 
@@ -36,3 +37,23 @@ def test_sla_is_timezone_safe_and_unavailable_for_legacy_data(client):
     assert derive_ticket_sla(legacy).state == "unavailable"
     no_priority = _ticket(client, priority=None)
     assert derive_ticket_sla(no_priority).state == "unavailable"
+
+
+def test_sla_policy_levels_and_exact_due_soon_boundary(client):
+    for priority in ("low", "medium", "high", "critical"):
+        ticket = _ticket(client, priority=priority)
+        result = derive_ticket_sla(ticket, now=datetime(2026, 1, 1, 3, tzinfo=UTC))
+        assert result.policy_key == priority
+        assert result.state in {"on_track", "due_soon", "overdue"}
+    # High acknowledgement is 24h; its final 20% begins exactly 4h48m before due.
+    high = _ticket(client, priority="high")
+    assert derive_ticket_sla(high, now=datetime(2026, 1, 1, 19, 12, tzinfo=UTC)).state == "due_soon"
+
+
+def test_sla_filter_validation():
+    filters, errors = parse_ticket_list_filters(sla_state="overdue")
+    assert errors == []
+    assert filters is not None and filters.sla_state == "overdue"
+    filters, errors = parse_ticket_list_filters(sla_state="late")
+    assert filters is None
+    assert {error.field for error in errors} == {"slaState"}
