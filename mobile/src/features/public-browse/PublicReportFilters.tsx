@@ -74,10 +74,7 @@ export function PublicReportFilters({ filters, categories, onChange }: PublicRep
         >
           <Text
             variant="labelMedium"
-            style={[
-              styles.chipLabel,
-              filters.category === 'ALL' && styles.chipLabelSelected,
-            ]}
+            style={[styles.chipLabel, filters.category === 'ALL' && styles.chipLabelSelected]}
           >
             All categories
           </Text>

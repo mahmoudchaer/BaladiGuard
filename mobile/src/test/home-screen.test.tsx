@@ -220,9 +220,7 @@ describe('HomeScreen public map clustering', () => {
     await flush();
 
     expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0002' })).toBeTruthy();
-    expect(() =>
-      screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' }),
-    ).toThrow();
+    expect(() => screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' })).toThrow();
   });
 
   it('reports incomplete coordinates through partial-data UX while keeping the list', async () => {

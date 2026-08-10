@@ -50,7 +50,10 @@ export default function HomeScreen() {
     setIsLoadingReports(true);
     setReportError(null);
     try {
-      const response = await getPublicTickets({ limit: PUBLIC_FEED_LIMIT, signal: controller.signal });
+      const response = await getPublicTickets({
+        limit: PUBLIC_FEED_LIMIT,
+        signal: controller.signal,
+      });
       if (seq !== loadSeqRef.current) {
         return;
       }
@@ -77,10 +80,7 @@ export default function HomeScreen() {
     };
   }, [loadReports]);
 
-  const filteredReports = useMemo(
-    () => filterPublicReports(reports, filters),
-    [reports, filters],
-  );
+  const filteredReports = useMemo(() => filterPublicReports(reports, filters), [reports, filters]);
 
   const { skippedCount } = useMemo(
     () => partitionPlottableReports(filteredReports),

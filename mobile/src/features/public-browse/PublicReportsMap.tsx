@@ -23,9 +23,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
   const { plottable } = useMemo(() => partitionPlottableReports(reports), [reports]);
   const plottableKey = plottable.map((p) => p.ticketNumber).join('|');
 
-  const [region, setRegion] = useState<PublicMapRegion>(() =>
-    initialRegionForPlottable(plottable),
-  );
+  const [region, setRegion] = useState<PublicMapRegion>(() => initialRegionForPlottable(plottable));
 
   useEffect(() => {
     const next = initialRegionForPlottable(plottable);
@@ -124,8 +122,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
         })}
       </MapView>
       <Text variant="bodySmall" style={styles.mapHint} testID="public-map-list-hint">
-        Prefer the report list below if the map is hard to use. Clusters show only public
-        reports.
+        Prefer the report list below if the map is hard to use. Clusters show only public reports.
       </Text>
     </View>
   );
