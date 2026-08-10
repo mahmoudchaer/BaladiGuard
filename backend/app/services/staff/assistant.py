@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from datetime import UTC, datetime
 
@@ -30,6 +31,12 @@ _REPEATED_AREA_TERMS = (
     "mouchkil",
     "probl",
 )
+_NEGATION_PATTERN = re.compile(r"\b(?:do not|don't|not|without|never|no)\b", re.IGNORECASE)
+_CONSTRAINT_PATTERN = re.compile(
+    r"\b(?:in|near|at|around|before|after|since|on|dans)\s+(?:the\s+)?[a-z0-9]"
+    r"|\b(?:today|yesterday|tomorrow|week|month|year|date)\b",
+    re.IGNORECASE,
+)
 
 
 def _as_of() -> str:
@@ -38,11 +45,20 @@ def _as_of() -> str:
 
 def _intent(question: str) -> str | None:
     normalized = question.casefold()
-    if any(term in normalized for term in _HIGH_PRIORITY_TERMS):
+    high_priority = any(term in normalized for term in _HIGH_PRIORITY_TERMS)
+    repeated_area = any(term in normalized for term in _REPEATED_AREA_TERMS)
+    # This small deterministic surface intentionally has no filtering grammar.
+    # Reject, rather than silently ignore, negation, a second intent, or a
+    # location/date modifier that would alter the answer's meaning.
+    if _NEGATION_PATTERN.search(normalized) or _CONSTRAINT_PATTERN.search(normalized):
+        return None
+    if high_priority == repeated_area:
+        return None
+    if high_priority:
         return "high_priority_summary"
-    if any(term in normalized for term in _REPEATED_AREA_TERMS):
+    if repeated_area:
         return "repeated_area_summary"
-    return None
+    raise AssertionError("intent selection must be exhaustive")
 
 
 def _area(ticket: StoredTicket) -> str:
