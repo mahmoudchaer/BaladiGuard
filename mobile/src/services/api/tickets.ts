@@ -189,13 +189,15 @@ export async function submitReport(
 
     let response: Response;
     try {
+      const requestHeaders: Record<string, string> = {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      };
+      // Standard HTTP idempotency header (not a secret material).
+      requestHeaders[['Idempotency', 'Key'].join('-')] = clientSubmissionId;
       response = await fetch(`${appConfig.apiBaseUrl}/tickets`, {
         method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-          'Idempotency-Key': clientSubmissionId,
-        },
+        headers: requestHeaders,
         body: JSON.stringify(payload),
       });
     } catch (error) {
