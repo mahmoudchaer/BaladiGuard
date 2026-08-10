@@ -47,19 +47,30 @@ Email is **not** a uniqueness key (product rule); do not treat multi-user same-e
 
 ## Light load harness (local or staging)
 
+Primary operator entry (writes evidence automatically):
+
+```bash
+cd backend
+PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
+# → infra/capacity/evidence/YYYY-MM-DD-staging-equivalent-capacity.md (+ JSON)
+```
+
+Direct harness against a running API:
+
 ```bash
 cd backend
 # Against a running API (default http://127.0.0.1:8000)
 PYTHONPATH=. python scripts/capacity/concurrent_http_harness.py --base-url http://127.0.0.1:8000 --scenario smoke --concurrency 8 --duration-seconds 20
 
-# Staging example (synthetic only)
+# Write workloads (require contribution-ready --citizen-token; staff optional)
 PYTHONPATH=. python scripts/capacity/concurrent_http_harness.py \
   --base-url https://api.staging.example \
-  --scenario mixed \
-  --concurrency 12 \
-  --duration-seconds 60 \
-  --smoke-token "$RATE_LIMIT_SMOKE_BYPASS_TOKEN" \
+  --scenario write-mixed \
+  --concurrency 8 \
+  --duration-seconds 45 \
+  --citizen-token "$CITIZEN_TOKEN" \
   --staff-user admin --staff-password "$STAFF_PASSWORD" \
+  --smoke-token "$RATE_LIMIT_SMOKE_BYPASS_TOKEN" \
   --output ../../infra/capacity/evidence/staging-capacity-run.json
 ```
 
@@ -67,12 +78,17 @@ Scenarios:
 
 | Name | Behavior |
 | --- | --- |
-| `smoke` | Health + track/missing codes + readiness probes |
-| `mixed` | Concurrent track, health, optional staff list if credentials given |
-| `submit-race` | Requires `--citizen-token`; concurrent history + me reads (not create storms without OTP plumbing) |
-| `staff-race` | Requires staff credentials; concurrent list + detail of a known ticket |
+| `smoke` | Health + track/missing codes + readiness (AI queue samples) |
+| `mixed` | Concurrent track/health + optional staff list / submits |
+| `submit-race` | Requires `--citizen-token`; concurrent `POST /v1/tickets` + me/history + ready |
+| `upload-race` | Requires `--citizen-token`; concurrent `POST /v1/uploads/report-photo` |
+| `staff-race` | Staff list/detail (optional seed tickets via citizen token) |
+| `staff-mutate` | Concurrent status/category patches on seeded tickets |
+| `write-mixed` | Submit + upload + staff mutation + OTP request + readiness AI samples |
+| `otp-race` | Concurrent synthetic `OTP request` with unique phones |
 
-The harness records latency percentiles, status code histogram, and wall time. It **does not** delete clouds resources; use disposable staging.
+The harness records latency percentiles, status code histogram, AI readiness samples,
+and evaluates SLOs into `slosEvaluation`. It **does not** delete cloud resources; use disposable staging.
 
 ### What to watch during the run
 

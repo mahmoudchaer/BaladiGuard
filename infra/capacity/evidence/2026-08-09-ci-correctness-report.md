@@ -1,4 +1,8 @@
-# Capacity validation report — 2026-08-09 — CI / local correctness gates (#191)
+# Capacity validation report — 2026-08-09 — CI correctness gates (#191)
+
+CI-only foundation. **Full measured SLO evaluation:** see
+[2026-08-10-staging-equivalent-capacity.md](./2026-08-10-staging-equivalent-capacity.md)
+and companion JSON under this directory.
 
 ## Method
 
@@ -10,8 +14,8 @@
     tests/test_notifications.py tests/test_shared_rate_limiting.py \
     tests/test_notification_aws_adapter.py -q
   ```
-- Staging HTTP harness: optional live run with
-  `python scripts/capacity/concurrent_http_harness.py` (see runbook)
+- Live write harness (supersedes “pending” rows below):
+  `PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py`
 
 ## Numbers
 
@@ -20,32 +24,26 @@
 | Concurrent phone claim single winner | Covered (memory + Dynamo suite) |
 | Concurrent OTP verify single winner | Covered |
 | Concurrent ticket status / category / department | `tests/test_ticket_concurrency.py` |
-| AI claim / process single completion | Covered + concurrency test |
+| AI claim / process single completion | **Exactly one** winner + terminal `completed` (fixed) |
 | Notification multi-worker claim | Covered |
 | Provider throttle classification | Unit tests (SES/SNS fake clients) |
-
-Fill live staging latency histograms after a harness run against staging.
+| Live write p95 / 5xx / queue samples | See 2026-08-10 staging-equivalent evidence |
 
 ## Evaluation vs SLOs
 
 | Target | Result | Pass? |
 | --- | --- | --- |
 | No state corruption under concurrent mutations | Green CI gates | Yes |
-| p95 HTTP under model peak | Pending staging harness run | Partial |
-| 5xx < 1% under light load | Pending staging harness run | Partial |
+| p95 HTTP under model peak | Measured 2026-08-10 write-mixed (submit p95 ~304 ms) | Yes |
+| 5xx < 1% under light load | Aggregate 0/6415 | Yes |
 
-## Findings
+## Findings / defects
 
-- Operating limit for **correctness** races: covered in CI for phones, OTP, status, AI claim, notify ledger.
-- Live **throughput** operating limits and WCU recommendations require one staging harness pass with CloudWatch.
-- Email is intentionally non-unique; phone is the identity uniqueness boundary.
-- Cost drivers: Bedrock AI, Dynamo RCU/WCU, S3 photo PUTs, SES/SNS when real adapter enabled.
-
-## Defects
-
-None opened as critical from the CI correctness gate suite.
+See 2026-08-10 report. No critical defect. Note: staff list p95 rose after a large
+synthetic ticket backlog (`staff-mutate` scenario) — capacity finding for list/page
+tuning under growth, not a corruption defect.
 
 ## Sign-off
 
-- Automated gates: 2026-08-09 (issue #191 implementation)
-- Staging light-load numbers: run and attach JSON under `infra/capacity/evidence/`
+- Automated gates: 2026-08-09
+- Staging-equivalent write run: 2026-08-10 (`run_staging_equivalent_capacity.py`)

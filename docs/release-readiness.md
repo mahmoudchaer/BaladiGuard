@@ -20,7 +20,11 @@ security scan ownership stays on their feature tickets (#74/#75/#115/#185/#186/#
 Before public launch:
 
 1. CI concurrency suite green (`capacity-validation.md` “Correctness gates”).  
-2. At least one **staging** light load run with synthetic data; save JSON/markdown evidence.  
+2. At least one **staging / staging-equivalent** light-load + write run with synthetic data;
+   save JSON/markdown evidence.  
+   **Current evidence:**
+   [`infra/capacity/evidence/2026-08-10-staging-equivalent-capacity.md`](../infra/capacity/evidence/2026-08-10-staging-equivalent-capacity.md)
+   (regenerate via `scripts/capacity/run_staging_equivalent_capacity.py`).  
 3. Review SLOs vs numbers; file critical defects; record operating limits and cost drivers.  
 4. Confirm no unresolved **critical** capacity defects open against launch.
 
