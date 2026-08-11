@@ -12,8 +12,9 @@ import {
 } from '@/services/reportDraft';
 import {
   __resetFileSystemMock,
-  __setFileInfoResolver,
-  getInfoAsync,
+  __setFileExistsResolver,
+  __setFileExistsThrows,
+  File,
 } from '@/test/mocks/expo-file-system';
 
 describe('photoReference', () => {
@@ -29,9 +30,9 @@ describe('photoReference', () => {
 
   it('treats remote URIs as reachable without probing disk', async () => {
     let probed = false;
-    __setFileInfoResolver(async () => {
+    __setFileExistsResolver(() => {
       probed = true;
-      return { exists: true };
+      return true;
     });
     const result = await checkLocalPhotoUri('https://example.com/a.jpg');
     expect(result.ok).toBe(true);
@@ -42,32 +43,29 @@ describe('photoReference', () => {
     expect(await checkLocalPhotoUri('')).toEqual({ ok: false, reason: 'empty' });
   });
 
-  it('accepts an existing device photo URI via FileSystem existence check', async () => {
+  it('accepts an existing device photo URI via File.exists', async () => {
     const uri = 'file:///data/user/0/com.baladiguard.citizen/cache/photo.jpg';
     const seen: string[] = [];
-    __setFileInfoResolver(async (fileUri) => {
+    __setFileExistsResolver((fileUri) => {
       seen.push(fileUri);
-      return { exists: true, uri: fileUri, size: 1024, isDirectory: false, modificationTime: 1 };
+      return true;
     });
 
     const result = await checkLocalPhotoUri(uri);
     expect(result).toEqual({ ok: true });
     expect(seen).toEqual([uri]);
-    // Mock getInfoAsync remains callable for cross-file imports.
-    await expect(getInfoAsync(uri)).resolves.toMatchObject({ exists: true });
+    expect(new File(uri).exists).toBe(true);
   });
 
   it('rejects a missing device photo URI deterministically', async () => {
-    __setFileInfoResolver(async () => ({ exists: false }));
+    __setFileExistsResolver(() => false);
 
     const result = await checkLocalPhotoUri('file:///tmp/expired-picker-photo.jpg');
     expect(result).toEqual({ ok: false, reason: 'missing' });
   });
 
-  it('marks FileSystem failures as unreachable instead of accepting the URI', async () => {
-    __setFileInfoResolver(async () => {
-      throw new Error('native module unavailable');
-    });
+  it('marks File API failures as unreachable instead of accepting the URI', async () => {
+    __setFileExistsThrows(new Error('native module unavailable'));
 
     const result = await checkLocalPhotoUri('content://media/external/images/media/1');
     expect(result).toEqual({ ok: false, reason: 'unreachable' });

@@ -2,12 +2,12 @@
  * Local photo URI reachability for report drafts (#258).
  *
  * Image-picker `file://` / `content://` URIs may disappear after process restart.
- * Before upload and on draft restore we use Expo FileSystem's existence check
- * so dead references are cleared and the user is asked to re-pick — without
- * relying on unreliable `fetch(file://…)` probes.
+ * Before upload and on draft restore we use the Expo FileSystem `File` API so dead
+ * references are cleared and the user is asked to re-pick — without relying on
+ * unreliable `fetch(file://…)` probes or the deprecated top-level getInfoAsync.
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 
 export type LocalPhotoCheckResult = {
   ok: boolean;
@@ -42,8 +42,10 @@ export async function checkLocalPhotoUri(
   }
 
   try {
-    const info = await FileSystem.getInfoAsync(trimmed);
-    if (info.exists) {
+    // SDK 54+: File.exists is the supported existence check (do not call
+    // getInfoAsync on the top-level expo-file-system export — it throws).
+    const file = new File(trimmed);
+    if (file.exists) {
       return { ok: true };
     }
     return { ok: false, reason: 'missing' };
