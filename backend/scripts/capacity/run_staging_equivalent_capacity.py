@@ -207,9 +207,14 @@ def _run_harness(
     # Brief pause before staff login so rate limiters recover after a write burst.
     time.sleep(0.75)
     exit_code = harness_main(argv)
-    if exit_code not in {0, 2} or not output.exists():
+    if not output.exists():
+        raise SystemExit(f"Harness failed scenario={scenario} exit={exit_code} (no output)")
+    report = json.loads(output.read_text(encoding="utf-8"))
+    # 0 = clean, 2 = SLO/5xx signal still recorded, 3 = invalid coverage / missing AI samples.
+    if exit_code not in {0, 2, 3}:
         raise SystemExit(f"Harness failed scenario={scenario} exit={exit_code}")
-    return json.loads(output.read_text(encoding="utf-8"))
+    report["harnessExitCode"] = exit_code
+    return report
 
 
 def _pass_label(value: bool | None) -> str:
@@ -302,14 +307,32 @@ def _write_markdown(
 
     lines.extend(["", "### AI queue / readiness samples", ""])
     samples = wm.get("aiQueueSamples") or []
+    ai_ev = (wm.get("slosEvaluation") or {}).get("aiQueueSamples") or {}
     if not samples:
         lines.append("- No readiness AI samples captured.")
+        if ai_ev.get("required"):
+            lines.append(
+                "- **Invalid for queue SLO:** required AI queue observation was not captured "
+                "(do not treat as Partial → Yes)."
+            )
     else:
         lines.append(f"- Sample count (write-mixed): {len(samples)}")
         last = samples[-1]
         lines.append(f"- Last sample: `{json.dumps(last)}`")
-        max_pending = (wm.get("slosEvaluation") or {}).get("aiQueueSamples", {}).get("maxPending")
+        max_pending = ai_ev.get("maxPending")
         lines.append(f"- Max pending observed in harness: `{max_pending}`")
+
+    lines.extend(["", "### Route coverage gate", ""])
+    for name, report in runs.items():
+        cov = (report.get("slosEvaluation") or {}).get("routeCoverage") or {}
+        missing = cov.get("missing") or {}
+        if cov.get("pass"):
+            lines.append(f"- `{name}`: met minimum per-route samples")
+        else:
+            lines.append(
+                f"- `{name}`: **FAILED** missing={json.dumps(missing)} "
+                f"actual={json.dumps(cov.get('actual') or {})}"
+            )
 
     if cloudwatch:
         lines.extend(["", "### CloudWatch / service aggregates", ""])
@@ -358,6 +381,7 @@ def _write_markdown(
         sub = ev.get("submitP95Ms") or {}
         tr = ev.get("trackOrListP95Ms") or {}
         s5 = ev.get("server5xxRate") or {}
+        cov = ev.get("routeCoverage") or {}
         lines.append(
             f"| `{name}` submit p95 < 2500 ms | actual={_fmt(sub.get('actual'))} | "
             f"{_pass_label(sub.get('pass'))} |"
@@ -370,16 +394,31 @@ def _write_markdown(
             f"| `{name}` 5xx rate < 1% | actual={s5.get('actual')} | "
             f"{_pass_label(s5.get('pass'))} |"
         )
+        lines.append(
+            f"| `{name}` min route coverage | missing={json.dumps(cov.get('missing') or {})} | "
+            f"{_pass_label(cov.get('pass'))} |"
+        )
 
     lines.append(
         f"| **Aggregate** 5xx rate < 1% | {overall_5xx}/{overall_req} = {overall_rate:.4f} | "
         f"{_pass_label(overall_rate < 0.01)} |"
     )
-    lines.append(
-        "| AI queue age p95 < 2 min steady / < 10 min burst | Harness samples pending counts; "
-        "stubbed classifier drains quickly in cloud mode | "
-        "Partial → Yes if maxPending observed and no submit 5xx |"
-    )
+    wm_ai = ((runs.get("write-mixed") or {}).get("slosEvaluation") or {}).get(
+        "aiQueueSamples"
+    ) or {}
+    if wm_ai.get("pass") is True:
+        ai_result = (
+            f"samples={wm_ai.get('count')} maxPending={wm_ai.get('maxPending')} "
+            "(pending-count proxy; wall-age needs multi-worker fleet)"
+        )
+        ai_pass = "Yes"
+    elif wm_ai.get("required"):
+        ai_result = "No readiness AI samples / maxPending unobserved"
+        ai_pass = "No"
+    else:
+        ai_result = "AI queue observation not required for this profile mix"
+        ai_pass = "n/a"
+    lines.append(f"| AI queue age p95 < 2 min steady / < 10 min burst | {ai_result} | {ai_pass} |")
     lines.append(
         "| Ticket state integrity under race | CI `tests/test_ticket_concurrency.py` "
         "(status + **exactly one** AI completion) | Yes |"
@@ -621,25 +660,33 @@ def main() -> int:
                 f"Synthetic citizen phone={body.get('phone')} (capacity bootstrap only)"
             )
 
-        # Slightly lighter budgets for cloud to limit WCU/S3 spend while still exercising writes.
+        # Cloud budgets: longer wall time so high-latency Dynamo/S3 paths can still
+        # satisfy minimum per-route coverage (coverage-first planner).
         if cloud:
             scenarios = [
-                ("smoke", 3, 6.0, 45, 40.0, 0),
-                ("write-mixed", 4, 16.0, 120, 60.0, 4),
-                ("submit-race", 3, 10.0, 60, 60.0, 0),
-                ("upload-race", 3, 10.0, 45, 80.0, 0),
-                ("staff-mutate", 3, 10.0, 60, 60.0, 4),
+                ("smoke", 2, 20.0, 45, 50.0, 0),
+                ("write-mixed", 3, 180.0, 80, 80.0, 4),
+                ("submit-race", 2, 90.0, 40, 80.0, 0),
+                ("upload-race", 2, 90.0, 30, 100.0, 0),
+                ("staff-mutate", 2, 90.0, 40, 80.0, 4),
             ]
         else:
             scenarios = [
                 ("smoke", 4, 8.0, 80, 25.0, 0),
-                ("write-mixed", 6, 18.0, 240, 40.0, 4),
-                ("submit-race", 4, 12.0, 160, 40.0, 0),
-                ("upload-race", 4, 10.0, 120, 60.0, 0),
-                ("staff-mutate", 4, 12.0, 100, 50.0, 6),
+                ("write-mixed", 6, 30.0, 240, 40.0, 4),
+                ("submit-race", 4, 18.0, 160, 40.0, 0),
+                ("upload-race", 4, 14.0, 120, 60.0, 0),
+                ("staff-mutate", 4, 16.0, 100, 50.0, 6),
             ]
 
         runs: dict[str, dict] = {}
+        run_prefix = (
+            f"{stamp}-staging-remote"
+            if remote
+            else f"{stamp}-cloud"
+            if cloud
+            else f"{stamp}-local-smoke"
+        )
         for (
             scenario,
             concurrency,
@@ -648,7 +695,7 @@ def main() -> int:
             min_interval_ms,
             seed_tickets,
         ) in scenarios:
-            out = EVIDENCE_DIR / f"{stamp}-capacity-run-{scenario}.json"
+            out = EVIDENCE_DIR / f"{run_prefix}-capacity-run-{scenario}.json"
             print(
                 f"Running scenario={scenario} concurrency={concurrency} "
                 f"duration={duration}s max_requests={max_requests} "
@@ -668,11 +715,33 @@ def main() -> int:
                 seed_tickets=seed_tickets,
             )
             totals = runs[scenario]["totals"]
+            cov = (runs[scenario].get("slosEvaluation") or {}).get("routeCoverage") or {}
+            ai = (runs[scenario].get("slosEvaluation") or {}).get("aiQueueSamples") or {}
             print(
                 f"  done requests={totals['requests']} 5xx={totals['server5xx']} "
-                f"err={totals['transportErrors']}",
+                f"err={totals['transportErrors']} "
+                f"coverage={'ok' if cov.get('pass', True) else 'FAIL'} "
+                f"aiQueue={'ok' if ai.get('pass') is not False else 'FAIL'}",
                 flush=True,
             )
+            if not cov.get("pass", True):
+                defects_extra.append(
+                    f"`{scenario}` failed minimum route coverage "
+                    f"missing={json.dumps(cov.get('missing') or {})}"
+                )
+            if ai.get("pass") is False:
+                defects_extra.append(
+                    f"`{scenario}` required AI queue readiness samples were not observed"
+                )
+
+        coverage_invalid = any(
+            not ((r.get("slosEvaluation") or {}).get("routeCoverage") or {}).get("pass", True)
+            for r in runs.values()
+        )
+        ai_invalid = any(
+            ((r.get("slosEvaluation") or {}).get("aiQueueSamples") or {}).get("pass") is False
+            for r in runs.values()
+        )
 
         if cloud or remote:
             # Allow metrics to settle briefly, then pull CloudWatch aggregates.
@@ -694,7 +763,7 @@ def main() -> int:
                 s3_bucket=bucket,
                 window_minutes=elapsed_min,
             )
-            cw_path = EVIDENCE_DIR / f"{stamp}-capacity-cloudwatch.json"
+            cw_path = EVIDENCE_DIR / f"{run_prefix}-capacity-cloudwatch.json"
             cw_path.write_text(json.dumps(cloudwatch, indent=2) + "\n", encoding="utf-8")
             print(f"Wrote {cw_path}", flush=True)
             write_throttles = (
@@ -742,9 +811,18 @@ def main() -> int:
             "defects": defects_extra,
             "gateNote": gate_note,
         }
-        combined_path = EVIDENCE_DIR / f"{stamp}-staging-equivalent-capacity-combined.json"
+        if remote:
+            combined_name = f"{stamp}-staging-remote-capacity-combined.json"
+            md_name = f"{stamp}-staging-remote-capacity.md"
+        elif cloud:
+            combined_name = f"{stamp}-staging-equivalent-capacity-combined.json"
+            md_name = f"{stamp}-staging-equivalent-capacity.md"
+        else:
+            combined_name = f"{stamp}-local-harness-smoke-combined.json"
+            md_name = f"{stamp}-local-harness-smoke.md"
+        combined_path = EVIDENCE_DIR / combined_name
         combined_path.write_text(json.dumps(combined, indent=2) + "\n", encoding="utf-8")
-        md_path = EVIDENCE_DIR / f"{stamp}-staging-equivalent-capacity.md"
+        md_path = EVIDENCE_DIR / md_name
         _write_markdown(
             md_path,
             runs,
@@ -762,6 +840,14 @@ def main() -> int:
                 "CAPACITY_CLOUD=1 (Dynamo/S3) or CAPACITY_BASE_URL + CAPACITY_CITIZEN_TOKEN.",
                 file=sys.stderr,
             )
+        if coverage_invalid or ai_invalid:
+            print(
+                "CAPACITY GATE FAILED: minimum route coverage and/or required AI queue "
+                "samples were not met. Evidence is recorded but must not be treated as a "
+                "passing #191 capacity run.",
+                file=sys.stderr,
+            )
+            return 1
         return 0
     finally:
         if server is not None:

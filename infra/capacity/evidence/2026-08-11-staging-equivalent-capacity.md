@@ -77,7 +77,8 @@
 | `staff-mutate` track/list p95 < 800 ms | actual=30485.59 | No |
 | `staff-mutate` 5xx rate < 1% | actual=0.0 | Yes |
 | **Aggregate** 5xx rate < 1% | 0/72 = 0.0000 | Yes |
-| AI queue age p95 < 2 min steady / < 10 min burst | Harness samples pending counts; stubbed classifier drains quickly in cloud mode | Partial → Yes if maxPending observed and no submit 5xx |
+| `write-mixed` min route coverage | missing ticket_submit/photo_upload/staff_status/otp/health_ready_ai (only staff_list+track_miss+health_live) | **No** |
+| AI queue age p95 < 2 min steady / < 10 min burst | No readiness AI samples captured; maxPending unobserved | **No** |
 | Ticket state integrity under race | CI `tests/test_ticket_concurrency.py` (status + **exactly one** AI completion) | Yes |
 | Provider throttle recovery | Unit tests SES/SNS throttle classification + Dynamo WriteThrottleEvents in CloudWatch section | Yes |
 | DynamoDB write throttles under model | WriteThrottleEvents sum=0.0 | Yes |
@@ -93,21 +94,25 @@
 - **S3 uploads:** `upload-race` completed 9/9 successful `POST /v1/uploads/report-photo` against
   `baladiguard-report-photos-dev`. Bucket-level CloudWatch request metrics returned 0 points
   (request metrics may be disabled on the bucket); harness status codes remain the upload proof.
-- **AI jobs:** submit enqueues durable AI jobs (queue depth observed in app metrics during run);
-  classifier stubbed in `capacity_api_app` to avoid Bedrock spend. Oldest queued age samples
-  stayed under ~2 minutes during the short burst.
+- **AI jobs:** **not validly measured in this run** — `write-mixed` captured zero
+  `health_ready_ai` samples, so queue age/recovery cannot be claimed. Re-run with the
+  coverage-first harness (exit code 3 on missing samples).
 - **Submit latency:** national-path submits under race saw ~3.8–5.8 s p95 (above 2.5 s SLO) —
   dominated by Dynamo write + AI enqueue path on this account/region, not by HTTP 5xx.
+  Note: `write-mixed` itself recorded no submit samples (coverage gap).
 - **Cost drivers:** Dynamo RCU/WCU (ConsumedWrite≈19, ConsumedRead≈106.5 in window), S3 PUT,
   Bedrock when un-stubbed, SES/SNS when real adapter on.
 - **Config changes:** enable S3 request metrics on the report-photos bucket for CloudWatch
   visibility; keep staff list filters/pagination; raise WCU only if WriteThrottleEvents > 0;
   keep NOTIFICATION_ADAPTER=mock for capacity staging.
 - **CloudWatch window:** 2026-08-11T17:43:34.763033Z → 2026-08-11T17:53:34.763033Z.
+- **Harness follow-up:** coverage-first planner + min-sample gate + fail-closed AI observation
+  landed after this evidence; re-run `CAPACITY_CLOUD=1` for a valid #191 gate.
 
 ## Defects
 
-- Critical: none opened from this run (no 5xx, no Dynamo throttles, no state-corruption signal).
+- Critical: capacity evidence incomplete for #191 — `write-mixed` missed required write/AI
+  routes (12/120 requests) and AI queue SLO is **No** (unobserved).
 - Non-blocking: staff list p95 ≫ 800 ms SLO under concurrent cloud load — treat as capacity/
   pagination operating-limit finding (document; product already pages lists in admin UX).
 - Non-blocking: submit p95 above 2.5 s under `submit-race` on this Dynamo path — re-measure after
@@ -123,7 +128,7 @@
   `2026-08-11-capacity-cloudwatch.json`,
   `2026-08-11-staging-equivalent-capacity-combined.json`
 - Linked from [docs/release-readiness.md](../../../docs/release-readiness.md)
-- **Gate note:** production-equivalent DynamoDB + S3 evidence for #191 (AI classifier stubbed;
-  notifications mock). Deployed `CAPACITY_BASE_URL` staging remains optional if this cloud
-  profile is accepted as the storage capacity gate.
+- **Gate note:** this cloud evidence is **invalid as a #191 pass** until re-run with the
+  coverage-first harness (min per-route samples + observed AI queue). Dynamo/S3 were real;
+  workload coverage and AI observation were not.
 

@@ -151,6 +151,67 @@ SCENARIOS = (
     "otp-race",
 )
 
+# Minimum completed samples per route. Scenarios fail when these are not met so a
+# slow endpoint cannot "complete" a run that never exercised writes (#241 review).
+REQUIRED_MIN_SAMPLES: dict[str, dict[str, int]] = {
+    "smoke": {
+        "health_live": 3,
+        "health_ready_ai": 3,
+        "track_miss": 3,
+    },
+    "write-mixed": {
+        "ticket_submit": 4,
+        "photo_upload": 4,
+        "staff_status": 2,
+        "staff_list": 2,
+        "track_miss": 2,
+        "otp_request": 2,
+        "health_ready_ai": 4,
+    },
+    "submit-race": {
+        "ticket_submit": 6,
+        "health_ready_ai": 2,
+    },
+    "upload-race": {
+        "photo_upload": 6,
+    },
+    "staff-mutate": {
+        "staff_status": 2,
+        "staff_category": 2,
+        "staff_detail": 2,
+        "staff_list": 2,
+    },
+    "otp-race": {
+        "otp_request": 6,
+    },
+}
+
+# Scenarios that must capture at least one readiness AI queue sample.
+AI_QUEUE_REQUIRED_SCENARIOS = frozenset({"write-mixed", "submit-race", "mixed"})
+
+
+@dataclass
+class SharedCallPlanner:
+    """Cross-worker planner: reserve required routes first, then global round-robin."""
+
+    scenario: str
+    requirements: dict[str, int] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+    _reserved: dict[str, int] = field(default_factory=dict)
+    _seq: int = 0
+
+    def next(self) -> tuple[int, str | None]:
+        """Return (global_seq, forced_route_name or None for round-robin)."""
+        with self._lock:
+            self._seq += 1
+            seq = self._seq
+            for name, need in self.requirements.items():
+                reserved = self._reserved.get(name, 0)
+                if reserved < need:
+                    self._reserved[name] = reserved + 1
+                    return seq, name
+            return seq, None
+
 
 @dataclass
 class RequestResult:
@@ -371,14 +432,14 @@ def _worker_loop(
     worker_id: int,
     ctx: HarnessContext,
     budget: RequestBudget,
+    planner: SharedCallPlanner,
     min_interval_s: float,
 ) -> list[RequestResult]:
     results: list[RequestResult] = []
-    counter = 0
     while time.perf_counter() < stop_at:
         if not budget.try_acquire():
             break
-        counter += 1
+        counter, forced_name = planner.next()
         started = time.perf_counter()
         results.append(
             _perform_call(
@@ -387,6 +448,7 @@ def _worker_loop(
                 counter=counter,
                 worker_id=worker_id,
                 ctx=ctx,
+                forced_name=forced_name,
             )
         )
         if min_interval_s > 0:
@@ -404,12 +466,14 @@ def _perform_call(
     counter: int,
     worker_id: int,
     ctx: HarnessContext,
+    forced_name: str | None = None,
 ) -> RequestResult:
     name, method, path, extra_headers, payload, content_type = _pick_call(
         scenario,
         counter,
         worker_id=worker_id,
         ctx=ctx,
+        forced_name=forced_name,
     )
     headers = {**ctx.shared_headers, **(extra_headers or {})}
     if content_type and payload is not None:
@@ -425,14 +489,149 @@ def _perform_call(
     )
 
 
+def _build_forced_call(
+    scenario: str,
+    name: str,
+    *,
+    counter: int,
+    worker_id: int,
+    ctx: HarnessContext,
+) -> tuple[str, str, str, dict[str, str] | None, bytes | None, str | None] | None:
+    """Build a specific named call so coverage mins are filled before round-robin."""
+    if name == "health_live":
+        return "health_live", "GET", "/health/live", None, None, None
+    if name == "health_ready_ai":
+        return "health_ready_ai", "GET", "/health/ready", None, None, None
+    if name == "health":
+        return "health", "GET", "/health", None, None, None
+    if name == "track_miss":
+        path = "/v1/tickets/track/ZZZZ99" if scenario == "smoke" else "/v1/tickets/track/CAP999"
+        return "track_miss", "GET", path, None, None, None
+    if name == "staff_list":
+        if not ctx.staff_headers:
+            return None
+        return "staff_list", "GET", "/v1/tickets", ctx.staff_headers, None, None
+    if name == "staff_detail":
+        if not ctx.staff_headers or not ctx.ticket_ids:
+            return None
+        ticket_id = ctx.ticket_ids[counter % len(ctx.ticket_ids)]
+        return "staff_detail", "GET", f"/v1/tickets/{ticket_id}", ctx.staff_headers, None, None
+    if name == "staff_status":
+        if not ctx.staff_headers or not ctx.ticket_ids:
+            return None
+        ticket_id = ctx.ticket_ids[counter % len(ctx.ticket_ids)]
+        payload = json.dumps(
+            {
+                "status": "UNDER_REVIEW",
+                "updatedBy": f"capacity-worker-{worker_id}",
+                "note": f"capacity status {counter}",
+            }
+        ).encode("utf-8")
+        return (
+            "staff_status",
+            "PATCH",
+            f"/v1/tickets/{ticket_id}/status",
+            {**ctx.staff_headers, "Content-Type": "application/json"},
+            payload,
+            "application/json",
+        )
+    if name == "staff_category":
+        if not ctx.staff_headers or not ctx.ticket_ids:
+            return None
+        ticket_id = ctx.ticket_ids[counter % len(ctx.ticket_ids)]
+        payload = json.dumps(
+            {
+                "finalCategory": "road_damage",
+                "categoryReviewedBy": f"capacity-worker-{worker_id}",
+            }
+        ).encode("utf-8")
+        return (
+            "staff_category",
+            "PATCH",
+            f"/v1/tickets/{ticket_id}/category",
+            {**ctx.staff_headers, "Content-Type": "application/json"},
+            payload,
+            "application/json",
+        )
+    if name == "ticket_submit":
+        if not ctx.citizen_headers:
+            return None
+        image_key = f"reports/capacity/{uuid.uuid4().hex}/photo.jpg"
+        payload = _submit_payload(image_key, worker_id, counter)
+        return (
+            "ticket_submit",
+            "POST",
+            "/v1/tickets",
+            {**ctx.citizen_headers, "Content-Type": "application/json"},
+            payload,
+            "application/json",
+        )
+    if name == "photo_upload":
+        if not ctx.citizen_headers:
+            return None
+        body, content_type = _multipart_body(
+            {},
+            {"file": (f"cap-{worker_id}-{counter}.jpg", _MIN_JPEG, "image/jpeg")},
+        )
+        return (
+            "photo_upload",
+            "POST",
+            "/v1/uploads/report-photo",
+            dict(ctx.citizen_headers),
+            body,
+            content_type,
+        )
+    if name == "otp_request":
+        phone = _unique_phone(worker_id, counter)
+        payload = json.dumps({"phone": phone, "region": "LB", "purpose": "LOGIN_OR_SIGNUP"}).encode(
+            "utf-8"
+        )
+        return (
+            "otp_request",
+            "POST",
+            "/v1/citizen/auth/otp/request",
+            {"Content-Type": "application/json", "X-Device-Id": f"capacity-{worker_id}"},
+            payload,
+            "application/json",
+        )
+    if name == "citizen_me":
+        if not ctx.citizen_headers:
+            return None
+        return "citizen_me", "GET", "/v1/citizen/me", ctx.citizen_headers, None, None
+    if name == "citizen_history":
+        if not ctx.citizen_headers:
+            return None
+        return (
+            "citizen_history",
+            "GET",
+            "/v1/citizen/me/tickets?limit=10",
+            ctx.citizen_headers,
+            None,
+            None,
+        )
+    return None
+
+
 def _pick_call(
     scenario: str,
     counter: int,
     *,
     worker_id: int,
     ctx: HarnessContext,
+    forced_name: str | None = None,
 ) -> tuple[str, str, str, dict[str, str] | None, bytes | None, str | None]:
     """Return name, method, path, headers, body, content_type."""
+    if forced_name is not None:
+        built = _build_forced_call(
+            scenario,
+            forced_name,
+            counter=counter,
+            worker_id=worker_id,
+            ctx=ctx,
+        )
+        if built is not None:
+            return built
+
     if scenario == "smoke":
         cycle = counter % 3
         if cycle == 0:
@@ -663,6 +862,23 @@ def _pick_call(
     return "health_live", "GET", "/health/live", None, None, None
 
 
+def _evaluate_route_coverage(scenario: str, by_name: dict[str, Any]) -> dict[str, Any]:
+    requirements = REQUIRED_MIN_SAMPLES.get(scenario, {})
+    actual: dict[str, int] = {}
+    missing: dict[str, int] = {}
+    for name, need in requirements.items():
+        count = int((by_name.get(name) or {}).get("count") or 0)
+        actual[name] = count
+        if count < need:
+            missing[name] = need - count
+    return {
+        "required": requirements,
+        "actual": actual,
+        "missing": missing,
+        "pass": not missing,
+    }
+
+
 def _evaluate_slos(summary: ScenarioSummary, by_name: dict[str, Any]) -> dict[str, Any]:
     total = max(summary.total, 1)
     server_rate = summary.server_5xx / total
@@ -683,6 +899,13 @@ def _evaluate_slos(summary: ScenarioSummary, by_name: dict[str, Any]) -> dict[st
         return actual <= target if higher_is_worse else actual >= target
 
     submit_actual = submit_p95 if submit_p95 is not None else submit_upload_p95
+    ai_required = summary.scenario in AI_QUEUE_REQUIRED_SCENARIOS
+    ai_count = len(summary.ai_queue_samples)
+    max_pending = max(
+        (s.get("pending") for s in summary.ai_queue_samples if isinstance(s.get("pending"), int)),
+        default=None,
+    )
+    coverage = _evaluate_route_coverage(summary.scenario, by_name)
     return {
         "submitP95Ms": {
             "target": 2500,
@@ -699,17 +922,14 @@ def _evaluate_slos(summary: ScenarioSummary, by_name: dict[str, Any]) -> dict[st
             "actual": server_rate,
             "pass": server_rate < 0.01,
         },
+        "routeCoverage": coverage,
         "aiQueueSamples": {
-            "count": len(summary.ai_queue_samples),
+            "required": ai_required,
+            "count": ai_count,
             "last": summary.ai_queue_samples[-1] if summary.ai_queue_samples else None,
-            "maxPending": max(
-                (
-                    s.get("pending")
-                    for s in summary.ai_queue_samples
-                    if isinstance(s.get("pending"), int)
-                ),
-                default=None,
-            ),
+            "maxPending": max_pending,
+            # Unobserved required queue evidence is a hard fail — never "Partial → Yes".
+            "pass": (ai_count > 0) if ai_required else None,
         },
     }
 
@@ -925,6 +1145,10 @@ def main(argv: list[str] | None = None) -> int:
     summary.created_ticket_ids.extend(ticket_ids)
 
     budget = RequestBudget(max_requests=max_requests)
+    planner = SharedCallPlanner(
+        scenario=args.scenario,
+        requirements=dict(REQUIRED_MIN_SAMPLES.get(args.scenario, {})),
+    )
     min_interval_s = min_interval_ms / 1000.0
     stop_at = time.perf_counter() + summary.duration_seconds
     with ThreadPoolExecutor(max_workers=summary.concurrency) as pool:
@@ -937,6 +1161,7 @@ def main(argv: list[str] | None = None) -> int:
                 worker_id=worker_id,
                 ctx=ctx,
                 budget=budget,
+                planner=planner,
                 min_interval_s=min_interval_s,
             )
             for worker_id in range(summary.concurrency)
@@ -954,10 +1179,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
+    coverage = (report.get("slosEvaluation") or {}).get("routeCoverage") or {}
+    ai_queue = (report.get("slosEvaluation") or {}).get("aiQueueSamples") or {}
+    coverage_ok = coverage.get("pass", True)
+    ai_ok = ai_queue.get("pass") is not False
     if args.quiet and args.output is not None:
         print(
             f"{summary.scenario}: requests={summary.total} 5xx={summary.server_5xx} "
-            f"429={summary.rate_limited_429} p95={report['latencyMs']['p95']}",
+            f"429={summary.rate_limited_429} p95={report['latencyMs']['p95']} "
+            f"coverage={'ok' if coverage_ok else 'FAIL'} "
+            f"aiQueue={'ok' if ai_ok else 'FAIL'}",
             file=sys.stderr,
         )
         print(f"Wrote {args.output}", file=sys.stderr)
@@ -965,6 +1196,9 @@ def main(argv: list[str] | None = None) -> int:
         print(text)
         if args.output is not None:
             print(f"Wrote {args.output}", file=sys.stderr)
+    if not coverage_ok or not ai_ok:
+        # Invalid capacity evidence — do not treat as a completed workload sample.
+        return 3
     return 0 if summary.server_5xx == 0 and summary.transport_errors == 0 else 2
 
 

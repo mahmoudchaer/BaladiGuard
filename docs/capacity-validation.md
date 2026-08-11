@@ -70,6 +70,12 @@ PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
 The runner always stops each scenario with **duration AND max-requests**, plus per-worker
 **min-interval** pacing, so upload scenarios cannot unbounded-flood the API.
 
+Each scenario also enforces **minimum per-route sample coverage** (coverage-first
+cross-worker planner). If required writes/readiness samples are missing, the harness
+exits `3` and the operator script treats the run as a failed capacity gate — never as a
+silent pass. Required AI queue observation (`health_ready_ai` samples) similarly fails
+closed when unobserved (no “Partial → Yes”).
+
 Direct harness against a running API:
 
 ```bash
