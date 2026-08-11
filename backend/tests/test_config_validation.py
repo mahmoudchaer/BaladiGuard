@@ -114,6 +114,9 @@ def test_staging_requires_https_non_localhost_citizen_app_base_url():
     environ_ok = {
         **environ,
         "CITIZEN_APP_BASE_URL": "https://staging.baladiguard.example",
+        "CORS_ALLOWED_ORIGINS": (
+            "https://admin.staging.baladiguard.example,https://citizen.staging.baladiguard.example"
+        ),
     }
     try:
         os.environ.clear()
@@ -194,6 +197,7 @@ def test_production_rejects_development_defaults():
     assert "UNSAFE_DYNAMODB_ENDPOINT_URL" in codes
     assert "UNSAFE_SEED_SAMPLE_TICKETS" in codes
     assert "MISSING_CITIZEN_APP_BASE_URL" in codes
+    assert "MISSING_CORS_ALLOWED_ORIGINS" in codes
     # Secret values must never appear in issue messages.
     serialized = " ".join(issue.message for issue in result.issues).lower()
     assert "changeme" not in serialized
@@ -245,6 +249,9 @@ def test_production_valid_configuration_passes():
         "SEED_SAMPLE_TICKETS": "false",
         "DYNAMODB_ENDPOINT_URL": "",
         "CITIZEN_APP_BASE_URL": "https://app.baladiguard.example",
+        "CORS_ALLOWED_ORIGINS": (
+            "https://admin.baladiguard.example,https://citizen.baladiguard.example"
+        ),
     }
     original = dict(os.environ)
     try:

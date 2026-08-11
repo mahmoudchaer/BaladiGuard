@@ -459,4 +459,47 @@ def validate_configuration(
                 )
             )
 
+    # Browser CORS allowlist for admin + citizen-web (issue #263).
+    # Staging/production must set CORS_ALLOWED_ORIGINS to explicit non-localhost
+    # https origins — never silently keep local Vite/Expo defaults.
+    if app_env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE:
+        from app.core.cors import is_localhost_origin, parse_cors_allowed_origins
+
+        env_label = "Production" if app_env == "production" else "Staging"
+        origins = parse_cors_allowed_origins(cfg.cors_allowed_origins)
+        if not origins:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CORS_ALLOWED_ORIGINS",
+                    message=(
+                        f"{env_label} requires CORS_ALLOWED_ORIGINS "
+                        "(comma-separated https origins for admin and citizen-web)."
+                    ),
+                )
+            )
+        else:
+            for origin in origins:
+                if is_localhost_origin(origin):
+                    result.issues.append(
+                        ConfigIssue(
+                            code="UNSAFE_CORS_ALLOWED_ORIGINS",
+                            message=(
+                                f"{env_label} must not include localhost origins "
+                                "in CORS_ALLOWED_ORIGINS."
+                            ),
+                        )
+                    )
+                    break
+                if not origin.lower().startswith("https://"):
+                    result.issues.append(
+                        ConfigIssue(
+                            code="INVALID_CORS_ALLOWED_ORIGINS",
+                            message=(
+                                "CORS_ALLOWED_ORIGINS entries must use https "
+                                f"in {app_env} (e.g. https://citizen.example.com)."
+                            ),
+                        )
+                    )
+                    break
+
     return result
