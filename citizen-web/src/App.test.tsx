@@ -23,6 +23,17 @@ const sample: PublicTicketResponse = {
   updatedAt: '2026-08-02T12:00:00Z',
 };
 
+const samplePageTwo: PublicTicketResponse = {
+  ...sample,
+  ticketNumber: 'BG-100002',
+  description: 'Street light out on residential block.',
+  mapLocation: {
+    addressText: 'Hamra side street',
+    latitude: 33.897,
+    longitude: 35.48,
+  },
+};
+
 vi.mock('@/services/tickets', async () => {
   const actual = await vi.importActual<typeof import('@/services/tickets')>('@/services/tickets');
   return {
@@ -97,10 +108,34 @@ describe('citizen web public browsing', () => {
     expect(getPublicTicketByNumber).toHaveBeenCalledWith('BG-100001');
   });
 
-  it('shows map with list alternative', async () => {
+  it('auto-loads map pages beyond the first API page', async () => {
+    vi.mocked(getPublicTickets)
+      .mockResolvedValueOnce({
+        items: [sample],
+        nextCursor: 'next-1',
+        limit: 20,
+      })
+      .mockResolvedValueOnce({
+        items: [samplePageTwo],
+        nextCursor: null,
+        limit: 20,
+      });
+
     renderApp('/map');
-    expect(await screen.findByTestId('public-map')).toHaveTextContent('Map with 1 reports');
+    expect(await screen.findByTestId('public-map')).toHaveTextContent('Map with 2 reports');
+    expect(getPublicTickets).toHaveBeenCalledWith(expect.objectContaining({ cursor: null }));
+    expect(getPublicTickets).toHaveBeenCalledWith(expect.objectContaining({ cursor: 'next-1' }));
     expect(screen.getByRole('link', { name: 'View as list' })).toHaveAttribute('href', '/');
+  });
+
+  it('renders a not-found page for unknown routes', async () => {
+    renderApp('/this-route-does-not-exist');
+    expect(await screen.findByTestId('not-found-page')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Browse public reports' })).toHaveAttribute(
+      'href',
+      '/',
+    );
   });
 
   it('tracks by code with fixed wording paths', async () => {

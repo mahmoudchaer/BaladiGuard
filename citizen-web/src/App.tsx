@@ -1,10 +1,11 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/AppShell';
 import { HomePage } from '@/pages/HomePage';
 import { MapPage } from '@/pages/MapPage';
 import { PublicDetailPage } from '@/pages/PublicDetailPage';
 import { TrackPage } from '@/pages/TrackPage';
 import { PrivacyPage } from '@/pages/PrivacyPage';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { StubPage } from '@/pages/StubPage';
 import '@/components/AppShell.css';
 
@@ -53,7 +54,7 @@ export function AppRoutes() {
             />
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

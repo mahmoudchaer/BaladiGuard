@@ -3,7 +3,11 @@ import { PublicReportsMap } from '@/components/PublicReportsMap';
 import { usePublicReportsFeed } from '@/hooks/usePublicReportsFeed';
 
 export function MapPage() {
-  const { items, loading, error, reload } = usePublicReportsFeed();
+  const { items, nextCursor, loading, loadingMore, error, reload, loadMore } = usePublicReportsFeed(
+    {
+      autoLoadAll: true,
+    },
+  );
 
   return (
     <div className="page">
@@ -27,7 +31,17 @@ export function MapPage() {
 
       {loading ? <p className="muted">Loading map…</p> : null}
 
-      {!loading && !error ? <PublicReportsMap reports={items} /> : null}
+      {!loading && !error ? (
+        <div className="stack">
+          <PublicReportsMap reports={items} />
+          {loadingMore ? <p className="muted">Loading more reports onto the map…</p> : null}
+          {nextCursor && !loadingMore ? (
+            <button type="button" className="button" onClick={() => void loadMore()}>
+              Load more on map
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
