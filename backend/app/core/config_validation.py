@@ -17,13 +17,9 @@ from app.config import Settings, get_settings
 
 AllowedSeverity = Literal["error", "warning"]
 
-ALLOWED_ENVIRONMENTS = frozenset(
-    {"local", "development", "staging", "production", "test"}
-)
+ALLOWED_ENVIRONMENTS = frozenset({"local", "development", "staging", "production", "test"})
 # Deployed envs: no silent localhost citizen deep-link defaults (issue #257).
-_DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset(
-    {"staging", "production"}
-)
+_DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "production"})
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
@@ -449,9 +445,7 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_CITIZEN_APP_BASE_URL",
-                    message=(
-                        f"{env_label} must not use a localhost CITIZEN_APP_BASE_URL."
-                    ),
+                    message=(f"{env_label} must not use a localhost CITIZEN_APP_BASE_URL."),
                 )
             )
         elif not is_valid_citizen_app_base_url(citizen_base, require_https=True):
