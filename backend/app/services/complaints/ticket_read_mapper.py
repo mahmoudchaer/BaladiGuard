@@ -25,8 +25,10 @@ from app.schemas.ticket_response import (
     TicketImageReference,
     TicketPublicFields,
     TicketResponse,
+    TicketSlaFields,
     TicketStatusHistoryEntry,
 )
+from app.services.complaints.sla import derive_ticket_sla
 from app.services.routing import department_name
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
@@ -214,6 +216,7 @@ def map_ticket_to_response(
         updatedAt=ticket.updated_at,
         updatedBy=ticket.updated_by,
         ai=build_ticket_ai_fields(ticket),
+        sla=TicketSlaFields.model_validate(derive_ticket_sla(ticket).model_dump(by_alias=True)),
         public=TicketPublicFields(
             status=ticket.public_status,
             description=ticket.public_description,
