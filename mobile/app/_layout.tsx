@@ -15,6 +15,10 @@ import { colors, theme, typography } from '@/theme';
  * We improve discoverability instead via clear home CTAs, themed headers, and
  * consistent back-navigation. `history/index` is registered below so signed-in
  * citizens get a titled header + back action when opened from home or the profile.
+ *
+ * Notification deep links (#257): route `t/[code]` handles HTTPS Universal /
+ * App Links and `baladiguard://t/{code}` once the OS opens the app. Native host
+ * claiming is configured in `mobile/app.config.ts` (associatedDomains + intentFilters).
  */
 export default function RootLayout() {
   return (
@@ -35,6 +39,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="report/index" options={{ title: 'New report' }} />
             <Stack.Screen name="track/index" options={{ title: 'Track a report' }} />
+            <Stack.Screen name="t/[code]" options={{ title: 'Report link' }} />
             <Stack.Screen name="history/index" options={{ title: 'Report history' }} />
             <Stack.Screen name="login/index" options={{ title: 'Sign in' }} />
             <Stack.Screen name="profile/index" options={{ title: 'Profile' }} />

@@ -14,29 +14,32 @@ Set `APP_ENV` (preferred) or `ENVIRONMENT` (alias).
 | `local` | Default local development (documented soft defaults allowed) |
 | `development` | Shared/dev servers (same soft defaults as local) |
 | `test` | Automated tests / CI |
+| `staging` | Shared pre-production — **no silent localhost deep-link defaults** |
 | `production` | Deployed environments — **no silent development defaults** |
 
 Common short forms are normalized before checks: `prod` / `prd` → `production`,
 `dev` / `develop` → `development`.
 
-Unknown values (for example `staging`) fail validation and **abort startup** so a
-deploy typo cannot bypass production fail-closed rules.
+Unknown values fail validation and **abort startup** so a deploy typo cannot bypass
+fail-closed rules.
 
 ## Policy
 
-| Area | `local` / `development` / `test` | `production` |
+| Area | `local` / `development` / `test` | `staging` / `production` |
 | --- | --- | --- |
-| Persistence | `DATABASE_BACKEND=memory` allowed | Must be `dynamodb` |
-| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Must be `real` |
-| Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Non-placeholder `SECRET_KEY` required |
-| Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Non-demo `STAFF_PASSWORD` required |
-| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Real Amazon Location index required |
-| Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | `AWS_S3_BUCKET` required |
-| Dynamo endpoint | Localhost Docker URL allowed | Must not point at localhost |
-| Sample seed | Optional synthetic mocks only | `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
+| Persistence | `DATABASE_BACKEND=memory` allowed | Production: must be `dynamodb`. Staging may use memory for demos. |
+| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Production: must be `real`. Staging may mock for demos. |
+| Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Production: non-placeholder `SECRET_KEY` required |
+| Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Production: non-demo credentials required |
+| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Production: real Amazon Location index required |
+| Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | Production: `AWS_S3_BUCKET` required |
+| Dynamo endpoint | Localhost Docker URL allowed | Production must not point at localhost |
+| Sample seed | Optional synthetic mocks only | Production: `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
+| Citizen deep links | Optional `CITIZEN_APP_BASE_URL` (defaults to `http://localhost:8081`) | **Required https**, non-localhost base for SMS/email links (#257) |
 
-Backend **startup aborts** when `APP_ENV=production` and validation finds errors.
-In other environments, the process still starts and `/health` reports `config.status`.
+Backend **startup aborts** when `APP_ENV` is `production` or `staging` and validation
+finds errors. In local / development / test, the process still starts and `/health`
+reports `config.status`.
 
 Secret **values** are never printed in logs or returned by `/health`.
 
@@ -76,6 +79,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_ALLOWLIST_PHONES` | Sandbox/testing | empty | Comma-separated E.164 allowlist |
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
+| `CITIZEN_APP_BASE_URL` | Staging + production | local/dev/test: `http://localhost:8081` when unset | Citizen app base for notification deep links (`/t/{trackingCode}`); staging/production must be https and non-localhost (#257) |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
@@ -125,6 +129,8 @@ Vite embeds these values in the browser bundle. They are not backend secrets.
 | `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8000/v1` | API base |
 | `EXPO_PUBLIC_ENABLE_MOCK_API` | `false` | Opt-in mock submit |
 | `EXPO_PUBLIC_APP_ENV` | `local` | App label |
+| `EXPO_PUBLIC_CITIZEN_APP_HOST` | derived / placeholder | Host claimed for iOS Universal Links + Android App Links (`/t/*`); must match backend `CITIZEN_APP_BASE_URL` host (#257) |
+| `EXPO_PUBLIC_CITIZEN_APP_BASE_URL` | empty | Optional full https base; used to derive host when `EXPO_PUBLIC_CITIZEN_APP_HOST` is unset |
 | `EXPO_PUBLIC_SUPABASE_URL` | empty | Reserved / unused for MVP core path |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | empty | Reserved / unused for MVP core path |
 
@@ -156,8 +162,10 @@ Before deploy (#74):
 7. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
 8. `AWS_S3_BUCKET=<bucket>`
 9. `SEED_SAMPLE_TICKETS=false`
-10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links). Staging uses the same rule with `APP_ENV=staging`.
+11. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+12. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+13. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
 
 ## Health payload
 
