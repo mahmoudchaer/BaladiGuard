@@ -67,10 +67,9 @@ def test_assign_department_persists_and_preserves_suggestion(client):
     assert stored.department_id == STREET_LIGHTING
     assert stored.suggested_department_id == ROAD_MAINTENANCE
 
-    listed = client.get("/v1/tickets").json()
+    listed = client.get("/v1/tickets").json()["items"]
     match = next(ticket for ticket in listed if ticket["ticketId"] == created["ticketId"])
     assert match["departmentId"] == STREET_LIGHTING
-    assert match["ai"]["suggestedDepartmentId"] == ROAD_MAINTENANCE
 
     detail = client.get(f"/v1/tickets/{created['ticketId']}").json()
     assert detail["departmentId"] == STREET_LIGHTING

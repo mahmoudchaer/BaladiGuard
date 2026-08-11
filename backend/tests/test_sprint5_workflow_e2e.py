@@ -124,7 +124,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
 
     dashboard = anonymous_client.get("/v1/tickets", headers=staff_headers)
     assert dashboard.status_code == 200
-    assert any(ticket["ticketId"] == ticket_id for ticket in dashboard.json())
+    assert any(ticket["ticketId"] == ticket_id for ticket in dashboard.json()["items"])
 
     detail = anonymous_client.get(f"/v1/tickets/{ticket_id}", headers=staff_headers)
     assert detail.status_code == 200

@@ -714,10 +714,16 @@ Citizen tracking codes are 6 characters drawn from `A-Z` and `2-9`, excluding am
 
 Staff-only. Requires `Authorization: Bearer <accessToken>`.
 
-Returns persisted tickets using the ticket record shape, sorted by `createdAt` descending.
-Optional query filters match **persisted** ticket fields and are combined with AND. Omitting a
-parameter leaves that dimension unfiltered. An empty match set returns `[]` (HTTP 200), not an
-error.
+Returns a **lightweight paginated collection** (`TicketListPageResponse`), sorted by
+`createdAt` / `ticketId` descending via indexed staff GSIs (issue #267). Items do **not**
+include contact, tracking codes, status/audit history, image URLs, or AI/public blobs.
+Full detail remains on `GET /v1/tickets/{ticketId}`. See
+[staff-ticket-collection.md](./staff-ticket-collection.md).
+
+Optional query filters match **persisted** ticket fields and are combined with AND.
+`slaState` is applied within the fetched page only (derived, not indexed). Omitting a
+parameter leaves that dimension unfiltered. An empty match set returns
+`{ "items": [], ... }` (HTTP 200), not an error.
 
 ### Query Parameters
 
@@ -727,53 +733,56 @@ error.
 | `category`     | string | No       | Exact match on ticket `category` (including `PENDING_CLASSIFICATION`). Must be a seeded catalog category ID.                                                                |
 | `urgency`      | enum   | No       | Exact match on persisted urgency level stored as ticket `priority`. One of `low`, `medium`, `high`, `critical`. Tickets with `priority: null` do not match.                 |
 | `departmentId` | string | No       | Exact match on assigned `departmentId` (staff override or automatic assignment). Must be a seeded department catalog ID. Does **not** filter on `ai.suggestedDepartmentId`. |
+| `slaState`     | enum   | No       | Derived SLA filter applied within the page: `on_track`, `due_soon`, `overdue`, `completed`, `unavailable`.                                                                  |
+| `limit`        | int    | No       | Page size (default 25, max 100).                                                                                                                                            |
+| `cursor`       | string | No       | Opaque continuation cursor from a prior `nextCursor`.                                                                                                                       |
 
-Invalid or blank filter values return `400` with `error.code = VALIDATION_ERROR` and a `details[]`
-entry whose `field` is the query parameter name (`status`, `category`, `urgency`, or
-`departmentId`).
+Invalid or blank filter values / cursors return `400` with `error.code = VALIDATION_ERROR`.
 
 ### Response `200`
 
 ```json
-[
-  {
-    "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
-    "ticketNumber": "BG-2026-0001",
-    "trackingCode": "AB23CD",
-    "description": "Large pothole reported near the university gate causing traffic disruption.",
-    "contact": {
-      "name": "Citizen Name",
-      "phone": "+96170123456",
-      "email": "citizen@example.com"
-    },
-    "location": {
-      "latitude": 33.896112,
-      "longitude": 35.478419,
-      "addressText": "Near AUB Main Gate, Hamra, Beirut",
-      "source": "PLACEHOLDER"
-    },
-    "imageReferences": [
-      {
-        "objectKey": "reports/mock/photo.jpg",
-        "url": null,
-        "contentType": null,
-        "createdAt": null
+{
+  "items": [
+    {
+      "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
+      "ticketNumber": "BG-2026-0001",
+      "status": "SUBMITTED",
+      "category": "PENDING_CLASSIFICATION",
+      "priority": null,
+      "departmentId": null,
+      "department": null,
+      "summary": "Large pothole reported near the university gate causing traffic disruption.",
+      "createdAt": "2026-07-03T00:54:15Z",
+      "updatedAt": "2026-07-03T00:54:15Z",
+      "municipalityId": null,
+      "assignmentState": "unassigned",
+      "location": {
+        "latitude": 33.896112,
+        "longitude": 35.478419,
+        "addressText": "Near AUB Main Gate, Hamra, Beirut"
       }
-    ],
-    "imageObjectKey": "reports/mock/photo.jpg",
-    "status": "SUBMITTED",
-    "category": "PENDING_CLASSIFICATION",
-    "priority": null,
-    "department": null,
-    "createdBy": null,
-    "municipalityId": null,
-    "departmentId": null,
-    "duplicateGroupId": null,
-    "createdAt": "2026-07-03T00:54:15Z",
-    "updatedAt": "2026-07-03T00:54:15Z"
-  }
-]
+    }
+  ],
+  "nextCursor": null,
+  "previousCursor": null,
+  "limit": 25,
+  "scannedCount": 1,
+  "approximateTotal": null,
+  "freshnessHintSeconds": 30
+}
 ```
+
+## `GET /v1/tickets/map`
+
+Staff-only. Viewport-bounded map contract (issue #267). Query: `north`, `south`, `east`,
+`west`, `zoom`, optional collection filters, `limit` (default 200, max 500). Returns
+`markers` and/or `clusters` with `truncated` when the candidate budget is exhausted.
+
+## `GET /v1/tickets/aggregates`
+
+Staff-only. Scoped attention counts (`openCount`, `criticalCount`, `highCount`,
+`unassignedCount`, `overdueCount`) with `approximate` when sampled.
 
 ## `GET /v1/tickets/{ticketId}`
 

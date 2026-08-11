@@ -151,7 +151,9 @@ export function TicketTable({
                       </span>
                     </div>
 
-                    <span className="ticket-queue__tracking">{ticket.trackingCode}</span>
+                    {ticket.trackingCode ? (
+                      <span className="ticket-queue__tracking">{ticket.trackingCode}</span>
+                    ) : null}
                     {ticket.duplicateGroupId ? (
                       <span className="ticket-queue__grouped">Grouped</span>
                     ) : null}

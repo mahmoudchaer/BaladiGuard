@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
+from typing import Literal
 from uuid import uuid4
 
 from app.config import get_settings
@@ -21,6 +22,13 @@ from app.database.store_factory import (
 from app.database.ticket_store import TicketStore
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.staff_ticket_collection import (
+    TicketAggregatesResponse,
+    TicketListPageResponse,
+    TicketMapClusterResponse,
+    TicketMapMarkerResponse,
+    TicketMapViewportResponse,
+)
 from app.schemas.staff_user import StaffRole
 from app.schemas.stored_audit_history import AuditActionType, StoredAuditHistory
 from app.schemas.stored_duplicate_group import StoredDuplicateGroup
@@ -46,17 +54,19 @@ from app.schemas.ticket_response import (
 from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
+from app.services.complaints.sla import derive_ticket_sla
 from app.services.complaints.status_workflow import (
     MissingDepartmentAssignmentError,
     validate_status_transition,
 )
-from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
+from app.services.complaints.ticket_list_filters import TicketListFilters, ticket_matches_filters
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
+    map_ticket_to_list_item,
     map_ticket_to_public_response,
     map_ticket_to_response,
 )
-from app.services.duplicates import find_nearby_duplicates
+from app.services.duplicates import OPEN_TICKET_STATUSES, find_nearby_duplicates
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.routing import department_ids, suggest_department_id
@@ -77,6 +87,13 @@ Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
 PUBLIC_TICKET_DEFAULT_LIMIT = 20
 PUBLIC_TICKET_MAX_LIMIT = 50
+STAFF_TICKET_DEFAULT_LIMIT = 25
+STAFF_TICKET_MAX_LIMIT = 100
+STAFF_MAP_DEFAULT_LIMIT = 200
+STAFF_MAP_MAX_LIMIT = 500
+STAFF_MAP_MARKER_ZOOM = 14
+STAFF_MAP_CANDIDATE_BUDGET = 500
+STAFF_AGGREGATE_SAMPLE_LIMIT = 500
 
 
 def _parse_iso_utc(value: str) -> datetime | None:
@@ -590,25 +607,221 @@ class TicketService:
         age_seconds = (now - claimed_at.astimezone(UTC)).total_seconds()
         return age_seconds >= get_settings().ai_processing_claim_timeout_seconds
 
+    def list_tickets_page(
+        self,
+        filters: TicketListFilters | None = None,
+        *,
+        staff_principal: StaffPrincipal,
+        limit: int = STAFF_TICKET_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> TicketListPageResponse:
+        page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        store_filters = filters
+        page = self._store.list_staff_page(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            limit=page_size,
+            cursor=cursor,
+            status=None if store_filters is None else store_filters.status,
+            category=None if store_filters is None else store_filters.category,
+            urgency=None if store_filters is None else store_filters.urgency,
+            department_id=None if store_filters is None else store_filters.department_id,
+        )
+        items = page.items
+        # SLA is derived, not indexed — filter within the fetched page only.
+        if store_filters is not None and store_filters.sla_state is not None:
+            items = [
+                ticket
+                for ticket in items
+                if ticket_matches_filters(
+                    ticket,
+                    TicketListFilters(sla_state=store_filters.sla_state),
+                )
+            ]
+        return TicketListPageResponse(
+            items=[map_ticket_to_list_item(ticket) for ticket in items],
+            nextCursor=page.next_cursor,
+            previousCursor=None,
+            limit=page_size,
+            scannedCount=page.scanned_count,
+            approximateTotal=None,
+            freshnessHintSeconds=30,
+        )
+
     def list_tickets(
         self,
         filters: TicketListFilters | None = None,
         *,
         staff_principal: StaffPrincipal | None = None,
-    ) -> list[TicketResponse]:
-        stored_tickets = filter_stored_tickets(self._store.list(), filters)
-        if staff_principal is not None:
-            stored_tickets = [
-                ticket
-                for ticket in stored_tickets
-                if staff_can_access_ticket(staff_principal, ticket)
-            ]
-        tickets = sorted(
-            stored_tickets,
-            key=lambda ticket: (ticket.created_at, ticket.ticket_number),
-            reverse=True,
+    ):
+        """Deprecated wrapper — returns lightweight page items for internal callers."""
+        if staff_principal is None:
+            raise ValueError("staff_principal is required for list_tickets.")
+        return self.list_tickets_page(
+            filters,
+            staff_principal=staff_principal,
+            limit=STAFF_TICKET_MAX_LIMIT,
+            cursor=None,
+        ).items
+
+    def map_viewport(
+        self,
+        *,
+        staff_principal: StaffPrincipal,
+        north: float,
+        south: float,
+        east: float,
+        west: float,
+        zoom: float,
+        filters: TicketListFilters | None = None,
+        limit: int = STAFF_MAP_DEFAULT_LIMIT,
+    ) -> TicketMapViewportResponse:
+        result_limit = min(max(limit, 1), STAFF_MAP_MAX_LIMIT)
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        candidates = self._collect_staff_candidates(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            filters=filters,
+            budget=STAFF_MAP_CANDIDATE_BUDGET,
         )
-        return [self._map_ticket(ticket) for ticket in tickets]
+        in_bounds = [
+            ticket
+            for ticket in candidates
+            if _location_in_bounds(
+                ticket.location.latitude,
+                ticket.location.longitude,
+                north=north,
+                south=south,
+                east=east,
+                west=west,
+            )
+        ]
+        truncated = len(candidates) >= STAFF_MAP_CANDIDATE_BUDGET
+        use_clusters = zoom < STAFF_MAP_MARKER_ZOOM or len(in_bounds) > result_limit
+        if use_clusters:
+            clusters = _grid_clusters(in_bounds, zoom=zoom, limit=result_limit)
+            return TicketMapViewportResponse(
+                markers=[],
+                clusters=clusters,
+                limit=result_limit,
+                truncated=truncated or len(in_bounds) > result_limit,
+                zoom=zoom,
+            )
+
+        markers = [
+            TicketMapMarkerResponse(
+                ticketId=ticket.ticket_id,
+                ticketNumber=ticket.ticket_number,
+                status=ticket.status,
+                priority=ticket.priority,
+                latitude=ticket.location.latitude,
+                longitude=ticket.location.longitude,
+                category=ticket.final_category or ticket.category,
+            )
+            for ticket in in_bounds[:result_limit]
+        ]
+        return TicketMapViewportResponse(
+            markers=markers,
+            clusters=[],
+            limit=result_limit,
+            truncated=truncated or len(in_bounds) > result_limit,
+            zoom=zoom,
+        )
+
+    def ticket_aggregates(self, staff_principal: StaffPrincipal) -> TicketAggregatesResponse:
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        tickets, approximate = self._collect_staff_candidates_with_approx(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            filters=None,
+            budget=STAFF_AGGREGATE_SAMPLE_LIMIT,
+        )
+        open_count = 0
+        critical_count = 0
+        high_count = 0
+        unassigned_count = 0
+        overdue_count = 0
+        for ticket in tickets:
+            if ticket.status in OPEN_TICKET_STATUSES:
+                open_count += 1
+            if ticket.priority == "critical":
+                critical_count += 1
+            elif ticket.priority == "high":
+                high_count += 1
+            if ticket.department_id is None:
+                unassigned_count += 1
+            if derive_ticket_sla(ticket).state == "overdue":
+                overdue_count += 1
+        return TicketAggregatesResponse(
+            openCount=open_count,
+            criticalCount=critical_count,
+            highCount=high_count,
+            unassignedCount=unassigned_count,
+            overdueCount=overdue_count,
+            approximate=approximate,
+        )
+
+    def _collect_staff_candidates(
+        self,
+        *,
+        browse_mode,
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        filters: TicketListFilters | None,
+        budget: int,
+    ) -> list[StoredTicket]:
+        tickets, _ = self._collect_staff_candidates_with_approx(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            filters=filters,
+            budget=budget,
+        )
+        return tickets
+
+    def _collect_staff_candidates_with_approx(
+        self,
+        *,
+        browse_mode,
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        filters: TicketListFilters | None,
+        budget: int,
+    ) -> tuple[list[StoredTicket], bool]:
+        collected: list[StoredTicket] = []
+        cursor: str | None = None
+        while len(collected) < budget:
+            page_limit = min(100, budget - len(collected))
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=page_limit,
+                cursor=cursor,
+                status=None if filters is None else filters.status,
+                category=None if filters is None else filters.category,
+                urgency=None if filters is None else filters.urgency,
+                department_id=None if filters is None else filters.department_id,
+            )
+            items = page.items
+            if filters is not None and filters.sla_state is not None:
+                items = [
+                    ticket
+                    for ticket in items
+                    if ticket_matches_filters(
+                        ticket,
+                        TicketListFilters(sla_state=filters.sla_state),
+                    )
+                ]
+            collected.extend(items)
+            if not page.next_cursor:
+                return collected, False
+            cursor = page.next_cursor
+        return collected[:budget], True
 
     def list_public_tickets(
         self,
@@ -1329,6 +1542,70 @@ class TicketService:
                 ticket_id,
             )
             return []
+
+
+def _staff_browse_scope(
+    principal: StaffPrincipal,
+) -> tuple[Literal["admin", "municipality"], str | None, list[str] | None]:
+    if principal.role == "administrator":
+        return "admin", None, None
+    return (
+        "municipality",
+        principal.municipality_id,
+        None if principal.department_ids is None else list(principal.department_ids),
+    )
+
+
+def _location_in_bounds(
+    latitude: float,
+    longitude: float,
+    *,
+    north: float,
+    south: float,
+    east: float,
+    west: float,
+) -> bool:
+    if latitude > north or latitude < south:
+        return False
+    if west <= east:
+        return west <= longitude <= east
+    # Viewport crosses the antimeridian.
+    return longitude >= west or longitude <= east
+
+
+def _grid_clusters(
+    tickets: list[StoredTicket],
+    *,
+    zoom: float,
+    limit: int,
+) -> list[TicketMapClusterResponse]:
+    cell = max(0.002, 45.0 / (2 ** max(zoom, 1.0)))
+    buckets: dict[tuple[int, int], list[StoredTicket]] = {}
+    for ticket in tickets:
+        key = (
+            int(ticket.location.latitude // cell),
+            int(ticket.location.longitude // cell),
+        )
+        buckets.setdefault(key, []).append(ticket)
+
+    clusters: list[TicketMapClusterResponse] = []
+    for (lat_idx, lng_idx), members in sorted(
+        buckets.items(),
+        key=lambda item: (-len(item[1]), item[0][0], item[0][1]),
+    ):
+        if len(clusters) >= limit:
+            break
+        avg_lat = sum(member.location.latitude for member in members) / len(members)
+        avg_lng = sum(member.location.longitude for member in members) / len(members)
+        clusters.append(
+            TicketMapClusterResponse(
+                id=f"c-{lat_idx}-{lng_idx}",
+                latitude=avg_lat,
+                longitude=avg_lng,
+                count=len(members),
+            )
+        )
+    return clusters
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

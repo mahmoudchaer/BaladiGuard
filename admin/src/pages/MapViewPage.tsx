@@ -1,28 +1,48 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Ticket } from '@/types/ticket';
-import { fetchTickets } from '@/services/tickets';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import type { TicketMapMarker, TicketMapViewport } from '@/types/ticketCollection';
+import { fetchTicketMapViewport } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { TicketMap } from '@/components/TicketMap';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
-  filterTickets,
   getCategoryFilterOptions,
   type CategoryFilter,
   type DepartmentFilter,
   type StatusFilter,
   type UrgencyFilter,
 } from '@/utils/ticketStats';
-import { getPlottableTickets } from '@/utils/ticketLocation';
+import { BEIRUT_CENTER } from '@/utils/ticketLocation';
+import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import './MapViewPage.css';
 
 type LoadState = 'loading' | 'success' | 'error';
 
+type MapBounds = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  zoom: number;
+};
+
+const DEFAULT_BOUNDS: MapBounds = {
+  north: BEIRUT_CENTER.latitude + 0.08,
+  south: BEIRUT_CENTER.latitude - 0.08,
+  east: BEIRUT_CENTER.longitude + 0.1,
+  west: BEIRUT_CENTER.longitude - 0.1,
+  zoom: 12,
+};
+
+const FILTER_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 300;
+const VIEWPORT_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 350;
+
 export function MapViewPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
-  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [viewport, setViewport] = useState<TicketMapViewport | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,20 +50,30 @@ export function MapViewPage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
-  const hasLoadedTickets = useRef(false);
+  const [bounds, setBounds] = useState<MapBounds>(DEFAULT_BOUNDS);
+  const hasLoaded = useRef(false);
+  const requestGeneration = useRef(0);
+
+  const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
+  const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
+  const debouncedUrgency = useDebouncedValue(urgencyFilter, FILTER_DEBOUNCE_MS);
+  const debouncedDepartment = useDebouncedValue(departmentFilter, FILTER_DEBOUNCE_MS);
+  const debouncedSearch = useDebouncedValue(searchQuery, FILTER_DEBOUNCE_MS);
+  const debouncedBounds = useDebouncedValue(bounds, VIEWPORT_DEBOUNCE_MS);
 
   const hasActiveServerFilters =
-    statusFilter !== 'ALL' ||
-    categoryFilter !== 'ALL' ||
-    urgencyFilter !== 'ALL' ||
-    departmentFilter !== 'ALL';
-  const hasActiveFilters = hasActiveServerFilters || searchQuery.trim().length > 0;
+    debouncedStatus !== 'ALL' ||
+    debouncedCategory !== 'ALL' ||
+    debouncedUrgency !== 'ALL' ||
+    debouncedDepartment !== 'ALL';
+  const hasActiveFilters = hasActiveServerFilters || debouncedSearch.trim().length > 0;
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const generation = ++requestGeneration.current;
 
-    async function loadTickets() {
-      const isInitialLoad = !hasLoadedTickets.current;
+    async function loadViewport() {
+      const isInitialLoad = !hasLoaded.current;
       if (isInitialLoad) {
         setLoadState('loading');
       } else {
@@ -52,53 +82,103 @@ export function MapViewPage() {
       setErrorMessage(null);
 
       try {
-        const data = await fetchTickets({
-          status: statusFilter,
-          category: categoryFilter,
-          urgency: urgencyFilter,
-          departmentId: departmentFilter,
+        const data = await fetchTicketMapViewport({
+          ...debouncedBounds,
+          filters: {
+            status: debouncedStatus,
+            category: debouncedCategory,
+            urgency: debouncedUrgency,
+            departmentId: debouncedDepartment,
+          },
+          signal: controller.signal,
         });
-        if (!cancelled) {
-          setTickets(data);
-          if (!hasActiveServerFilters) {
-            setAllTickets(data);
-          }
-          hasLoadedTickets.current = true;
-          setLoadState('success');
-          setIsRefreshing(false);
+        if (controller.signal.aborted || generation !== requestGeneration.current) {
+          return;
         }
+        setViewport(data);
+        hasLoaded.current = true;
+        setLoadState('success');
+        setIsRefreshing(false);
       } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
-          if (isInitialLoad) {
-            setLoadState('error');
-          }
-          setIsRefreshing(false);
+        if (controller.signal.aborted || generation !== requestGeneration.current) {
+          return;
         }
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
+        if (isInitialLoad) {
+          setLoadState('error');
+        }
+        setIsRefreshing(false);
       }
     }
 
-    void loadTickets();
+    void loadViewport();
+    return () => controller.abort();
+  }, [
+    debouncedBounds,
+    debouncedCategory,
+    debouncedDepartment,
+    debouncedStatus,
+    debouncedUrgency,
+  ]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [categoryFilter, departmentFilter, hasActiveServerFilters, statusFilter, urgencyFilter]);
+  const handleViewportChange = useCallback((next: MapBounds) => {
+    setBounds(next);
+  }, []);
 
-  const categoryOptions = useMemo(() => getCategoryFilterOptions(allTickets), [allTickets]);
+  const markers = useMemo(() => {
+    const all = viewport?.markers ?? [];
+    const query = debouncedSearch.trim().toLowerCase();
+    if (!query) {
+      return all;
+    }
+    return all.filter((marker) => {
+      const haystack = `${marker.ticketNumber ?? ''} ${marker.ticketId} ${marker.category}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [debouncedSearch, viewport?.markers]);
 
-  const filteredTickets = useMemo(
-    () => filterTickets(tickets, searchQuery, 'ALL', 'ALL', 'ALL', 'ALL'),
-    [tickets, searchQuery],
+  const clusters = useMemo(() => viewport?.clusters ?? [], [viewport?.clusters]);
+  const categoryOptions = useMemo(
+    () =>
+      getCategoryFilterOptions(
+        markers.map((marker) => ({
+          ticketId: marker.ticketId,
+          ticketNumber: marker.ticketNumber ?? marker.ticketId,
+          trackingCode: '',
+          description: '',
+          contact: {},
+          location: {
+            latitude: marker.latitude,
+            longitude: marker.longitude,
+            addressText: '',
+            source: 'GPS' as const,
+          },
+          imageObjectKey: 'unavailable',
+          status: marker.status,
+          category: marker.category,
+          priority: marker.priority,
+          createdBy: null,
+          municipalityId: null,
+          departmentId: null,
+          duplicateGroupId: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: null,
+        })),
+      ),
+    [markers],
   );
 
-  const plottableTickets = useMemo(() => getPlottableTickets(filteredTickets), [filteredTickets]);
-  const skippedCount = filteredTickets.length - plottableTickets.length;
-
-  const pinSummary =
-    skippedCount > 0
-      ? `${plottableTickets.length} pins · ${skippedCount} without coordinates`
-      : `${plottableTickets.length} pins`;
+  const pinSummary = useMemo(() => {
+    if (clusters.length > 0 && markers.length === 0) {
+      const total = clusters.reduce((sum, cluster) => sum + cluster.count, 0);
+      return `${clusters.length} clusters · ~${total} reports`;
+    }
+    const truncatedNote = viewport?.truncated ? ' · truncated' : '';
+    return `${markers.length} pins${truncatedNote}`;
+  }, [clusters, markers.length, viewport?.truncated]);
 
   return (
     <DashboardLayout
@@ -123,8 +203,8 @@ export function MapViewPage() {
             urgencyFilter={urgencyFilter}
             departmentFilter={departmentFilter}
             categoryOptions={categoryOptions}
-            resultCount={filteredTickets.length}
-            totalCount={allTickets.length}
+            resultCount={markers.length + clusters.length}
+            totalCount={markers.length + clusters.reduce((sum, c) => sum + c.count, 0)}
             isRefreshing={isRefreshing}
             onSearchChange={setSearchQuery}
             onStatusChange={setStatusFilter}
@@ -147,32 +227,65 @@ export function MapViewPage() {
             </div>
           )}
 
-          {allTickets.length === 0 && !hasActiveFilters && <EmptyState />}
+          {markers.length === 0 && clusters.length === 0 && !hasActiveFilters && (
+            <EmptyState
+              title="No reports in this area"
+              message="Pan or zoom the map, or clear filters, to find citizen reports."
+            />
+          )}
 
-          {hasActiveFilters && filteredTickets.length === 0 && (
+          {hasActiveFilters && markers.length === 0 && clusters.length === 0 && (
             <EmptyState
               title="No matching tickets"
               message="Try adjusting your search, status, category, urgency, or department filters to find tickets."
             />
           )}
 
-          {filteredTickets.length > 0 && plottableTickets.length === 0 && (
-            <EmptyState
-              title="No tickets with valid coordinates"
-              message="Matching tickets do not have plottable latitude and longitude values."
+          <div className="map-view-page__map-section">
+            <p className="map-view-page__pin-summary" aria-live="polite">
+              {pinSummary}
+            </p>
+            <TicketMap
+              markers={markers}
+              clusters={clusters}
+              truncated={viewport?.truncated}
+              onViewportChange={handleViewportChange}
             />
-          )}
+          </div>
 
-          {plottableTickets.length > 0 && (
-            <div className="map-view-page__map-section">
-              <p className="map-view-page__pin-summary" aria-live="polite">
-                {pinSummary}
+          <section className="map-view-page__list" aria-label="Accessible ticket list for map">
+            <h2 className="map-view-page__list-title">Tickets in view</h2>
+            {markers.length === 0 ? (
+              <p className="map-view-page__list-empty">
+                {clusters.length > 0
+                  ? 'Zoom into a cluster to list individual tickets.'
+                  : 'No individual tickets in the current viewport.'}
               </p>
-              <TicketMap tickets={plottableTickets} />
-            </div>
-          )}
+            ) : (
+              <ul className="map-view-page__list-items">
+                {markers.map((marker) => (
+                  <MapListItem key={marker.ticketId} marker={marker} />
+                ))}
+              </ul>
+            )}
+          </section>
         </>
       )}
     </DashboardLayout>
+  );
+}
+
+function MapListItem({ marker }: { marker: TicketMapMarker }) {
+  const label = marker.ticketNumber ?? marker.ticketId;
+  return (
+    <li className="map-view-page__list-item">
+      <Link to={`/tickets/${marker.ticketId}`} className="map-view-page__list-link">
+        <span className="map-view-page__list-id">{label}</span>
+        <span className="map-view-page__list-meta">
+          {formatCategory(marker.category)} · {formatStatus(marker.status)}
+          {marker.priority ? ` · ${formatPriority(marker.priority)}` : ''}
+        </span>
+      </Link>
+    </li>
   );
 }

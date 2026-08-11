@@ -10,6 +10,11 @@ from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
 from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
+from app.schemas.staff_ticket_collection import (
+    TicketAggregatesResponse,
+    TicketListPageResponse,
+    TicketMapViewportResponse,
+)
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
@@ -29,6 +34,10 @@ from app.services.complaints.status_workflow import (
 )
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
+    STAFF_MAP_DEFAULT_LIMIT,
+    STAFF_MAP_MAX_LIMIT,
+    STAFF_TICKET_DEFAULT_LIMIT,
+    STAFF_TICKET_MAX_LIMIT,
     DuplicateMergeError,
     PublicContentUpdateError,
     StaffScopeForbiddenError,
@@ -105,7 +114,7 @@ def submit_ticket(
     return response
 
 
-@router.get("/tickets", response_model=list[TicketResponse])
+@router.get("/tickets", response_model=TicketListPageResponse)
 def list_tickets(
     principal: StaffDep,
     request: Request,
@@ -114,8 +123,10 @@ def list_tickets(
     urgency: str | None = Query(default=None),
     department_id: str | None = Query(default=None, alias="departmentId"),
     sla_state: str | None = Query(default=None, alias="slaState"),
-) -> list[TicketResponse] | JSONResponse:
-    """Staff dashboard ticket list with optional persisted-field filters (issue #142)."""
+    limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
+    cursor: str | None = Query(default=None),
+) -> TicketListPageResponse | JSONResponse:
+    """Staff dashboard ticket list with cursor pagination (issue #267)."""
     filters, errors = parse_ticket_list_filters(
         status=status,
         category=category,
@@ -131,7 +142,81 @@ def list_tickets(
             details=[ErrorDetail(field=error.field, message=error.message) for error in errors],
             status_code=400,
         )
-    return ticket_service.list_tickets(filters, staff_principal=principal)
+    try:
+        return ticket_service.list_tickets_page(
+            filters,
+            staff_principal=principal,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The ticket list cursor is invalid.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
+            status_code=400,
+        )
+
+
+@router.get("/tickets/map", response_model=TicketMapViewportResponse)
+def map_tickets_viewport(
+    principal: StaffDep,
+    request: Request,
+    north: float = Query(...),
+    south: float = Query(...),
+    east: float = Query(...),
+    west: float = Query(...),
+    zoom: float = Query(...),
+    status: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    urgency: str | None = Query(default=None),
+    department_id: str | None = Query(default=None, alias="departmentId"),
+    sla_state: str | None = Query(default=None, alias="slaState"),
+    limit: int = Query(default=STAFF_MAP_DEFAULT_LIMIT, ge=1, le=STAFF_MAP_MAX_LIMIT),
+) -> TicketMapViewportResponse | JSONResponse:
+    """Staff map viewport with markers or grid clusters (issue #267)."""
+    if south > north:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="south", message="south must be <= north.")],
+            status_code=400,
+        )
+    filters, errors = parse_ticket_list_filters(
+        status=status,
+        category=category,
+        urgency=urgency,
+        department_id=department_id,
+        sla_state=sla_state,
+    )
+    if errors:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field=error.field, message=error.message) for error in errors],
+            status_code=400,
+        )
+    return ticket_service.map_viewport(
+        staff_principal=principal,
+        north=north,
+        south=south,
+        east=east,
+        west=west,
+        zoom=zoom,
+        filters=filters,
+        limit=limit,
+    )
+
+
+@router.get("/tickets/aggregates", response_model=TicketAggregatesResponse)
+def ticket_aggregates(
+    principal: StaffDep,
+) -> TicketAggregatesResponse:
+    """Staff dashboard attention counts (issue #267)."""
+    return ticket_service.ticket_aggregates(principal)
 
 
 @router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)

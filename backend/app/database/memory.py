@@ -1,11 +1,18 @@
-from threading import Lock
-from typing import Any
+from __future__ import annotations
 
-from app.database.serialization import build_public_sort_key, is_public_ticket_publishable
+from threading import Lock
+from typing import Any, Literal
+
+from app.database.serialization import (
+    build_public_sort_key,
+    build_staff_sort_key,
+    is_public_ticket_publishable,
+)
 from app.database.ticket_patch import resolve_ticket_attr_name
-from app.database.ticket_store import TicketHistoryPage
+from app.database.ticket_store import StaffTicketPage, TicketHistoryPage
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
+from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
 from app.utils.ticket_ids import normalize_tracking_code
 
 
@@ -60,6 +67,53 @@ class InMemoryTicketStore:
     def list(self) -> list[StoredTicket]:
         with self._lock:
             return list(self._tickets.values())
+
+    def list_staff_page(
+        self,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        limit: int,
+        cursor: str | None,
+        status: str | None = None,
+        category: str | None = None,
+        urgency: str | None = None,
+        department_id: str | None = None,
+    ) -> StaffTicketPage:
+        cursor_key = _decode_staff_cursor(cursor)
+        with self._lock:
+            candidates = list(self._tickets.values())
+
+        if browse_mode == "admin":
+            scoped = candidates
+        else:
+            scoped = [
+                ticket
+                for ticket in candidates
+                if _municipal_staff_can_access(ticket, municipality_id, department_ids)
+            ]
+
+        filters = TicketListFilters(
+            status=status,  # type: ignore[arg-type]
+            category=category,
+            urgency=urgency,  # type: ignore[arg-type]
+            department_id=department_id,
+        )
+        filtered = filter_stored_tickets(scoped, filters)
+        filtered.sort(key=_staff_sort_tuple, reverse=True)
+        scanned_count = len(filtered)
+
+        if cursor_key is not None:
+            filtered = [ticket for ticket in filtered if _staff_sort_tuple(ticket) < cursor_key]
+
+        page = filtered[:limit]
+        next_cursor = (
+            _encode_staff_cursor(build_staff_sort_key(page[-1]))
+            if len(filtered) > limit and page
+            else None
+        )
+        return StaffTicketPage(page, next_cursor, scanned_count)
 
     def list_by_owner(
         self,
@@ -308,3 +362,50 @@ def _decode_public_cursor(cursor: str | None) -> tuple[str, str] | None:
     if not isinstance(public_sort_key, str) or not isinstance(ticket_id, str):
         raise ValueError("Invalid public ticket cursor.")
     return (public_sort_key, ticket_id)
+
+
+def _staff_sort_tuple(ticket: StoredTicket) -> tuple[str, str]:
+    return (ticket.created_at, ticket.ticket_id)
+
+
+def _municipal_staff_can_access(
+    ticket: StoredTicket,
+    municipality_id: str | None,
+    department_ids: list[str] | None,
+) -> bool:
+    """Mirror ``staff_can_access_ticket`` for municipal browse without a principal."""
+    if ticket.municipality_id is not None and ticket.municipality_id != municipality_id:
+        return False
+    if ticket.department_id is None:
+        return True
+    return ticket.department_id in set(department_ids or [])
+
+
+def _encode_staff_cursor(staff_sort_key: str) -> str:
+    import base64
+    import json
+
+    payload = {"staffSortKey": staff_sort_key}
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_staff_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if cursor is None or cursor == "":
+        return None
+    import base64
+    import binascii
+    import json
+
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+        staff_sort_key = payload["staffSortKey"]
+    except (binascii.Error, KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Invalid staff ticket cursor.") from exc
+    if not isinstance(staff_sort_key, str) or "#" not in staff_sort_key:
+        raise ValueError("Invalid staff ticket cursor.")
+    created_at, ticket_id = staff_sort_key.split("#", 1)
+    if not created_at or not ticket_id:
+        raise ValueError("Invalid staff ticket cursor.")
+    return (created_at, ticket_id)

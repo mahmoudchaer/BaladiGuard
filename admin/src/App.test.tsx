@@ -3,16 +3,33 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/App';
 import { config } from '@/services/config';
-import { fetchTickets } from '@/services/tickets';
+import {
+  fetchTicketAggregates,
+  fetchTicketMapViewport,
+  fetchTickets,
+  fetchTicketsPage,
+} from '@/services/tickets';
 import type { Ticket } from '@/types/ticket';
+import type { TicketMapMarker } from '@/types/ticketCollection';
 
 vi.mock('@/services/tickets', () => ({
   fetchTickets: vi.fn(),
+  fetchTicketsPage: vi.fn(),
+  fetchTicketAggregates: vi.fn(),
+  fetchTicketMapViewport: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
-  TicketMap: ({ tickets }: { tickets: Ticket[] }) => (
-    <div data-testid="ticket-map">Map with {tickets.length} pins</div>
+  TicketMap: ({
+    markers,
+    tickets,
+  }: {
+    markers?: TicketMapMarker[];
+    tickets?: Ticket[];
+  }) => (
+    <div data-testid="ticket-map">
+      Map with {markers?.length ?? tickets?.length ?? 0} pins
+    </div>
   ),
 }));
 
@@ -142,6 +159,42 @@ describe('App staff authentication', () => {
     clearSession();
     stubStaffLoginFetch();
     vi.mocked(fetchTickets).mockResolvedValue([ticket]);
+    vi.mocked(fetchTicketsPage).mockResolvedValue({
+      items: [],
+      tickets: [ticket],
+      nextCursor: null,
+      previousCursor: null,
+      limit: 25,
+      scannedCount: 1,
+      approximateTotal: 1,
+      freshnessHintSeconds: 30,
+      fromCache: false,
+    });
+    vi.mocked(fetchTicketAggregates).mockResolvedValue({
+      openCount: 1,
+      criticalCount: 0,
+      highCount: 1,
+      unassignedCount: 1,
+      overdueCount: 0,
+      approximate: false,
+    });
+    vi.mocked(fetchTicketMapViewport).mockResolvedValue({
+      markers: [
+        {
+          ticketId: ticket.ticketId,
+          ticketNumber: ticket.ticketNumber,
+          status: ticket.status,
+          priority: ticket.priority,
+          latitude: ticket.location.latitude,
+          longitude: ticket.location.longitude,
+          category: ticket.category,
+        },
+      ],
+      clusters: [],
+      limit: 200,
+      truncated: false,
+      zoom: 12,
+    });
   });
 
   afterEach(() => {
@@ -154,14 +207,14 @@ describe('App staff authentication', () => {
     renderApp();
 
     expect(screen.getByRole('heading', { name: 'BaladiGuard staff login' })).toBeInTheDocument();
-    expect(fetchTickets).not.toHaveBeenCalled();
+    expect(fetchTicketsPage).not.toHaveBeenCalled();
   });
 
   it('redirects unauthenticated users from the map route to login', () => {
     renderApp('/map');
 
     expect(screen.getByRole('heading', { name: 'BaladiGuard staff login' })).toBeInTheDocument();
-    expect(fetchTickets).not.toHaveBeenCalled();
+    expect(fetchTicketMapViewport).not.toHaveBeenCalled();
   });
 
   it('redirects unauthenticated users from ticket details to login', () => {

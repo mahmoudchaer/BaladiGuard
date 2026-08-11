@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket } from '@/types/ticket';
-import { fetchTickets } from '@/services/tickets';
+import type { TicketAggregates } from '@/types/ticketCollection';
+import { fetchTicketAggregates, fetchTicketsPage } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { TicketTable } from '@/components/TicketTable';
 import { QueueViewsSidebar, type QueueViewId } from '@/components/QueueViewsSidebar';
@@ -10,12 +11,13 @@ import { DepartmentSummary } from '@/components/DepartmentSummary';
 import { TicketFilters, type SlaFilter } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
-  computeQueueAttentionStats,
   filterTickets,
   getCategoryFilterOptions,
   type CategoryFilter,
   type DepartmentFilter,
+  type QueueAttentionStats,
   type StatusFilter,
   type UrgencyFilter,
 } from '@/utils/ticketStats';
@@ -25,6 +27,7 @@ type LoadState = 'loading' | 'success' | 'error';
 
 const OPEN_STATUSES = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
 const AGING_MS = 3 * 24 * 60 * 60 * 1000;
+const FILTER_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 300;
 
 function isOpenTicket(ticket: Ticket): boolean {
   return OPEN_STATUSES.has(ticket.status);
@@ -51,10 +54,19 @@ function applyQueueView(tickets: Ticket[], view: QueueViewId, now = Date.now()):
   }
 }
 
+function aggregatesToAttentionStats(aggregates: TicketAggregates | null): QueueAttentionStats {
+  return {
+    critical: aggregates?.criticalCount ?? 0,
+    unassigned: aggregates?.unassignedCount ?? 0,
+    aging: aggregates?.overdueCount ?? 0,
+  };
+}
+
 export function TicketListPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
-  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [pageTickets, setPageTickets] = useState<Ticket[]>([]);
+  const [baselineTickets, setBaselineTickets] = useState<Ticket[]>([]);
+  const [aggregates, setAggregates] = useState<TicketAggregates | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,19 +77,45 @@ export function TicketListPage() {
   const [slaFilter, setSlaFilter] = useState<SlaFilter>('ALL');
   const [queueView, setQueueView] = useState<QueueViewId>('all');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [previousCursor, setPreviousCursor] = useState<string | null>(null);
+  const [approximateTotal, setApproximateTotal] = useState<number | null>(null);
   const hasLoadedTickets = useRef(false);
+  const requestGeneration = useRef(0);
+
+  const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
+  const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
+  const debouncedUrgency = useDebouncedValue(urgencyFilter, FILTER_DEBOUNCE_MS);
+  const debouncedDepartment = useDebouncedValue(departmentFilter, FILTER_DEBOUNCE_MS);
+  const debouncedSla = useDebouncedValue(slaFilter, FILTER_DEBOUNCE_MS);
+  const debouncedSearch = useDebouncedValue(searchQuery, FILTER_DEBOUNCE_MS);
 
   const hasActiveServerFilters =
+    debouncedStatus !== 'ALL' ||
+    debouncedCategory !== 'ALL' ||
+    debouncedUrgency !== 'ALL' ||
+    debouncedDepartment !== 'ALL' ||
+    debouncedSla !== 'ALL';
+  const hasActiveFilters =
+    hasActiveServerFilters ||
+    debouncedSearch.trim().length > 0 ||
+    queueView !== 'all' ||
     statusFilter !== 'ALL' ||
     categoryFilter !== 'ALL' ||
     urgencyFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
-    slaFilter !== 'ALL';
-  const hasActiveFilters =
-    hasActiveServerFilters || searchQuery.trim().length > 0 || queueView !== 'all';
+    slaFilter !== 'ALL' ||
+    searchQuery.trim().length > 0;
+
+  // Reset to the first page whenever server filters change.
+  useEffect(() => {
+    setCursor(null);
+  }, [debouncedStatus, debouncedCategory, debouncedUrgency, debouncedDepartment, debouncedSla]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const generation = ++requestGeneration.current;
 
     async function loadTickets() {
       const isInitialLoad = !hasLoadedTickets.current;
@@ -89,58 +127,95 @@ export function TicketListPage() {
       setErrorMessage(null);
 
       try {
-        const data = await fetchTickets({
-          status: statusFilter,
-          category: categoryFilter,
-          urgency: urgencyFilter,
-          departmentId: departmentFilter,
-          slaState: slaFilter,
+        const page = await fetchTicketsPage({
+          filters: {
+            status: debouncedStatus,
+            category: debouncedCategory,
+            urgency: debouncedUrgency,
+            departmentId: debouncedDepartment,
+            slaState: debouncedSla,
+          },
+          cursor,
+          signal: controller.signal,
         });
-        if (!cancelled) {
-          setTickets(data);
-          if (!hasActiveServerFilters) {
-            setAllTickets(data);
-          }
-          hasLoadedTickets.current = true;
-          setLoadState('success');
-          setIsRefreshing(false);
+        if (controller.signal.aborted || generation !== requestGeneration.current) {
+          return;
         }
+        setPageTickets(page.tickets);
+        setNextCursor(page.nextCursor);
+        setPreviousCursor(page.previousCursor);
+        setApproximateTotal(page.approximateTotal);
+        if (!hasActiveServerFilters && cursor === null) {
+          setBaselineTickets(page.tickets);
+        }
+        hasLoadedTickets.current = true;
+        setLoadState('success');
+        setIsRefreshing(false);
       } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
-          if (isInitialLoad) {
-            setLoadState('error');
-          }
-          setIsRefreshing(false);
+        if (controller.signal.aborted || generation !== requestGeneration.current) {
+          return;
         }
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
+        if (isInitialLoad) {
+          setLoadState('error');
+        }
+        setIsRefreshing(false);
       }
     }
 
     void loadTickets();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [
-    categoryFilter,
-    departmentFilter,
+    cursor,
+    debouncedCategory,
+    debouncedDepartment,
+    debouncedSla,
+    debouncedStatus,
+    debouncedUrgency,
     hasActiveServerFilters,
-    slaFilter,
-    statusFilter,
-    urgencyFilter,
   ]);
 
-  const attentionStats = useMemo(() => computeQueueAttentionStats(allTickets), [allTickets]);
-  const categoryOptions = useMemo(() => getCategoryFilterOptions(allTickets), [allTickets]);
-  const highCount = useMemo(
-    () => allTickets.filter((ticket) => isOpenTicket(ticket) && ticket.priority === 'high').length,
-    [allTickets],
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadAggregates() {
+      try {
+        const data = await fetchTicketAggregates(controller.signal);
+        if (!controller.signal.aborted) {
+          setAggregates(data);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          // Keep prior aggregates; list remains usable without sidebar totals.
+        }
+      }
+    }
+
+    void loadAggregates();
+    return () => controller.abort();
+  }, [pageTickets]);
+
+  const attentionStats = useMemo(() => aggregatesToAttentionStats(aggregates), [aggregates]);
+  const categoryOptions = useMemo(
+    () => getCategoryFilterOptions(baselineTickets.length > 0 ? baselineTickets : pageTickets),
+    [baselineTickets, pageTickets],
   );
+  const highCount = aggregates?.highCount ?? 0;
+  const totalCount =
+    aggregates?.openCount ??
+    approximateTotal ??
+    (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
   const filteredTickets = useMemo(() => {
-    const searched = filterTickets(tickets, searchQuery, 'ALL', 'ALL', 'ALL', 'ALL');
+    const searched = filterTickets(pageTickets, debouncedSearch, 'ALL', 'ALL', 'ALL', 'ALL');
     return applyQueueView(searched, queueView);
-  }, [tickets, searchQuery, queueView]);
+  }, [pageTickets, debouncedSearch, queueView]);
 
   const selectedTicket = useMemo(() => {
     if (!selectedTicketId) {
@@ -148,11 +223,11 @@ export function TicketListPage() {
     }
     return (
       filteredTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      tickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      allTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
+      pageTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
+      baselineTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
       null
     );
-  }, [allTickets, filteredTickets, selectedTicketId, tickets]);
+  }, [baselineTickets, filteredTickets, selectedTicketId, pageTickets]);
 
   useEffect(() => {
     if (
@@ -181,8 +256,7 @@ export function TicketListPage() {
   }
 
   function handleTicketUpdated(updated: Ticket) {
-    // Keep the unfiltered cache current for attention stats / category options.
-    setAllTickets((current) => {
+    setBaselineTickets((current) => {
       const exists = current.some((ticket) => ticket.ticketId === updated.ticketId);
       if (!exists) {
         return current;
@@ -190,9 +264,7 @@ export function TicketListPage() {
       return current.map((ticket) => (ticket.ticketId === updated.ticketId ? updated : ticket));
     });
 
-    // Drop or replace in the active server-filtered list so preview actions do not
-    // leave stale rows under the wrong status/category/urgency/department view.
-    setTickets((current) => {
+    setPageTickets((current) => {
       const matches = ticketMatchesActiveServerFilters(updated);
       const exists = current.some((ticket) => ticket.ticketId === updated.ticketId);
       if (!matches) {
@@ -215,10 +287,12 @@ export function TicketListPage() {
     setDepartmentFilter('ALL');
     setSlaFilter('ALL');
     setQueueView('all');
+    setCursor(null);
   }
 
   function handleViewChange(view: QueueViewId) {
     setQueueView(view);
+    setCursor(null);
     if (view === 'critical') {
       setUrgencyFilter('critical');
       return;
@@ -264,8 +338,9 @@ export function TicketListPage() {
           <QueueViewsSidebar
             activeView={queueView}
             stats={attentionStats}
-            totalCount={allTickets.length}
+            totalCount={totalCount}
             highCount={highCount}
+            approximate={aggregates?.approximate ?? false}
             onViewChange={handleViewChange}
           />
 
@@ -279,7 +354,7 @@ export function TicketListPage() {
               slaFilter={slaFilter}
               categoryOptions={categoryOptions}
               resultCount={filteredTickets.length}
-              totalCount={allTickets.length}
+              totalCount={totalCount}
               isRefreshing={isRefreshing}
               hideSearch
               onSearchChange={setSearchQuery}
@@ -307,7 +382,7 @@ export function TicketListPage() {
               </div>
             )}
 
-            {allTickets.length === 0 && !hasActiveFilters && <EmptyState />}
+            {pageTickets.length === 0 && !hasActiveFilters && <EmptyState />}
 
             {hasActiveFilters && filteredTickets.length === 0 && (
               <EmptyState
@@ -325,6 +400,27 @@ export function TicketListPage() {
               />
             )}
 
+            {(nextCursor || previousCursor) && (
+              <nav className="ticket-list-page__pagination" aria-label="Ticket pages">
+                <button
+                  type="button"
+                  className="ticket-list-page__page-btn"
+                  disabled={!previousCursor || isRefreshing}
+                  onClick={() => setCursor(previousCursor)}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="ticket-list-page__page-btn"
+                  disabled={!nextCursor || isRefreshing}
+                  onClick={() => setCursor(nextCursor)}
+                >
+                  Next
+                </button>
+              </nav>
+            )}
+
             <details className="ticket-list-page__insights">
               <summary className="ticket-list-page__insights-summary">
                 Operational insights
@@ -333,8 +429,12 @@ export function TicketListPage() {
                 </span>
               </summary>
               <div className="ticket-list-page__insights-body">
-                <CategoryDistributionChart tickets={allTickets} />
-                <DepartmentSummary tickets={allTickets} />
+                <CategoryDistributionChart
+                  tickets={baselineTickets.length > 0 ? baselineTickets : pageTickets}
+                />
+                <DepartmentSummary
+                  tickets={baselineTickets.length > 0 ? baselineTickets : pageTickets}
+                />
               </div>
             </details>
           </section>
