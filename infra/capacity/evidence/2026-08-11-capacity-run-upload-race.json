@@ -1,49 +1,37 @@
 {
-  "generatedAt": "2026-08-11T13:23:59.648861Z",
+  "generatedAt": "2026-08-11T17:52:22.590165Z",
   "scenario": "upload-race",
-  "baseUrl": "http://127.0.0.1:52571",
-  "concurrency": 4,
+  "baseUrl": "http://127.0.0.1:55529",
+  "concurrency": 3,
   "durationSeconds": 10.0,
-  "maxRequests": 120,
-  "minIntervalMs": 60.0,
+  "maxRequests": 45,
+  "minIntervalMs": 80.0,
   "totals": {
-    "requests": 120,
-    "ok2xx": 120,
+    "requests": 9,
+    "ok2xx": 9,
     "client4xx": 0,
     "rateLimited429": 0,
     "server5xx": 0,
     "transportErrors": 0
   },
   "latencyMs": {
-    "p50": 16.96049999736715,
-    "p95": 29.502459995273966,
-    "p99": 34.67363100076909,
-    "mean": 18.015512499672088,
-    "max": 35.1410000002943
+    "p50": 4404.110400006175,
+    "p95": 5299.950719994376,
+    "p99": 5300.062783995527,
+    "mean": 4647.334311108959,
+    "max": 5300.090799995814
   },
   "byName": {
     "photo_upload": {
-      "count": 92,
+      "count": 9,
       "status_counts": {
-        "200": 92
+        "200": 9
       },
       "latency_ms": {
-        "p50": 17.5378499989165,
-        "p95": 29.96792499325238,
-        "p99": 34.96728100173641,
-        "mean": 18.733547825515576
-      }
-    },
-    "health_ready_ai": {
-      "count": 28,
-      "status_counts": {
-        "200": 28
-      },
-      "latency_ms": {
-        "p50": 15.747449993796181,
-        "p95": 24.909855001897085,
-        "p99": 26.11021199336392,
-        "mean": 15.656253571900638
+        "p50": 4404.110400006175,
+        "p95": 5299.950719994376,
+        "p99": 5300.062783995527,
+        "mean": 4647.334311108959
       }
     }
   },
@@ -64,123 +52,24 @@
       "pass": true
     },
     "aiQueueSamples": {
-      "count": 28,
-      "last": {
-        "at": "2026-08-11T13:23:59.648861Z",
-        "pending": 98,
-        "processing": 0,
-        "failed": 0,
-        "status": "backlogged",
-        "source": "memory_store"
-      },
-      "maxPending": 98
+      "count": 0,
+      "last": null,
+      "maxPending": null
     }
   },
   "createdTicketIdsSample": [],
   "uploadedObjectKeysSample": [
-    "reports/photos/v2/f6954703e7514ca471aa834a/23b34402a89446218eda28ba2d7f7924.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/6a015f21e6f8498383e0259190ffd339.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/a6669098009d48278212636ba5988d4c.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/ada85201194b46048a1fa2b8560b3ffe.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/e5a785a4b3a242a9be88da1eff607150.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/3ba018c373d34e26a38b4cc7f60432f7.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/7f7026c72b4f4e739aeaab5b2b01d9f3.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/e211cf8bf01642a2a5b5e2aa0affa827.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/a53a7336a4b8459eaa13f50ecec6fc3b.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/6279cf30e2c14297b9d055394c505880.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/21f43b22ce5f490d97c238e18ebb6355.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/0bb7326c1bd1465dbf2bc471f20ed4fb.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/1250afa847fd4493949a9d6690245886.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/dcfcccbdf4a941f5991401f9cb020bde.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/930545fc85f6487d9377b3e5fe02bd05.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/1fc0ff5a3cdf476986d15098480ca7b1.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/d184a9ca45834e358e37da5db5e1b737.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/a2ebcb76ca2748f8abcd7dbaf5149bd2.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/9a31ef72f3384899a895cbed9cc59de9.jpg",
-    "reports/photos/v2/f6954703e7514ca471aa834a/9fd86f02448345a5adca35873f5d8582.jpg"
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/4d01837d60184806b6c1d8bc997401e4.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/aeee26cede1b4f84b9b469f83f5e9c78.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/e11037a5a1ef462988d9058c8dcff073.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/68fdb9151b134ebab90b28e900cb685b.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/b6abae9487824ea7a3b8f4080cd8ebd5.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/13caf1fc6c1844be8b5efcea14c5131e.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/ee880fd0bfa44fe997ffa406630d3675.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/914f9cb653ae42d5a5fd8df66e2902b4.jpg",
+    "reports/photos/v2/1c6d649f8ef566ef0bad1d2e/5786ea5eaf4b4436bfdb485830cdeca3.jpg"
   ],
-  "aiQueueSamples": [
-    {
-      "at": "2026-08-11T13:23:59.644306Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.644306Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.644306Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    },
-    {
-      "at": "2026-08-11T13:23:59.648861Z",
-      "pending": 98,
-      "processing": 0,
-      "failed": 0,
-      "status": "backlogged",
-      "source": "memory_store"
-    }
-  ],
+  "aiQueueSamples": [],
   "costDrivers": [
     "Bedrock per-ticket AI",
     "DynamoDB RCU/WCU on tickets + GSI",

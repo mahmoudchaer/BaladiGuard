@@ -53,14 +53,17 @@ Primary operator entry (writes evidence automatically):
 cd backend
 # Local harness smoke (memory + fake S3) — CI-style correctness of the runner only.
 PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
-# → infra/capacity/evidence/YYYY-MM-DD-staging-equivalent-capacity.md (+ JSON)
 
-# Production-equivalent staging (required for #191 Dynamo/S3/worker measurements)
+# Production-equivalent DynamoDB + S3 (required for #191 storage capacity gate)
+CAPACITY_CLOUD=1 PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
+# → infra/capacity/evidence/YYYY-MM-DD-staging-equivalent-capacity.md
+# → infra/capacity/evidence/YYYY-MM-DD-capacity-cloudwatch.json
+
+# Deployed staging API (optional alternative)
 export CAPACITY_BASE_URL=https://api.staging.example
 export CAPACITY_CITIZEN_TOKEN=...   # contribution-ready synthetic citizen
 export CAPACITY_STAFF_USER=admin
 export CAPACITY_STAFF_PASSWORD=...
-export CAPACITY_USE_REAL_S3=1      # optional — real bucket uploads
 PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
 ```
 

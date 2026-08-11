@@ -1,74 +1,61 @@
 {
-  "generatedAt": "2026-08-11T13:24:02.795157Z",
+  "generatedAt": "2026-08-11T17:53:19.559476Z",
   "scenario": "staff-mutate",
-  "baseUrl": "http://127.0.0.1:52571",
-  "concurrency": 4,
-  "durationSeconds": 12.0,
-  "maxRequests": 100,
-  "minIntervalMs": 50.0,
+  "baseUrl": "http://127.0.0.1:55529",
+  "concurrency": 3,
+  "durationSeconds": 10.0,
+  "maxRequests": 60,
+  "minIntervalMs": 60.0,
   "totals": {
-    "requests": 100,
-    "ok2xx": 80,
-    "client4xx": 20,
+    "requests": 9,
+    "ok2xx": 9,
+    "client4xx": 0,
     "rateLimited429": 0,
     "server5xx": 0,
     "transportErrors": 0
   },
   "latencyMs": {
-    "p50": 45.34115000569727,
-    "p95": 190.23116500829926,
-    "p99": 217.72305000224156,
-    "mean": 65.15461500021047,
-    "max": 225.38069999427535
+    "p50": 2038.389900000766,
+    "p95": 30435.34715999558,
+    "p99": 30488.944791994873,
+    "mean": 11300.854911110946,
+    "max": 30502.344199994695
   },
   "byName": {
     "staff_category": {
-      "count": 26,
+      "count": 3,
       "status_counts": {
-        "200": 26
-      },
-      "latency_ms": {
-        "p50": 30.673400004161522,
-        "p95": 133.83469999826048,
-        "p99": 150.09344999634777,
-        "mean": 42.66354615258304
-      }
-    },
-    "staff_detail": {
-      "count": 26,
-      "status_counts": {
-        "200": 26
-      },
-      "latency_ms": {
-        "p50": 23.074150005413685,
-        "p95": 111.0828249984479,
-        "p99": 120.8236000056786,
-        "mean": 39.11853846120021
-      }
-    },
-    "staff_list": {
-      "count": 25,
-      "status_counts": {
-        "200": 25
-      },
-      "latency_ms": {
-        "p50": 140.27329999953508,
-        "p95": 215.38924000342374,
-        "p99": 223.5242999962065,
-        "mean": 132.61659200128634
-      }
-    },
-    "staff_status": {
-      "count": 23,
-      "status_counts": {
-        "400": 20,
         "200": 3
       },
       "latency_ms": {
-        "p50": 27.29840000392869,
-        "p95": 127.06983999523794,
-        "p99": 176.74376200564447,
-        "mean": 46.68315217524018
+        "p50": 2038.389900000766,
+        "p95": 2039.9697599947103,
+        "p99": 2040.110191994172,
+        "mean": 2038.5860333335586
+      }
+    },
+    "staff_detail": {
+      "count": 3,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "p50": 1494.7656000003917,
+        "p95": 1518.2646900066175,
+        "p99": 1520.3534980071709,
+        "mean": 1489.4561000013102
+      }
+    },
+    "staff_list": {
+      "count": 3,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "p50": 30334.85159999691,
+        "p95": 30485.594939994917,
+        "p99": 30498.99434799474,
+        "mean": 30374.52259999797
       }
     }
   },
@@ -80,8 +67,8 @@
     },
     "trackOrListP95Ms": {
       "target": 800,
-      "actual": 215.38924000342374,
-      "pass": true
+      "actual": 30485.594939994917,
+      "pass": false
     },
     "server5xxRate": {
       "target": 0.01,
@@ -95,12 +82,10 @@
     }
   },
   "createdTicketIdsSample": [
-    "tkt_28ac6702cc7d420a9f0a9d7d2eaa4286",
-    "tkt_7608c9188b8046e490d5e615f41cddc8",
-    "tkt_fc720de56df34b639898a8b2eb696619",
-    "tkt_1e458a45a65649bfb4a5cae439db3f33",
-    "tkt_8d7e765188144be0bb7f8fa1be6c0367",
-    "tkt_7a05f0f63b314a5c92976fd719292658"
+    "tkt_eb0c00eb038a4bed9da3d77448946a73",
+    "tkt_639f520d932c47d192bd371b9f89d65e",
+    "tkt_8f3664be33d3436a9935bae4d25779ab",
+    "tkt_c30179cae5b74de7b1f760d9dbedc1d1"
   ],
   "uploadedObjectKeysSample": [],
   "aiQueueSamples": [],
