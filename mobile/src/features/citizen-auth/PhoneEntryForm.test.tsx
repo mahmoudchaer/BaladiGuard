@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PhoneEntryForm } from '@/features/citizen-auth/PhoneEntryForm';
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
 import { renderWithProviders } from '@/test/render';
-import { REGION_REQUIRED_MESSAGE } from '@/utils/phone';
 
 vi.mock('@/services/api/citizenAuth', async () => {
   const actual = await vi.importActual<typeof import('@/services/api/citizenAuth')>(
@@ -17,7 +16,16 @@ vi.mock('@/services/api/citizenAuth', async () => {
   };
 });
 
+/** Prefer host nodes (e.g. Pressable) over the composite that forwards testID. */
 function findByTestId(screen: ReturnType<typeof renderWithProviders>, testID: string) {
+  const hosts = screen.root.findAll(
+    (node) =>
+      node.props.testID === testID &&
+      (typeof node.type === 'string' || typeof node.props.onPress === 'function'),
+  );
+  if (hosts.length > 0) {
+    return hosts[hosts.length - 1]!;
+  }
   return screen.root.findByProps({ testID });
 }
 
@@ -36,23 +44,7 @@ describe('PhoneEntryForm', () => {
     vi.clearAllMocks();
   });
 
-  it('shows normalized validation errors for national numbers without a region', async () => {
-    const onSuccess = vi.fn();
-    const screen = renderWithProviders(<PhoneEntryForm onSuccess={onSuccess} />);
-
-    await act(async () => {
-      findByTestId(screen, 'phone-region-input').props.onChangeText('');
-      findByTestId(screen, 'phone-input').props.onChangeText('70123456');
-    });
-    await act(async () => {
-      findButton(screen, 'Send verification code').props.onPress();
-    });
-
-    expect(requestCitizenOtp).not.toHaveBeenCalled();
-    expect(screen.root.findByProps({ children: REGION_REQUIRED_MESSAGE })).toBeTruthy();
-  });
-
-  it('requests an OTP for a valid phone and region', async () => {
+  it('defaults the country selector to Lebanon and sends LB with national numbers', async () => {
     vi.mocked(requestCitizenOtp).mockResolvedValueOnce({
       challengeId: 'ch_1',
       expiresIn: 300,
@@ -61,8 +53,13 @@ describe('PhoneEntryForm', () => {
     const onSuccess = vi.fn();
     const screen = renderWithProviders(<PhoneEntryForm onSuccess={onSuccess} />);
 
+    expect(findByTestId(screen, 'country-dialing-selector-value').props.children).toMatch(
+      /Lebanon \(\+961\)/i,
+    );
+    // Free-text ISO region field is gone.
+    expect(() => findByTestId(screen, 'phone-region-input')).toThrow();
+
     await act(async () => {
-      findByTestId(screen, 'phone-region-input').props.onChangeText('LB');
       findByTestId(screen, 'phone-input').props.onChangeText('70123456');
     });
     await act(async () => {
@@ -82,6 +79,71 @@ describe('PhoneEntryForm', () => {
     });
   });
 
+  it('requests an OTP with the selected ISO region after country choice', async () => {
+    vi.mocked(requestCitizenOtp).mockResolvedValueOnce({
+      challengeId: 'ch_fr',
+      expiresIn: 300,
+      message: 'sent',
+    });
+    const onSuccess = vi.fn();
+    const screen = renderWithProviders(<PhoneEntryForm onSuccess={onSuccess} />);
+
+    await act(async () => {
+      findByTestId(screen, 'country-dialing-selector').props.onPress();
+    });
+    await act(async () => {
+      findByTestId(screen, 'country-dialing-selector-search').props.onChangeText('france');
+    });
+    await act(async () => {
+      findByTestId(screen, 'country-dialing-selector-option-FR').props.onPress();
+    });
+    await act(async () => {
+      findByTestId(screen, 'phone-input').props.onChangeText('612345678');
+    });
+    await act(async () => {
+      findButton(screen, 'Send verification code').props.onPress();
+    });
+
+    expect(requestCitizenOtp).toHaveBeenCalledWith({
+      phone: '612345678',
+      region: 'FR',
+      purpose: 'LOGIN_OR_SIGNUP',
+    });
+    expect(onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '612345678', region: 'FR' }),
+    );
+  });
+
+  it('accepts full E.164 input with the selected country still submitted when present', async () => {
+    vi.mocked(requestCitizenOtp).mockResolvedValueOnce({
+      challengeId: 'ch_e164',
+      expiresIn: 300,
+      message: 'sent',
+    });
+    const screen = renderWithProviders(<PhoneEntryForm onSuccess={vi.fn()} />);
+
+    await act(async () => {
+      findByTestId(screen, 'phone-input').props.onChangeText('+96170123456');
+    });
+    await act(async () => {
+      findButton(screen, 'Send verification code').props.onPress();
+    });
+
+    expect(requestCitizenOtp).toHaveBeenCalledWith({
+      phone: '+96170123456',
+      region: 'LB',
+      purpose: 'LOGIN_OR_SIGNUP',
+    });
+  });
+
+  it('explains national-format entry for the selected country', () => {
+    const screen = renderWithProviders(<PhoneEntryForm onSuccess={vi.fn()} />);
+    expect(String(findByTestId(screen, 'phone-national-helper').props.children)).toMatch(
+      /Lebanon/i,
+    );
+    expect(String(findByTestId(screen, 'phone-national-helper').props.children)).toMatch(/E\.164/i);
+  });
+
   it('surfaces throttling errors safely', async () => {
     vi.mocked(requestCitizenOtp).mockRejectedValueOnce(
       new CitizenAuthApiError('Too many verification requests. Please wait before trying again.', {
@@ -99,10 +161,8 @@ describe('PhoneEntryForm', () => {
       findButton(screen, 'Send verification code').props.onPress();
     });
 
-    expect(
-      screen.root
-        .findAll((node) => String(node.type) === 'Banner')
-        .some((node) => JSON.stringify(node.props.children).includes('Too many verification')),
-    ).toBe(true);
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree).toContain('Too many verification');
+    expect(tree).toContain('60');
   });
 });

@@ -30,6 +30,7 @@
     "expo-router": "~6.0.24",
     "expo-secure-store": "^57.0.1",
     "expo-status-bar": "~3.0.9",
+    "libphonenumber-js": "^1.13.10",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.54.2",

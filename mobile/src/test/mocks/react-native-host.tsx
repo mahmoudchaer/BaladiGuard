@@ -13,9 +13,42 @@ const createHostComponent =
 export const Button = createHostComponent('Button');
 export const Pressable = createHostComponent('Pressable');
 export const ScrollView = createHostComponent('ScrollView');
+export const FlatList = ({
+  data = [],
+  renderItem,
+  keyExtractor,
+  ListEmptyComponent,
+  children,
+  ...props
+}: HostProps & {
+  data?: unknown[];
+  renderItem?: (info: { item: unknown; index: number }) => React.ReactNode;
+  keyExtractor?: (item: unknown, index: number) => string;
+  ListEmptyComponent?: React.ReactNode | (() => React.ReactNode);
+}) => {
+  const items = Array.isArray(data) ? data : [];
+  const empty =
+    typeof ListEmptyComponent === 'function' ? ListEmptyComponent() : ListEmptyComponent;
+  return React.createElement(
+    'FlatList',
+    props,
+    items.length === 0
+      ? empty
+      : items.map((item, index) => {
+          const key = keyExtractor ? keyExtractor(item, index) : String(index);
+          return React.createElement(
+            React.Fragment,
+            { key },
+            renderItem ? renderItem({ item, index }) : null,
+          );
+        }),
+    children,
+  );
+};
 export const Text = createHostComponent('Text');
 export const TextInput = createHostComponent('TextInput');
 export const View = createHostComponent('View');
+export const KeyboardAvoidingView = createHostComponent('KeyboardAvoidingView');
 // Keep Image as a function component (not a host string) so event props like
 // onError are preserved under react-test-renderer / React 19.
 export function Image({ children, ...props }: HostProps) {
@@ -24,8 +57,15 @@ export function Image({ children, ...props }: HostProps) {
 export const ActivityIndicator = createHostComponent('ActivityIndicator');
 export const RefreshControl = createHostComponent('RefreshControl');
 // Function component (same idea as Image) so we do not collide with any ambient Modal types.
-export function Modal({ children, ...props }: HostProps) {
-  return React.createElement('RNModal', props, children);
+export function Modal({
+  children,
+  visible = true,
+  ...props
+}: HostProps & { visible?: boolean }) {
+  if (!visible) {
+    return null;
+  }
+  return React.createElement('RNModal', { visible, ...props }, children);
 }
 
 export const Alert = {
@@ -45,6 +85,8 @@ export const Platform = {
   OS: 'ios',
   select: (options: Record<string, unknown>) => options.ios ?? options.default,
 };
+
+export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 2, fontScale: 1 });
 
 export const StyleSheet = {
   create: <T extends Record<string, unknown>>(styles: T) => styles,
