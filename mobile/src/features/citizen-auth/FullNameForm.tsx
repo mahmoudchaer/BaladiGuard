@@ -10,6 +10,7 @@ import {
   type FullNameValues,
 } from '@/schemas/citizenOtpSchema';
 import { CitizenAuthApiError } from '@/services/api/citizenAuth';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 
 type FullNameFormProps = {
   onSubmitName: (fullName: string) => Promise<void>;
@@ -78,6 +79,8 @@ export function FullNameForm({ onSubmitName }: FullNameFormProps) {
             onChangeText={onChange}
             onBlur={onBlur}
             error={Boolean(errors.fullName)}
+            outlineColor={colors.border}
+            activeOutlineColor={colors.brand}
             testID="full-name-input"
           />
         )}
@@ -94,6 +97,10 @@ export function FullNameForm({ onSubmitName }: FullNameFormProps) {
         loading={isSubmitting}
         disabled={isSubmitting}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        labelStyle={styles.controlLabel}
+        buttonColor={colors.brand}
+        textColor={colors.textInverse}
         testID="save-full-name-button"
       >
         Continue
@@ -104,20 +111,31 @@ export function FullNameForm({ onSubmitName }: FullNameFormProps) {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: spacing[3],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: spacing[1],
+    lineHeight: 21,
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
   },
   button: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
+    marginTop: spacing[1],
+    width: '100%',
+    borderRadius: radii.md,
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
+  },
+  controlLabel: {
+    fontSize: typography.control,
+    fontWeight: '700',
   },
 });

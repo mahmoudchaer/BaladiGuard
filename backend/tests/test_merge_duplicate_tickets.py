@@ -6,8 +6,9 @@ from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.memory import ticket_store
 from app.database.memory_duplicate_group import duplicate_group_store
 from app.services.complaints.ticket_service import ticket_service
-from tests.conftest import authenticated_test_client
+from tests.conftest import authenticated_test_client, contribution_ready_auth_headers
 from tests.test_read_tickets import create_ticket
+from tests.test_submit_ticket import VALID_PAYLOAD
 
 ADMIN_STAFF_ID = "staff_admin_001"
 
@@ -247,8 +248,20 @@ def test_merge_persists_group_in_moto_dynamodb(dynamodb_settings: Settings) -> N
 
     try:
         client = authenticated_test_client()
-        main = create_ticket(client)
-        duplicate = create_ticket(client)
+
+        def create_dynamo_ticket() -> dict:
+            created = client.post(
+                "/v1/tickets",
+                json=VALID_PAYLOAD,
+                headers=contribution_ready_auth_headers(),
+            )
+            assert created.status_code == 201
+            body = created.json()
+            assert ticket_service.process_ticket_ai(body["ticketId"]) is True
+            return body
+
+        main = create_dynamo_ticket()
+        duplicate = create_dynamo_ticket()
 
         response = client.post(
             "/v1/tickets/merge",

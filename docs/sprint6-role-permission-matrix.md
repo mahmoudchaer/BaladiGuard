@@ -13,7 +13,7 @@ Contract sources: `docs/MVP_API_CONTRACT.md` (Sprint 6 identity + 401/403 rules)
 | --- | --- | --- |
 | **Guest / public** | No Bearer token | Unauthenticated browse/track only |
 | **Citizen (incomplete)** | Active OTP session, no valid full name | May manage profile; cannot contribute |
-| **Citizen (contribution-ready)** | Active session + verified phone + valid full name | Ticket submission + uploads (when gated) |
+| **Citizen (contribution-ready)** | Active session + verified phone + valid full name | Ticket submission + report photo uploads |
 | **Municipal staff** | Staff token `role=municipal_staff` | Scoped to municipality + department list |
 | **Administrator** | Staff token `role=administrator` | Global ticket scope (`departmentIds: null`) |
 
@@ -103,8 +103,8 @@ Legend for **Evidence**:
 | S3 | Submit | Inactive / revoked citizen | Submit | 401 | Auto: `test_submit_ticket::test_inactive_citizen_session_rejected_on_submit` |
 | S4 | Submit | Contribution-ready | Submit valid ticket | 201; owner derived server-side | Auto: `test_submit_ticket::test_submit_ticket_success`; `…_rejects_client_owner_user_id` |
 | S5 | Submit | Contribution-ready | Client-supplied contact | Rejected / ignored per contract | Auto: `test_submit_ticket::test_submit_ticket_rejects_client_contact` |
-| S6 | Upload | Guest / incomplete | `POST /v1/uploads/report-photo` | Contract: 401 guest / 403 incomplete | **Gap:** route is not wired to `ContributionReadyCitizenDep` today (`backend/app/api/uploads.py`). Guest upload still accepted in local tests. **Follow-up:** gate upload like #173 tickets (suggested tracker: feature ticket for contribution-gated upload; do not expand #182). Manual smoke: once gated, re-check guest 401 and incomplete 403. |
-| S7 | Upload | Authenticated flow | Upload then submit | 200 upload + 201 submit when S3 configured | Auto: `test_report_submission_flow::test_upload_then_submit_report_flow` (upload currently ungated) |
+| S6 | Upload | Guest / incomplete | `POST /v1/uploads/report-photo` | Contract: 401 guest / 403 incomplete | **Auto (#53):** guest `401` / incomplete `403` in `tests/test_upload_report_photo.py`; contribution-ready success path + upload-then-submit in `test_report_submission_flow.py`. Route uses `ContributionReadyCitizenDep`. |
+| S7 | Upload | Authenticated flow | Upload then submit | 200 upload + 201 submit when S3 configured | Auto: `test_report_submission_flow::test_upload_then_submit_report_flow` (upload contribution-ready gated) |
 
 ### 5. Staff authentication & session hygiene
 
@@ -152,6 +152,13 @@ Legend for **Evidence**:
 
 ### 8. Administrator-only surface (non-ticket)
 
+Issue #236 closes the previously documented X7/X8/M3 gaps: automated coverage
+in `test_staff_authorization::test_out_of_scope_ticket_returns_404_to_municipal_staff_and_200_to_admin`
+pairs the same ticket's municipal `404` with administrator `200`, while
+`test_admin_staff_accounts_api` covers the administrator-only HTTP staff-account
+surface (including safe responses, validation, duplicate handling, account audit,
+deactivation/session effects, and authorization failures).
+
 | ID | Area | Actor | Action | Expected | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | M1 | Admin gate | Municipal staff vs admin | `require_admin` | 403 vs pass | Auto: `test_staff_authorization::test_admin_dependency_rejects_regular_staff` |
@@ -164,9 +171,9 @@ Legend for **Evidence**:
 
 | Ref | Matrix IDs | Finding | Suggested home |
 | --- | --- | --- | --- |
-| G-UPLOAD | S6 | Report photo upload is not contribution-ready gated; contract expects guest 401 / incomplete 403. | Upload/auth feature work (align with #173 contribution gate) |
-| G-ADMIN-PAIR | X7 | Missing single automated test that pairs municipal 404 with admin 200 on same out-of-scope ticket. | Optional extension of #176 tests |
-| G-ADMIN-HTTP | X8, M3 | No administrator HTTP API for staff account CRUD on this base branch. | Staff admin API / #181 ecosystem |
+| G-UPLOAD | S6 | ~~Report photo upload not contribution-ready gated~~ **Fixed in #53** — `ContributionReadyCitizenDep` on `POST /v1/uploads/report-photo`. | — |
+| G-ADMIN-PAIR | X7 | **Fixed in #236** — paired municipal `404` / administrator `200` test on the same out-of-scope ticket. | — |
+| G-ADMIN-HTTP | X8, M3 | **Fixed in #236** — protected staff-account HTTP API backed by the existing memory/Dynamo stores. | — |
 
 Failed matrix rows above are **documented gaps**, not merge blockers for #182 itself.
 

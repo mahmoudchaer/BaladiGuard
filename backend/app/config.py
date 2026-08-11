@@ -33,6 +33,9 @@ class Settings:
         self.database_backend = os.getenv("DATABASE_BACKEND", "memory").strip().lower()
         self.aws_region = os.getenv("AWS_REGION", "us-east-1").strip()
         self.aws_s3_bucket = os.getenv("AWS_S3_BUCKET", "").strip() or None
+        self.s3_presigned_url_ttl_seconds = self._int_setting(
+            "S3_PRESIGNED_URL_TTL_SECONDS", default=300, minimum=30
+        )
         endpoint = os.getenv("DYNAMODB_ENDPOINT_URL", "").strip()
         self.dynamodb_endpoint_url = endpoint or None
         self.dynamodb_table_prefix = os.getenv("DYNAMODB_TABLE_PREFIX", "baladiguard-").strip()
@@ -49,6 +52,19 @@ class Settings:
             self.ai_processing_claim_timeout_seconds = max(1, int(raw_claim_timeout))
         except ValueError:
             self.ai_processing_claim_timeout_seconds = 300
+        self.ai_job_max_attempts = self._int_setting("AI_JOB_MAX_ATTEMPTS", default=5, minimum=1)
+        self.ai_job_timeout_seconds = self._int_setting(
+            "AI_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.ai_job_backoff_base_seconds = self._int_setting(
+            "AI_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.ai_job_backoff_max_seconds = self._int_setting(
+            "AI_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
+        self.ai_job_poll_seconds = self._float_setting(
+            "AI_JOB_POLL_SECONDS", default=1.0, minimum=0.05
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",
@@ -161,6 +177,15 @@ class Settings:
             "RATE_LIMIT_SMOKE_LIMIT", default=1000, minimum=1
         )
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
+        # Unsafe local helper: print OTP codes to process stdout (never via logger).
+        # Ignored outside local/development/test. Prefer peek_dev_otp_code in tests.
+        self.otp_dev_plaintext_stdout = (
+            os.getenv("OTP_DEV_PLAINTEXT_STDOUT", "false").strip().lower() == "true"
+        )
+
+        # Citizen-facing HTTPS base for notification deep links (issue #257).
+        # Production must set an explicit non-localhost https URL.
+        self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None
 
         # Staff auth (issue #175). Individual staff accounts are persisted;
         # DEMO_STAFF_PASSWORD is only used when bootstrapping local/test seed

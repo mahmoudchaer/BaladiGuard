@@ -1,26 +1,48 @@
 .login-page {
+  position: relative;
   display: grid;
   min-height: 100vh;
   place-items: center;
   padding: 1.5rem;
+  overflow: hidden;
+  isolation: isolate;
+  /* Civic atmosphere — CSS-only (no third-party image host on auth) */
+  background-color: #0b3d28;
+  background-image:
+    linear-gradient(90deg, var(--lb-red) 0 34%, var(--lb-white) 34% 66%, var(--lb-red) 66% 100%),
+    radial-gradient(900px 420px at 12% 18%, rgb(0 122 61 / 42%), transparent 58%),
+    radial-gradient(720px 360px at 88% 78%, rgb(206 17 38 / 22%), transparent 55%),
+    linear-gradient(145deg, #083222 0%, #0b3d28 38%, #16324a 100%);
+  background-repeat: no-repeat;
+  background-size:
+    100% 3px,
+    auto,
+    auto,
+    cover;
+  background-position: top, center, center, center;
+}
+
+.login-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background:
-    linear-gradient(
-        90deg,
-        var(--lb-red) 0 33.33%,
-        var(--lb-white) 33.33% 66.66%,
-        var(--lb-green) 66.66% 100%
-      )
-      top / 100% 4px no-repeat,
-    var(--color-bg);
+    radial-gradient(700px 320px at 15% 20%, rgb(0 122 61 / 28%), transparent 60%),
+    radial-gradient(600px 280px at 85% 80%, rgb(206 17 38 / 18%), transparent 55%);
+  pointer-events: none;
 }
 
 .login-panel {
-  width: min(100%, 27rem);
-  padding: 1.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-elevated);
-  box-shadow: var(--shadow-md);
+  width: min(100%, 28rem);
+  padding: 1.85rem 1.75rem 1.5rem;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 94%);
+  box-shadow:
+    0 18px 48px rgb(8 30 20 / 35%),
+    0 1px 0 rgb(255 255 255 / 55%) inset;
+  backdrop-filter: blur(10px);
 }
 
 .login-panel__brand {
@@ -37,10 +59,9 @@
   width: 2.75rem;
   height: 2.75rem;
   border-radius: var(--radius-md);
-  background: var(--lb-red);
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 700;
+  background: var(--lb-green-soft);
+  border: 1px solid #b8dcc8;
+  color: var(--lb-green-dark);
 }
 
 .login-panel__eyebrow {
@@ -56,6 +77,7 @@
   margin: 0.1rem 0 0;
   color: var(--color-text);
   font-size: 1.35rem;
+  letter-spacing: -0.02em;
 }
 
 .login-form {
@@ -78,11 +100,50 @@
   padding: 0.75rem 0.8rem;
   color: var(--color-text);
   font: inherit;
+  background: var(--lb-white);
 }
 
 .login-form__field input:focus {
-  outline: 2px solid var(--lb-green-soft);
+  outline: none;
   border-color: var(--lb-green);
+  box-shadow: var(--focus-ring);
+}
+
+.login-form__field input:focus-visible {
+  outline: none;
+  border-color: var(--lb-green);
+  box-shadow: var(--focus-ring);
+}
+
+.login-form__password-wrap {
+  position: relative;
+  display: grid;
+}
+
+.login-form__password-wrap input {
+  padding-right: 4.5rem;
+}
+
+.login-form__toggle {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  border: none;
+  background: transparent;
+  color: var(--color-brand-dark);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.login-form__toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .login-form__error {
@@ -134,6 +195,7 @@
 .login-form__submit {
   border: 0;
   border-radius: var(--radius-md);
+  min-height: var(--touch-target-min);
   padding: 0.75rem 1rem;
   background: var(--lb-green);
   color: #fff;
@@ -142,6 +204,23 @@
   font-weight: 700;
 }
 
-.login-form__submit:hover {
+.login-form__submit:hover:not(:disabled) {
   background: var(--lb-green-dark);
+}
+
+.login-form__submit:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.login-form__submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .login-panel {
+    width: 100%;
+    border-radius: 0.85rem;
+  }
 }

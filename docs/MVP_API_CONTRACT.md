@@ -70,7 +70,7 @@ service.
 
 ### Citizen OTP and session routes
 
-Implemented by issue #170 (except `GET /v1/citizen/tickets`, which remains planned for #174).
+Implemented by issues #170 and #174 (account history at `GET /v1/citizen/me/tickets`).
 
 | Route                               |                  Guest | Authenticated citizen | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ----------------------------------- | ---------------------: | --------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -168,7 +168,7 @@ a phone is not recoverable through email in the MVP; exceptional recovery requir
 approved design.
 
 Malformed phone/challenge input returns `400 VALIDATION_ERROR`. OTP request throttling and exhausted
-verification attempts return `429 RATE_LIMITED` (with `Retry-After` where known). An incorrect code
+verification attempts return `429 RATE_LIMIT_EXCEEDED` (with `Retry-After` where known). An incorrect code
 returns `400 INVALID_OTP`; an expired, consumed, or superseded challenge returns `400 OTP_EXPIRED`.
 These responses are deliberately account-neutral. A successful verify consumes the challenge in the
 same conditional operation that establishes its result so concurrent replay has at most one winner.
@@ -193,16 +193,18 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, staff-reviewed
 `category`, staff-approved `publicDescription` as `description`, coarse `publicLocationLabel` as
-`location.addressText`, `mapLocation`, optional name-only `department`, `attribution`, `createdAt`,
-and `updatedAt`. A report is publishable only when `publicStatus` is `PUBLISHED`, a final category is
-present, and both approved public fields are non-empty; otherwise public list omits it and public
-detail returns `404`. `mapLocation` contains the same coarse label plus latitude and longitude rounded
-to 3 decimal places (about a 110 m latitude grid); it never contains the stored
+`location.addressText`, `mapLocation`, optional name-only `department`, `attribution`, optional
+`photoUrl` (only when staff set `publicImageObjectKey`; never derived from the raw upload key),
+`createdAt`, and `updatedAt`. A report is publishable only when `publicStatus` is `PUBLISHED`, a
+final category is present, and both approved public text fields are non-empty; otherwise public list
+omits it and public detail returns `404`. `mapLocation` contains the same coarse label plus latitude
+and longitude rounded to 3 decimal places (about a 110 m latitude grid); it never contains the stored
 `location.addressText`, stored location source, or exact coordinates. They must not expose
 `ticketId`, `trackingCode`, `ownerUserId`, phone, email, contact snapshot, device metadata, internal
 notes, staff actors, department/municipality IDs, duplicate internals, audit history, raw
-descriptions, cleaned AI descriptions, or AI/provider internals. The implementation must use a
-dedicated public projection and fail closed rather than serialize a staff model.
+descriptions, cleaned AI descriptions, raw `imageObjectKey`, or AI/provider internals. The
+implementation must use a dedicated public projection and fail closed rather than serialize a staff
+model.
 
 Public browsing uses the `publicStatus-publicSortKey-index` storage query for stable keyset
 pagination and the existing `ticketNumber-index` for detail lookup. The public mapper must not scan
@@ -263,7 +265,7 @@ Route permissions are explicit:
 | OTP request/verify                                                                                                                 | Login/signup purpose only |       Own phone-change purpose |                                        N/A |                            N/A |
 | Current profile, logout, and own history                                                                                           |                      Deny |                  Own resources |                                        N/A |                            N/A |
 | `POST /v1/uploads/report-photo` and `POST /v1/tickets`                                                                             |                      Deny | Contribution-ready own session |                                        N/A |                            N/A |
-| Staff ticket list/detail and all staff ticket mutations, including status/category/department actions and `POST /v1/tickets/merge` |                      Deny |                           Deny |                             Scoped tickets |                    All tickets |
+| Staff ticket list/detail and all staff ticket mutations, including status/category/department/public actions and `POST /v1/tickets/merge` |                      Deny |                           Deny |                             Scoped tickets |                    All tickets |
 | Staff identity/contact fields                                                                                                      |                      Deny |                           Deny | Authorized operational need and scope only | Authorized administrative need |
 | Staff/role, municipality, and department administration                                                                            |                      Deny |                           Deny |                                       Deny |                          Allow |
 
@@ -415,11 +417,11 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 | ----- | --------------- | ------------------------------------------------------------------- |
 | `400` | `RESET_INVALID` | Unknown username, wrong/consumed/superseded code, or inactive staff |
 | `400` | `RESET_EXPIRED` | Code past TTL                                                       |
-| `429` | `RATE_LIMITED`  | Too many confirm attempts on the challenge (or shared HTTP limit)   |
+| `429` | `RATE_LIMIT_EXCEEDED` | Too many confirm attempts on the challenge (or shared HTTP limit)   |
 
 ## Staff audit boundaries (issues #143 / #181)
 
-**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department,
+**Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department, public content,
 and duplicate-merge mutations only. Entries store action type, target ticket, timestamp, summary,
 previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal.
 
@@ -429,17 +431,72 @@ It is not exposed on ticket responses. Account-audit values never include passwo
 tokens, reset codes, or unnecessary citizen data. Write failures are logged and do not fail the
 main account action.
 
-Administrator account mutations are available through
-`backend/app/services/staff/admin_accounts.py` (service boundary for `AdminStaffDep` routes).
+Administrator account management is exposed only to `AdminStaffDep` through
+`/v1/admin/staff-accounts`: list/read, create, role/scope update, and explicit
+deactivate/reactivate operations. Responses exclude password hashes, reset-token
+data, session epochs, and all credential values. The existing public staff
+password-reset request/confirm endpoints remain the supported credential-reset
+flow; administrators never receive reset codes or password material.
 
 ## Endpoints
 
+## `GET /health/live`
+
+Liveness probe. Returns `200` whenever the API process can answer. Does **not**
+check DynamoDB, S3, or configuration. Use for container `HEALTHCHECK` / kube
+liveness.
+
+### Response `200`
+
+```json
+{
+  "status": "live",
+  "service": "baladiguard-api",
+  "env": "local",
+  "version": "0.1.0"
+}
+```
+
+## `GET /health/ready`
+
+Readiness probe for load balancers and deploy gates. Returns `200` when the
+ticket store and configuration are OK; returns `503` with `"status": "not_ready"`
+otherwise. AI queue depth may be included for operators but does **not** fail
+readiness (backlog pages via metrics/alarms).
+
+### Response `200` / `503`
+
+```json
+{
+  "status": "ready",
+  "service": "baladiguard-api",
+  "env": "local",
+  "version": "0.1.0",
+  "database": {
+    "backend": "memory",
+    "status": "ok"
+  },
+  "config": {
+    "status": "ok",
+    "issues": []
+  },
+  "ai": {
+    "status": "ok",
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "source": "memory_store",
+    "backlogWarnThreshold": 25
+  }
+}
+```
+
 ## `GET /health`
 
-Returns API health status, including optional database connectivity.
-
-The process is considered up when this endpoint responds. Inspect `status` and
-`database.status` for dependency health (`ok` or `degraded` / `error`).
+Composite health for humans and demos. The process is considered up when this
+endpoint responds with HTTP `200`. Inspect `status` and dependency fields for
+`ok` / `degraded` / `error`. Deployment automation should prefer `/health/live`
+and `/health/ready`.
 
 ### Response `200`
 
@@ -448,22 +505,49 @@ The process is considered up when this endpoint responds. Inspect `status` and
   "status": "ok",
   "service": "baladiguard-api",
   "env": "local",
+  "version": "0.1.0",
   "database": {
     "backend": "memory",
     "status": "ok"
+  },
+  "config": {
+    "status": "ok",
+    "issues": []
+  },
+  "ai": {
+    "status": "ok",
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "source": "memory_store",
+    "backlogWarnThreshold": 25
+  },
+  "probes": {
+    "liveness": "/health/live",
+    "readiness": "/health/ready",
+    "composite": "/health"
   }
 }
 ```
 
 When DynamoDB is configured and unreachable, `status` is `degraded` and
-`database.status` is `error`, but the endpoint still returns `200` so basic
-liveness checks keep working.
+`database.status` is `error`, but `/health` still returns `200` so basic demos
+keep working. `/health/ready` returns `503` in that case.
 
 ## `POST /v1/tickets`
 
 Creates a submitted citizen report ticket.
 Shared HTTP rate limits apply (`public-ticket-submission`; default 20 / 60s) because submit
 triggers AI intake. Exceeding the budget returns `429 RATE_LIMIT_EXCEEDED` with `Retry-After`.
+
+Optional idempotency (issue #258): send `Idempotency-Key: <key>` on the request (or body
+`clientSubmissionId`). Replays with the same key and same owner return the original `201`
+response body. A claim that is still in progress may return `409 SUBMISSION_IN_PROGRESS`.
+Claims bind the created ticket id before finalizing the ledger entry and can be recovered
+after a crash/`complete` failure; unfinished claims without a ticket become reclaimable after
+~2 minutes. Keys without a valid shape are ignored (treated as non-idempotent submits).
+Completed claim records are retained ~14 days (DynamoDB TTL attribute `ttl`) for offline retry
+safety, then purged.
 
 ### Auth
 
@@ -506,6 +590,7 @@ incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 | `location.addressText`      | string |      Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters).                                                                                                                                   |
 | `location.source`           | enum   |      Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`.                                                                                                                                                                                              |
 | `imageObjectKey`            | string |      Yes | Stable image object key/reference used by the backend.                                                                                                                                                                          |
+| `clientSubmissionId`        | string |       No | Optional client idempotency id (issue #258). Prefer the `Idempotency-Key` HTTP header. 8–128 characters matching `[A-Za-z0-9_-]`. Scoped per citizen; retries return the original success payload without creating a second ticket. |
 | `clientMetadata`            | object |      Yes | Client metadata sent by the mobile app.                                                                                                                                                                                         |
 | `clientMetadata.platform`   | string |      Yes | Example values: `ios`, `android`, `web`.                                                                                                                                                                                        |
 | `clientMetadata.appVersion` | string |      Yes | Mobile app version.                                                                                                                                                                                                             |
@@ -818,6 +903,53 @@ to `auditHistory`.
 | `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the department implied by the reviewed category. |
 | `VALIDATION_ERROR` |    400 | The category is missing, pending, or not in the supported category catalog.                  |
 
+## `PATCH /v1/tickets/{ticketId}/public`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Sets the staff-approved public projection used by guest browsing. Raw citizen description and the
+exact stored address are never copied automatically. Public photos require an explicit approval of
+**this ticket's** private upload via `approveOriginalPhoto` (server copies `imageObjectKey` into
+`publicImageObjectKey`). `clearPublicPhoto` removes the public photo. Caller-supplied object keys
+are rejected — alternate/redacted keys are deferred until a ticket-bound upload/artifact record
+exists. Omitting both approve and clear leaves any existing public photo unchanged. Publishability
+still requires `publicStatus=PUBLISHED`, a staff-reviewed final category, and non-empty public
+description + coarse location label; the photo is optional.
+
+### Request body
+
+```json
+{
+  "publicStatus": "PUBLISHED",
+  "publicDescription": "Staff-approved public summary of the road hazard.",
+  "publicLocationLabel": "Hamra, Beirut",
+  "approveOriginalPhoto": true
+}
+```
+
+| Field                   | Type    | Required | Notes                                                                                         |
+| ----------------------- | ------- | -------: | --------------------------------------------------------------------------------------------- |
+| `publicStatus`          | string  |      Yes | `DRAFT`, `PUBLISHED`, or `UNPUBLISHED`.                                                       |
+| `publicDescription`     | string  |      Yes | Required non-empty when publishing.                                                           |
+| `publicLocationLabel`   | string  |      Yes | Coarse neighborhood/area label; required non-empty when publishing.                           |
+| `approveOriginalPhoto`  | boolean |       No | When `true`, copies this ticket's private `imageObjectKey` into `publicImageObjectKey`.       |
+| `clearPublicPhoto`      | boolean |       No | When `true`, clears `publicImageObjectKey`. Mutually exclusive with approve.                  |
+| `updatedBy`             | string  |       No | Ignored for trust decisions; actor identity comes from the verified staff principal.          |
+
+### Response `200`
+
+Returns the updated `TicketResponse`, including a staff-only `public` object with
+`status`, `description`, `locationLabel`, `imageObjectKey`, and `publishedAt`. Staff responses also
+append a `PUBLIC_CONTENT_UPDATE` entry to `auditHistory`.
+
+### Public content error codes
+
+| Code               | Status | Meaning                                                                                 |
+| ------------------ | -----: | --------------------------------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                                        |
+| `TICKET_NOT_FOUND` |    404 | Ticket ID does not exist (or is outside the staff principal's scope).                   |
+| `VALIDATION_ERROR` |    400 | Missing final category/public text when publishing, conflicting photo-mode flags, or unknown fields (including caller-supplied `publicImageObjectKey`). |
+
 ## `PATCH /v1/tickets/{ticketId}/department`
 
 Staff-only (authorization via the shared staff dependency integration point for issue #72).
@@ -980,10 +1112,11 @@ This endpoint stores only the image file. It does not create or update a ticket 
 Shared HTTP rate limits apply with a stricter upload budget (`public-upload-report-photo`;
 default 10 / 60s) and return `429 RATE_LIMIT_EXCEEDED` with `Retry-After` when exceeded.
 
-### Auth (Sprint 6 target)
+### Auth
 
-Requires a contribution-ready citizen Bearer session because it creates a persistent report artifact.
-Missing authentication returns `401`; an incomplete citizen returns `403`. Enforcement is #194 work.
+Requires a contribution-ready citizen Bearer session (same gate as `POST /v1/tickets`, issues
+#173 / #194 / #53). Guests receive `401 UNAUTHORIZED`; authenticated citizens whose profile is
+not contribution-ready receive `403 CONTRIBUTION_PROFILE_REQUIRED`.
 
 ### Request body
 
@@ -1013,10 +1146,12 @@ Upload errors use the common error format.
 
 | Code                | Status | Meaning                                                   |
 | ------------------- | -----: | --------------------------------------------------------- |
-| `MISSING_FILE`      |    400 | No file was provided in the `file` field.                 |
-| `INVALID_FILE_TYPE` |    400 | File extension or content type is not allowed.            |
-| `FILE_TOO_LARGE`    |    400 | File is larger than `5MB`.                                |
-| `S3_UPLOAD_FAILED`  |    502 | The backend could not upload the file to project storage. |
+| `UNAUTHORIZED`                  |    401 | Missing, invalid, or expired citizen session.             |
+| `CONTRIBUTION_PROFILE_REQUIRED` |    403 | Session valid but profile is not contribution-ready.      |
+| `MISSING_FILE`                  |    400 | No file was provided in the `file` field.                 |
+| `INVALID_FILE_TYPE`             |    400 | File extension or content type is not allowed.            |
+| `FILE_TOO_LARGE`                |    400 | File is larger than `5MB`.                                |
+| `S3_UPLOAD_FAILED`              |    502 | The backend could not upload the file to project storage. |
 
 ## Error Format
 
@@ -1256,7 +1391,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `statusHistory[].changedBy`             | string         | Actor identifier when available.                                                                                                                   |
 | `statusHistory[].note`                  | string         | Human-readable note when available.                                                                                                                |
 | `auditHistory`                          | array          | Staff-only ticket mutation audit trail from issue #143 (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
-| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`.                                                                     |
+| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, or `PUBLIC_CONTENT_UPDATE`.                                         |
 | `auditHistory[].actorId`                | string         | Verified staff actor id from the authenticated principal (client actor fields are not trusted).                                                   |
 | `auditHistory[].actorRole`              | enum           | Verified actor role: `municipal_staff` or `administrator` (issue #181).                                                                           |
 | `auditHistory[].summary`                | string         | Concise change summary.                                                                                                                            |

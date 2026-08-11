@@ -17,6 +17,7 @@ from app.services.uploads.photo_upload_service import (
     MAX_IMAGE_SIZE_BYTES,
     photo_upload_service,
 )
+from tests.conftest import contribution_ready_auth_headers
 
 
 def _request(
@@ -75,7 +76,7 @@ def test_http_oversized_upload_rejected_before_service(
 ) -> None:
     service_calls: list[str] = []
 
-    async def tracking_upload(file) -> str:  # type: ignore[no-untyped-def]
+    async def tracking_upload(file, **kwargs) -> str:  # type: ignore[no-untyped-def]
         service_calls.append("called")
         return "reports/photos/should-not-happen.jpg"
 
@@ -85,6 +86,7 @@ def test_http_oversized_upload_rejected_before_service(
     response = anonymous_client.post(
         "/v1/uploads/report-photo",
         files={"file": ("huge.jpg", oversized, "image/jpeg")},
+        headers=contribution_ready_auth_headers(),
     )
 
     assert response.status_code == 400
@@ -103,19 +105,22 @@ def test_http_rate_limited_upload_does_not_reach_service(
 
     service_calls: list[str] = []
 
-    async def tracking_upload(file) -> str:  # type: ignore[no-untyped-def]
+    async def tracking_upload(file, **kwargs) -> str:  # type: ignore[no-untyped-def]
         service_calls.append("called")
         return "reports/photos/ok.jpg"
 
     monkeypatch.setattr(photo_upload_service, "upload_report_photo", tracking_upload)
+    headers = contribution_ready_auth_headers()
 
     first = anonymous_client.post(
         "/v1/uploads/report-photo",
         files={"file": ("a.jpg", BytesIO(b"image-bytes"), "image/jpeg")},
+        headers=headers,
     )
     second = anonymous_client.post(
         "/v1/uploads/report-photo",
         files={"file": ("b.jpg", BytesIO(b"image-bytes"), "image/jpeg")},
+        headers=headers,
     )
 
     assert first.status_code == 200
@@ -135,7 +140,7 @@ def test_http_repeated_oversized_uploads_stay_rejected_without_service(
 ) -> None:
     service_calls: list[str] = []
 
-    async def tracking_upload(file) -> str:  # type: ignore[no-untyped-def]
+    async def tracking_upload(file, **kwargs) -> str:  # type: ignore[no-untyped-def]
         service_calls.append("called")
         return "reports/photos/nope.jpg"
 
@@ -147,6 +152,7 @@ def test_http_repeated_oversized_uploads_stay_rejected_without_service(
         response = anonymous_client.post(
             "/v1/uploads/report-photo",
             files={"file": ("huge.jpg", payload, "image/jpeg")},
+            headers=contribution_ready_auth_headers(),
         )
         assert response.status_code == 400
         assert response.json()["error"]["code"] == "FILE_TOO_LARGE"

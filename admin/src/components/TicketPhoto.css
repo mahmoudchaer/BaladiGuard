@@ -42,16 +42,16 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 5px;
+  width: 4px;
   height: 100%;
   background: linear-gradient(
     180deg,
     var(--lb-red) 0%,
-    var(--lb-red) 33.33%,
-    var(--lb-white) 33.33%,
-    var(--lb-white) 66.66%,
-    var(--lb-green) 66.66%,
-    var(--lb-green) 100%
+    var(--lb-red) 34%,
+    var(--lb-white) 34%,
+    var(--lb-white) 66%,
+    var(--lb-red) 66%,
+    var(--lb-red) 100%
   );
 }
 

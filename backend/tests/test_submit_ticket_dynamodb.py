@@ -24,6 +24,7 @@ def test_submit_ticket_persists_in_dynamodb_and_is_retrievable_by_id(
 
         assert response.status_code == 201
         body = response.json()
+        assert ticket_service.process_ticket_ai(body["ticketId"]) is True
         assert body["ticketId"].startswith("tkt_")
         assert body["ticketNumber"].startswith("BG-")
         assert body["status"] == "SUBMITTED"

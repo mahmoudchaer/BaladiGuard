@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.core.citizen_auth import CitizenDep, OptionalCitizenDep
 from app.core.errors import build_error_response, get_request_id
+from app.core.metrics import emit_metric
 from app.core.rate_limit import enforce_rate_limit
 from app.schemas.citizen import (
     CitizenDataExportResponse,
@@ -22,6 +23,7 @@ from app.schemas.citizen_auth import (
     CitizenOtpVerifyRequest,
     CitizenOtpVerifyResponse,
 )
+from app.services.citizens.otp_delivery import deliver_citizen_otp
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
     CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
@@ -37,6 +39,8 @@ router = APIRouter(prefix="/v1/citizen", tags=["citizen"])
 
 
 def _service_error_response(request: Request, exc: CitizenServiceError) -> JSONResponse:
+    if exc.status_code == 401:
+        emit_metric("AuthFailures", dimensions={"kind": "citizen", "code": exc.code})
     response = build_error_response(
         code=exc.code,
         message=exc.message,
@@ -107,7 +111,7 @@ def request_citizen_otp(
         auth_user_id = principal.user_id if principal is not None else None
 
     try:
-        challenge_id, expires_in, _code = citizen_service.request_otp(
+        challenge_id, expires_in, code = citizen_service.request_otp(
             phone=payload.phone,
             region=payload.region,
             purpose=payload.purpose,
@@ -118,6 +122,19 @@ def request_citizen_otp(
         if payload.purpose == LOGIN_OR_SIGNUP_PURPOSE and exc.code == "VALIDATION_ERROR":
             return _service_error_response(request, exc)
         return _service_error_response(request, exc)
+
+    # HTTP response stays code-free; delivery is side-effect only.
+    # If real delivery raises, invalidate the unused challenge so it cannot linger.
+    try:
+        deliver_citizen_otp(
+            phone=payload.phone,
+            region=payload.region,
+            code=code,
+            settings=settings,
+        )
+    except Exception:
+        citizen_service.invalidate_otp_challenge(challenge_id)
+        raise
 
     return CitizenOtpRequestResponse(
         challengeId=challenge_id,

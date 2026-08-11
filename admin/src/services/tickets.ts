@@ -1,5 +1,6 @@
 import type {
   AiProcessingStatus,
+  PublicTicketStatus,
   Ticket,
   TicketAiFields,
   TicketDuplicateReference,
@@ -21,6 +22,11 @@ export type FetchTicketsFilters = {
   category?: string | 'ALL';
   urgency?: Ticket['priority'] | 'ALL';
   departmentId?: string | 'ALL';
+  slaState?: Ticket['sla'] extends infer S
+    ? S extends { state: infer T }
+      ? T | 'ALL'
+      : never
+    : never;
 };
 
 /**
@@ -99,6 +105,9 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
   ) {
     return false;
   }
+  if (filters.slaState && filters.slaState !== 'ALL' && ticket.sla?.state !== filters.slaState) {
+    return false;
+  }
   return true;
 }
 
@@ -128,6 +137,9 @@ function buildTicketListUrl(filters: FetchTicketsFilters): string {
   }
   if (filters.departmentId && filters.departmentId !== 'ALL') {
     url.searchParams.set('departmentId', filters.departmentId);
+  }
+  if (filters.slaState && filters.slaState !== 'ALL') {
+    url.searchParams.set('slaState', filters.slaState);
   }
   return url.toString();
 }
@@ -359,6 +371,29 @@ function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   return hasAiData ? ai : undefined;
 }
 
+function normalizeTicketSla(data: unknown): Ticket['sla'] {
+  if (!isRecord(data)) return undefined;
+  const states = ['on_track', 'due_soon', 'overdue', 'completed', 'unavailable'] as const;
+  const state = data.state;
+  if (!states.includes(state as (typeof states)[number])) return undefined;
+  return {
+    state: state as (typeof states)[number],
+    acknowledgementDueAt:
+      typeof data.acknowledgementDueAt === 'string' ? data.acknowledgementDueAt : null,
+    resolutionDueAt: typeof data.resolutionDueAt === 'string' ? data.resolutionDueAt : null,
+    targetAt: typeof data.targetAt === 'string' ? data.targetAt : null,
+    remainingSeconds: typeof data.remainingSeconds === 'number' ? data.remainingSeconds : null,
+    overdueSeconds: typeof data.overdueSeconds === 'number' ? data.overdueSeconds : null,
+    policyKey:
+      data.policyKey === 'low' ||
+      data.policyKey === 'medium' ||
+      data.policyKey === 'high' ||
+      data.policyKey === 'critical'
+        ? data.policyKey
+        : null,
+  };
+}
+
 function normalizeTicketLocation(data: unknown): TicketLocation {
   // Tolerant for list/detail reads: one malformed ticket must not fail the whole fetch.
   // Invalid coordinates are filtered later when plotting pins (getPlottableTickets).
@@ -478,6 +513,25 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
     ai: normalizeTicketAiFields(data.ai),
+    sla: normalizeTicketSla(data.sla),
+    public: normalizeTicketPublicFields(data.public),
+  };
+}
+
+function normalizeTicketPublicFields(data: unknown): Ticket['public'] {
+  if (!isRecord(data)) {
+    return undefined;
+  }
+  const status = data.status;
+  if (status !== 'DRAFT' && status !== 'PUBLISHED' && status !== 'UNPUBLISHED') {
+    return undefined;
+  }
+  return {
+    status,
+    description: typeof data.description === 'string' ? data.description : null,
+    locationLabel: typeof data.locationLabel === 'string' ? data.locationLabel : null,
+    imageObjectKey: typeof data.imageObjectKey === 'string' ? data.imageObjectKey : null,
+    publishedAt: typeof data.publishedAt === 'string' ? data.publishedAt : null,
   };
 }
 
@@ -836,4 +890,85 @@ export async function assignTicketDepartment(
   }
 
   return assignTicketDepartmentFromApi(ticketId, input);
+}
+
+export type UpdateTicketPublicContentInput = {
+  publicStatus: PublicTicketStatus;
+  publicDescription: string;
+  publicLocationLabel: string;
+  approveOriginalPhoto?: boolean;
+  clearPublicPhoto?: boolean;
+};
+
+async function updateMockTicketPublicContent(
+  ticketId: string,
+  input: UpdateTicketPublicContentInput,
+): Promise<Ticket | null> {
+  const ticket = await fetchMockTicketById(ticketId);
+  if (!ticket) {
+    return null;
+  }
+
+  const publishedAt =
+    input.publicStatus === 'PUBLISHED'
+      ? (ticket.public?.publishedAt ?? new Date().toISOString())
+      : (ticket.public?.publishedAt ?? null);
+
+  let imageObjectKey = ticket.public?.imageObjectKey ?? null;
+  if (input.clearPublicPhoto) {
+    imageObjectKey = null;
+  } else if (input.approveOriginalPhoto) {
+    imageObjectKey = ticket.imageObjectKey;
+  }
+
+  return {
+    ...ticket,
+    updatedAt: new Date().toISOString(),
+    public: {
+      status: input.publicStatus,
+      description: input.publicDescription.trim() || null,
+      locationLabel: input.publicLocationLabel.trim() || null,
+      imageObjectKey,
+      publishedAt,
+    },
+  };
+}
+
+async function updateTicketPublicContentFromApi(
+  ticketId: string,
+  input: UpdateTicketPublicContentInput,
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/public`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getStaffAuthHeaders(),
+      },
+      body: JSON.stringify(input),
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to update public content.');
+  }
+
+  const data: unknown = await response.json();
+  return normalizeTicketFromApi(data);
+}
+
+export async function updateTicketPublicContent(
+  ticketId: string,
+  input: UpdateTicketPublicContentInput,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    return updateMockTicketPublicContent(ticketId, input);
+  }
+
+  return updateTicketPublicContentFromApi(ticketId, input);
 }

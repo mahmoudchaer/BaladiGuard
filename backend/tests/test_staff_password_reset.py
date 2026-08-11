@@ -144,7 +144,7 @@ def test_incorrect_code_then_attempt_limit(anonymous_client: TestClient) -> None
         },
     )
     assert limited.status_code == 429
-    assert limited.json()["error"]["code"] == "RATE_LIMITED"
+    assert limited.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
 
 
 def test_dev_adapter_exposes_code_only_locally() -> None:

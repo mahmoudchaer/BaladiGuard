@@ -1,0 +1,101 @@
+{
+  "ok": true,
+  "mode": "simulated",
+  "env": "staging",
+  "region": "us-east-1",
+  "timestamp": "2026-08-09T11:43:45.405359Z",
+  "runbook": "docs/production-observability.md#staging-exercise-prove-alerts-reach-the-team",
+  "stableDimensionKeys": [
+    "env"
+  ],
+  "readinessAlarmPayload": {
+    "AlarmName": "BaladiGuard-ReadinessFailure",
+    "AlarmDescription": "Readiness probe unsuccessful for 3 minutes. Continuous producer: in-process readiness publisher (READINESS_PROBE_INTERVAL_SECONDS). Triage: docs/production-observability.md#readiness-failure",
+    "Namespace": "BaladiGuard",
+    "MetricName": "ReadyProbeSuccess",
+    "Dimensions": [
+      {
+        "Name": "env",
+        "Value": "staging"
+      }
+    ],
+    "Statistic": "Minimum",
+    "Period": 60,
+    "EvaluationPeriods": 3,
+    "DatapointsToAlarm": 3,
+    "Threshold": 1.0,
+    "ComparisonOperator": "LessThanThreshold",
+    "TreatMissingData": "breaching",
+    "ActionsEnabled": true,
+    "AlarmActions": [
+      "arn:aws:sns:us-east-1:123456789012:baladiguard-ops-drill"
+    ],
+    "OKActions": [
+      "arn:aws:sns:us-east-1:123456789012:baladiguard-ops-drill"
+    ]
+  },
+  "dashboardMetricSample": [
+    "BaladiGuard",
+    "HttpRequests",
+    "env",
+    "staging"
+  ],
+  "organicEvaluation": {
+    "description": "Metric-driven readiness verdict using the same Minimum<1 / 3-datapoint rule as BaladiGuard-ReadinessFailure. Separate from SetAlarmState. Includes post-drill recovery samples so failure datapoints do not re-page.",
+    "healthySamples": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "failureSamples": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "recoverySamples": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "healthyVerdict": "OK",
+    "failureVerdict": "ALARM",
+    "recoveryVerdict": "OK",
+    "cloudwatchHealthyState": null,
+    "cloudwatchFailureState": null,
+    "cloudwatchFailureReason": "",
+    "cloudwatchRecoveryState": null,
+    "cloudwatchRecoveryReason": "",
+    "recoveryVerified": true
+  },
+  "snsDelivery": {
+    "description": "Forced SetAlarmState ALARM\u2192OK to exercise AlarmActions/OKActions. Sanitized notification payloads prove the topic received both states.",
+    "topicName": "baladiguard-ops-drill",
+    "alarmNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "ALARM",
+        "newStateReason": "Delivery drill: force ALARM to exercise SNS AlarmActions",
+        "subject": "ALARM: BaladiGuard-ReadinessFailure"
+      }
+    ],
+    "okNotifications": [
+      {
+        "alarmName": "BaladiGuard-ReadinessFailure",
+        "newStateValue": "OK",
+        "newStateReason": "Delivery drill: force OK to exercise SNS OKActions",
+        "subject": "OK: BaladiGuard-ReadinessFailure"
+      }
+    ],
+    "deliveryConfirmed": true
+  },
+  "alarmActions": [
+    "arn:aws:sns:us-east-1:****:baladiguard-ops-drill"
+  ],
+  "notes": [
+    "moto SNS\u2192SQS captures ALARM/OK notification payloads",
+    "SetAlarmState is paired with CloudWatch-shaped SNS publishes (moto action gap).",
+    "EMF publish dimensions are env-only (see app.core.metrics.build_emf_record).",
+    "In-process readiness publisher emits ReadyProbeSuccess continuously.",
+    "Organic evaluation, SNS delivery, and organic recovery are recorded as separate proofs."
+  ]
+}

@@ -5,9 +5,11 @@ import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-route
 
 import { useCitizenAuth } from '@/auth';
 import { sanitizeReturnTo } from '@/auth/returnTo';
+import { BrandMark, BrandStripe } from '@/components/BrandMark';
 import { FullNameForm } from '@/features/citizen-auth/FullNameForm';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
+import { colors, spacing } from '@/theme';
 import type { CitizenOtpVerifyResponse } from '@/types/citizen';
 
 type ChallengeState = PhoneEntrySuccess | null;
@@ -54,6 +56,10 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.container}>
+          <View style={styles.brandBlock}>
+            <BrandStripe />
+            <BrandMark size={32} />
+          </View>
           {needsFullName ? (
             <FullNameForm onSubmitName={handleFullName} />
           ) : challenge ? (
@@ -87,13 +93,18 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   scroll: {
     flexGrow: 1,
   },
   container: {
     flex: 1,
-    padding: 24,
+    padding: spacing[5],
+  },
+  brandBlock: {
+    alignItems: 'center',
+    gap: spacing[2],
+    marginBottom: spacing[5],
   },
 });

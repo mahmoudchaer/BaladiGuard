@@ -3,6 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TrackLookupForm } from '@/features/ticket-tracking/TrackLookupForm';
+import { colors } from '@/theme';
 
 export default function TrackScreen() {
   const { trackingCode } = useLocalSearchParams<{ trackingCode?: string | string[] }>();
@@ -18,6 +19,6 @@ export default function TrackScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
 });

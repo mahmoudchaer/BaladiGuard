@@ -1,0 +1,139 @@
+"""Deterministic, read-only, authorization-grounded staff assistant (#242)."""
+
+from __future__ import annotations
+
+import re
+from collections import Counter
+from datetime import UTC, datetime
+
+from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket
+from app.database.store_factory import get_ticket_store
+from app.schemas.staff_assistant import StaffAssistantResponse, StaffAssistantTicketReference
+from app.schemas.stored_ticket import StoredTicket
+from app.services.complaints.sla import derive_ticket_sla
+
+_HIGH_PRIORITY_TERMS = (
+    "high priority",
+    "urgent",
+    "critical",
+    "عاجل",
+    "مستعجل",
+    "urgent",
+    "prioritaire",
+)
+_REPEATED_AREA_TERMS = (
+    "repeated",
+    "repeat",
+    "area",
+    "hotspot",
+    "same place",
+    "متكرر",
+    "منطقة",
+    "mouchkil",
+    "probl",
+)
+_NEGATION_PATTERN = re.compile(r"\b(?:do not|don't|not|without|never|no)\b", re.IGNORECASE)
+_CONSTRAINT_PATTERN = re.compile(
+    r"\b(?:in|near|at|around|before|after|since|on|dans)\s+(?:the\s+)?[a-z0-9]"
+    r"|\b(?:today|yesterday|tomorrow|week|month|year|date)\b",
+    re.IGNORECASE,
+)
+_GENERIC_AREA_PATTERN = re.compile(r"\bin\s+(?:an?|the)\s+area\b", re.IGNORECASE)
+
+
+def _as_of() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _intent(question: str) -> str | None:
+    normalized = question.casefold()
+    # "in an/the area" is the documented generic repeated-area intent, not a
+    # named area filter. Normalize it before rejecting unsupported filters.
+    normalized_for_constraints = _GENERIC_AREA_PATTERN.sub("by area", normalized)
+    high_priority = any(term in normalized for term in _HIGH_PRIORITY_TERMS)
+    repeated_area = any(term in normalized for term in _REPEATED_AREA_TERMS)
+    # This small deterministic surface intentionally has no filtering grammar.
+    # Reject, rather than silently ignore, negation, a second intent, or a
+    # location/date modifier that would alter the answer's meaning.
+    if _NEGATION_PATTERN.search(normalized) or _CONSTRAINT_PATTERN.search(
+        normalized_for_constraints
+    ):
+        return None
+    if high_priority == repeated_area:
+        return None
+    if high_priority:
+        return "high_priority_summary"
+    if repeated_area:
+        return "repeated_area_summary"
+    raise AssertionError("intent selection must be exhaustive")
+
+
+def _area(ticket: StoredTicket) -> str:
+    return (ticket.location.address_text or "Unspecified area").strip() or "Unspecified area"
+
+
+def _reference(ticket: StoredTicket) -> StaffAssistantTicketReference:
+    return StaffAssistantTicketReference(
+        ticketId=ticket.ticket_id,
+        ticketNumber=ticket.ticket_number,
+        category=ticket.final_category or ticket.category,
+        priority=ticket.priority,
+        slaState=derive_ticket_sla(ticket).state,
+        municipalityId=ticket.municipality_id,
+        departmentId=ticket.department_id,
+    )
+
+
+class StaffAssistantService:
+    """Uses only persisted tickets visible to the authenticated staff principal."""
+
+    def answer(self, question: str, *, principal: StaffPrincipal) -> StaffAssistantResponse:
+        intent = _intent(question)
+        as_of = _as_of()
+        if intent is None:
+            return StaffAssistantResponse(
+                intent="unsupported",
+                asOf=as_of,
+                count=0,
+                message=(
+                    "I can summarize high-priority tickets or repeated problems by area. "
+                    "Try asking about urgent tickets or repeated issues in an area."
+                ),
+            )
+
+        accessible = [
+            ticket
+            for ticket in get_ticket_store().list()
+            if staff_can_access_ticket(principal, ticket)
+        ]
+        if intent == "high_priority_summary":
+            selected = [ticket for ticket in accessible if ticket.priority in {"high", "critical"}]
+            filters = {"priority": "high,critical"}
+            message = f"{len(selected)} accessible high-priority or critical ticket(s)."
+        else:
+            grouped = Counter(_area(ticket) for ticket in accessible)
+            repeated_areas = {area for area, count in grouped.items() if count >= 2}
+            selected = [ticket for ticket in accessible if _area(ticket) in repeated_areas]
+            filters = {"minimumTicketsPerArea": "2"}
+            message = f"{len(selected)} accessible ticket(s) in repeated area(s)."
+
+        categories = dict(
+            sorted(Counter(ticket.final_category or ticket.category for ticket in selected).items())
+        )
+        areas = dict(sorted(Counter(_area(ticket) for ticket in selected).items()))
+        ordered = sorted(
+            selected, key=lambda ticket: (ticket.created_at, ticket.ticket_id), reverse=True
+        )
+        return StaffAssistantResponse(
+            intent=intent,
+            asOf=as_of,
+            message=message,
+            count=len(selected),
+            categories=categories,
+            areas=areas,
+            tickets=[_reference(ticket) for ticket in ordered[:20]],
+            appliedFilters=filters,
+        )
+
+
+staff_assistant_service = StaffAssistantService()

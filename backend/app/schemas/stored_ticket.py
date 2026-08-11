@@ -36,10 +36,14 @@ class StoredTicket(BaseModel):
     public_description: str | None = Field(default=None, alias="publicDescription")
     public_location_label: str | None = Field(default=None, alias="publicLocationLabel")
     public_published_at: str | None = Field(default=None, alias="publicPublishedAt")
+    # Optional staff-approved public photo key. Unapproved uploads stay private.
+    public_image_object_key: str | None = Field(default=None, alias="publicImageObjectKey")
+
     ai_processing_status: AiProcessingStatus = Field(
         default="pending",
         alias="aiProcessingStatus",
     )
+    ai_processing_claim_token: str | None = Field(default=None, alias="aiProcessingClaimToken")
     ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
     priority: ReportPriority | None = None
     urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)

@@ -2,8 +2,10 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
+from uuid import uuid4
 
 from app.config import get_settings
+from app.core.metrics import emit_metric
 from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket, staff_can_assign_department
 from app.database.audit_history_store import AuditHistoryStore
 from app.database.duplicate_group_store import DuplicateGroupStore
@@ -38,6 +40,7 @@ from app.schemas.ticket_response import (
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
     TicketResponse,
+    UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
 from app.schemas.ticket_status import TicketStatus
@@ -57,6 +60,7 @@ from app.services.duplicates import find_nearby_duplicates
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.routing import department_ids, suggest_department_id
+from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.urgency import score_urgency
 from app.utils.ticket_ids import (
     generate_audit_history_id,
@@ -86,11 +90,23 @@ class TicketNotFoundError(LookupError):
     pass
 
 
+class TicketSubmissionInProgressError(RuntimeError):
+    """Same Idempotency-Key is claimed but not yet completed (issue #258)."""
+
+
 class DuplicateMergeError(ValueError):
     pass
 
 
 class StaffScopeForbiddenError(PermissionError):
+    pass
+
+
+class PublicContentUpdateError(ValueError):
+    pass
+
+
+class AiProcessingClaimLostError(RuntimeError):
     pass
 
 
@@ -171,6 +187,124 @@ class TicketService:
         *,
         owner_user_id: str,
         contact: ReportContact,
+        client_submission_key: str | None = None,
+    ) -> SubmitTicketResponse:
+        from app.services.complaints.ticket_submission_idempotency import (
+            composite_submission_key,
+            get_ticket_submission_idempotency_store,
+            normalize_client_submission_key,
+        )
+
+        # Prefer explicit key (header/body already merged by the route); optional body field.
+        raw_key = client_submission_key or payload.client_submission_id
+        client_key = normalize_client_submission_key(raw_key)
+        composite_key: str | None = None
+        idem_store = None
+        if client_key:
+            idem_store = get_ticket_submission_idempotency_store()
+            composite_key = composite_submission_key(
+                owner_user_id=owner_user_id,
+                client_key=client_key,
+            )
+            existing = idem_store.get_completed(composite_key)
+            if existing is not None:
+                return existing
+            recovered = self._recover_idempotent_submission(
+                composite_key,
+                idem_store=idem_store,
+                owner_user_id=owner_user_id,
+            )
+            if recovered is not None:
+                return recovered
+            if not idem_store.try_begin(composite_key):
+                existing = idem_store.get_completed(composite_key)
+                if existing is not None:
+                    return existing
+                recovered = self._recover_idempotent_submission(
+                    composite_key,
+                    idem_store=idem_store,
+                    owner_user_id=owner_user_id,
+                )
+                if recovered is not None:
+                    return recovered
+                raise TicketSubmissionInProgressError(
+                    "A submission with this idempotency key is already in progress. "
+                    "Please wait a moment and retry."
+                )
+
+        ticket_persisted = False
+
+        def _mark_ticket_persisted() -> None:
+            nonlocal ticket_persisted
+            ticket_persisted = True
+
+        try:
+            return self._create_submitted_ticket(
+                payload,
+                owner_user_id=owner_user_id,
+                contact=contact,
+                composite_key=composite_key,
+                idem_store=idem_store,
+                on_ticket_persisted=_mark_ticket_persisted,
+            )
+        except Exception:
+            if composite_key and idem_store is not None and not ticket_persisted:
+                force_release = getattr(idem_store, "force_release", None)
+                if callable(force_release):
+                    force_release(composite_key)
+                else:
+                    idem_store.release(composite_key)
+            raise
+
+    def _recover_idempotent_submission(
+        self,
+        composite_key: str,
+        *,
+        idem_store: object,
+        owner_user_id: str,
+    ) -> SubmitTicketResponse | None:
+        """Replay a prior create after crash/complete failure using bound ticket id."""
+        try_recover = getattr(idem_store, "try_recover", None)
+        if callable(try_recover):
+            recovered = try_recover(composite_key)
+            if recovered is not None:
+                return recovered
+
+        get_pending = getattr(idem_store, "get_pending_ticket_id", None)
+        if not callable(get_pending):
+            return None
+        pending_ticket_id = get_pending(composite_key)
+        if not pending_ticket_id:
+            return None
+
+        ticket = self._store.get(pending_ticket_id)
+        if ticket is None:
+            return None
+        if ticket.owner_user_id and ticket.owner_user_id != owner_user_id:
+            return None
+
+        response = SubmitTicketResponse(
+            ticketId=ticket.ticket_id,
+            ticketNumber=ticket.ticket_number,
+            trackingCode=ticket.tracking_code,
+            status="SUBMITTED",
+            message="Your report was submitted successfully.",
+            createdAt=ticket.created_at,
+        )
+        complete = getattr(idem_store, "complete", None)
+        if callable(complete):
+            complete(composite_key, response)
+        return response
+
+    def _create_submitted_ticket(
+        self,
+        payload: SubmitTicketRequest,
+        *,
+        owner_user_id: str,
+        contact: ReportContact,
+        composite_key: str | None,
+        idem_store: object | None,
+        on_ticket_persisted=None,
     ) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
@@ -194,7 +328,52 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
-        self._store.save(stored_ticket)
+        response = SubmitTicketResponse(
+            ticketId=ticket_id,
+            ticketNumber=ticket_number,
+            trackingCode=tracking_code,
+            status="SUBMITTED",
+            message="Your report was submitted successfully.",
+            createdAt=created_at_iso,
+        )
+
+        # Bind ticket identity before save so a crash after save / before complete
+        # remains recoverable via pendingTicketId + ticket load.
+        if composite_key and idem_store is not None:
+            bind = getattr(idem_store, "bind_ticket", None)
+            if callable(bind):
+                bind(composite_key, ticket_id=ticket_id)
+
+        photo_claimed = photo_upload_service.claim_for_ticket(
+            payload.image_object_key,
+            owner_user_id=owner_user_id,
+            ticket_id=ticket_id,
+        )
+        try:
+            self._store.save(stored_ticket)
+        except Exception:
+            if photo_claimed:
+                photo_upload_service.rollback_ticket_claim(
+                    payload.image_object_key,
+                    owner_user_id=owner_user_id,
+                    ticket_id=ticket_id,
+                )
+            if composite_key and idem_store is not None:
+                force_release = getattr(idem_store, "force_release", None)
+                if callable(force_release):
+                    force_release(composite_key)
+            raise
+
+        if callable(on_ticket_persisted):
+            on_ticket_persisted()
+
+        # Complete immediately after durable ticket write — before side effects —
+        # so retries always replay instead of re-creating.
+        if composite_key and idem_store is not None:
+            complete = getattr(idem_store, "complete", None)
+            if callable(complete):
+                complete(composite_key, response)
+
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=None,
@@ -213,16 +392,9 @@ class TicketService:
             recipient=ticket_notification_recipient(stored_ticket),
         )
 
-        return SubmitTicketResponse(
-            ticketId=ticket_id,
-            ticketNumber=ticket_number,
-            trackingCode=tracking_code,
-            status="SUBMITTED",
-            message="Your report was submitted successfully.",
-            createdAt=created_at_iso,
-        )
+        return response
 
-    def process_ticket_ai(self, ticket_id: str) -> bool:
+    def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
         """Process one pending ticket without exposing failures to the submit request.
 
         Returns ``True`` when this call persisted a terminal AI status. Repeated or
@@ -237,7 +409,8 @@ class TicketService:
             if ticket_id in self._processing_ticket_ids:
                 return False
             claimed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-            ticket = self._store.claim_ai_processing(ticket_id, claimed_at)
+            active_claim_token = claim_token or uuid4().hex
+            ticket = self._store.claim_ai_processing(ticket_id, claimed_at, active_claim_token)
             if ticket is None:
                 return False
             self._processing_ticket_ids.add(ticket_id)
@@ -276,12 +449,14 @@ class TicketService:
                     priority=urgency.urgency_level,
                     aiProcessingStatus="failed" if processing_failed else "completed",
                 ),
+                claim_token=active_claim_token,
             )
             if processing_failed:
                 logger.warning(
                     "AI processing produced no output for ticket %s.",
                     ticket_id,
                 )
+                emit_metric("AiProcessingFailed", dimensions={"outcome": "no_output"})
             elif not (classification_ok and cleaning_ok):
                 logger.warning(
                     "AI processing partially succeeded for ticket %s "
@@ -290,12 +465,28 @@ class TicketService:
                     classification_ok,
                     cleaning_ok,
                 )
+                emit_metric(
+                    "AiProcessingSucceeded",
+                    dimensions={"outcome": "partial"},
+                )
+            else:
+                emit_metric(
+                    "AiProcessingSucceeded",
+                    dimensions={"outcome": "completed"},
+                )
             return True
+        except AiProcessingClaimLostError:
+            logger.info("AI processing claim was superseded ticket_id=%s", ticket_id)
+            return False
         except Exception as exc:
             logger.error(
                 "AI processing failed for ticket %s (%s).",
                 ticket_id,
                 type(exc).__name__,
+            )
+            emit_metric(
+                "AiProcessingFailed",
+                dimensions={"outcome": "exception", "error": type(exc).__name__},
             )
             try:
                 urgency = self._score_ticket_urgency(ticket=ticket)
@@ -307,12 +498,17 @@ class TicketService:
                         priority=urgency.urgency_level,
                         aiProcessingStatus="failed",
                     ),
+                    claim_token=active_claim_token,
                 )
             except Exception as persistence_exc:
                 logger.error(
                     "Could not persist failed AI status for ticket %s (%s).",
                     ticket_id,
                     type(persistence_exc).__name__,
+                )
+                emit_metric(
+                    "DynamoDbErrors",
+                    dimensions={"operation": "persist_ai_failure"},
                 )
             return True
         finally:
@@ -362,6 +558,21 @@ class TicketService:
                 recovered,
                 len(recoverable_ids),
                 skipped_active_claims,
+            )
+        # Publish queue depth for CloudWatch (DynamoDB-safe: uses the recovery scan
+        # already performed above, not a separate health-time table scan).
+        emit_metric(
+            "AiQueuePending",
+            value=float(len(recoverable_ids)),
+            unit="Count",
+            dimensions={"source": "startup_recovery"},
+        )
+        if len(recoverable_ids) > 0:
+            emit_metric(
+                "AiQueueBacklog",
+                value=float(len(recoverable_ids)),
+                unit="Count",
+                dimensions={"source": "startup_recovery"},
             )
         return recovered
 
@@ -518,6 +729,8 @@ class TicketService:
         self,
         ticket_id: str,
         payload: SaveTicketAiOutputRequest,
+        *,
+        claim_token: str | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
@@ -551,7 +764,12 @@ class TicketService:
         )
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
-        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        if claim_token is not None:
+            updated_ticket = self._store.patch_ai_fields(ticket_id, claim_token, update_fields)
+            if updated_ticket is None:
+                raise AiProcessingClaimLostError(ticket_id)
+        else:
+            updated_ticket = self._store.patch_fields(ticket_id, update_fields)
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
         return self._map_ticket(updated_ticket)
@@ -612,6 +830,78 @@ class TicketService:
             previous_value=previous_category,
             new_value=payload.final_category,
             created_at=reviewed_at,
+        )
+        return self._map_ticket(updated_ticket)
+
+    def update_ticket_public_content(
+        self,
+        ticket_id: str,
+        payload: UpdateTicketPublicContentRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> TicketResponse:
+        """Persist staff-approved public projection fields, including public photo approval."""
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
+            raise TicketNotFoundError(ticket_id)
+
+        description = payload.public_description.strip()
+        location_label = payload.public_location_label.strip()
+        if payload.public_status == "PUBLISHED":
+            if not ticket.final_category:
+                raise PublicContentUpdateError(
+                    "A staff-reviewed final category is required before publishing."
+                )
+            if not description or not location_label:
+                raise PublicContentUpdateError(
+                    "Published tickets require a public description and coarse location label."
+                )
+
+        actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        update_fields: dict[str, object] = {
+            "public_status": payload.public_status,
+            "public_description": description or None,
+            "public_location_label": location_label or None,
+            "updated_at": updated_at,
+            "updated_by": actor_id,
+        }
+
+        # Only approve this ticket's bound upload, or clear. Never accept a caller-supplied key.
+        if payload.clear_public_photo:
+            update_fields["public_image_object_key"] = None
+        elif payload.approve_original_photo:
+            if not ticket.image_object_key:
+                raise PublicContentUpdateError("This ticket has no original upload to approve.")
+            update_fields["public_image_object_key"] = ticket.image_object_key
+
+        if payload.public_status == "PUBLISHED":
+            update_fields["public_published_at"] = ticket.public_published_at or updated_at
+        elif payload.public_status in {"DRAFT", "UNPUBLISHED"} and ticket.public_published_at:
+            # Keep historical publishedAt for audit; unpublish removes feed visibility via status.
+            pass
+
+        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
+
+        photo_note = "photo unchanged"
+        if payload.clear_public_photo:
+            photo_note = "public photo cleared"
+        elif payload.approve_original_photo:
+            photo_note = "original photo approved"
+
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="PUBLIC_CONTENT_UPDATE",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=f"Public content set to {payload.public_status} ({photo_note}).",
+            previous_value=ticket.public_status,
+            new_value=payload.public_status,
+            created_at=updated_at,
         )
         return self._map_ticket(updated_ticket)
 

@@ -3,13 +3,21 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TicketListPage } from '@/pages/TicketListPage';
-import { fetchTickets } from '@/services/tickets';
+import { assignTicketDepartment, fetchTickets, updateTicketStatus } from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
 import type { Ticket } from '@/types/ticket';
 
-vi.mock('@/services/tickets', () => ({
-  fetchTickets: vi.fn(),
-}));
+vi.mock('@/services/tickets', async () => {
+  const actual = await vi.importActual<typeof import('@/services/tickets')>('@/services/tickets');
+  return {
+    ...actual,
+    fetchTickets: vi.fn(),
+    updateTicketStatus: vi.fn(),
+    assignTicketDepartment: vi.fn(),
+    acceptAiCategory: vi.fn(),
+    updateTicketCategory: vi.fn(),
+  };
+});
 
 type FetchTicketsTestFilters = Parameters<typeof fetchTickets>[0];
 
@@ -102,7 +110,7 @@ describe('TicketListPage', () => {
     expect(screen.getByText('Loading tickets…')).toBeInTheDocument();
   });
 
-  it('renders dashboard stats and ticket rows after a successful load', async () => {
+  it('renders attention summary and ticket rows after a successful load', async () => {
     renderWithProviders(<TicketListPage />);
 
     expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
@@ -110,11 +118,12 @@ describe('TicketListPage', () => {
     expect(screen.getByText('Hamra, Beirut')).toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
     expect(screen.getByText('Downtown Beirut')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Work queue' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Citizen reports' })).toBeInTheDocument();
     const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
-    expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('2');
-    expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('1');
-    expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('1');
-    expect(stats.getByText('Completed Tickets').previousElementSibling).toHaveTextContent('1');
+    expect(stats.getByText('Critical')).toBeInTheDocument();
+    expect(stats.getByText('Unassigned')).toBeInTheDocument();
+    expect(stats.getByText('Aging (3d+)')).toBeInTheDocument();
   });
 
   it('filters the rendered ticket list by search text', async () => {
@@ -238,10 +247,25 @@ describe('TicketListPage', () => {
         category: 'waste',
         urgency: 'medium',
         departmentId: 'd2222222-2222-2222-2222-222222222222',
+        slaState: 'ALL',
       }),
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+  });
+
+  it('requests the overdue SLA queue filter', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.selectOptions(screen.getByLabelText('SLA'), 'overdue');
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ slaState: 'overdue' }),
+      ),
+    );
   });
 
   it('shows a filtered empty state when filters match no tickets', async () => {
@@ -285,10 +309,45 @@ describe('TicketListPage', () => {
       screen.getByText('Submitted citizen reports will appear here once they are available.'),
     ).toBeInTheDocument();
     const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
-    expect(stats.getByText('Total Tickets').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('Open Tickets').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('Completed Tickets').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('High Urgency').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Critical').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Unassigned').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Aging (3d+)').previousElementSibling).toHaveTextContent('0');
+  });
+
+  it('filters the queue to critical urgency from the attention strip', async () => {
+    const user = userEvent.setup();
+    const criticalTicket: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_critical',
+      ticketNumber: 'BG-2026-0009',
+      trackingCode: 'CRIT01',
+      priority: 'critical',
+      status: 'SUBMITTED',
+    };
+    const closedCritical: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_closed_critical',
+      ticketNumber: 'BG-2026-0011',
+      trackingCode: 'CLCRIT',
+      priority: 'critical',
+      status: 'CLOSED',
+    };
+    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
+      applyFetchFilters([...tickets, criticalTicket, closedCritical], filters),
+    );
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: /Critical/i }));
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ urgency: 'critical' }),
+      ),
+    );
+    expect(await screen.findByText('BG-2026-0009')).toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0011')).not.toBeInTheDocument();
   });
 
   it('shows a failure state when tickets cannot be loaded', async () => {
@@ -299,5 +358,86 @@ describe('TicketListPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load tickets');
     expect(screen.getByText('Unable to reach backend.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument());
+  });
+
+  it('removes a ticket from the active status filter after a preview status change', async () => {
+    const user = userEvent.setup();
+    const submitted: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_submitted',
+      ticketNumber: 'BG-2026-0010',
+      trackingCode: 'SUBM01',
+      status: 'SUBMITTED',
+      departmentId: null,
+      departmentName: undefined,
+    };
+    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
+      applyFetchFilters([submitted, ...tickets], filters),
+    );
+    vi.mocked(updateTicketStatus).mockResolvedValue({
+      ...submitted,
+      status: 'UNDER_REVIEW',
+    });
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0010');
+    await user.click(screen.getByRole('button', { name: 'Submitted' }));
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'SUBMITTED' }),
+      ),
+    );
+    expect(screen.getByText('BG-2026-0010')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0010' }));
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(within(preview).getByRole('heading', { name: 'BG-2026-0010' })).toBeInTheDocument();
+    const statusSelect = within(preview).getByRole('combobox', { name: /^Status$/i });
+    await user.selectOptions(statusSelect, 'UNDER_REVIEW');
+    await user.click(within(preview).getByRole('button', { name: 'Apply status change' }));
+
+    await waitFor(() => expect(updateTicketStatus).toHaveBeenCalled());
+    expect(
+      screen.queryByRole('button', { name: 'Select ticket BG-2026-0010' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('removes a ticket from the Unassigned view after assigning a department in preview', async () => {
+    const user = userEvent.setup();
+    const unassigned: Ticket = {
+      ...tickets[0],
+      ticketId: 'tkt_unassigned',
+      ticketNumber: 'BG-2026-0011',
+      trackingCode: 'UNAS01',
+      status: 'SUBMITTED',
+      departmentId: null,
+      departmentName: undefined,
+    };
+    vi.mocked(fetchTickets).mockResolvedValue([unassigned, ...tickets]);
+    vi.mocked(assignTicketDepartment).mockResolvedValue({
+      ...unassigned,
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      departmentName: 'Road Maintenance',
+    });
+
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0011');
+    await user.click(screen.getByRole('button', { name: /Unassigned/i }));
+    expect(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' }));
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(within(preview).getByRole('heading', { name: 'BG-2026-0011' })).toBeInTheDocument();
+    const departmentSelect = within(preview).getByRole('combobox', { name: /Department/i });
+    await user.selectOptions(departmentSelect, 'd1111111-1111-1111-1111-111111111111');
+    await user.click(within(preview).getByRole('button', { name: 'Save department' }));
+
+    await waitFor(() => expect(assignTicketDepartment).toHaveBeenCalled());
+    // Unassigned queue view is client-side; assigned ticket must leave that list.
+    expect(
+      screen.queryByRole('button', { name: 'Select ticket BG-2026-0011' }),
+    ).not.toBeInTheDocument();
   });
 });

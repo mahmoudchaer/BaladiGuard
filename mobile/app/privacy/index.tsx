@@ -3,9 +3,12 @@ import { Text } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { colors, spacing } from '@/theme';
+
 /**
  * Citizen-facing privacy notice (issue #190).
  * Ships independently of the OTP auth stack; full policy in docs/privacy-lifecycle.md.
+ * No BrandMark here — this screen has no brand header context.
  */
 export default function PrivacyNoticeScreen() {
   return (
@@ -59,35 +62,35 @@ export default function PrivacyNoticeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   content: {
-    padding: 24,
-    gap: 12,
-    paddingBottom: 40,
+    padding: spacing[5],
+    gap: spacing[3],
+    paddingBottom: spacing[8],
   },
   title: {
     fontWeight: '700',
-    color: '#0B5FFF',
-    marginBottom: 4,
+    color: colors.brandDark,
+    marginBottom: spacing[1],
   },
   section: {
-    marginTop: 8,
+    marginTop: spacing[2],
     fontWeight: '600',
-    color: '#0F172A',
+    color: colors.text,
   },
   paragraph: {
-    color: '#475569',
+    color: colors.textSecondary,
     lineHeight: 22,
   },
   footnoteBox: {
-    marginTop: 16,
-    paddingTop: 12,
+    marginTop: spacing[4],
+    paddingTop: spacing[3],
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#CBD5E1',
+    borderTopColor: colors.border,
   },
   footnote: {
-    color: '#64748B',
+    color: colors.textMuted,
     lineHeight: 18,
   },
 });

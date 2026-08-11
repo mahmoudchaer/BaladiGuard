@@ -112,6 +112,9 @@ def test_public_ticket_feed_is_guest_readable_and_privacy_safe(anonymous_client)
         "longitude": 35.478,
     }
     assert item["attribution"] == {"displayName": "Community member", "isNamed": False}
+    assert "photoUrl" in item
+    # Unapproved uploads stay private even when imageObjectKey exists on the ticket.
+    assert item["photoUrl"] is None
     assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(item)
     assert "Private Reporter" not in str(item)
     assert "+96170111111" not in str(item)
@@ -307,3 +310,36 @@ def test_public_attribution_reflects_profile_visibility_and_inactive_accounts(an
     inactive = anonymous_client.get(f"/v1/tickets/public/{created['ticketNumber']}")
     assert inactive.status_code == 200
     assert inactive.json()["attribution"] == {"displayName": "Community member", "isNamed": False}
+
+
+def test_public_ticket_photo_requires_staff_approved_public_image_key(
+    anonymous_client, monkeypatch
+):
+    created = _submit_public_report(anonymous_client, phone="+96170777777")
+    _publish_report(created)
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    raw_upload_key = stored.image_object_key
+
+    # Raw upload key alone must never become a public photo.
+    without_approval = anonymous_client.get(f"/v1/tickets/public/{created['ticketNumber']}")
+    assert without_approval.status_code == 200
+    assert without_approval.json()["photoUrl"] is None
+    assert raw_upload_key not in without_approval.text
+
+    monkeypatch.setattr(
+        "app.services.complaints.ticket_read_mapper.build_image_url",
+        lambda key: f"https://example.test/signed/{key}",
+    )
+    patched = ticket_store.patch_fields(
+        created["ticketId"],
+        {"public_image_object_key": "reports/public/approved.jpg"},
+    )
+    assert patched is not None
+
+    with_approval = anonymous_client.get(f"/v1/tickets/public/{created['ticketNumber']}")
+    assert with_approval.status_code == 200
+    body = with_approval.json()
+    assert body["photoUrl"] == "https://example.test/signed/reports/public/approved.jpg"
+    assert "imageObjectKey" not in body
+    assert raw_upload_key not in with_approval.text

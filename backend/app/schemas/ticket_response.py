@@ -1,8 +1,9 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.stored_ticket import PublicTicketStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
@@ -65,6 +66,7 @@ class TicketAuditHistoryEntry(BaseModel):
         "CATEGORY_REVIEW",
         "DEPARTMENT_ASSIGN",
         "DUPLICATE_MERGE",
+        "PUBLIC_CONTENT_UPDATE",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
     actor_role: Literal["municipal_staff", "administrator"] | None = Field(
@@ -141,6 +143,9 @@ class PublicTicketResponse(BaseModel):
     map_location: PublicTicketMapLocation = Field(alias="mapLocation")
     department: CitizenTicketDepartment | None = None
     attribution: PublicTicketAttribution
+    # Optional time-limited URL for a staff-approved public photo only.
+    # Absent/null when publicImageObjectKey is unset; never derived from raw uploads.
+    photo_url: str | None = Field(default=None, alias="photoUrl")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
 
@@ -183,6 +188,53 @@ class UpdateTicketStatusRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class UpdateTicketPublicContentRequest(BaseModel):
+    """Staff-approved public projection fields, including optional public photo approval.
+
+    Public photos may only be approved from this ticket's own ``imageObjectKey`` or cleared.
+    Arbitrary/unbound object keys are rejected (``extra='forbid'``).
+    """
+
+    public_status: PublicTicketStatus = Field(alias="publicStatus")
+    public_description: str = Field(default="", alias="publicDescription", max_length=2000)
+    public_location_label: str = Field(default="", alias="publicLocationLabel", max_length=200)
+    approve_original_photo: bool = Field(default=False, alias="approveOriginalPhoto")
+    clear_public_photo: bool = Field(default=False, alias="clearPublicPhoto")
+    updated_by: str | None = Field(default=None, alias="updatedBy", max_length=120)
+
+    model_config = {"populate_by_name": True, "extra": "forbid"}
+
+    @model_validator(mode="after")
+    def validate_photo_modes(self) -> "UpdateTicketPublicContentRequest":
+        if self.approve_original_photo and self.clear_public_photo:
+            raise ValueError("Cannot both approve and clear the public photo in one request.")
+        return self
+
+
+class TicketPublicFields(BaseModel):
+    """Staff-visible public projection state (never exposed on citizen tracking)."""
+
+    status: PublicTicketStatus
+    description: str | None = None
+    location_label: str | None = Field(default=None, alias="locationLabel")
+    image_object_key: str | None = Field(default=None, alias="imageObjectKey")
+    published_at: str | None = Field(default=None, alias="publishedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class TicketSlaFields(BaseModel):
+    state: Literal["on_track", "due_soon", "overdue", "completed", "unavailable"]
+    acknowledgement_due_at: str | None = Field(default=None, alias="acknowledgementDueAt")
+    resolution_due_at: str | None = Field(default=None, alias="resolutionDueAt")
+    target_at: str | None = Field(default=None, alias="targetAt")
+    remaining_seconds: int | None = Field(default=None, alias="remainingSeconds")
+    overdue_seconds: int | None = Field(default=None, alias="overdueSeconds")
+    policy_key: str | None = Field(default=None, alias="policyKey")
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketResponse(BaseModel):
     """Shared ticket read shape returned by staff dashboard and ticket read APIs."""
 
@@ -207,6 +259,8 @@ class TicketResponse(BaseModel):
     updated_at: str | None = Field(alias="updatedAt")
     updated_by: str | None = Field(default=None, alias="updatedBy")
     ai: TicketAiFields | None = None
+    sla: TicketSlaFields | None = None
+    public: TicketPublicFields | None = None
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,
         alias="statusHistory",

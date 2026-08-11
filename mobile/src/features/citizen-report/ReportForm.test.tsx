@@ -8,10 +8,13 @@ import { submitReport } from '@/services/api/tickets';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { validateLocation } from '@/services/api/locations';
 
-const { getCurrentDeviceLocationMock, validateLocationMock } = vi.hoisted(() => ({
-  getCurrentDeviceLocationMock: vi.fn(),
-  validateLocationMock: vi.fn(),
-}));
+const { getCurrentDeviceLocationMock, validateLocationMock, setStringAsyncMock } = vi.hoisted(
+  () => ({
+    getCurrentDeviceLocationMock: vi.fn(),
+    validateLocationMock: vi.fn(),
+    setStringAsyncMock: vi.fn(async () => true),
+  }),
+);
 
 const submitResponse = {
   ticketId: 'tkt_1234567890abcdef',
@@ -30,9 +33,14 @@ vi.mock('@/services/config', () => ({
   },
 }));
 
-vi.mock('@/services/api/tickets', () => ({
-  submitReport: vi.fn(),
-}));
+vi.mock('@/services/api/tickets', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/services/api/tickets')>('@/services/api/tickets');
+  return {
+    ...actual,
+    submitReport: vi.fn(),
+  };
+});
 
 vi.mock('@/services/deviceLocation', () => ({
   getCurrentDeviceLocation: getCurrentDeviceLocationMock,
@@ -52,6 +60,7 @@ vi.mock('@/services/api/locations', () => ({
 vi.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
   requestMediaLibraryPermissionsAsync: vi.fn(async () => ({ granted: true })),
+  requestCameraPermissionsAsync: vi.fn(async () => ({ granted: true })),
   launchImageLibraryAsync: vi.fn(async () => ({
     canceled: false,
     assets: [
@@ -62,6 +71,20 @@ vi.mock('expo-image-picker', () => ({
       },
     ],
   })),
+  launchCameraAsync: vi.fn(async () => ({
+    canceled: false,
+    assets: [
+      {
+        uri: 'file:///camera-photo.jpg',
+        fileName: 'camera-photo.jpg',
+        mimeType: 'image/jpeg',
+      },
+    ],
+  })),
+}));
+
+vi.mock('expo-clipboard', () => ({
+  setStringAsync: setStringAsyncMock,
 }));
 
 vi.mock('react-native-maps', () => ({
@@ -102,6 +125,12 @@ async function flushUpdates() {
   });
 }
 
+async function pressButton(screen: ReturnType<typeof renderWithProviders>, text: string) {
+  await act(async () => {
+    findButtonByText(screen, text).props.onPress();
+  });
+}
+
 async function changeText(
   screen: ReturnType<typeof renderWithProviders>,
   label: string,
@@ -111,6 +140,41 @@ async function changeText(
   await act(async () => {
     input.props.onChangeText(value);
   });
+}
+
+/** Fills the description and advances from the details step to the photo step. */
+async function completeDetailsStep(screen: ReturnType<typeof renderWithProviders>) {
+  await changeText(
+    screen,
+    'Describe the issue',
+    'Large pothole near the university gate causing traffic disruption.',
+  );
+  await pressButton(screen, 'Continue');
+}
+
+/** Chooses a photo and advances from the photo step to the location step. */
+async function completePhotoStep(screen: ReturnType<typeof renderWithProviders>) {
+  await pressButton(screen, 'Choose photo');
+  await pressButton(screen, 'Continue');
+}
+
+/** Picks the AUB Main Gate placeholder and advances from the location step to review. */
+async function completeLocationStep(screen: ReturnType<typeof renderWithProviders>) {
+  await flushUpdates();
+  const locationChip = screen.root
+    .findAll((node) => String(node.type) === 'Chip')
+    .find((node) => node.props.children === 'AUB Main Gate');
+  expect(locationChip).toBeTruthy();
+  await act(async () => {
+    locationChip?.props.onPress();
+  });
+  await pressButton(screen, 'Continue');
+}
+
+async function completeAllStepsToReview(screen: ReturnType<typeof renderWithProviders>) {
+  await completeDetailsStep(screen);
+  await completePhotoStep(screen);
+  await completeLocationStep(screen);
 }
 
 describe('ReportForm', () => {
@@ -134,43 +198,91 @@ describe('ReportForm', () => {
     });
   });
 
-  it('shows validation messages when required report fields are missing', async () => {
+  it('shows a validation message and blocks advancing when description is missing', async () => {
     const screen = renderWithProviders(<ReportForm />);
 
-    await act(async () => {
-      findButtonByText(screen, 'Submit report').props.onPress();
-    });
+    await pressButton(screen, 'Continue');
 
     expect(hasText(screen, 'Please describe the issue in at least 10 characters.')).toBe(true);
+    // Still on the details step: the photo step's Continue action never becomes reachable.
+    expect(hasText(screen, "What's the problem?")).toBe(true);
+    expect(submitReport).not.toHaveBeenCalled();
+  });
+
+  it('requires a photo before advancing from the photo step', async () => {
+    const screen = renderWithProviders(<ReportForm />);
+
+    await completeDetailsStep(screen);
+    expect(hasText(screen, 'Add a photo')).toBe(true);
+
+    await pressButton(screen, 'Continue');
+
     expect(hasText(screen, 'Please attach a photo of the issue.')).toBe(true);
+    expect(submitReport).not.toHaveBeenCalled();
+  });
+
+  it('requires a location before advancing from the location step', async () => {
+    const screen = renderWithProviders(<ReportForm />);
+
+    await completeDetailsStep(screen);
+    await completePhotoStep(screen);
+    expect(hasText(screen, 'Where is it?')).toBe(true);
+    await flushUpdates();
+
+    await pressButton(screen, 'Continue');
+
     expect(hasText(screen, 'Enter a location or choose a sample place.')).toBe(true);
     expect(submitReport).not.toHaveBeenCalled();
   });
 
-  it('submits a complete report and shows ticket number, id, and tracking code', async () => {
+  it('shows a review summary of every step before submitting', async () => {
     const screen = renderWithProviders(<ReportForm />);
 
-    await changeText(
-      screen,
-      'What is the problem?',
+    await completeAllStepsToReview(screen);
+
+    expect(hasText(screen, 'Review your report')).toBe(true);
+    expect(
+      hasTextContaining(
+        screen,
+        'Large pothole near the university gate causing traffic disruption.',
+      ),
+    ).toBe(true);
+    expect(hasTextContaining(screen, 'Near AUB Main Gate, Hamra, Beirut')).toBe(true);
+    expect(submitReport).not.toHaveBeenCalled();
+  });
+
+  it('lets the citizen jump back from review to edit a step, preserving prior data', async () => {
+    const screen = renderWithProviders(<ReportForm />);
+
+    await completeAllStepsToReview(screen);
+
+    const editButtons = screen.root
+      .findAll((node) => String(node.type) === 'Button')
+      .filter((node) => node.props.children === 'Edit');
+    expect(editButtons.length).toBe(3);
+
+    await act(async () => {
+      editButtons[0].props.onPress();
+    });
+
+    expect(hasText(screen, "What's the problem?")).toBe(true);
+    const descriptionInput = screen.root.findByProps({ label: 'Describe the issue' });
+    expect(descriptionInput.props.value).toBe(
       'Large pothole near the university gate causing traffic disruption.',
     );
 
-    await act(async () => {
-      findButtonByText(screen, 'Choose photo').props.onPress();
-    });
+    // Editing from Review returns there instead of forcing the remaining wizard steps.
+    expect(hasText(screen, 'Back to review')).toBe(true);
+    await pressButton(screen, 'Back to review');
+    expect(hasText(screen, 'Review your report')).toBe(true);
+    expect(hasText(screen, 'Submit report')).toBe(true);
+  });
 
-    const locationChip = screen.root
-      .findAll((node) => String(node.type) === 'Chip')
-      .find((node) => node.props.children === 'AUB Main Gate');
-    expect(locationChip).toBeTruthy();
-    await act(async () => {
-      locationChip?.props.onPress();
-    });
+  it('submits a complete report and shows the ticket number and tracking code, but never the internal ticket id', async () => {
+    const screen = renderWithProviders(<ReportForm />);
 
-    await act(async () => {
-      findButtonByText(screen, 'Submit report').props.onPress();
-    });
+    await completeAllStepsToReview(screen);
+    await pressButton(screen, 'Submit report');
 
     expect(submitReport).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -187,8 +299,16 @@ describe('ReportForm', () => {
     );
     expect(hasText(screen, 'Report submitted')).toBe(true);
     expect(hasText(screen, 'BG-2026-0042')).toBe(true);
-    expect(hasText(screen, 'tkt_1234567890abcdef')).toBe(true);
     expect(hasText(screen, 'ZX98YU')).toBe(true);
+    // Citizen-facing confirmation only — the internal ticket id must never be shown.
+    expect(hasText(screen, 'tkt_1234567890abcdef')).toBe(false);
+    expect(hasTextContaining(screen, 'tkt_1234567890abcdef')).toBe(false);
+
+    expect(hasText(screen, 'Track this report')).toBe(true);
+    expect(hasText(screen, 'Back to home')).toBe(true);
+
+    await pressButton(screen, 'Copy');
+    expect(setStringAsyncMock).toHaveBeenCalledWith('ZX98YU');
   });
 
   it('shows the GPS success state when current location is detected', async () => {
@@ -202,6 +322,8 @@ describe('ReportForm', () => {
     });
     const screen = renderWithProviders(<ReportForm />);
 
+    await completeDetailsStep(screen);
+    await completePhotoStep(screen);
     await flushUpdates();
     await flushUpdates();
 
@@ -215,18 +337,21 @@ describe('ReportForm', () => {
         'Using your current location. You can move the pin or look up another address.',
       ),
     ).toBe(true);
-    expect(hasTextContaining(screen, 'Coordinates ready (33.89611, 35.47842) · source GPS')).toBe(
-      true,
-    );
+    expect(hasTextContaining(screen, 'Coordinates ready (33.89611, 35.47842)')).toBe(true);
+    // The technical location source is never surfaced to citizens.
+    expect(hasTextContaining(screen, 'source GPS')).toBe(false);
   });
 
-  it('shows the GPS unavailable fallback message when current location cannot be detected', async () => {
+  it('shows the GPS unavailable fallback message and reveals manual entry', async () => {
     const screen = renderWithProviders(<ReportForm />);
 
+    await completeDetailsStep(screen);
+    await completePhotoStep(screen);
     await flushUpdates();
 
     expect(getCurrentDeviceLocation).toHaveBeenCalled();
     expect(hasText(screen, 'Unable to read your current location right now.')).toBe(true);
+    expect(screen.root.findByProps({ label: 'Address or landmark' })).toBeTruthy();
   });
 
   it('shows submit progress while upload and report creation are in flight', async () => {
@@ -240,24 +365,8 @@ describe('ReportForm', () => {
     });
     const screen = renderWithProviders(<ReportForm />);
 
-    await changeText(
-      screen,
-      'What is the problem?',
-      'Large pothole near the university gate causing traffic disruption.',
-    );
-    await act(async () => {
-      findButtonByText(screen, 'Choose photo').props.onPress();
-    });
-    const locationChip = screen.root
-      .findAll((node) => String(node.type) === 'Chip')
-      .find((node) => node.props.children === 'AUB Main Gate');
-    await act(async () => {
-      locationChip?.props.onPress();
-    });
-
-    await act(async () => {
-      findButtonByText(screen, 'Submit report').props.onPress();
-    });
+    await completeAllStepsToReview(screen);
+    await pressButton(screen, 'Submit report');
 
     expect(hasText(screen, 'Uploading photo...')).toBe(true);
 
@@ -274,30 +383,15 @@ describe('ReportForm', () => {
     expect(hasText(screen, 'Report submitted')).toBe(true);
   });
 
-  it('shows a failure state when report submission fails', async () => {
+  it('shows a failure state on the review step when report submission fails', async () => {
     vi.mocked(submitReport).mockRejectedValue(new Error('Backend unavailable.'));
     const screen = renderWithProviders(<ReportForm />);
 
-    await changeText(
-      screen,
-      'What is the problem?',
-      'Large pothole near the university gate causing traffic disruption.',
-    );
-    await act(async () => {
-      findButtonByText(screen, 'Choose photo').props.onPress();
-    });
-    const locationChip = screen.root
-      .findAll((node) => String(node.type) === 'Chip')
-      .find((node) => node.props.children === 'AUB Main Gate');
-    await act(async () => {
-      locationChip?.props.onPress();
-    });
-
-    await act(async () => {
-      findButtonByText(screen, 'Submit report').props.onPress();
-    });
+    await completeAllStepsToReview(screen);
+    await pressButton(screen, 'Submit report');
 
     expect(hasText(screen, 'Backend unavailable.')).toBe(true);
     expect(hasText(screen, 'Report submitted')).toBe(false);
+    expect(hasText(screen, 'Review your report')).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.api.deps import ContributionReadyCitizenDep
 from app.core.errors import build_error_response, get_request_id
 from app.services.uploads.photo_upload_service import (
     InvalidUploadError,
@@ -20,10 +21,13 @@ class ReportPhotoUploadResponse(BaseModel):
 @router.post("/report-photo", response_model=ReportPhotoUploadResponse)
 async def upload_report_photo(
     request: Request,
+    principal: ContributionReadyCitizenDep,
     file: UploadFile | None = REPORT_PHOTO_FILE,
 ) -> ReportPhotoUploadResponse | JSONResponse:
+    # Contribution-ready citizen only (Sprint 6 / #53): same gate as ticket submit.
     # Rate limit + Content-Length guards run in HTTP middleware (upload_abuse)
     # before multipart parsing; do not re-check here (would double-count).
+    _ = principal
     if file is None:
         return build_error_response(
             code="MISSING_FILE",
@@ -33,7 +37,9 @@ async def upload_report_photo(
         )
 
     try:
-        image_object_key = await photo_upload_service.upload_report_photo(file)
+        image_object_key = await photo_upload_service.upload_report_photo(
+            file, owner_user_id=principal.user_id
+        )
     except InvalidUploadError as exc:
         return build_error_response(
             code=exc.code,

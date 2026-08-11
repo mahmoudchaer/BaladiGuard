@@ -1,5 +1,5 @@
 import logging
-import threading
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.config  # noqa: F401 - load .env before other app modules
+from app.api.admin_staff_accounts import router as admin_staff_accounts_router
 from app.api.citizen import router as citizen_router
 from app.api.health import router as health_router
 from app.api.locations import router as locations_router
@@ -24,15 +25,25 @@ from app.core.errors import (
     validation_exception_handler as base_validation_exception_handler,
 )
 from app.core.logging import configure_logging
+from app.core.metrics import emit_metric, normalize_path_group, timed_metric
+from app.core.request_context import reset_request_id, set_request_id
 from app.core.upload_abuse import reject_upload_abuse_early
-from app.services.complaints.ticket_service import ticket_service
 
 logger = logging.getLogger(__name__)
 
 LOCAL_CORS_ORIGINS = [
     "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
     "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://localhost:8082",
+    "http://127.0.0.1:8082",
     "http://localhost:19006",
+    "http://127.0.0.1:19006",
 ]
 
 
@@ -68,14 +79,18 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     if not settings.use_dynamodb:
         ensure_demo_staff_accounts(settings=settings)
-    # A worker crash between the 201 response and the terminal AI status leaves
-    # tickets stuck in "pending"; sweep them off the request path at startup.
-    threading.Thread(
-        target=ticket_service.recover_pending_ai_tickets,
-        name="ai-pending-recovery",
-        daemon=True,
-    ).start()
+    # AI work is processed by ``python -m app.workers.ai_worker``. Keeping the
+    # worker outside the web process prevents API restarts from losing accepted work.
+    # Continuous ReadyProbeSuccess publisher for CloudWatch alarms (issue #185).
+    # Liveness stays on /health/live; this loop is independent of Docker HEALTHCHECK.
+    from app.core.readiness_probe import (
+        start_readiness_probe_publisher,
+        stop_readiness_probe_publisher,
+    )
+
+    start_readiness_probe_publisher()
     yield
+    stop_readiness_probe_publisher()
     logger.info("BaladiGuard API shutting down.")
 
 
@@ -132,6 +147,34 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return _with_request_id_header(response, request_id)
 
 
+async def invalid_upload_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    code = getattr(exc, "code", "INVALID_UPLOAD")
+    message = getattr(exc, "message", "The selected photo is not valid.")
+    response = build_error_response(
+        code=code,
+        message=message,
+        request_id=get_request_id(request),
+        status_code=400,
+    )
+    return _with_request_id_header(response, get_request_id(request))
+
+
+async def s3_upload_exception_handler(
+    request: Request,
+    _: Exception,
+) -> JSONResponse:
+    response = build_error_response(
+        code="PHOTO_STORAGE_UNAVAILABLE",
+        message="The selected photo could not be verified. Please try again.",
+        request_id=get_request_id(request),
+        status_code=503,
+    )
+    return _with_request_id_header(response, get_request_id(request))
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     request_id = get_request_id(request)
     logger.exception(
@@ -170,51 +213,99 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def attach_request_id(request: Request, call_next):
         request.state.request_id = create_request_id()
-        # Upload abuse checks must run before call_next so FastAPI never spools
-        # multipart bodies for over-limit / over-quota report-photo requests.
-        early_upload_rejection = reject_upload_abuse_early(request)
-        if early_upload_rejection is not None:
-            return _with_request_id_header(early_upload_rejection, request.state.request_id)
+        context_token = set_request_id(request.state.request_id)
+        started_at = time.perf_counter()
+        path_group = normalize_path_group(request.url.path)
         try:
-            response = await call_next(request)
-        except Exception:
-            # BaseHTTPMiddleware can re-raise past exception handlers; still return
-            # a correlated 500 so clients get X-Request-Id on both body and header.
-            logger.exception(
-                "Unhandled request error method=%s path=%s request_id=%s",
-                request.method,
-                request.url.path,
-                request.state.request_id,
+            # Upload abuse checks must run before call_next so FastAPI never spools
+            # multipart bodies for over-limit / over-quota report-photo requests.
+            early_upload_rejection = reject_upload_abuse_early(request)
+            if early_upload_rejection is not None:
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=early_upload_rejection.status_code,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(early_upload_rejection, request.state.request_id)
+            try:
+                response = await call_next(request)
+            except Exception:
+                # BaseHTTPMiddleware can re-raise past exception handlers; still return
+                # a correlated 500 so clients get X-Request-Id on both body and header.
+                logger.exception(
+                    "Unhandled request error method=%s path=%s request_id=%s",
+                    request.method,
+                    request.url.path,
+                    request.state.request_id,
+                )
+                response = build_error_response(
+                    code="INTERNAL_ERROR",
+                    message="An unexpected server error occurred.",
+                    request_id=request.state.request_id,
+                    status_code=500,
+                )
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=500,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(response, request.state.request_id)
+            response.headers["X-Request-Id"] = request.state.request_id
+            if response.status_code >= 500:
+                logger.error(
+                    "Request failed method=%s path=%s status=%s request_id=%s",
+                    request.method,
+                    request.url.path,
+                    response.status_code,
+                    request.state.request_id,
+                )
+            _record_http_metrics(
+                method=request.method,
+                path_group=path_group,
+                status_code=response.status_code,
+                started_at=started_at,
             )
-            response = build_error_response(
-                code="INTERNAL_ERROR",
-                message="An unexpected server error occurred.",
-                request_id=request.state.request_id,
-                status_code=500,
-            )
-            return _with_request_id_header(response, request.state.request_id)
-        response.headers["X-Request-Id"] = request.state.request_id
-        if response.status_code >= 500:
-            logger.error(
-                "Request failed method=%s path=%s status=%s request_id=%s",
-                request.method,
-                request.url.path,
-                response.status_code,
-                request.state.request_id,
-            )
-        return response
+            return response
+        finally:
+            reset_request_id(context_token)
+
+    from app.services.uploads.photo_upload_service import InvalidUploadError, S3UploadError
 
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(InvalidUploadError, invalid_upload_exception_handler)
+    app.add_exception_handler(S3UploadError, s3_upload_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health_router)
     app.include_router(staff_auth_router)
+    app.include_router(admin_staff_accounts_router)
     app.include_router(citizen_router)
     app.include_router(tickets_router)
     app.include_router(locations_router)
     app.include_router(uploads_router)
 
     return app
+
+
+def _record_http_metrics(
+    *,
+    method: str,
+    path_group: str,
+    status_code: int,
+    started_at: float,
+) -> None:
+    dims = {
+        "method": method.upper(),
+        "path": path_group,
+        "status": str(status_code),
+        "status_class": f"{status_code // 100}xx",
+    }
+    emit_metric("HttpRequests", dimensions=dims)
+    timed_metric("HttpRequestDuration", dimensions=dims, started_at=started_at)
+    if status_code >= 500:
+        emit_metric("Http5xx", dimensions=dims)
 
 
 app = create_app()

@@ -1,10 +1,10 @@
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.75rem;
+  gap: var(--space-2);
+  padding: 0.2rem 0.55rem;
   border-radius: var(--radius-sm);
-  font-size: 0.75rem;
+  font-size: var(--text-metadata);
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -13,68 +13,68 @@
 
 .status-badge::before {
   content: '';
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.4rem;
+  height: 0.4rem;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .status-badge--submitted {
-  color: #1a4d6e;
-  background: #e8f0f6;
-  border-color: #b8d0e0;
+  color: var(--status-submitted-fg);
+  background: var(--status-submitted-bg);
+  border-color: var(--status-submitted-border);
 }
 
 .status-badge--submitted::before {
-  background: #3d6d8f;
+  background: var(--status-submitted-dot);
 }
 
 .status-badge--under-review {
-  color: #4a3d6b;
-  background: #edeaf3;
-  border-color: #c9bfd8;
+  color: var(--status-under-review-fg);
+  background: var(--status-under-review-bg);
+  border-color: var(--status-under-review-border);
 }
 
 .status-badge--under-review::before {
-  background: #6b5b8a;
+  background: var(--status-under-review-dot);
 }
 
 .status-badge--assigned {
-  color: var(--lb-green-dark);
-  background: var(--lb-green-soft);
-  border-color: #b8dcc8;
+  color: var(--status-assigned-fg);
+  background: var(--status-assigned-bg);
+  border-color: var(--status-assigned-border);
 }
 
 .status-badge--assigned::before {
-  background: var(--lb-green);
+  background: var(--status-assigned-dot);
 }
 
 .status-badge--in-progress {
-  color: var(--lb-red-dark);
-  background: var(--lb-red-soft);
-  border-color: #f0b8c0;
+  color: var(--status-in-progress-fg);
+  background: var(--status-in-progress-bg);
+  border-color: var(--status-in-progress-border);
 }
 
 .status-badge--in-progress::before {
-  background: var(--lb-red);
+  background: var(--status-in-progress-dot);
 }
 
 .status-badge--resolved {
-  color: var(--lb-green-dark);
-  background: var(--lb-green-soft);
-  border-color: #b8dcc8;
+  color: var(--status-resolved-fg);
+  background: var(--status-resolved-bg);
+  border-color: var(--status-resolved-border);
 }
 
 .status-badge--resolved::before {
-  background: var(--lb-green);
+  background: var(--status-resolved-dot);
 }
 
 .status-badge--closed {
-  color: #4a4a4a;
-  background: #f0f0f0;
-  border-color: #d4d4d4;
+  color: var(--status-closed-fg);
+  background: var(--status-closed-bg);
+  border-color: var(--status-closed-border);
 }
 
 .status-badge--closed::before {
-  background: #7a7a7a;
+  background: var(--status-closed-dot);
 }

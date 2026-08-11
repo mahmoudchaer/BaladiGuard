@@ -23,6 +23,7 @@ export type SubmitTicketRequest = {
     platform: string;
     appVersion: string;
   };
+  clientSubmissionId?: string;
 };
 
 export type SubmitTicketResponse = {
@@ -89,6 +90,8 @@ export type PublicTicketResponse = {
   };
   department?: { name: string } | null;
   attribution: PublicTicketAttribution;
+  /** Time-limited public photo URL when available. */
+  photoUrl?: string | null;
   createdAt: string;
   updatedAt: string | null;
 };

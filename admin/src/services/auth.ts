@@ -244,10 +244,22 @@ async function loginStaffAgainstApi(username: string, password: string): Promise
   });
 }
 
+/** Session-scoped mock password override after a successful mock reset confirm. */
+let mockStaffPasswordOverride: string | null = null;
+
+/** Test helper: clear mock password overrides between cases. */
+export function resetMockStaffAuthState(): void {
+  mockStaffPasswordOverride = null;
+}
+
+function expectedMockStaffPassword(): string {
+  return mockStaffPasswordOverride ?? config.staffAuth.password;
+}
+
 function loginStaffAgainstMock(username: string, password: string): LoginResult {
   const trimmedUsername = username.trim().toLowerCase();
 
-  if (trimmedUsername !== config.staffAuth.username || password !== config.staffAuth.password) {
+  if (trimmedUsername !== config.staffAuth.username || password !== expectedMockStaffPassword()) {
     return {
       ok: false,
       error: 'Invalid staff username or password.',
@@ -356,9 +368,15 @@ export async function confirmStaffPasswordReset(input: {
   newPassword: string;
 }): Promise<PasswordResetResult> {
   if (config.useMockData) {
+    const nextPassword = input.newPassword;
+    if (!nextPassword || nextPassword.trim().length < 8) {
+      return { ok: false, error: 'New password must be at least 8 characters.' };
+    }
+    // Persist in-memory for this browser session so mock login validates the new password.
+    mockStaffPasswordOverride = nextPassword;
     return {
-      ok: false,
-      error: 'Password reset requires the live staff API. Disable mock data to continue.',
+      ok: true,
+      message: 'Password updated. Sign in with your new password.',
     };
   }
 

@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, HelperText, Text, TextInput } from 'react-native-paper';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
+import { CountryDialingCodeSelector } from '@/components/CountryDialingCodeSelector';
 import {
   DEFAULT_PHONE_REGION,
   defaultPhoneOtpRequestValues,
@@ -11,7 +12,9 @@ import {
   type PhoneOtpRequestValues,
 } from '@/schemas/citizenOtpSchema';
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose } from '@/types/citizen';
+import { findCountryDialingOption, listCountryDialingOptions } from '@/utils/countryDialing';
 import { validatePhoneInput } from '@/utils/phone';
 
 export type PhoneEntrySuccess = {
@@ -33,7 +36,7 @@ export function PhoneEntryForm({
   onSuccess,
   purpose = 'LOGIN_OR_SIGNUP',
   title = 'Sign in with phone',
-  subtitle = 'Enter your mobile number to receive a one-time verification code. No password needed.',
+  subtitle = 'Enter your mobile number to receive a one-time verification code by SMS. No password needed.',
   submitLabel = 'Send verification code',
 }: PhoneEntryFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
@@ -49,6 +52,14 @@ export function PhoneEntryForm({
     defaultValues: defaultPhoneOtpRequestValues,
     mode: 'onBlur',
   });
+
+  const selectedRegion = useWatch({ control, name: 'region' }) ?? DEFAULT_PHONE_REGION;
+  const countryCatalog = useMemo(() => listCountryDialingOptions(), []);
+  const selectedCountry = findCountryDialingOption(selectedRegion, 'en', countryCatalog);
+  const nationalPlaceholder = selectedRegion === 'LB' ? '70123456' : 'National number';
+  const nationalHelper = selectedCountry
+    ? `Enter the national mobile number for ${selectedCountry.name} (without the +${selectedCountry.callingCode} prefix), or a full E.164 number like +${selectedCountry.callingCode}70123456.`
+    : 'Enter a national mobile number for the selected country, or a full E.164 number like +96170123456.';
 
   const onSubmit = async (values: PhoneOtpRequestValues) => {
     if (requestInFlight.current) {
@@ -104,45 +115,50 @@ export function PhoneEntryForm({
         </Banner>
       ) : null}
 
-      <Controller
-        control={control}
-        name="region"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <TextInput
-            mode="outlined"
-            label="Country / region"
-            placeholder="LB"
-            autoCapitalize="characters"
-            maxLength={2}
-            value={value}
-            onChangeText={(text) => onChange(text.toUpperCase())}
-            onBlur={onBlur}
-            testID="phone-region-input"
-          />
-        )}
-      />
-      <HelperText type="info" visible>
-        Use an ISO country code (for example LB) with a national number, or enter an E.164 number
-        like +96170123456.
+      <View style={styles.fieldRow}>
+        <Controller
+          control={control}
+          name="region"
+          render={({ field: { value, onChange, onBlur } }) => (
+            <CountryDialingCodeSelector
+              value={value ?? DEFAULT_PHONE_REGION}
+              onChange={onChange}
+              onBlur={onBlur}
+              error={Boolean(errors.region)}
+              testID="country-dialing-selector"
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field: { value, onChange, onBlur } }) => (
+            <TextInput
+              mode="outlined"
+              label="Phone number"
+              keyboardType="phone-pad"
+              placeholder={nationalPlaceholder}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={Boolean(errors.phone)}
+              outlineColor={colors.border}
+              activeOutlineColor={colors.brand}
+              style={styles.phoneInput}
+              testID="phone-input"
+              accessibilityLabel="Phone number"
+              accessibilityHint={
+                selectedCountry
+                  ? `National number for ${selectedCountry.name}, or full international number`
+                  : 'National or full international phone number'
+              }
+            />
+          )}
+        />
+      </View>
+      <HelperText type="info" visible style={styles.helper} testID="phone-national-helper">
+        {nationalHelper}
       </HelperText>
-
-      <Controller
-        control={control}
-        name="phone"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <TextInput
-            mode="outlined"
-            label="Phone number"
-            keyboardType="phone-pad"
-            placeholder="+96170123456 or 70123456"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={Boolean(errors.phone)}
-            testID="phone-input"
-          />
-        )}
-      />
       {errors.phone ? (
         <HelperText type="error" visible testID="phone-error">
           {errors.phone.message}
@@ -155,6 +171,10 @@ export function PhoneEntryForm({
         loading={isSubmitting}
         disabled={isSubmitting}
         style={styles.button}
+        contentStyle={styles.controlContent}
+        labelStyle={styles.controlLabel}
+        buttonColor={colors.brand}
+        textColor={colors.textInverse}
         testID="request-otp-button"
       >
         {submitLabel}
@@ -165,20 +185,46 @@ export function PhoneEntryForm({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: spacing[3],
   },
   title: {
     fontWeight: '700',
+    color: colors.text,
   },
   subtitle: {
-    color: '#475569',
-    marginBottom: 4,
+    color: colors.textSecondary,
+    marginBottom: spacing[1],
+    lineHeight: 21,
   },
   banner: {
-    marginBottom: 4,
+    marginBottom: spacing[1],
+    borderRadius: radii.md,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+    alignItems: 'flex-end',
+  },
+  phoneInput: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 160,
+    minWidth: 140,
+  },
+  helper: {
+    marginTop: -spacing[1],
   },
   button: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
+    marginTop: spacing[1],
+    width: '100%',
+    borderRadius: radii.md,
+  },
+  controlContent: {
+    minHeight: touchTargetMin,
+  },
+  controlLabel: {
+    fontSize: typography.control,
+    fontWeight: '700',
   },
 });
