@@ -41,6 +41,7 @@ BaladiGuard/
 ├── mobile/
 ├── backend/
 ├── admin/
+├── citizen-web/
 ├── docs/
 ├── scripts/
 └── .github/
@@ -83,6 +84,28 @@ npm run format:check
 npm run typecheck
 npm test
 ```
+
+### Citizen Web
+
+Install dependencies once:
+
+```bash
+cd citizen-web
+npm ci
+```
+
+Then run:
+
+```bash
+cd citizen-web
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+```
+
+Dev server defaults to http://localhost:5174 (see `citizen-web/README.md`).
 
 ### Mobile
 
