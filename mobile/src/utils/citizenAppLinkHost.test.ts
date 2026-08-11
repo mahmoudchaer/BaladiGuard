@@ -2,7 +2,11 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { resolveCitizenAppLinkHost } = require('../../citizenAppLinkHost.js');
+const { resolveCitizenAppLinkHost } = require('../../citizenAppLinkHost.js') as {
+  resolveCitizenAppLinkHost: (
+    env?: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  ) => string;
+};
 
 describe('resolveCitizenAppLinkHost', () => {
   it('defaults to the documented placeholder host', () => {

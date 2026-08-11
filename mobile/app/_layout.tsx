@@ -18,7 +18,7 @@ import { colors, theme, typography } from '@/theme';
  *
  * Notification deep links (#257): route `t/[code]` handles HTTPS Universal /
  * App Links and `baladiguard://t/{code}` once the OS opens the app. Native host
- * claiming is configured in `mobile/app.config.js` (associatedDomains + intentFilters).
+ * claiming is configured in `mobile/app.config.ts` (associatedDomains + intentFilters).
  */
 export default function RootLayout() {
   return (

@@ -70,10 +70,11 @@ Backend SMS/email bodies use `{CITIZEN_APP_BASE_URL}/t/{code}`. The Expo route a
 2. Point the mobile claim at the **same host** before a release build:
    - `EXPO_PUBLIC_CITIZEN_APP_HOST=app.example.com`  
      or `EXPO_PUBLIC_CITIZEN_APP_BASE_URL=https://app.example.com`
-3. `mobile/app.config.js` wires:
+3. `mobile/app.config.ts` extends static `app.json` and wires:
    - iOS: `associatedDomains: ["applinks:<host>"]`
    - Android: `intentFilters` with `https` + host + `pathPrefix: /t` and `autoVerify: true`
    - Custom scheme remains `baladiguard` for `baladiguard://t/{code}` (Expo Go / debug / safe fallback)
+   - CI loads the resolved config via `npm run check:config`
 4. Host domain verification files on **that same HTTPS origin** (required for installation verification):
    - iOS: `https://<host>/.well-known/apple-app-site-association` (content-type `application/json`, no `.json` extension required) listing `applinks` paths `/t/*` and the team/app id
    - Android: `https://<host>/.well-known/assetlinks.json` listing the package `com.baladiguard.citizen` (or your release package) and signing cert SHA-256 fingerprints

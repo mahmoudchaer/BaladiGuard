@@ -1,9 +1,7 @@
 /**
  * Resolve the HTTPS host claimed for notification Universal / App Links (#257).
- * Shared by Expo app.config.js (Node) and unit tests.
- */
-
-/**
+ * Plain JS so Expo can require() it while evaluating app.config.ts.
+ *
  * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
  * @returns {string}
  */

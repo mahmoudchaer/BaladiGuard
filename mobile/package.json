@@ -8,6 +8,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "check:routes": "node scripts/check-expo-router-files.js",
+    "check:config": "node scripts/check-expo-config.js",
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
