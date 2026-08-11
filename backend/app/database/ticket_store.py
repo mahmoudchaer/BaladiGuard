@@ -50,6 +50,15 @@ class TicketStore(Protocol):
         open_only: bool = False,
     ) -> StaffTicketPage: ...
 
+    def staff_continuation_cursor(
+        self,
+        ticket: StoredTicket,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_id: str | None = None,
+    ) -> str: ...
+
     def list_public(
         self,
         *,

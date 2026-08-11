@@ -306,3 +306,61 @@ def test_aggregates_requires_staff_auth_and_shape(client):
     }
     assert body["approximate"] is False
     assert body["openCount"] >= 1
+
+
+def test_overdue_filter_continues_past_non_matching_source_page(client):
+    """Aging/overdue must not return empty when newer on-track tickets fill the raw page."""
+    from datetime import UTC, datetime, timedelta
+
+    marker = "SLA-CONTINUATION-MARKER-267"
+    now = datetime.now(UTC)
+
+    on_track_ids: list[str] = []
+    for index in range(3):
+        created = _create_ticket(
+            client,
+            f"{marker} on-track filler ticket number {index} for overdue continue.",
+        )
+        stored = ticket_store.get(created["ticketId"])
+        assert stored is not None
+        # High ack window is 24h; created 1h ago stays on_track.
+        created_at = (now - timedelta(hours=1, minutes=index)).isoformat().replace("+00:00", "Z")
+        ticket_store.save(
+            stored.model_copy(
+                update={
+                    "priority": "high",
+                    "status": "SUBMITTED",
+                    "created_at": created_at,
+                    "updated_at": created_at,
+                }
+            )
+        )
+        on_track_ids.append(created["ticketId"])
+
+    overdue = _create_ticket(
+        client,
+        f"{marker} overdue ticket that must surface after on-track pages.",
+    )
+    stored = ticket_store.get(overdue["ticketId"])
+    assert stored is not None
+    overdue_created = (now - timedelta(hours=48)).isoformat().replace("+00:00", "Z")
+    ticket_store.save(
+        stored.model_copy(
+            update={
+                "priority": "high",
+                "status": "SUBMITTED",
+                "created_at": overdue_created,
+                "updated_at": overdue_created,
+            }
+        )
+    )
+
+    response = client.get(
+        "/v1/tickets",
+        params={"limit": 2, "slaState": "overdue", "q": marker},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    ids = {item["ticketId"] for item in body["items"]}
+    assert overdue["ticketId"] in ids
+    assert not ids.intersection(on_track_ids)

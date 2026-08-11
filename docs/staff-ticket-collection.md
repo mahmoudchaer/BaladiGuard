@@ -29,7 +29,9 @@ Administrators query `adminBrowseKey = ALL`. Municipal staff query
 **Unsupported filter combinations must not silently fall back to an unbounded table
 scan.** Persist-field filters (`status`, `category`, `urgency`, `departmentId`,
 `assignmentState`, `q`) use `FilterExpression` on the scoped query. Derived
-`slaState` is applied in the service layer within the fetched page only.
+`slaState` is applied in the service layer with bounded continue-fetch across source
+pages until the requested page is filled or the source is exhausted (so aging/overdue
+queues cannot return a false empty page).
 
 ## Safe deploy / backfill ordering
 
@@ -44,6 +46,8 @@ are invisible to the indexed collection path until rewritten.
    python scripts/db/backfill_staff_ticket_keys.py
    ```
    Resume an interrupted run with the printed `--exclusive-start-key` JSON.
+   `--max-items` is a soft stop: the current scan page is always finished before a
+   resume key is emitted, so checkpoints never skip remaining items on that page.
 3. Verify sample tickets appear under staff list / map / aggregates.
 4. Only then route production/staging reads through the indexed collection path.
 
@@ -73,7 +77,7 @@ instead of treating the response as end-of-results.
 | `status`, `category`, `urgency`, `departmentId` | Persist-field FilterExpression |
 | `assignmentState` | `assigned` / `unassigned` |
 | `q` | Bounded contains match on ticket number/id/description/address |
-| `slaState` | Derived; filtered within the fetched page |
+| `slaState` | Derived; continue-fetch across source pages until filled |
 | `limit`, `cursor` | Pagination |
 
 Search and queue views (critical / high / unassigned / overdue) are sent as these

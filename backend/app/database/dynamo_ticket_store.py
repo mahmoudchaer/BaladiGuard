@@ -209,6 +209,32 @@ class DynamoTicketStore:
 
         return StaffTicketPage(items, next_cursor, scanned_count)
 
+    def staff_continuation_cursor(
+        self,
+        ticket: StoredTicket,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_id: str | None = None,
+    ) -> str:
+        index_name, hash_name, hash_value = _staff_query_target(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_id=department_id,
+        )
+        encoded = _encode_staff_cursor(
+            _synthetic_staff_start_key(
+                ticket,
+                index_name=index_name,
+                hash_name=hash_name,
+                hash_value=hash_value,
+            ),
+            index_name=index_name,
+        )
+        if encoded is None:
+            raise ValueError("Unable to encode staff continuation cursor.")
+        return encoded
+
     def list_by_owner(
         self,
         owner_user_id: str,

@@ -721,7 +721,8 @@ Full detail remains on `GET /v1/tickets/{ticketId}`. See
 [staff-ticket-collection.md](./staff-ticket-collection.md).
 
 Optional query filters match **persisted** ticket fields and are combined with AND.
-`slaState` is applied within the fetched page only (derived, not indexed). Omitting a
+`slaState` is derived (not indexed); the service continues fetching bounded source pages
+until the filtered page is filled or the source is exhausted. Omitting a
 parameter leaves that dimension unfiltered. An empty match set returns
 `{ "items": [], ... }` (HTTP 200), not an error.
 
@@ -733,7 +734,7 @@ parameter leaves that dimension unfiltered. An empty match set returns
 | `category`     | string | No       | Exact match on ticket `category` (including `PENDING_CLASSIFICATION`). Must be a seeded catalog category ID.                                                                |
 | `urgency`      | enum   | No       | Exact match on persisted urgency level stored as ticket `priority`. One of `low`, `medium`, `high`, `critical`. Tickets with `priority: null` do not match.                 |
 | `departmentId` | string | No       | Exact match on assigned `departmentId` (staff override or automatic assignment). Must be a seeded department catalog ID. Does **not** filter on `ai.suggestedDepartmentId`. |
-| `slaState`     | enum   | No       | Derived SLA filter applied within the page: `on_track`, `due_soon`, `overdue`, `completed`, `unavailable`.                                                                  |
+| `slaState`     | enum   | No       | Derived SLA filter with bounded continue-fetch: `on_track`, `due_soon`, `overdue`, `completed`, `unavailable`.                                                              |
 | `limit`        | int    | No       | Page size (default 25, max 100).                                                                                                                                            |
 | `cursor`       | string | No       | Opaque continuation cursor from a prior `nextCursor`.                                                                                                                       |
 

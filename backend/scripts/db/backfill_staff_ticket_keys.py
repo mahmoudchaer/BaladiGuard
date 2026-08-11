@@ -11,7 +11,10 @@ This script is idempotent and resumable. Safe deploy order:
 3. Verify sample tickets appear under staff list/map/aggregates
 4. Route traffic to the indexed collection path
 
-Resume a interrupted run with ``--exclusive-start-key '<LastEvaluatedKey JSON>'``.
+Resume an interrupted run with ``--exclusive-start-key '<LastEvaluatedKey JSON>'``.
+
+``--max-items`` is a soft stop: the current scan page is always finished before a
+resume key is emitted, so checkpoints never skip remaining items on that page.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 if str(BACKEND_ROOT) not in sys.path:
@@ -40,6 +43,12 @@ from app.database.serialization import (
 from app.schemas.stored_ticket import StoredTicket
 
 
+class _TicketTable(Protocol):
+    def scan(self, **kwargs: Any) -> dict[str, Any]: ...
+
+    def update_item(self, **kwargs: Any) -> dict[str, Any]: ...
+
+
 def _needs_backfill(item: dict[str, Any], ticket: StoredTicket) -> bool:
     expected_scope = build_staff_scope_key(ticket)
     expected_sort = build_staff_sort_key(ticket)
@@ -50,52 +59,42 @@ def _needs_backfill(item: dict[str, Any], ticket: StoredTicket) -> bool:
     )
 
 
-def backfill(
+def _process_scan_page(
+    items: list[dict[str, Any]],
     *,
-    dry_run: bool = False,
-    exclusive_start_key: dict[str, Any] | None = None,
-    max_items: int | None = None,
-) -> tuple[int, dict[str, Any] | None]:
-    """Return (updated_count, last_evaluated_key_for_resume)."""
-    settings = get_settings()
-    table_name = build_table_name(settings.dynamodb_table_prefix, "tickets")
-    table = create_dynamodb_resource(settings).Table(table_name)
-    updated = 0
-    scanned = 0
-    scan_kwargs: dict[str, Any] = {}
-    if exclusive_start_key:
-        scan_kwargs["ExclusiveStartKey"] = exclusive_start_key
+    dry_run: bool,
+    max_items: int | None,
+    updated: int,
+    table: _TicketTable | None,
+) -> tuple[int, bool]:
+    """Process one scan page. Returns (updated_count, stop_after_this_page).
 
-    last_key: dict[str, Any] | None = None
-    while True:
-        response = table.scan(**scan_kwargs)
-        last_key = response.get("LastEvaluatedKey")
-        for item in response.get("Items", []):
-            scanned += 1
-            ticket_id = item.get("ticketId")
-            if not isinstance(ticket_id, str):
-                continue
-            try:
-                ticket = StoredTicket.model_validate(item)
-            except Exception as exc:  # noqa: BLE001 - continue past corrupt rows
-                print(f"skip {ticket_id}: {type(exc).__name__}: {exc}")
-                continue
+    When ``max_items`` is reached mid-page, remaining items on the page are still
+    processed so a resume key aligned to ``LastEvaluatedKey`` cannot skip them.
+    """
+    stop_after_page = False
+    for item in items:
+        ticket_id = item.get("ticketId")
+        if not isinstance(ticket_id, str):
+            continue
+        try:
+            ticket = StoredTicket.model_validate(item)
+        except Exception as exc:  # noqa: BLE001 - continue past corrupt rows
+            print(f"skip {ticket_id}: {type(exc).__name__}: {exc}")
+            continue
 
-            if not _needs_backfill(item, ticket):
-                continue
+        if not _needs_backfill(item, ticket):
+            continue
 
-            scope_key = build_staff_scope_key(ticket)
-            sort_key = build_staff_sort_key(ticket)
-            print(
-                f"{'DRY-RUN ' if dry_run else ''}backfill-staff-keys {ticket.ticket_number} "
-                f"scope={scope_key}"
-            )
-            updated += 1
-            if dry_run:
-                if max_items is not None and updated >= max_items:
-                    return updated, last_key
-                continue
-
+        scope_key = build_staff_scope_key(ticket)
+        sort_key = build_staff_sort_key(ticket)
+        print(
+            f"{'DRY-RUN ' if dry_run else ''}backfill-staff-keys {ticket.ticket_number} "
+            f"scope={scope_key}"
+        )
+        updated += 1
+        if not dry_run:
+            assert table is not None
             table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=(
@@ -109,12 +108,48 @@ def backfill(
                     ":browse": ADMIN_BROWSE_ALL,
                 },
             )
-            if max_items is not None and updated >= max_items:
-                return updated, last_key
+        if max_items is not None and updated >= max_items:
+            stop_after_page = True
+            # Keep processing the rest of this page; do not return mid-page.
+    return updated, stop_after_page
+
+
+def backfill(
+    *,
+    dry_run: bool = False,
+    exclusive_start_key: dict[str, Any] | None = None,
+    max_items: int | None = None,
+    table: _TicketTable | None = None,
+) -> tuple[int, dict[str, Any] | None]:
+    """Return (updated_count, last_evaluated_key_for_resume)."""
+    if table is None:
+        settings = get_settings()
+        table_name = build_table_name(settings.dynamodb_table_prefix, "tickets")
+        table = create_dynamodb_resource(settings).Table(table_name)
+
+    updated = 0
+    scanned = 0
+    scan_kwargs: dict[str, Any] = {}
+    if exclusive_start_key:
+        scan_kwargs["ExclusiveStartKey"] = exclusive_start_key
+
+    last_key: dict[str, Any] | None = None
+    while True:
+        response = table.scan(**scan_kwargs)
+        last_key = response.get("LastEvaluatedKey")
+        page_items = list(response.get("Items", []))
+        scanned += len(page_items)
+        updated, stop_after_page = _process_scan_page(
+            page_items,
+            dry_run=dry_run,
+            max_items=max_items,
+            updated=updated,
+            table=None if dry_run else table,
+        )
 
         if not last_key:
             break
-        if max_items is not None and updated >= max_items:
+        if stop_after_page:
             break
         scan_kwargs["ExclusiveStartKey"] = last_key
 
@@ -136,7 +171,10 @@ def main() -> None:
         "--max-items",
         type=int,
         default=None,
-        help="Stop after updating this many tickets (still prints resume key).",
+        help=(
+            "Soft stop after at least this many updates; the current scan page "
+            "is always finished before emitting a resume key."
+        ),
     )
     args = parser.parse_args()
     start_key = None

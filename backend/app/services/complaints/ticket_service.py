@@ -89,6 +89,7 @@ PUBLIC_TICKET_DEFAULT_LIMIT = 20
 PUBLIC_TICKET_MAX_LIMIT = 50
 STAFF_TICKET_DEFAULT_LIMIT = 25
 STAFF_TICKET_MAX_LIMIT = 100
+STAFF_SLA_FILTER_MAX_ROUNDS = 20
 STAFF_MAP_DEFAULT_LIMIT = 200
 STAFF_MAP_MAX_LIMIT = 500
 STAFF_MAP_MARKER_ZOOM = 14
@@ -618,39 +619,81 @@ class TicketService:
         page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
         store_filters = filters
-        page = self._store.list_staff_page(
-            browse_mode=browse_mode,
-            municipality_id=municipality_id,
-            department_ids=department_ids,
-            limit=page_size,
-            cursor=cursor,
-            status=None if store_filters is None else store_filters.status,
-            category=None if store_filters is None else store_filters.category,
-            urgency=None if store_filters is None else store_filters.urgency,
-            department_id=None if store_filters is None else store_filters.department_id,
-            assignment_state=None if store_filters is None else store_filters.assignment_state,
-            q=None if store_filters is None else store_filters.q,
-            open_only=False if store_filters is None else store_filters.open_only,
-        )
-        items = page.items
-        # SLA is derived, not indexed — filter within the fetched page only.
-        if store_filters is not None and store_filters.sla_state is not None:
-            items = [
-                ticket
-                for ticket in items
-                if ticket_matches_filters(
+        sla_state = None if store_filters is None else store_filters.sla_state
+
+        collected: list[StoredTicket] = []
+        scanned_count = 0
+        current_cursor = cursor
+        next_cursor: str | None = None
+        # Derived SLA filters need continuation across source pages so a page of
+        # non-matching tickets cannot hide later overdue/on-track matches.
+        max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS if sla_state is not None else 1
+
+        for _ in range(max_rounds):
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=page_size,
+                cursor=current_cursor,
+                status=None if store_filters is None else store_filters.status,
+                category=None if store_filters is None else store_filters.category,
+                urgency=None if store_filters is None else store_filters.urgency,
+                department_id=None if store_filters is None else store_filters.department_id,
+                assignment_state=None if store_filters is None else store_filters.assignment_state,
+                q=None if store_filters is None else store_filters.q,
+                open_only=False if store_filters is None else store_filters.open_only,
+            )
+            scanned_count += page.scanned_count
+            page_items = page.items
+
+            if sla_state is None:
+                collected.extend(page_items)
+                next_cursor = page.next_cursor
+                break
+
+            page_filled = False
+            for index, ticket in enumerate(page_items):
+                if not ticket_matches_filters(
                     ticket,
-                    TicketListFilters(sla_state=store_filters.sla_state),
-                )
-            ]
+                    TicketListFilters(sla_state=sla_state),
+                ):
+                    continue
+                collected.append(ticket)
+                if len(collected) < page_size:
+                    continue
+                # Continue after the last included ticket so remaining matches
+                # on this source page are not skipped.
+                remaining = page_items[index + 1 :]
+                if remaining or page.next_cursor:
+                    next_cursor = self._store.staff_continuation_cursor(
+                        ticket,
+                        browse_mode=browse_mode,
+                        municipality_id=municipality_id,
+                        department_id=(
+                            None if store_filters is None else store_filters.department_id
+                        ),
+                    )
+                else:
+                    next_cursor = None
+                page_filled = True
+                break
+
+            if page_filled:
+                break
+            next_cursor = page.next_cursor
+            if not page.next_cursor:
+                break
+            current_cursor = page.next_cursor
+
         return TicketListPageResponse(
-            items=[map_ticket_to_list_item(ticket) for ticket in items],
-            nextCursor=page.next_cursor,
+            items=[map_ticket_to_list_item(ticket) for ticket in collected[:page_size]],
+            nextCursor=next_cursor,
             # Dynamo ExclusiveStartKey cursors are forward-only; the admin client
             # keeps a cursor history stack for Previous navigation.
             previousCursor=None,
             limit=page_size,
-            scannedCount=page.scanned_count,
+            scannedCount=scanned_count,
             approximateTotal=None,
             freshnessHintSeconds=30,
         )

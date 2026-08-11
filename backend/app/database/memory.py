@@ -121,6 +121,17 @@ class InMemoryTicketStore:
         )
         return StaffTicketPage(page, next_cursor, scanned_count)
 
+    def staff_continuation_cursor(
+        self,
+        ticket: StoredTicket,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_id: str | None = None,
+    ) -> str:
+        del browse_mode, municipality_id, department_id
+        return _encode_staff_cursor(build_staff_sort_key(ticket))
+
     def list_by_owner(
         self,
         owner_user_id: str,
