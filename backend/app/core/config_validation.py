@@ -17,7 +17,13 @@ from app.config import Settings, get_settings
 
 AllowedSeverity = Literal["error", "warning"]
 
-ALLOWED_ENVIRONMENTS = frozenset({"local", "development", "production", "test"})
+ALLOWED_ENVIRONMENTS = frozenset(
+    {"local", "development", "staging", "production", "test"}
+)
+# Deployed envs: no silent localhost citizen deep-link defaults (issue #257).
+_DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset(
+    {"staging", "production"}
+)
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
@@ -67,16 +73,17 @@ class ConfigValidationResult:
 
     @property
     def should_abort_startup(self) -> bool:
-        """Fail closed for production misconfig and unknown environments.
+        """Fail closed for deployed misconfig and unknown environments.
 
-        Invalid ``APP_ENV`` values (for example ``staging``) must abort so a
-        deploy typo cannot bypass production fail-closed checks. Local /
+        Invalid ``APP_ENV`` values must abort so a deploy typo cannot bypass
+        fail-closed checks. ``production`` and ``staging`` abort on any error
+        severity issue (including missing citizen deep-link base URL). Local /
         development / test keep starting with soft defaults when formats are
         otherwise valid.
         """
         if any(issue.code == "INVALID_APP_ENV" for issue in self.issues):
             return True
-        return self.env == "production" and not self.ok
+        return self.env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE and not self.ok
 
     def to_health_dict(self) -> dict[str, Any]:
         return {
@@ -415,21 +422,25 @@ def validate_configuration(
                 )
             )
 
-        # Citizen app deep links for SMS/email (issue #257). Fail closed: production
-        # must set an explicit non-localhost https base (no silent localhost default).
+    # Citizen app deep links for SMS/email (issue #257). Fail closed for every
+    # deployed environment: staging and production require an explicit
+    # non-localhost https base (no silent localhost default). Local /
+    # development / test may omit CITIZEN_APP_BASE_URL and use localhost.
+    if app_env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE:
         from app.services.notifications.deep_links import (
             is_localhost_base_url,
             is_valid_citizen_app_base_url,
             normalize_citizen_app_base_url,
         )
 
+        env_label = "Production" if app_env == "production" else "Staging"
         citizen_base = normalize_citizen_app_base_url(cfg.citizen_app_base_url)
         if not citizen_base:
             result.issues.append(
                 ConfigIssue(
                     code="MISSING_CITIZEN_APP_BASE_URL",
                     message=(
-                        "Production requires CITIZEN_APP_BASE_URL "
+                        f"{env_label} requires CITIZEN_APP_BASE_URL "
                         "(HTTPS base for citizen notification deep links)."
                     ),
                 )
@@ -438,7 +449,9 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_CITIZEN_APP_BASE_URL",
-                    message=("Production must not use a localhost CITIZEN_APP_BASE_URL."),
+                    message=(
+                        f"{env_label} must not use a localhost CITIZEN_APP_BASE_URL."
+                    ),
                 )
             )
         elif not is_valid_citizen_app_base_url(citizen_base, require_https=True):

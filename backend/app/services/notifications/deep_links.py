@@ -11,16 +11,18 @@ from urllib.parse import urlparse
 from app.config import Settings, get_settings
 from app.utils.ticket_ids import is_valid_tracking_code, normalize_tracking_code
 
-# Local Expo / web default when CITIZEN_APP_BASE_URL is unset outside production.
-_DEFAULT_NON_PROD_CITIZEN_APP_BASE_URL = "http://localhost:8081"
+# Local Expo / web default when CITIZEN_APP_BASE_URL is unset in local/dev/test only.
+_DEFAULT_LOCAL_CITIZEN_APP_BASE_URL = "http://localhost:8081"
+# Staging and production never get a silent localhost default.
+_DEPLOYED_ENVS = frozenset({"staging", "production"})
 
 NOTIFICATION_TICKET_PATH_PREFIX = "/t"
 
 
 def default_citizen_app_base_url_for_env(app_env: str) -> str | None:
-    """Return a localhost default only for non-production environments."""
+    """Return a localhost default only for local/development/test."""
     if app_env in {"local", "development", "test"}:
-        return _DEFAULT_NON_PROD_CITIZEN_APP_BASE_URL
+        return _DEFAULT_LOCAL_CITIZEN_APP_BASE_URL
     return None
 
 
@@ -91,9 +93,9 @@ def build_ticket_notification_deep_link(
     base = resolve_citizen_app_base_url(settings)
     if not base:
         return None
-    require_https = (settings or get_settings()).app_env in {"production"}
+    require_https = (settings or get_settings()).app_env in _DEPLOYED_ENVS
     if not is_valid_citizen_app_base_url(base, require_https=require_https):
-        # Non-prod: still allow if format is basically ok without forcing https.
+        # Local/dev/test: still allow http. Staging/production force https.
         if not is_valid_citizen_app_base_url(base, require_https=False):
             return None
         if require_https:

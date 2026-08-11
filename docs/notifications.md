@@ -53,12 +53,34 @@ Each emit includes:
 
 | Item | Behavior |
 | --- | --- |
-| Shape | HTTPS path `/t/{trackingCode}` only (possession-based). App scheme: `baladiguard://t/{code}` |
+| Shape | HTTPS path `/t/{trackingCode}` only (possession-based). Custom scheme fallback: `baladiguard://t/{code}` |
 | Never in the link | Phone, email, access tokens, raw internal ticket IDs, private object keys |
-| Local / test | `CITIZEN_APP_BASE_URL` optional → defaults to `http://localhost:8081` |
-| Production | **Required** `CITIZEN_APP_BASE_URL` with **https**, non-localhost (startup fail-closed) |
+| Local / development / test | `CITIZEN_APP_BASE_URL` optional → defaults to `http://localhost:8081` |
+| Staging / production | **Required** `CITIZEN_APP_BASE_URL` with **https**, non-localhost (startup fail-closed) |
 | Mobile landing | `mobile/app/t/[code].tsx` — malformed → safe fallback; logged-out track vs sign-in (`returnTo`); authenticated → citizen track UI. Access/error text never reveals ownership to others. |
+| Native claim | Installed builds claim the HTTPS host via iOS Associated Domains + Android App Links so notification taps open the app (not only the browser). See below. |
 | Idempotency / preferences | Unchanged (`{event}:{ticketId}:{status}`, preference skip rules) |
+
+#### Registering the HTTPS host (Universal Links / App Links)
+
+Backend SMS/email bodies use `{CITIZEN_APP_BASE_URL}/t/{code}`. The Expo route alone is not enough: the OS only delivers that URL to the app when the **host is registered** on the binary and verified by the domain.
+
+1. Set the backend base, for example:
+   - `CITIZEN_APP_BASE_URL=https://app.example.com`
+2. Point the mobile claim at the **same host** before a release build:
+   - `EXPO_PUBLIC_CITIZEN_APP_HOST=app.example.com`  
+     or `EXPO_PUBLIC_CITIZEN_APP_BASE_URL=https://app.example.com`
+3. `mobile/app.config.js` wires:
+   - iOS: `associatedDomains: ["applinks:<host>"]`
+   - Android: `intentFilters` with `https` + host + `pathPrefix: /t` and `autoVerify: true`
+   - Custom scheme remains `baladiguard` for `baladiguard://t/{code}` (Expo Go / debug / safe fallback)
+4. Host domain verification files on **that same HTTPS origin** (required for installation verification):
+   - iOS: `https://<host>/.well-known/apple-app-site-association` (content-type `application/json`, no `.json` extension required) listing `applinks` paths `/t/*` and the team/app id
+   - Android: `https://<host>/.well-known/assetlinks.json` listing the package `com.baladiguard.citizen` (or your release package) and signing cert SHA-256 fingerprints
+5. Rebuild the native binary after changing host env vars (Associated Domains / intent filters are build-time).
+6. Verify: install the release build, open `https://<host>/t/<validCode>` from Messages/mail — it should hand off to the in-app `/t/[code]` screen.
+
+Without steps 3–4, HTTPS taps open the browser; the custom scheme still works if the user already has the app and opens a `baladiguard://` link.
 
 ## Citizen notification preferences
 
@@ -144,9 +166,9 @@ Each channel attempt can be stored (table suffix `notification-deliveries` on Dy
 | `NOTIFICATION_ALLOWLIST_PHONES` | empty | Comma-separated E.164 phones permitted in sandbox |
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | `10` | Max sends per destination per window |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | `60` | Throttle window |
-| `CITIZEN_APP_BASE_URL` | local default / empty | Citizen HTTPS base for deep links; **required in production** |
+| `CITIZEN_APP_BASE_URL` | local default / empty | Citizen HTTPS base for deep links; **required in staging and production** |
 
-Production validation requires `NOTIFICATION_ADAPTER=real`, `SES_FROM_EMAIL`, and `CITIZEN_APP_BASE_URL` (https, non-localhost). Leaving sandbox on in production is a **warning**.
+Production/staging validation requires `CITIZEN_APP_BASE_URL` (https, non-localhost). Production also requires `NOTIFICATION_ADAPTER=real` and `SES_FROM_EMAIL`. Leaving sandbox on in production is a **warning**.
 
 See also [configuration.md](./configuration.md) and [cloud-setup.md](./cloud-setup.md).
 

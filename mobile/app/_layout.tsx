@@ -15,6 +15,10 @@ import { colors, theme, typography } from '@/theme';
  * We improve discoverability instead via clear home CTAs, themed headers, and
  * consistent back-navigation. `history/index` is registered below so signed-in
  * citizens get a titled header + back action when opened from home or the profile.
+ *
+ * Notification deep links (#257): route `t/[code]` handles HTTPS Universal /
+ * App Links and `baladiguard://t/{code}` once the OS opens the app. Native host
+ * claiming is configured in `mobile/app.config.js` (associatedDomains + intentFilters).
  */
 export default function RootLayout() {
   return (

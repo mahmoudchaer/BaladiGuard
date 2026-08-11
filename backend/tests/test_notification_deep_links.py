@@ -53,6 +53,27 @@ def test_deep_link_no_silent_localhost_default_in_production(monkeypatch):
     assert build_ticket_notification_deep_link("AB23CD", settings=settings) is None
 
 
+def test_deep_link_no_silent_localhost_default_in_staging(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.delenv("CITIZEN_APP_BASE_URL", raising=False)
+    settings = _settings_from_env()
+    assert resolve_citizen_app_base_url(settings) is None
+    assert build_ticket_notification_deep_link("AB23CD", settings=settings) is None
+
+    monkeypatch.setenv("CITIZEN_APP_BASE_URL", "https://staging.baladiguard.example")
+    settings = _settings_from_env()
+    assert (
+        build_ticket_notification_deep_link("AB23CD", settings=settings)
+        == "https://staging.baladiguard.example/t/AB23CD"
+    )
+
+    monkeypatch.setenv("CITIZEN_APP_BASE_URL", "http://localhost:8081")
+    settings = _settings_from_env()
+    # Staging requires https for notification deep links (malformed/http bases omitted).
+    assert build_ticket_notification_deep_link("AB23CD", settings=settings) is None
+    get_settings.cache_clear()
+
+
 def test_templates_include_deep_link_without_raw_ticket_id_in_body(monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("CITIZEN_APP_BASE_URL", "https://citizen.example")
