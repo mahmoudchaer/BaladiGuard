@@ -64,6 +64,16 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `duplicateGroupId` | string | No | Set by duplicate detection. |
 | `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
 
+### Staff collection index attributes (issue #267)
+
+Derived on write for indexed staff list/map/aggregates. See [staff-ticket-collection.md](./staff-ticket-collection.md).
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `staffScopeKey` | string | `municipalityId` or `UNSCOPED`. |
+| `staffSortKey` | string | `{createdAt}#{ticketId}` for newest-first pagination. |
+| `adminBrowseKey` | string | Always `ALL` for administrator browse queries. |
+
 ### Not persisted
 
 These API request fields are accepted at submission time but are not stored on the ticket record in MVP:
@@ -441,7 +451,7 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 
 | Table suffix | Partition key | Notes |
 |---|---|---|
-| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode`, `ownerUserId` + `ownerHistorySortKey` |
+| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode`, `ownerUserId` + `ownerHistorySortKey`, `publicStatus` + `publicSortKey`, `staffScopeKey` + `staffSortKey`, `adminBrowseKey` + `staffSortKey`, `departmentId` + `staffSortKey` (staff collection, issue #267) |
 | `users` | `userId` | Optional `phone-index` read optimization only; no email index |
 | `phone-claims` | `phoneKey` | Atomic canonical-phone uniqueness authority; no GSI required |
 | `citizen-otp-challenges` | `challengeId` | TTL on expiry; optional abuse-control indexes must not expose code material |

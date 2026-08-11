@@ -3,15 +3,22 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TicketListPage } from '@/pages/TicketListPage';
-import { assignTicketDepartment, fetchTickets, updateTicketStatus } from '@/services/tickets';
+import {
+  assignTicketDepartment,
+  fetchTicketAggregates,
+  fetchTicketsPage,
+  updateTicketStatus,
+} from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
 import type { Ticket } from '@/types/ticket';
+import type { TicketAggregates } from '@/types/ticketCollection';
 
 vi.mock('@/services/tickets', async () => {
   const actual = await vi.importActual<typeof import('@/services/tickets')>('@/services/tickets');
   return {
     ...actual,
-    fetchTickets: vi.fn(),
+    fetchTicketsPage: vi.fn(),
+    fetchTicketAggregates: vi.fn(),
     updateTicketStatus: vi.fn(),
     assignTicketDepartment: vi.fn(),
     acceptAiCategory: vi.fn(),
@@ -19,7 +26,7 @@ vi.mock('@/services/tickets', async () => {
   };
 });
 
-type FetchTicketsTestFilters = Parameters<typeof fetchTickets>[0];
+type FetchPageOptions = Parameters<typeof fetchTicketsPage>[0];
 
 const tickets: Ticket[] = [
   {
@@ -72,7 +79,31 @@ const tickets: Ticket[] = [
   },
 ];
 
-function applyFetchFilters(items: Ticket[], filters: FetchTicketsTestFilters = {}) {
+const defaultAggregates: TicketAggregates = {
+  openCount: 2,
+  criticalCount: 0,
+  highCount: 1,
+  unassignedCount: 0,
+  overdueCount: 0,
+  approximate: false,
+};
+
+function pageFromTickets(items: Ticket[]) {
+  return {
+    items: [],
+    tickets: items,
+    nextCursor: null,
+    previousCursor: null,
+    limit: 25,
+    scannedCount: items.length,
+    approximateTotal: items.length,
+    freshnessHintSeconds: 30,
+    fromCache: false,
+  };
+}
+
+function applyFetchFilters(items: Ticket[], options: FetchPageOptions = {}) {
+  const filters = options.filters ?? {};
   return items.filter((ticket) => {
     if (filters.status && filters.status !== 'ALL' && ticket.status !== filters.status) {
       return false;
@@ -90,6 +121,36 @@ function applyFetchFilters(items: Ticket[], filters: FetchTicketsTestFilters = {
     ) {
       return false;
     }
+    if (filters.slaState && filters.slaState !== 'ALL' && ticket.sla?.state !== filters.slaState) {
+      return false;
+    }
+    if (filters.assignmentState === 'unassigned' && ticket.departmentId) {
+      return false;
+    }
+    if (filters.assignmentState === 'assigned' && !ticket.departmentId) {
+      return false;
+    }
+    if (filters.openOnly) {
+      const open = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
+      if (!open.has(ticket.status)) {
+        return false;
+      }
+    }
+    const query = filters.q?.trim().toLowerCase();
+    if (query) {
+      const haystack = [
+        ticket.ticketId,
+        ticket.ticketNumber,
+        ticket.trackingCode,
+        ticket.description,
+        ticket.location.addressText,
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(query)) {
+        return false;
+      }
+    }
     return true;
   });
 }
@@ -97,13 +158,14 @@ function applyFetchFilters(items: Ticket[], filters: FetchTicketsTestFilters = {
 describe('TicketListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
-      applyFetchFilters(tickets, filters),
+    vi.mocked(fetchTicketsPage).mockImplementation(async (options) =>
+      pageFromTickets(applyFetchFilters(tickets, options)),
     );
+    vi.mocked(fetchTicketAggregates).mockResolvedValue(defaultAggregates);
   });
 
   it('shows a loading state while tickets are being fetched', () => {
-    vi.mocked(fetchTickets).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(fetchTicketsPage).mockReturnValue(new Promise(() => undefined));
 
     renderWithProviders(<TicketListPage />);
 
@@ -123,7 +185,7 @@ describe('TicketListPage', () => {
     const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
     expect(stats.getByText('Critical')).toBeInTheDocument();
     expect(stats.getByText('Unassigned')).toBeInTheDocument();
-    expect(stats.getByText('Aging (3d+)')).toBeInTheDocument();
+    expect(stats.getByText('Overdue')).toBeInTheDocument();
   });
 
   it('filters the rendered ticket list by search text', async () => {
@@ -133,6 +195,13 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0001');
     await user.type(screen.getByLabelText('Search tickets'), 'WASTE2');
 
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ q: 'WASTE2' }),
+        }),
+      ),
+    );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
   });
@@ -145,8 +214,10 @@ describe('TicketListPage', () => {
     await user.click(screen.getByRole('button', { name: 'Resolved' }));
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ status: 'RESOLVED' }),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ status: 'RESOLVED' }),
+        }),
       ),
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
@@ -156,9 +227,10 @@ describe('TicketListPage', () => {
 
   it('keeps the dashboard visible while filter results refresh', async () => {
     const user = userEvent.setup();
-    let resolveFilteredTickets: (value: Ticket[]) => void = () => undefined;
-    vi.mocked(fetchTickets)
-      .mockResolvedValueOnce(tickets)
+    let resolveFilteredTickets: (value: ReturnType<typeof pageFromTickets>) => void = () =>
+      undefined;
+    vi.mocked(fetchTicketsPage)
+      .mockResolvedValueOnce(pageFromTickets(tickets))
       .mockReturnValueOnce(
         new Promise((resolve) => {
           resolveFilteredTickets = resolve;
@@ -174,7 +246,7 @@ describe('TicketListPage', () => {
     expect(screen.getByText('Updating...')).toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
 
-    resolveFilteredTickets([tickets[1]]);
+    resolveFilteredTickets(pageFromTickets([tickets[1]]));
     await waitFor(() => expect(screen.queryByText('Updating...')).not.toBeInTheDocument());
   });
 
@@ -186,7 +258,11 @@ describe('TicketListPage', () => {
     await user.selectOptions(screen.getByLabelText('Category'), 'waste');
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(expect.objectContaining({ category: 'waste' })),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ category: 'waste' }),
+        }),
+      ),
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
@@ -201,7 +277,11 @@ describe('TicketListPage', () => {
     await user.selectOptions(screen.getByLabelText('Urgency'), 'high');
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(expect.objectContaining({ urgency: 'high' })),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ urgency: 'high' }),
+        }),
+      ),
     );
     expect(screen.getByText('BG-2026-0001')).toBeInTheDocument();
     expect(screen.queryByText('BG-2026-0002')).not.toBeInTheDocument();
@@ -219,8 +299,12 @@ describe('TicketListPage', () => {
     );
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ departmentId: 'd2222222-2222-2222-2222-222222222222' }),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            departmentId: 'd2222222-2222-2222-2222-222222222222',
+          }),
+        }),
       ),
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
@@ -242,13 +326,18 @@ describe('TicketListPage', () => {
     );
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith({
-        status: 'RESOLVED',
-        category: 'waste',
-        urgency: 'medium',
-        departmentId: 'd2222222-2222-2222-2222-222222222222',
-        slaState: 'ALL',
-      }),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: {
+            status: 'RESOLVED',
+            category: 'waste',
+            urgency: 'medium',
+            departmentId: 'd2222222-2222-2222-2222-222222222222',
+            slaState: 'ALL',
+            q: undefined,
+          },
+        }),
+      ),
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
@@ -262,8 +351,10 @@ describe('TicketListPage', () => {
     await user.selectOptions(screen.getByLabelText('SLA'), 'overdue');
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ slaState: 'overdue' }),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ slaState: 'overdue' }),
+        }),
       ),
     );
   });
@@ -275,7 +366,7 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0001');
     await user.click(screen.getByRole('button', { name: 'Closed' }));
 
-    expect(screen.getByText('No matching tickets')).toBeInTheDocument();
+    expect(await screen.findByText('No matching tickets')).toBeInTheDocument();
     expect(
       screen.getByText(
         'Try adjusting your search, status, category, urgency, or department filters to find tickets.',
@@ -287,20 +378,27 @@ describe('TicketListPage', () => {
 
   it('shows a filtered empty state when the server returns no filtered tickets', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchTickets).mockResolvedValueOnce(tickets).mockResolvedValueOnce([]);
+    vi.mocked(fetchTicketsPage)
+      .mockResolvedValueOnce(pageFromTickets(tickets))
+      .mockResolvedValueOnce(pageFromTickets([]));
 
     renderWithProviders(<TicketListPage />);
 
     await screen.findByText('BG-2026-0001');
     await user.click(screen.getByRole('button', { name: 'Closed' }));
 
-    await waitFor(() => expect(fetchTickets).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchTicketsPage).toHaveBeenCalledTimes(2));
     expect(screen.getByText('No matching tickets')).toBeInTheDocument();
     expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 2 tickets');
   });
 
   it('shows an empty state when the dashboard has no tickets', async () => {
-    vi.mocked(fetchTickets).mockResolvedValue([]);
+    vi.mocked(fetchTicketsPage).mockResolvedValue(pageFromTickets([]));
+    vi.mocked(fetchTicketAggregates).mockResolvedValue({
+      ...defaultAggregates,
+      openCount: 0,
+      highCount: 0,
+    });
 
     renderWithProviders(<TicketListPage />);
 
@@ -311,7 +409,7 @@ describe('TicketListPage', () => {
     const stats = within(screen.getByRole('group', { name: 'Ticket summary' }));
     expect(stats.getByText('Critical').previousElementSibling).toHaveTextContent('0');
     expect(stats.getByText('Unassigned').previousElementSibling).toHaveTextContent('0');
-    expect(stats.getByText('Aging (3d+)').previousElementSibling).toHaveTextContent('0');
+    expect(stats.getByText('Overdue').previousElementSibling).toHaveTextContent('0');
   });
 
   it('filters the queue to critical urgency from the attention strip', async () => {
@@ -332,8 +430,8 @@ describe('TicketListPage', () => {
       priority: 'critical',
       status: 'CLOSED',
     };
-    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
-      applyFetchFilters([...tickets, criticalTicket, closedCritical], filters),
+    vi.mocked(fetchTicketsPage).mockImplementation(async (options) =>
+      pageFromTickets(applyFetchFilters([...tickets, criticalTicket, closedCritical], options)),
     );
 
     renderWithProviders(<TicketListPage />);
@@ -342,8 +440,10 @@ describe('TicketListPage', () => {
     await user.click(screen.getByRole('button', { name: /Critical/i }));
 
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ urgency: 'critical' }),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ urgency: 'critical' }),
+        }),
       ),
     );
     expect(await screen.findByText('BG-2026-0009')).toBeInTheDocument();
@@ -351,7 +451,7 @@ describe('TicketListPage', () => {
   });
 
   it('shows a failure state when tickets cannot be loaded', async () => {
-    vi.mocked(fetchTickets).mockRejectedValue(new Error('Unable to reach backend.'));
+    vi.mocked(fetchTicketsPage).mockRejectedValue(new Error('Unable to reach backend.'));
 
     renderWithProviders(<TicketListPage />);
 
@@ -371,8 +471,8 @@ describe('TicketListPage', () => {
       departmentId: null,
       departmentName: undefined,
     };
-    vi.mocked(fetchTickets).mockImplementation(async (filters) =>
-      applyFetchFilters([submitted, ...tickets], filters),
+    vi.mocked(fetchTicketsPage).mockImplementation(async (options) =>
+      pageFromTickets(applyFetchFilters([submitted, ...tickets], options)),
     );
     vi.mocked(updateTicketStatus).mockResolvedValue({
       ...submitted,
@@ -384,8 +484,10 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0010');
     await user.click(screen.getByRole('button', { name: 'Submitted' }));
     await waitFor(() =>
-      expect(fetchTickets).toHaveBeenLastCalledWith(
-        expect.objectContaining({ status: 'SUBMITTED' }),
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ status: 'SUBMITTED' }),
+        }),
       ),
     );
     expect(screen.getByText('BG-2026-0010')).toBeInTheDocument();
@@ -414,7 +516,7 @@ describe('TicketListPage', () => {
       departmentId: null,
       departmentName: undefined,
     };
-    vi.mocked(fetchTickets).mockResolvedValue([unassigned, ...tickets]);
+    vi.mocked(fetchTicketsPage).mockResolvedValue(pageFromTickets([unassigned, ...tickets]));
     vi.mocked(assignTicketDepartment).mockResolvedValue({
       ...unassigned,
       departmentId: 'd1111111-1111-1111-1111-111111111111',
@@ -425,6 +527,13 @@ describe('TicketListPage', () => {
 
     await screen.findByText('BG-2026-0011');
     await user.click(screen.getByRole('button', { name: /Unassigned/i }));
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ assignmentState: 'unassigned' }),
+        }),
+      ),
+    );
     expect(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' }));
@@ -435,7 +544,6 @@ describe('TicketListPage', () => {
     await user.click(within(preview).getByRole('button', { name: 'Save department' }));
 
     await waitFor(() => expect(assignTicketDepartment).toHaveBeenCalled());
-    // Unassigned queue view is client-side; assigned ticket must leave that list.
     expect(
       screen.queryByRole('button', { name: 'Select ticket BG-2026-0011' }),
     ).not.toBeInTheDocument();

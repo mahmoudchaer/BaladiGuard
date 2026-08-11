@@ -180,6 +180,7 @@ Before deploy (#74):
 13. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
 14. Confirm process starts (validation aborts on failure) and `/health` is `ok`
 15. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
+16. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
 
 ## Health payload
 

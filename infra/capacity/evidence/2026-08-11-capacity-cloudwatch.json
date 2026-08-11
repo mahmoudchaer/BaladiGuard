@@ -1,0 +1,53 @@
+{
+  "windowStart": "2026-08-11T17:43:34.763033Z",
+  "windowEnd": "2026-08-11T17:53:34.763033Z",
+  "region": "us-east-1",
+  "ticketTable": "baladiguard-tickets",
+  "s3Bucket": "baladiguard-report-photos-dev",
+  "dynamodb": {
+    "ConsumedWriteCapacityUnits": {
+      "stat": "Sum",
+      "sum": 19.0,
+      "points": 9
+    },
+    "ConsumedReadCapacityUnits": {
+      "stat": "Sum",
+      "sum": 106.5,
+      "points": 8
+    },
+    "WriteThrottleEvents": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    },
+    "ReadThrottleEvents": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    },
+    "UserErrors": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    },
+    "SystemErrors": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    }
+  },
+  "s3": {
+    "5xxErrors": {
+      "sum": 0.0,
+      "points": 0
+    },
+    "4xxErrors": {
+      "sum": 0.0,
+      "points": 0
+    },
+    "AllRequests": {
+      "sum": 0.0,
+      "points": 0
+    }
+  }
+}

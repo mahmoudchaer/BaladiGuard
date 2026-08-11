@@ -206,6 +206,13 @@ Do not grant production log read access to citizen-facing support tools. PII in
 tickets remains in DynamoDB with existing app authz — logs must keep redaction
 rules above. Rotate SNS topic subscriptions when on-call rotations change.
 
+## Related capacity validation
+
+HTTP latency / 5xx / AI queue / Dynamo and S3 error widgets above are the
+measurement plane for issue **#191**. Workload hypotheses and staging light-load
+harness: [capacity-validation.md](./capacity-validation.md),
+[capacity-workload-model.md](./capacity-workload-model.md).
+
 ## Local verification
 
 ```bash

@@ -1,0 +1,186 @@
+{
+  "generatedAt": "2026-08-11T17:50:53.440069Z",
+  "scenario": "smoke",
+  "baseUrl": "http://127.0.0.1:55529",
+  "concurrency": 3,
+  "durationSeconds": 6.0,
+  "maxRequests": 45,
+  "minIntervalMs": 40.0,
+  "totals": {
+    "requests": 33,
+    "ok2xx": 23,
+    "client4xx": 10,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 290.5629000015324,
+    "p95": 1395.7281600072736,
+    "p99": 1909.5503400062444,
+    "mean": 572.4602878785156,
+    "max": 1928.1801000033738
+  },
+  "byName": {
+    "health_ready_ai": {
+      "count": 13,
+      "status_counts": {
+        "200": 13
+      },
+      "latency_ms": {
+        "p50": 902.0784000022104,
+        "p95": 1040.2020999987144,
+        "p99": 1040.7764199993107,
+        "mean": 915.7358461536485
+      }
+    },
+    "track_miss": {
+      "count": 10,
+      "status_counts": {
+        "404": 10
+      },
+      "latency_ms": {
+        "p50": 285.87305000110064,
+        "p95": 1901.9820000074105,
+        "p99": 1922.9404800041812,
+        "mean": 682.9685700024129
+      }
+    },
+    "health_live": {
+      "count": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "latency_ms": {
+        "p50": 15.785899988259189,
+        "p95": 28.777219999028603,
+        "p99": 28.827043995988788,
+        "mean": 15.693779996945523
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": null,
+      "pass": null
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": 1901.9820000074105,
+      "pass": false
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 13,
+      "last": {
+        "at": "2026-08-11T17:50:53.440069Z",
+        "pending": null,
+        "processing": null,
+        "failed": null,
+        "status": "metrics",
+        "source": "worker_metrics"
+      },
+      "maxPending": null
+    }
+  },
+  "createdTicketIdsSample": [],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-11T17:50:53.101226Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.259434Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.259434Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.259434Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.259434Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.440069Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.440069Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.440069Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.440069Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-11T17:50:53.440069Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

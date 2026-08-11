@@ -67,6 +67,17 @@ Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb
 | `make db-seed`    | Load municipalities, departments, and categories     |
 | `make db-reset`   | Delete project tables, recreate them, and seed again |
 
+Staff collection GSIs (#267) are created by `make db-migrate`, but existing ticket
+rows also need attribute backfill before indexed list/map/aggregates can see them:
+
+```bash
+cd backend
+python scripts/db/backfill_staff_ticket_keys.py --dry-run
+python scripts/db/backfill_staff_ticket_keys.py
+```
+
+See `docs/staff-ticket-collection.md` for deploy ordering and resume flags.
+
 ## Current tables (including Sprint 6 citizen persistence)
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
@@ -76,7 +87,7 @@ persistence foundation.
 
 | Table                                | Partition key      | GSIs                                                                                        |
 | ------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------- |
-| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`         |
+| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`, `publicStatus-publicSortKey-index`, `staffScopeKey-staffSortKey-index`, `adminBrowseKey-staffSortKey-index`, `departmentId-staffSortKey-index` |
 | `baladiguard-users`                  | `userId`           | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
 | `baladiguard-phone-claims`           | `phoneKey`         | No GSI; transactional phone-uniqueness authority.                                           |
 | `baladiguard-citizen-otp-challenges` | `challengeId`      | TTL on `ttl`; plain OTP codes are never stored.                                             |
