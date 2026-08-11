@@ -3,9 +3,12 @@ import type {
   PublicTicketStatus,
   Ticket,
   TicketAiFields,
+  TicketAuditActionType,
+  TicketAuditHistoryEntry,
   TicketDuplicateReference,
   TicketDuplicateSuggestion,
   TicketLocation,
+  TicketStaffRole,
   TicketStatus,
   TicketStatusHistoryEntry,
 } from '@/types/ticket';
@@ -845,6 +848,73 @@ function normalizeStatusHistory(data: unknown): TicketStatusHistoryEntry[] {
   });
 }
 
+const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
+  'STATUS_CHANGE',
+  'CATEGORY_REVIEW',
+  'DEPARTMENT_ASSIGN',
+  'DUPLICATE_MERGE',
+  'PUBLIC_CONTENT_UPDATE',
+];
+
+function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {
+  return AUDIT_ACTION_TYPES.find((actionType) => actionType === value) ?? null;
+}
+
+function normalizeAuditActorRole(value: unknown): TicketStaffRole | undefined {
+  return value === 'municipal_staff' || value === 'administrator' ? value : undefined;
+}
+
+function optionalTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * Staff-only audit rows. Entries without a usable action type or timestamp are
+ * dropped so a partially malformed audit trail never breaks the ticket read.
+ */
+function normalizeAuditHistory(data: unknown): TicketAuditHistoryEntry[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(isRecord).flatMap((entry) => {
+    const actionType = normalizeAuditActionType(entry.actionType);
+    if (!actionType) {
+      return [];
+    }
+
+    const changedAt = typeof entry.changedAt === 'string' ? entry.changedAt.trim() : '';
+    if (!changedAt || Number.isNaN(Date.parse(changedAt))) {
+      return [];
+    }
+
+    const normalized: TicketAuditHistoryEntry = {
+      actionType,
+      summary: optionalTrimmedString(entry.summary) ?? '',
+      changedAt,
+    };
+
+    const actorId = optionalTrimmedString(entry.actorId);
+    if (actorId) {
+      normalized.actorId = actorId;
+    }
+    const actorRole = normalizeAuditActorRole(entry.actorRole);
+    if (actorRole) {
+      normalized.actorRole = actorRole;
+    }
+    const previousValue = optionalTrimmedString(entry.previousValue);
+    if (previousValue) {
+      normalized.previousValue = previousValue;
+    }
+    const newValue = optionalTrimmedString(entry.newValue);
+    if (newValue) {
+      normalized.newValue = newValue;
+    }
+
+    return [normalized];
+  });
+}
+
 function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   if (!isRecord(data)) {
     return undefined;
@@ -1021,6 +1091,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     duplicateGroup: normalizeDuplicateGroup(data.duplicateGroup),
     duplicateSuggestions: normalizeDuplicateSuggestions(data.duplicateSuggestions),
     statusHistory: normalizeStatusHistory(data.statusHistory),
+    auditHistory: normalizeAuditHistory(data.auditHistory),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,

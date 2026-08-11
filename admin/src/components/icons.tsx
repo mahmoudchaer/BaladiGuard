@@ -274,6 +274,37 @@ export function IconImage({ className }: IconProps) {
   );
 }
 
+/**
+ * Generic stars/sparkle mark for AI-assisted decision support.
+ * Intentionally a five-point star with small plus sparkles so it does not
+ * resemble any external AI product mark.
+ */
+export function IconSparkles({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M9.4 3.2 11.2 7 15.4 7.6l-3 2.9.7 4.2-3.7-2-3.7 2 .7-4.2-3-2.9L7.6 7z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M18 13.4v4.4M15.8 15.6h4.4M18.6 3.4v2.8M17.2 4.8H20"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function IconTicket({ className }: IconProps) {
   return (
     <svg

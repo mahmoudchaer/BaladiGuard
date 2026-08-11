@@ -67,6 +67,29 @@ export type TicketStatusHistoryEntry = {
   note?: string | null;
 };
 
+export type TicketAuditActionType =
+  | 'STATUS_CHANGE'
+  | 'CATEGORY_REVIEW'
+  | 'DEPARTMENT_ASSIGN'
+  | 'DUPLICATE_MERGE'
+  | 'PUBLIC_CONTENT_UPDATE';
+
+export type TicketStaffRole = 'municipal_staff' | 'administrator';
+
+/**
+ * Staff-only audit entry returned by the ticket read endpoint.
+ * Mirrors backend/app/schemas/ticket_response.py TicketAuditHistoryEntry.
+ */
+export type TicketAuditHistoryEntry = {
+  actionType: TicketAuditActionType;
+  summary: string;
+  changedAt: string;
+  actorId?: string;
+  actorRole?: TicketStaffRole;
+  previousValue?: string;
+  newValue?: string;
+};
+
 export type TicketDuplicateReference = {
   duplicateGroupId: string;
   ticketIds?: string[];
@@ -125,6 +148,7 @@ export type Ticket = {
   duplicateGroup?: TicketDuplicateReference | null;
   duplicateSuggestions?: TicketDuplicateSuggestion[];
   statusHistory?: TicketStatusHistoryEntry[];
+  auditHistory?: TicketAuditHistoryEntry[];
   createdAt: string;
   updatedAt: string | null;
   updatedBy?: string | null;
