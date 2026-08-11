@@ -19,6 +19,7 @@ import {
   submitTicketMock,
 } from '@/services/api/mockTickets';
 import { createClientSubmissionId } from '@/services/reportDraft';
+import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
 import { uploadReportPhoto } from '@/services/api/uploads';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
 
@@ -161,6 +162,13 @@ export async function submitReport(
           'Your photo is no longer available on this device. Choose a photo again, then retry.',
           { code: 'photo_missing', clientSubmissionId },
         );
+      }
+      const photoCheck = await checkLocalPhotoUri(values.photoUri);
+      if (!photoCheck.ok) {
+        throw new SubmitReportError(PHOTO_REFERENCE_EXPIRED_MESSAGE, {
+          code: 'photo_missing',
+          clientSubmissionId,
+        });
       }
       options?.onProgress?.('uploading-photo');
       try {

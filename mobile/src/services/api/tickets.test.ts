@@ -10,6 +10,7 @@ import {
   getPublicTickets,
   getTicketByTrackingCode,
   submitReport,
+  SubmitReportError,
 } from '@/services/api/tickets';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
@@ -110,6 +111,12 @@ vi.mock('@/services/api/uploads', () => ({
   uploadReportPhoto: vi.fn(async () => 'reports/photos/uploaded.jpg'),
 }));
 
+vi.mock('@/services/photoReference', () => ({
+  checkLocalPhotoUri: vi.fn(async () => ({ ok: true })),
+  PHOTO_REFERENCE_EXPIRED_MESSAGE:
+    'Your saved photo is no longer available on this device. Choose a photo again, then continue.',
+}));
+
 import {
   getCitizenTicketHistoryMock,
   getPublicTicketByNumberMock,
@@ -118,6 +125,7 @@ import {
   submitTicketMock,
 } from '@/services/api/mockTickets';
 import { uploadReportPhoto } from '@/services/api/uploads';
+import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
 
 describe('submitReport', () => {
   beforeEach(() => {
@@ -198,6 +206,20 @@ describe('submitReport', () => {
       ([name]) => name.toLowerCase() === 'idempotency-key',
     )?.[1];
     expect(idempotencyHeaderValue).toBe(clientSubmissionId);
+  });
+
+  it('rejects expired local photo references before upload', async () => {
+    vi.mocked(checkLocalPhotoUri).mockResolvedValueOnce({ ok: false, reason: 'missing' });
+
+    await expect(
+      submitReport(formValues, { clientSubmissionId: 'test-submission-id-photo' }),
+    ).rejects.toMatchObject({
+      name: 'SubmitReportError',
+      code: 'photo_missing',
+      message: PHOTO_REFERENCE_EXPIRED_MESSAGE,
+    });
+    expect(uploadReportPhoto).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('does not submit a ticket when photo upload fails', async () => {

@@ -32,6 +32,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "account-audit",
     "notification-deliveries",
     "notification-claims",
+    "ticket-submission-claims",
     "ai-outputs",
     "ai-processing-jobs",
     "duplicate-groups",

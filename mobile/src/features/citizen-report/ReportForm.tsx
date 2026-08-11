@@ -25,6 +25,7 @@ import { appConfig } from '@/services/config';
 import {
   buildReportDraft,
   clearReportDraft,
+  clearUnusableDraftPhoto,
   createClientSubmissionId,
   draftHasRestorableContent,
   draftToFormValues,
@@ -33,6 +34,7 @@ import {
   type ReportDraft,
   type ReportDraftSubmissionState,
 } from '@/services/reportDraft';
+import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
@@ -202,27 +204,47 @@ export function ReportForm() {
     if (!pendingDraft) {
       return;
     }
-    skipNextAutosaveRef.current = true;
-    const values = draftToFormValues(pendingDraft);
-    let notice: string | null = null;
-    if (!values.photoUri.trim() && pendingDraft.submission?.imageObjectKey) {
-      // Photo already on server; local URI optional for retry.
-      notice =
-        'Draft restored. A photo was already uploaded for this attempt — you can resubmit without re-picking if the form still has a photo, or attach again if it is missing.';
-    }
-    if (!values.photoUri.trim() && !pendingDraft.submission?.imageObjectKey) {
-      notice =
-        'Draft restored, but no local photo was saved. Attach a photo again before submitting.';
-    } else if (values.photoUri.trim()) {
-      notice = 'Draft restored. You can continue or discard it.';
-    }
-    reset(values);
-    setStep(pendingDraft.step);
-    setSelectedPlaceholderId(pendingDraft.selectedPlaceholderId ?? '');
-    setSubmission(pendingDraft.submission ?? null);
-    setPendingDraft(null);
-    setDraftBanner(notice);
-    setSubmitError(null);
+    void (async () => {
+      skipNextAutosaveRef.current = true;
+      let draft = pendingDraft;
+      let notice: string | null = null;
+      const hasLocalPhoto = draft.form.photoUri.trim().length > 0;
+      const hasUploadedKey = Boolean(draft.submission?.imageObjectKey);
+
+      if (hasLocalPhoto) {
+        const photoCheck = await checkLocalPhotoUri(draft.form.photoUri);
+        if (!photoCheck.ok) {
+          draft = clearUnusableDraftPhoto(draft);
+          if (ownerUserId) {
+            await saveReportDraft(draft);
+          }
+          notice = hasUploadedKey
+            ? `${PHOTO_REFERENCE_EXPIRED_MESSAGE} A photo was already uploaded for this attempt — you can resubmit without re-picking, or attach a new photo.`
+            : PHOTO_REFERENCE_EXPIRED_MESSAGE;
+        }
+      }
+
+      const values = draftToFormValues(draft);
+      if (!notice) {
+        if (!values.photoUri.trim() && hasUploadedKey) {
+          notice =
+            'Draft restored. A photo was already uploaded for this attempt — you can resubmit without re-picking if the form still has a photo, or attach again if it is missing.';
+        } else if (!values.photoUri.trim() && !hasUploadedKey) {
+          notice =
+            'Draft restored, but no local photo was saved. Attach a photo again before submitting.';
+        } else {
+          notice = 'Draft restored. You can continue or discard it.';
+        }
+      }
+
+      reset(values);
+      setStep(draft.step);
+      setSelectedPlaceholderId(draft.selectedPlaceholderId ?? '');
+      setSubmission(draft.submission ?? null);
+      setPendingDraft(null);
+      setDraftBanner(notice);
+      setSubmitError(null);
+    })();
   };
 
   const discardPendingDraft = async () => {

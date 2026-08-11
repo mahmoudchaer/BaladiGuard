@@ -538,8 +538,12 @@ triggers AI intake. Exceeding the budget returns `429 RATE_LIMIT_EXCEEDED` with 
 
 Optional idempotency (issue #258): send `Idempotency-Key: <key>` on the request (or body
 `clientSubmissionId`). Replays with the same key and same owner return the original `201`
-response body. A claim that is still in progress may return `409 SUBMISSION_IN_PROGRESS`. Keys
-without a valid shape are ignored (treated as non-idempotent submits).
+response body. A claim that is still in progress may return `409 SUBMISSION_IN_PROGRESS`.
+Claims bind the created ticket id before finalizing the ledger entry and can be recovered
+after a crash/`complete` failure; unfinished claims without a ticket become reclaimable after
+~2 minutes. Keys without a valid shape are ignored (treated as non-idempotent submits).
+Completed claim records are retained ~14 days (DynamoDB TTL attribute `ttl`) for offline retry
+safety, then purged.
 
 ### Auth
 

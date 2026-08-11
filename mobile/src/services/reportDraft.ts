@@ -201,6 +201,23 @@ export async function loadReportDraft(ownerUserId: string): Promise<ReportDraft 
   }
 }
 
+/**
+ * Clear an unusable local photo URI from a draft without dropping other fields.
+ * Keeps `imageObjectKey` when present so retry can skip re-upload.
+ */
+export function clearUnusableDraftPhoto(draft: ReportDraft): ReportDraft {
+  return {
+    ...draft,
+    updatedAt: Date.now(),
+    form: {
+      ...draft.form,
+      photoUri: '',
+      photoFileName: undefined,
+      photoContentType: undefined,
+    },
+  };
+}
+
 export async function saveReportDraft(draft: ReportDraft): Promise<void> {
   if (!draft.ownerUserId.trim()) {
     throw new Error('Cannot save draft without an owner.');
