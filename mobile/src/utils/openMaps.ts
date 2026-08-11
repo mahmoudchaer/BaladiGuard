@@ -1,5 +1,7 @@
 import { Linking, Platform } from 'react-native';
 
+import { isValidMapCoordinate } from '@/utils/publicMapClustering';
+
 type MapTarget = {
   latitude: number;
   longitude: number;
@@ -9,6 +11,9 @@ type MapTarget = {
 /** Open coordinates in Apple Maps (iOS) or Google Maps / geo intent (Android). */
 export async function openInMapsApp(target: MapTarget): Promise<void> {
   const { latitude, longitude, label } = target;
+  if (!isValidMapCoordinate(latitude, longitude)) {
+    return;
+  }
   const encodedLabel = encodeURIComponent(label?.trim() || 'Report location');
   const coord = `${latitude},${longitude}`;
 

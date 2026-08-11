@@ -19,6 +19,7 @@ import type { PublicTicketResponse } from '@/types/ticket';
 import { openInMapsApp } from '@/utils/openMaps';
 import {
   filterPublicReports,
+  isValidMapCoordinate,
   partitionPlottableReports,
   uniquePublicCategories,
   type PublicBrowseFilters,
@@ -366,13 +367,20 @@ export default function HomeScreen() {
                   labelStyle={styles.mapsButtonLabel}
                   textColor={colors.brandDark}
                   disabled={
-                    !Number.isFinite(report.mapLocation?.latitude) ||
-                    !Number.isFinite(report.mapLocation?.longitude)
+                    !isValidMapCoordinate(
+                      report.mapLocation?.latitude,
+                      report.mapLocation?.longitude,
+                    )
                   }
                   onPress={() => {
+                    const latitude = report.mapLocation?.latitude;
+                    const longitude = report.mapLocation?.longitude;
+                    if (!isValidMapCoordinate(latitude, longitude)) {
+                      return;
+                    }
                     void openInMapsApp({
-                      latitude: report.mapLocation.latitude,
-                      longitude: report.mapLocation.longitude,
+                      latitude,
+                      longitude,
                       label: report.mapLocation.addressText || report.ticketNumber,
                     });
                   }}

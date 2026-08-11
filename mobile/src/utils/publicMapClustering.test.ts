@@ -51,6 +51,8 @@ describe('isValidMapCoordinate', () => {
     expect(isValidMapCoordinate(33, Number.POSITIVE_INFINITY)).toBe(false);
     expect(isValidMapCoordinate(120, 35)).toBe(false);
     expect(isValidMapCoordinate(33, 200)).toBe(false);
+    expect(isValidMapCoordinate(91, 35.5)).toBe(false);
+    expect(isValidMapCoordinate(33.9, 181)).toBe(false);
     expect(isValidMapCoordinate('33' as unknown as number, 35)).toBe(false);
   });
 });
@@ -174,6 +176,44 @@ describe('clusterPublicReports', () => {
     expect(features[0].kind).toBe('cluster');
     if (features[0].kind === 'cluster') {
       expect(features[0].count).toBe(3);
+    }
+  });
+
+  it('clusters points split only by an absolute grid cell boundary when still nearby', () => {
+    const region = {
+      latitude: 33.9,
+      longitude: 35.5,
+      latitudeDelta: 0.07,
+      longitudeDelta: 0.07,
+    };
+    const cellSize = cellSizeForRegion(region);
+    // Place points just below / above a floor(lat / cellSize) boundary.
+    const boundary = Math.ceil(33.9 / cellSize) * cellSize;
+    const offset = Math.min(cellSize * 0.05, 0.00005);
+    const reports = [
+      makeReport({
+        ticketNumber: 'BG-BOUND-A',
+        latitude: boundary - offset,
+        longitude: 35.5,
+      }),
+      makeReport({
+        ticketNumber: 'BG-BOUND-B',
+        latitude: boundary + offset,
+        longitude: 35.5,
+      }),
+    ];
+    const plottable = toPlottable(reports);
+    // Raw absolute buckets would be different cells for opposite sides of the boundary.
+    const rowA = Math.floor(plottable[0].latitude / cellSize);
+    const rowB = Math.floor(plottable[1].latitude / cellSize);
+    expect(rowA).not.toBe(rowB);
+    expect(Math.abs(plottable[0].latitude - plottable[1].latitude)).toBeLessThan(cellSize);
+
+    const features = clusterPublicReports(plottable, region);
+    expect(features).toHaveLength(1);
+    expect(features[0].kind).toBe('cluster');
+    if (features[0].kind === 'cluster') {
+      expect(features[0].count).toBe(2);
     }
   });
 });

@@ -113,13 +113,36 @@ export function filterPublicReports(
 }
 
 /**
- * Grid-based cluster index from current viewport zoom.
- * Larger deltas (zoomed out) merge more pins; closer zoom expands into singles.
+ * Grid-assisted proximity clustering.
+ * Cell size tracks viewport zoom. Nearby points merge when within the cluster
+ * distance threshold, including pairs split only by absolute grid cell boundaries.
  */
 export function cellSizeForRegion(region: PublicMapRegion): number {
   const span = Math.max(region.latitudeDelta, region.longitudeDelta);
   // Roughly ~6–8 bins across the visible span so counts read as hotspots.
   return Math.max(span / 7, 0.0004);
+}
+
+/** Euclidean distance in degree space (enough for local civic map proximity). */
+export function distanceDegrees(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const dLat = a.latitude - b.latitude;
+  const dLng = a.longitude - b.longitude;
+  return Math.hypot(dLat, dLng);
+}
+
+/**
+ * Merge radius for clustering. Equal to the grid cell size so points in adjacent
+ * cells that still fall within one “hotspot” bin are treated as one cluster.
+ */
+export function clusterDistanceThreshold(region: PublicMapRegion): number {
+  return cellSizeForRegion(region);
+}
+
+function cellKey(row: number, col: number): string {
+  return `${row}:${col}`;
 }
 
 export function clusterPublicReports(
@@ -130,23 +153,90 @@ export function clusterPublicReports(
     return [];
   }
 
-  const cellSize = cellSizeForRegion(region);
-  const buckets = new Map<string, PlottablePublicReport[]>();
+  const threshold = clusterDistanceThreshold(region);
+  const cellSize = threshold;
+  const n = plottable.length;
 
-  for (const point of plottable) {
+  // Spatial index for candidate pairs (self + 8 neighbors).
+  const cells = new Map<string, number[]>();
+  for (let index = 0; index < n; index += 1) {
+    const point = plottable[index];
     const row = Math.floor(point.latitude / cellSize);
     const col = Math.floor(point.longitude / cellSize);
-    const key = `${row}:${col}`;
-    const bucket = buckets.get(key);
+    const key = cellKey(row, col);
+    const bucket = cells.get(key);
     if (bucket) {
-      bucket.push(point);
+      bucket.push(index);
     } else {
-      buckets.set(key, [point]);
+      cells.set(key, [index]);
+    }
+  }
+
+  // Union-find over points within proximity threshold.
+  const parent = Array.from({ length: n }, (_, index) => index);
+  const rank = new Array<number>(n).fill(0);
+
+  const find = (index: number): number => {
+    let current = index;
+    while (parent[current] !== current) {
+      parent[current] = parent[parent[current]];
+      current = parent[current];
+    }
+    return current;
+  };
+
+  const union = (a: number, b: number) => {
+    let rootA = find(a);
+    let rootB = find(b);
+    if (rootA === rootB) {
+      return;
+    }
+    if (rank[rootA] < rank[rootB]) {
+      const swap = rootA;
+      rootA = rootB;
+      rootB = swap;
+    }
+    parent[rootB] = rootA;
+    if (rank[rootA] === rank[rootB]) {
+      rank[rootA] += 1;
+    }
+  };
+
+  for (let index = 0; index < n; index += 1) {
+    const point = plottable[index];
+    const row = Math.floor(point.latitude / cellSize);
+    const col = Math.floor(point.longitude / cellSize);
+    for (let dRow = -1; dRow <= 1; dRow += 1) {
+      for (let dCol = -1; dCol <= 1; dCol += 1) {
+        const neighbors = cells.get(cellKey(row + dRow, col + dCol));
+        if (!neighbors) {
+          continue;
+        }
+        for (const other of neighbors) {
+          if (other <= index) {
+            continue;
+          }
+          if (distanceDegrees(point, plottable[other]) <= threshold) {
+            union(index, other);
+          }
+        }
+      }
+    }
+  }
+
+  const groups = new Map<number, PlottablePublicReport[]>();
+  for (let index = 0; index < n; index += 1) {
+    const root = find(index);
+    const group = groups.get(root);
+    if (group) {
+      group.push(plottable[index]);
+    } else {
+      groups.set(root, [plottable[index]]);
     }
   }
 
   const features: PublicMapFeature[] = [];
-  for (const [key, points] of buckets) {
+  for (const points of groups.values()) {
     if (points.length === 1) {
       const only = points[0];
       features.push({
@@ -161,13 +251,16 @@ export function clusterPublicReports(
 
     let latSum = 0;
     let lngSum = 0;
+    const ticketNumbers: string[] = [];
     for (const point of points) {
       latSum += point.latitude;
       lngSum += point.longitude;
+      ticketNumbers.push(point.ticketNumber);
     }
+    ticketNumbers.sort();
     features.push({
       kind: 'cluster',
-      id: `cluster-${key}`,
+      id: `cluster-${ticketNumbers.join('_')}`,
       latitude: latSum / points.length,
       longitude: lngSum / points.length,
       count: points.length,

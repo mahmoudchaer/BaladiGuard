@@ -283,6 +283,40 @@ describe('HomeScreen public map clustering', () => {
 
     expect(screen.root.findByProps({ testID: 'public-map-partial-data' })).toBeTruthy();
     expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0003' })).toBeTruthy();
+    expect(
+      screen.root.findByProps({ testID: 'public-report-maps-BG-2026-0003' }).props.disabled,
+    ).toBe(true);
+  });
+
+  it('disables Open in Maps for finite out-of-range coordinates', async () => {
+    vi.mocked(getPublicTickets).mockResolvedValue({
+      items: [
+        makeReport({
+          ticketNumber: 'BG-OOR-1',
+          latitude: 91,
+          longitude: 35.5,
+          description: 'Finite but invalid latitude for maps.',
+        }),
+        makeReport({
+          ticketNumber: 'BG-OOR-2',
+          latitude: 33.9,
+          longitude: 181,
+          description: 'Finite but invalid longitude for maps.',
+        }),
+      ],
+      nextCursor: null,
+      limit: 50,
+    });
+    const screen = await renderWithProvidersAsync(<HomeScreen />);
+    await flush();
+
+    expect(screen.root.findByProps({ testID: 'public-report-maps-BG-OOR-1' }).props.disabled).toBe(
+      true,
+    );
+    expect(screen.root.findByProps({ testID: 'public-report-maps-BG-OOR-2' }).props.disabled).toBe(
+      true,
+    );
+    expect(screen.root.findByProps({ testID: 'public-map-empty' })).toBeTruthy();
   });
 
   it('shows an empty filter state when no public reports match', async () => {
