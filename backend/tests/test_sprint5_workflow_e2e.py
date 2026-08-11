@@ -238,7 +238,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
         },
     )
     assert filtered.status_code == 200
-    assert [ticket["ticketId"] for ticket in filtered.json()] == [ticket_id]
+    assert [ticket["ticketId"] for ticket in filtered.json()["items"]] == [ticket_id]
 
     public_after_staff_work = anonymous_client.get(f"/v1/tickets/track/{created['trackingCode']}")
     assert public_after_staff_work.status_code == 200

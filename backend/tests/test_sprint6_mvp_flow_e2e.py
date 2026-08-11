@@ -223,7 +223,7 @@ def test_sprint6_full_mvp_flow_acceptance(anonymous_client: TestClient, monkeypa
 
     listed = anonymous_client.get("/v1/tickets", headers=staff_headers)
     assert listed.status_code == 200
-    staff_ids = {row["ticketId"] for row in listed.json()}
+    staff_ids = {row["ticketId"] for row in listed.json()["items"]}
     assert created_a["ticketId"] in staff_ids
     assert created_b["ticketId"] in staff_ids
 
