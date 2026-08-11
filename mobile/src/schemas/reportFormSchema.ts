@@ -10,7 +10,7 @@ export const reportFormSchema = z
     addressText: z.string().trim().min(3, 'Enter a location or choose a sample place.'),
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
-    locationSource: z.enum(['GPS', 'MANUAL', 'PLACEHOLDER']).default('MANUAL'),
+    locationSource: z.enum(['GPS', 'MANUAL', 'PLACEHOLDER']),
     photoUri: z.string().min(1, 'Please attach a photo of the issue.'),
     photoFileName: z.string().optional(),
     photoContentType: z.string().optional(),
