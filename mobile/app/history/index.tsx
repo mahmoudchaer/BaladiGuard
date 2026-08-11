@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
+import { AppBottomNavigation } from '@/components/AppBottomNavigation';
 import { StatusChip } from '@/components/StatusChip';
 import {
   getCitizenTicketHistory,
@@ -120,7 +121,7 @@ export default function CitizenTicketHistoryScreen() {
       >
         <View style={styles.header}>
           <Text variant="headlineMedium" style={styles.title} accessibilityRole="header">
-            Report history
+            My Reports
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             Reports submitted from your signed-in account. Tap any report to see its full status
@@ -230,6 +231,7 @@ export default function CitizenTicketHistoryScreen() {
           </Button>
         ) : null}
       </ScrollView>
+      <AppBottomNavigation active="history" />
     </SafeAreaView>
   );
 }

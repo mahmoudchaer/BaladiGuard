@@ -1,9 +1,10 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
-import { beforeEach, vi } from 'vitest';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import HomeScreen from '../../app/index';
+import ExploreScreen from '../../app/explore';
+import { getPublicTickets } from '@/services/api/tickets';
 import { __getRouterMockState, __resetExpoRouterMock } from './mocks/expo-router';
 import { renderWithProvidersAsync } from './render';
 
@@ -13,16 +14,11 @@ const publicTickets = {
       ticketNumber: 'BG-2026-0001',
       status: 'IN_PROGRESS' as const,
       category: 'road_damage',
-      description: 'Large pothole near the university gate causing traffic disruption.',
-      location: { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
-      mapLocation: {
-        addressText: 'Near AUB Main Gate, Hamra, Beirut',
-        latitude: 33.896,
-        longitude: 35.478,
-      },
-      department: { name: 'Road Maintenance' },
+      description: 'Large pothole near the university gate.',
+      location: { addressText: 'Hamra, Beirut' },
+      mapLocation: { addressText: 'Hamra, Beirut', latitude: 33.896, longitude: 35.478 },
       attribution: { displayName: 'Community member', isNamed: false },
-      photoUrl: 'https://example.com/report-photo.jpg',
+      photoUrl: null,
       createdAt: '2026-07-07T00:00:00Z',
       updatedAt: '2026-07-07T02:00:00Z',
     },
@@ -33,89 +29,43 @@ const publicTickets = {
 
 vi.mock('@/services/api/tickets', () => ({
   getPublicTickets: vi.fn(async () => publicTickets),
+  getCitizenTicketHistory: vi.fn(),
 }));
 
-vi.mock('react-native-maps', () => ({
-  default: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('MapView', props, children),
-  Marker: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('Marker', props, children),
-}));
-
-import { getPublicTickets } from '@/services/api/tickets';
-
-function textContent(value: React.ReactNode): string {
-  if (Array.isArray(value)) {
-    return value.map(textContent).join('');
-  }
-  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
-}
-
-function hasTextContaining(
-  screen: Awaited<ReturnType<typeof renderWithProvidersAsync>>,
-  text: string,
-): boolean {
-  return screen.root.findAll((node) => textContent(node.props.children).includes(text)).length > 0;
-}
-
-describe('HomeScreen', () => {
+describe('mobile entry and Explore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetExpoRouterMock();
     vi.mocked(getPublicTickets).mockResolvedValue(publicTickets);
   });
 
-  it('renders the citizen reporting, tracking, privacy, and sign-in entry points', async () => {
+  it('renders the focused guest welcome and open-access choices', async () => {
     const screen = await renderWithProvidersAsync(<HomeScreen />);
-
-    expect(screen.root.findByProps({ children: 'BaladiGuard' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Track a report' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'welcome-screen' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Sign in or create an account' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Continue as guest' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Track with a code' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Privacy notice' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Sign in with phone' })).toBeTruthy();
+    expect(getPublicTickets).not.toHaveBeenCalled();
   });
 
-  it('loads and renders the public report feed without auth', async () => {
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-
-    expect(getPublicTickets).toHaveBeenCalledWith({
-      limit: 20,
-      signal: expect.any(AbortSignal),
-    });
+  it('loads privacy-safe reports in Explore instead of welcome', async () => {
+    const screen = await renderWithProvidersAsync(<ExploreScreen />);
+    expect(getPublicTickets).toHaveBeenCalledWith({ limit: 20 });
     expect(screen.root.findByProps({ testID: 'public-report-feed' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Public reports' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'BG-2026-0001' })).toBeTruthy();
     expect(
-      screen.root.findByProps({
-        children: 'Large pothole near the university gate causing traffic disruption.',
-      }),
+      screen.root.findByProps({ children: 'Large pothole near the university gate.' }),
     ).toBeTruthy();
-    expect(hasTextContaining(screen, 'Reported by Community member')).toBe(true);
     expect(
-      screen.root.findAll(
-        (node) =>
-          node.props.testID === 'public-report-photo-BG-2026-0001' ||
-          node.props.testID === 'public-report-photo-BG-2026-0001-fallback',
-      ).length,
-    ).toBeGreaterThan(0);
-    expect(screen.root.findByProps({ testID: 'public-report-maps-BG-2026-0001' })).toBeTruthy();
-    expect(screen.root.findAll((node) => String(node.type) === 'Marker')).toHaveLength(1);
+      screen.root.findByProps({ testID: 'public-report-attribution-BG-2026-0001' }),
+    ).toBeTruthy();
   });
 
-  it('opens public report details from a card and a map marker', async () => {
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-
-    await act(async () => {
-      screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' }).props.onPress();
-    });
-    expect(__getRouterMockState().pushCalls).toContainEqual({
-      pathname: '/public/[ticketNumber]',
-      params: { ticketNumber: 'BG-2026-0001' },
-    });
-
-    await act(async () => {
-      screen.root.findByProps({ title: 'BG-2026-0001' }).props.onPress();
-    });
+  it('opens a public report from Explore', async () => {
+    const screen = await renderWithProvidersAsync(<ExploreScreen />);
+    await act(async () =>
+      screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' }).props.onPress(),
+    );
     expect(__getRouterMockState().pushCalls).toContainEqual({
       pathname: '/public/[ticketNumber]',
       params: { ticketNumber: 'BG-2026-0001' },

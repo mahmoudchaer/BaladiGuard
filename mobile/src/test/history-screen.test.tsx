@@ -128,8 +128,8 @@ describe('HistoryScreen', () => {
 
     const screen = await renderWithProvidersAsync(<HomeScreen />);
 
-    expect(screen.root.findByProps({ testID: 'history-entry-button' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'My reports' })).toBeTruthy();
+    expect(screen.root.findByProps({ accessibilityLabel: 'My Reports' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Your reports' })).toBeTruthy();
   });
 
   it('redirects guests to login with returnTo=/history', async () => {

@@ -1,542 +1,331 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Text } from 'react-native-paper';
 import { Link, useRouter, type Href } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
+import { AppBottomNavigation } from '@/components/AppBottomNavigation';
 import { BrandMark, BrandStripe } from '@/components/BrandMark';
-import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
-import { getPublicTickets } from '@/services/api/tickets';
-import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
+import { getCitizenTicketHistory } from '@/services/api/tickets';
+import { colors, radii, spacing, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
-import type { PublicTicketResponse } from '@/types/ticket';
-import { openInMapsApp } from '@/utils/openMaps';
+import type { CitizenTicketHistoryItem } from '@/types/ticket';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isAuthenticated, contributionReady, profile, logout, isLoading } = useCitizenAuth();
-  const [reports, setReports] = useState<PublicTicketResponse[]>([]);
-  const [isLoadingReports, setIsLoadingReports] = useState(true);
-  const [reportError, setReportError] = useState<string | null>(null);
-  const loadSeqRef = useRef(0);
-  const abortRef = useRef<AbortController | null>(null);
+  const { accessToken, isAuthenticated, isLoading, profile } = useCitizenAuth();
+  const [reports, setReports] = useState<CitizenTicketHistoryItem[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
 
-  const loadReports = useCallback(async () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const seq = ++loadSeqRef.current;
-
-    setIsLoadingReports(true);
-    setReportError(null);
+  const loadSummary = useCallback(async () => {
+    if (!accessToken) return;
+    setSummaryLoading(true);
+    setSummaryError(false);
     try {
-      const response = await getPublicTickets({ limit: 20, signal: controller.signal });
-      if (seq !== loadSeqRef.current) {
-        return;
-      }
-      setReports(response.items);
-    } catch (error) {
-      if (seq !== loadSeqRef.current || controller.signal.aborted) {
-        return;
-      }
-      setReportError(
-        error instanceof Error ? error.message : 'Unable to load public reports right now.',
-      );
+      const page = await getCitizenTicketHistory({ accessToken, limit: 3 });
+      setReports(page.items);
+    } catch {
+      setSummaryError(true);
     } finally {
-      if (seq === loadSeqRef.current) {
-        setIsLoadingReports(false);
-      }
+      setSummaryLoading(false);
     }
-  }, []);
+  }, [accessToken]);
 
   useEffect(() => {
-    void loadReports();
-    return () => {
-      loadSeqRef.current += 1;
-      abortRef.current?.abort();
-    };
-  }, [loadReports]);
+    if (isAuthenticated) void loadSummary();
+  }, [isAuthenticated, loadSummary]);
 
-  const openPublicReport = (ticketNumber: string) => {
-    router.push({
-      pathname: '/public/[ticketNumber]',
-      params: { ticketNumber },
-    } as unknown as Href);
-  };
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.splash} testID="session-loading-splash">
+        <BrandStripe />
+        <BrandMark size={58} />
+        <Text style={styles.splashTitle}>BaladiGuard</Text>
+        <Text style={styles.splashText}>Your community, cared for.</Text>
+        <ActivityIndicator color={colors.brand} style={styles.splashSpinner} />
+      </SafeAreaView>
+    );
+  }
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.brandBlock}>
-          <BrandStripe />
-          <View style={styles.brandRow}>
-            <BrandMark size={30} />
-            <Text variant="headlineMedium" style={styles.title} accessibilityRole="header">
-              BaladiGuard
-            </Text>
-          </View>
-          <Text variant="bodyLarge" style={styles.subtitle}>
-            Report infrastructure issues in your neighborhood and track municipal progress.
-          </Text>
-        </View>
-
-        <View style={styles.actions}>
-          <Link href="/report" asChild>
-            <Button
-              mode="contained"
-              icon="clipboard-text-outline"
-              style={styles.primaryButton}
-              contentStyle={styles.primaryButtonContent}
-              labelStyle={styles.primaryButtonLabel}
-              buttonColor={colors.brand}
-              textColor={colors.textInverse}
-              elevation={0}
-              accessibilityHint="Starts a new infrastructure report"
-            >
-              Report an issue
-            </Button>
-          </Link>
-          <Link href={'/track' as Href} asChild>
-            <Button
-              mode="outlined"
-              icon="magnify"
-              style={styles.secondaryButton}
-              contentStyle={styles.secondaryButtonContent}
-              labelStyle={styles.secondaryButtonLabel}
-              textColor={colors.brandDark}
-              compact={false}
-            >
-              Track a report
-            </Button>
-          </Link>
-        </View>
-
-        {!isLoading && isAuthenticated ? (
-          <View style={styles.sessionCard}>
-            <Text variant="labelLarge" style={styles.sessionEyebrow}>
-              Your account
-            </Text>
-            <Text variant="bodyMedium" style={styles.sessionText}>
-              {contributionReady
-                ? `Signed in as ${profile?.fullName ?? profile?.phone}`
-                : `Signed in as ${profile?.fullName ?? profile?.phone}\nFinish setup in Profile to submit reports.`}
-            </Text>
-            <View style={styles.sessionActions}>
-              <Link href={'/profile' as Href} asChild>
-                <Button
-                  mode="text"
-                  compact
-                  icon="account"
-                  textColor={colors.brandDark}
-                  style={styles.sessionButton}
-                  testID="profile-entry-button"
-                >
-                  Profile
-                </Button>
-              </Link>
-              <Link href={'/history' as Href} asChild>
-                <Button
-                  mode="text"
-                  compact
-                  icon="history"
-                  textColor={colors.brandDark}
-                  style={styles.sessionButton}
-                  testID="history-entry-button"
-                >
-                  My reports
-                </Button>
-              </Link>
-              <Button
-                mode="text"
-                compact
-                onPress={() => void logout()}
-                textColor={colors.textSecondary}
-                style={styles.sessionButton}
-                testID="logout-button"
-              >
-                Sign out
-              </Button>
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.safeArea} testID="welcome-screen">
+        <ScrollView contentContainerStyle={styles.welcome}>
+          <View style={styles.welcomeBrand}>
+            <BrandStripe />
+            <View style={styles.wordmark}>
+              <BrandMark size={42} />
+              <Text style={styles.brandName}>BaladiGuard</Text>
             </View>
           </View>
-        ) : (
-          <View style={styles.guestActions}>
+          <View style={styles.hero}>
+            <Text style={styles.eyebrow}>A better way to care for your city</Text>
+            <Text style={styles.heroTitle} accessibilityRole="header">
+              See it. Report it. Follow the progress.
+            </Text>
+            <Text style={styles.heroBody}>
+              Report local infrastructure issues and stay informed as your municipality responds.
+            </Text>
+          </View>
+          <View style={styles.welcomeActions}>
             <Link href={buildLoginHref('/') as Href} asChild>
               <Button
-                mode="text"
-                icon="cellphone-message"
-                textColor={colors.brandDark}
-                style={styles.guestButton}
-                contentStyle={styles.guestButtonContent}
+                mode="contained"
+                icon="cellphone-check"
+                contentStyle={styles.buttonContent}
+                buttonColor={colors.brand}
                 testID="sign-in-button"
               >
-                Sign in with phone
+                Sign in or create an account
+              </Button>
+            </Link>
+            <Link href={'/explore' as Href} asChild>
+              <Button
+                mode="outlined"
+                icon="compass-outline"
+                contentStyle={styles.buttonContent}
+                textColor={colors.brandDark}
+                testID="continue-as-guest"
+              >
+                Continue as guest
+              </Button>
+            </Link>
+          </View>
+          <View style={styles.steps}>
+            {[
+              ['1', 'Spot an issue', 'Roads, lighting, waste, water, and more.'],
+              ['2', 'Send a clear report', 'Add a photo and location in a few simple steps.'],
+              ['3', 'Follow the response', 'See public progress or track with your private code.'],
+            ].map(([number, title, body]) => (
+              <View style={styles.step} key={number}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>{number}</Text>
+                </View>
+                <View style={styles.stepCopy}>
+                  <Text style={styles.stepTitle}>{title}</Text>
+                  <Text style={styles.stepBody}>{body}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.accountNote}>
+            A verified phone number and your full name are only needed to submit reports. Browsing
+            and tracking stay open to everyone.
+          </Text>
+          <View style={styles.guestLinks}>
+            <Link href={'/track' as Href} asChild>
+              <Button mode="text" compact textColor={colors.brandDark}>
+                Track with a code
               </Button>
             </Link>
             <Link href={'/privacy' as Href} asChild>
-              <Button
-                mode="text"
-                textColor={colors.textSecondary}
-                style={styles.guestButton}
-                contentStyle={styles.guestButtonContent}
-              >
+              <Button mode="text" compact textColor={colors.brandDark}>
                 Privacy notice
               </Button>
             </Link>
           </View>
-        )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
-        <View style={styles.feedHeader}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>
-            Public reports
-          </Text>
-          <Text variant="bodySmall" style={styles.feedHint}>
-            Nearby issues shared without private contact details.
-          </Text>
+  const firstName = profile?.fullName?.trim().split(/\s+/)[0];
+  const activeCount = reports.filter(
+    (report) => !['RESOLVED', 'CLOSED'].includes(report.status),
+  ).length;
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']} testID="signed-in-home">
+      <ScrollView contentContainerStyle={styles.home}>
+        <View style={styles.homeHeader}>
+          <View>
+            <Text style={styles.eyebrow}>WELCOME BACK</Text>
+            <Text style={styles.homeTitle}>{firstName ? `Hello, ${firstName}` : 'Hello'}</Text>
+          </View>
+          <BrandMark size={34} />
         </View>
-
-        {reportError ? (
-          <View style={styles.errorBlock}>
-            <Banner visible icon="alert-circle" style={styles.errorBanner}>
-              {reportError}
-            </Banner>
-            <Button mode="outlined" onPress={() => void loadReports()} textColor={colors.brandDark}>
+        <View style={styles.reportCard}>
+          <Text style={styles.reportCardTitle}>Something needs attention?</Text>
+          <Text style={styles.reportCardBody}>
+            A clear photo and location help your municipality respond faster.
+          </Text>
+          <Button
+            mode="contained"
+            icon="plus"
+            onPress={() => router.push('/report' as Href)}
+            contentStyle={styles.buttonContent}
+            buttonColor={colors.brandDark}
+          >
+            Report an issue
+          </Button>
+        </View>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Your reports</Text>
+            <Text style={styles.sectionHint}>
+              {summaryLoading
+                ? 'Checking for updates…'
+                : reports.length
+                  ? `${activeCount} active · ${reports.length} recent`
+                  : 'Recent account activity'}
+            </Text>
+          </View>
+          <Button
+            mode="text"
+            compact
+            onPress={() => router.push('/history' as Href)}
+            textColor={colors.brandDark}
+          >
+            View all
+          </Button>
+        </View>
+        {summaryError ? (
+          <View style={styles.stateCard} testID="home-summary-error">
+            <Text style={styles.stateTitle}>Updates are unavailable</Text>
+            <Text style={styles.stateBody}>
+              Your reports are safe. Check your connection and try again.
+            </Text>
+            <Button mode="text" onPress={() => void loadSummary()}>
               Try again
             </Button>
           </View>
         ) : null}
-
-        {isLoadingReports ? (
-          <View style={styles.reportLoading} testID="public-reports-loading">
-            <ActivityIndicator color={colors.brand} />
-            <Text variant="bodyMedium" style={styles.loadingText}>
-              Loading public reports…
+        {!summaryLoading && !summaryError && reports.length === 0 ? (
+          <View style={styles.stateCard} testID="home-summary-empty">
+            <Text style={styles.stateTitle}>Your first report starts here</Text>
+            <Text style={styles.stateBody}>
+              Reports sent from this account will appear here with their latest status.
             </Text>
           </View>
-        ) : (
-          <View style={styles.publicContent} testID="public-report-feed">
-            {reports.length === 0 && !reportError ? (
-              <View style={styles.emptyState}>
-                <Text variant="titleSmall" style={styles.emptyTitle}>
-                  No public reports yet
-                </Text>
-                <Text variant="bodyMedium" style={styles.emptyBody}>
-                  Be the first to report an infrastructure issue in your area.
-                </Text>
-              </View>
-            ) : null}
-
-            {reports.length > 0 ? (
-              <View style={styles.mapWrap}>
-                <MapView
-                  style={styles.map}
-                  initialRegion={{
-                    latitude: reports[0].mapLocation.latitude,
-                    longitude: reports[0].mapLocation.longitude,
-                    latitudeDelta: 0.04,
-                    longitudeDelta: 0.04,
-                  }}
-                >
-                  {reports.map((report) => (
-                    <Marker
-                      key={report.ticketNumber}
-                      coordinate={{
-                        latitude: report.mapLocation.latitude,
-                        longitude: report.mapLocation.longitude,
-                      }}
-                      title={report.ticketNumber}
-                      description={report.location.addressText}
-                      pinColor={colors.status[report.status]?.fg ?? colors.brand}
-                      onPress={() => openPublicReport(report.ticketNumber)}
-                    />
-                  ))}
-                </MapView>
-              </View>
-            ) : null}
-
-            {reports.map((report) => (
-              <View key={report.ticketNumber} style={styles.reportRow}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.reportPressable,
-                    pressed && styles.reportRowPressed,
-                  ]}
-                  onPress={() => openPublicReport(report.ticketNumber)}
-                  testID={`public-report-card-${report.ticketNumber}`}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open public report ${report.ticketNumber}`}
-                >
-                  <View style={styles.reportBody}>
-                    <ReportPhoto
-                      uri={report.photoUrl}
-                      accessibilityLabel={`Photo for report ${report.ticketNumber}`}
-                      testID={`public-report-photo-${report.ticketNumber}`}
-                      variant="compact"
-                    />
-                    <View style={styles.reportMain}>
-                      <View style={styles.reportCardHeader}>
-                        <Text variant="titleSmall" style={styles.reportNumber}>
-                          {report.ticketNumber}
-                        </Text>
-                        <StatusChip status={report.status} />
-                      </View>
-                      <Text variant="bodyMedium" style={styles.reportDescription} numberOfLines={3}>
-                        {report.description}
-                      </Text>
-                      <Text variant="bodySmall" style={styles.metaText}>
-                        {formatCategoryLabel(report.category)} · {report.location.addressText}
-                      </Text>
-                      <Text variant="bodySmall" style={styles.metaText}>
-                        Reported by {report.attribution.displayName}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-                <Button
-                  mode="outlined"
-                  compact
-                  icon="map-marker-outline"
-                  style={styles.mapsButton}
-                  contentStyle={styles.mapsButtonContent}
-                  labelStyle={styles.mapsButtonLabel}
-                  textColor={colors.brandDark}
-                  onPress={() => {
-                    void openInMapsApp({
-                      latitude: report.mapLocation.latitude,
-                      longitude: report.mapLocation.longitude,
-                      label: report.mapLocation.addressText || report.ticketNumber,
-                    });
-                  }}
-                  testID={`public-report-maps-${report.ticketNumber}`}
-                  accessibilityLabel={`Open ${report.ticketNumber} location in maps`}
-                >
-                  Open in Maps
-                </Button>
-              </View>
-            ))}
+        ) : null}
+        {reports.map((report) => (
+          <View style={styles.reportRow} key={report.trackingCode}>
+            <View style={styles.rowTop}>
+              <Text style={styles.rowTitle} numberOfLines={1}>
+                {formatCategoryLabel(report.category)}
+              </Text>
+              <StatusChip status={report.status} />
+            </View>
+            <Text style={styles.rowBody} numberOfLines={1}>
+              {report.locationAddress}
+            </Text>
           </View>
-        )}
+        ))}
       </ScrollView>
+      <AppBottomNavigation active="home" />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  splash: {
     flex: 1,
-    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing[6],
   },
-  container: {
-    padding: spacing[5],
+  splashTitle: { marginTop: spacing[4], fontSize: 30, fontWeight: '800', color: colors.text },
+  splashText: { marginTop: spacing[2], fontSize: 16, color: colors.textSecondary },
+  splashSpinner: { marginTop: spacing[8] },
+  welcome: {
+    flexGrow: 1,
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[5],
+    paddingBottom: spacing[6],
+    gap: spacing[5],
+  },
+  welcomeBrand: { alignItems: 'flex-start' },
+  wordmark: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  brandName: { fontSize: 25, fontWeight: '800', color: colors.text },
+  hero: { gap: spacing[3] },
+  eyebrow: { fontSize: 12, fontWeight: '800', letterSpacing: 1.1, color: colors.brandDark },
+  heroTitle: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: -0.7,
+  },
+  heroBody: { fontSize: 17, lineHeight: 25, color: colors.textSecondary },
+  welcomeActions: { gap: spacing[3] },
+  buttonContent: { minHeight: 50 },
+  steps: {
+    padding: spacing[4],
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
     gap: spacing[4],
-    paddingBottom: spacing[8],
-  },
-  brandBlock: {
-    gap: spacing[2],
-    paddingBottom: spacing[1],
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-  },
-  title: {
-    fontWeight: '700',
-    color: colors.brandDark,
-    fontSize: typography.pageTitle,
-    flexShrink: 1,
-    letterSpacing: -0.4,
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    lineHeight: 22,
-  },
-  actions: {
-    gap: spacing[3],
-  },
-  primaryButton: {
-    borderRadius: radii.lg,
-    backgroundColor: colors.brand,
-  },
-  primaryButtonContent: {
-    minHeight: touchTargetMin,
-  },
-  primaryButtonLabel: {
-    fontSize: typography.control,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    borderRadius: radii.lg,
-    borderColor: colors.brand,
-    backgroundColor: colors.surface,
-  },
-  secondaryButtonContent: {
-    minHeight: touchTargetMin,
-  },
-  secondaryButtonLabel: {
-    fontSize: typography.control,
-    fontWeight: '700',
-  },
-  sessionCard: {
-    gap: spacing[2],
-    padding: spacing[4],
-    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
-  sessionEyebrow: {
-    color: colors.brandDark,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    fontSize: typography.label,
-  },
-  sessionText: {
-    color: colors.textSecondary,
-  },
-  sessionActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -spacing[1],
-  },
-  sessionButton: {
-    minHeight: touchTargetMin,
-    justifyContent: 'center',
-  },
-  guestActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[1],
-  },
-  guestButton: {
-    minHeight: touchTargetMin,
-    justifyContent: 'center',
-  },
-  guestButtonContent: {
-    minHeight: touchTargetMin,
-  },
-  feedHeader: {
-    gap: spacing[1],
-    marginTop: spacing[3],
-    paddingTop: spacing[2],
-  },
-  sectionTitle: {
-    fontWeight: '700',
-    color: colors.text,
-    fontSize: typography.sectionTitle,
-    letterSpacing: -0.2,
-  },
-  feedHint: {
-    color: colors.textMuted,
-  },
-  errorBlock: {
-    gap: spacing[3],
-  },
-  errorBanner: {
-    backgroundColor: colors.dangerSoft,
-  },
-  reportLoading: {
-    minHeight: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing[2],
-  },
-  loadingText: {
-    color: colors.textSecondary,
-  },
-  publicContent: {
-    gap: spacing[3],
-  },
-  emptyState: {
-    padding: spacing[4],
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    backgroundColor: colors.surface,
-    gap: spacing[2],
-  },
-  emptyTitle: {
-    fontWeight: '700',
-    color: colors.text,
-  },
-  emptyBody: {
-    color: colors.textSecondary,
-  },
-  mapWrap: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
-  },
-  map: {
-    height: 200,
-  },
-  reportRow: {
-    gap: spacing[3],
-    padding: spacing[3],
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    shadowColor: '#1a2332',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  reportPressable: {
-    borderRadius: radii.md,
-    minHeight: touchTargetMin,
-  },
-  reportRowPressed: {
+  step: { flexDirection: 'row', gap: spacing[3], alignItems: 'center' },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.brandSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  reportBody: {
-    flexDirection: 'row',
+  stepNumberText: { fontWeight: '800', color: colors.brandDark },
+  stepCopy: { flex: 1 },
+  stepTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  stepBody: { marginTop: 2, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
+  accountNote: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: colors.textMuted },
+  guestLinks: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
+  home: { padding: spacing[5], paddingBottom: spacing[8], gap: spacing[5] },
+  homeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  homeTitle: {
+    marginTop: spacing[1],
+    fontSize: typography.pageTitle,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  reportCard: {
+    padding: spacing[5],
     gap: spacing[3],
-    alignItems: 'flex-start',
+    borderRadius: 16,
+    backgroundColor: colors.brand,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
-  reportMain: {
-    flex: 1,
-    gap: spacing[1],
-    minWidth: 0,
+  reportCardTitle: { fontSize: 21, fontWeight: '800', color: colors.textInverse },
+  reportCardBody: { fontSize: 15, lineHeight: 22, color: '#E6F4EC' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 19, fontWeight: '800', color: colors.text },
+  sectionHint: { marginTop: 3, fontSize: 13, color: colors.textSecondary },
+  stateCard: {
+    padding: spacing[5],
+    alignItems: 'center',
+    gap: spacing[2],
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  reportCardHeader: {
+  stateTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  stateBody: { textAlign: 'center', lineHeight: 20, color: colors.textSecondary },
+  reportRow: {
+    padding: spacing[4],
+    gap: spacing[2],
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rowTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: spacing[3],
+    gap: spacing[2],
   },
-  reportNumber: {
-    color: colors.text,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  reportDescription: {
-    color: colors.text,
-    lineHeight: 21,
-  },
-  metaText: {
-    color: colors.textMuted,
-  },
-  mapsButton: {
-    borderColor: colors.borderStrong,
-    borderRadius: radii.md,
-    alignSelf: 'stretch',
-  },
-  mapsButtonContent: {
-    minHeight: 40,
-  },
-  mapsButtonLabel: {
-    fontSize: typography.metadata,
-    fontWeight: '700',
-  },
+  rowTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.text },
+  rowBody: { fontSize: 13, color: colors.textSecondary },
 });

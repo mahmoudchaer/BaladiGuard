@@ -127,19 +127,15 @@ describe('citizen auth flows', () => {
     expect(__getRouterMockState().replaceCalls).toHaveLength(0);
   });
 
-  it('restores a session on home and supports logout', async () => {
+  it('restores a session directly into the signed-in home', async () => {
     await saveCitizenSession(buildCitizenSession('tok_1', 3600, readyProfile));
     vi.mocked(getCitizenMe).mockResolvedValue(readyProfile);
     vi.mocked(logoutCitizen).mockResolvedValue(undefined);
 
     const screen = await renderWithProvidersAsync(<HomeScreen />);
-    expect(screen.root.findByProps({ children: 'Signed in as Ada Citizen' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Track a report' })).toBeTruthy();
-
-    await act(async () => {
-      findByTestId(screen, 'logout-button').props.onPress();
-    });
-    expect(logoutCitizen).toHaveBeenCalledWith('tok_1');
+    expect(screen.root.findByProps({ testID: 'signed-in-home' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Hello, Ada' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
   });
 
   it('returns to the intended screen after successful verification', async () => {
@@ -219,8 +215,8 @@ describe('citizen auth flows', () => {
 
   it('shows a sign-in path on home for guests', async () => {
     const screen = await renderWithProvidersAsync(<HomeScreen />);
-    expect(screen.root.findByProps({ children: 'Sign in with phone' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Track a report' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Sign in or create an account' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Continue as guest' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Track with a code' })).toBeTruthy();
   });
 });

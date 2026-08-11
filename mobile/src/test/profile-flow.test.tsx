@@ -97,11 +97,8 @@ describe('citizen profile flows', () => {
     vi.mocked(logoutCitizen).mockReset();
   });
 
-  it('loads the authenticated profile summary from home', async () => {
+  it('loads the authenticated profile summary', async () => {
     await seedSession();
-
-    const home = await renderWithProvidersAsync(<HomeScreen />);
-    expect(findByTestId(home, 'profile-entry-button')).toBeTruthy();
 
     const screen = await renderWithProvidersAsync(<ProfileScreen />);
     expect(findByTestId(screen, 'profile-summary')).toBeTruthy();
