@@ -152,6 +152,13 @@ Legend for **Evidence**:
 
 ### 8. Administrator-only surface (non-ticket)
 
+Issue #236 closes the previously documented X7/X8/M3 gaps: automated coverage
+in `test_staff_authorization::test_out_of_scope_ticket_returns_404_to_municipal_staff_and_200_to_admin`
+pairs the same ticket's municipal `404` with administrator `200`, while
+`test_admin_staff_accounts_api` covers the administrator-only HTTP staff-account
+surface (including safe responses, validation, duplicate handling, account audit,
+deactivation/session effects, and authorization failures).
+
 | ID | Area | Actor | Action | Expected | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | M1 | Admin gate | Municipal staff vs admin | `require_admin` | 403 vs pass | Auto: `test_staff_authorization::test_admin_dependency_rejects_regular_staff` |
@@ -165,8 +172,8 @@ Legend for **Evidence**:
 | Ref | Matrix IDs | Finding | Suggested home |
 | --- | --- | --- | --- |
 | G-UPLOAD | S6 | ~~Report photo upload not contribution-ready gated~~ **Fixed in #53** — `ContributionReadyCitizenDep` on `POST /v1/uploads/report-photo`. | — |
-| G-ADMIN-PAIR | X7 | Missing single automated test that pairs municipal 404 with admin 200 on same out-of-scope ticket. | Follow-up [#235](https://github.com/mahmoudchaer/BaladiGuard/issues/235) |
-| G-ADMIN-HTTP | X8, M3 | No administrator HTTP API for staff account CRUD on this base branch. | Follow-up [#236](https://github.com/mahmoudchaer/BaladiGuard/issues/236) |
+| G-ADMIN-PAIR | X7 | **Fixed in #236** — paired municipal `404` / administrator `200` test on the same out-of-scope ticket. | — |
+| G-ADMIN-HTTP | X8, M3 | **Fixed in #236** — protected staff-account HTTP API backed by the existing memory/Dynamo stores. | — |
 
 Failed matrix rows above are **documented gaps**, not merge blockers for #182 itself.
 
