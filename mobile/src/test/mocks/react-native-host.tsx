@@ -16,7 +16,6 @@ export const ScrollView = createHostComponent('ScrollView');
 export const Text = createHostComponent('Text');
 export const TextInput = createHostComponent('TextInput');
 export const View = createHostComponent('View');
-export const Modal = createHostComponent('Modal');
 // Keep Image as a function component (not a host string) so event props like
 // onError are preserved under react-test-renderer / React 19.
 export function Image({ children, ...props }: HostProps) {
@@ -24,6 +23,23 @@ export function Image({ children, ...props }: HostProps) {
 }
 export const ActivityIndicator = createHostComponent('ActivityIndicator');
 export const RefreshControl = createHostComponent('RefreshControl');
+// Function component (same idea as Image) so we do not collide with any ambient Modal types.
+export function Modal({ children, ...props }: HostProps) {
+  return React.createElement('RNModal', props, children);
+}
+
+export const Alert = {
+  alert: (
+    _title: string,
+    _message?: string,
+    buttons?: Array<{ text?: string; onPress?: () => void; style?: string }>,
+  ) => {
+    // Auto-confirm the last non-cancel action in tests when present.
+    const action =
+      buttons?.find((button) => button.style === 'destructive') ?? buttons?.[buttons.length - 1];
+    action?.onPress?.();
+  },
+};
 
 export const Platform = {
   OS: 'ios',

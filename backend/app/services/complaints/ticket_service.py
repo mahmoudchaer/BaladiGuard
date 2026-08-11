@@ -90,6 +90,10 @@ class TicketNotFoundError(LookupError):
     pass
 
 
+class TicketSubmissionInProgressError(RuntimeError):
+    """Same Idempotency-Key is claimed but not yet completed (issue #258)."""
+
+
 class DuplicateMergeError(ValueError):
     pass
 
@@ -183,6 +187,124 @@ class TicketService:
         *,
         owner_user_id: str,
         contact: ReportContact,
+        client_submission_key: str | None = None,
+    ) -> SubmitTicketResponse:
+        from app.services.complaints.ticket_submission_idempotency import (
+            composite_submission_key,
+            get_ticket_submission_idempotency_store,
+            normalize_client_submission_key,
+        )
+
+        # Prefer explicit key (header/body already merged by the route); optional body field.
+        raw_key = client_submission_key or payload.client_submission_id
+        client_key = normalize_client_submission_key(raw_key)
+        composite_key: str | None = None
+        idem_store = None
+        if client_key:
+            idem_store = get_ticket_submission_idempotency_store()
+            composite_key = composite_submission_key(
+                owner_user_id=owner_user_id,
+                client_key=client_key,
+            )
+            existing = idem_store.get_completed(composite_key)
+            if existing is not None:
+                return existing
+            recovered = self._recover_idempotent_submission(
+                composite_key,
+                idem_store=idem_store,
+                owner_user_id=owner_user_id,
+            )
+            if recovered is not None:
+                return recovered
+            if not idem_store.try_begin(composite_key):
+                existing = idem_store.get_completed(composite_key)
+                if existing is not None:
+                    return existing
+                recovered = self._recover_idempotent_submission(
+                    composite_key,
+                    idem_store=idem_store,
+                    owner_user_id=owner_user_id,
+                )
+                if recovered is not None:
+                    return recovered
+                raise TicketSubmissionInProgressError(
+                    "A submission with this idempotency key is already in progress. "
+                    "Please wait a moment and retry."
+                )
+
+        ticket_persisted = False
+
+        def _mark_ticket_persisted() -> None:
+            nonlocal ticket_persisted
+            ticket_persisted = True
+
+        try:
+            return self._create_submitted_ticket(
+                payload,
+                owner_user_id=owner_user_id,
+                contact=contact,
+                composite_key=composite_key,
+                idem_store=idem_store,
+                on_ticket_persisted=_mark_ticket_persisted,
+            )
+        except Exception:
+            if composite_key and idem_store is not None and not ticket_persisted:
+                force_release = getattr(idem_store, "force_release", None)
+                if callable(force_release):
+                    force_release(composite_key)
+                else:
+                    idem_store.release(composite_key)
+            raise
+
+    def _recover_idempotent_submission(
+        self,
+        composite_key: str,
+        *,
+        idem_store: object,
+        owner_user_id: str,
+    ) -> SubmitTicketResponse | None:
+        """Replay a prior create after crash/complete failure using bound ticket id."""
+        try_recover = getattr(idem_store, "try_recover", None)
+        if callable(try_recover):
+            recovered = try_recover(composite_key)
+            if recovered is not None:
+                return recovered
+
+        get_pending = getattr(idem_store, "get_pending_ticket_id", None)
+        if not callable(get_pending):
+            return None
+        pending_ticket_id = get_pending(composite_key)
+        if not pending_ticket_id:
+            return None
+
+        ticket = self._store.get(pending_ticket_id)
+        if ticket is None:
+            return None
+        if ticket.owner_user_id and ticket.owner_user_id != owner_user_id:
+            return None
+
+        response = SubmitTicketResponse(
+            ticketId=ticket.ticket_id,
+            ticketNumber=ticket.ticket_number,
+            trackingCode=ticket.tracking_code,
+            status="SUBMITTED",
+            message="Your report was submitted successfully.",
+            createdAt=ticket.created_at,
+        )
+        complete = getattr(idem_store, "complete", None)
+        if callable(complete):
+            complete(composite_key, response)
+        return response
+
+    def _create_submitted_ticket(
+        self,
+        payload: SubmitTicketRequest,
+        *,
+        owner_user_id: str,
+        contact: ReportContact,
+        composite_key: str | None,
+        idem_store: object | None,
+        on_ticket_persisted=None,
     ) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
@@ -206,6 +328,22 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
+        response = SubmitTicketResponse(
+            ticketId=ticket_id,
+            ticketNumber=ticket_number,
+            trackingCode=tracking_code,
+            status="SUBMITTED",
+            message="Your report was submitted successfully.",
+            createdAt=created_at_iso,
+        )
+
+        # Bind ticket identity before save so a crash after save / before complete
+        # remains recoverable via pendingTicketId + ticket load.
+        if composite_key and idem_store is not None:
+            bind = getattr(idem_store, "bind_ticket", None)
+            if callable(bind):
+                bind(composite_key, ticket_id=ticket_id)
+
         photo_claimed = photo_upload_service.claim_for_ticket(
             payload.image_object_key,
             owner_user_id=owner_user_id,
@@ -220,7 +358,22 @@ class TicketService:
                     owner_user_id=owner_user_id,
                     ticket_id=ticket_id,
                 )
+            if composite_key and idem_store is not None:
+                force_release = getattr(idem_store, "force_release", None)
+                if callable(force_release):
+                    force_release(composite_key)
             raise
+
+        if callable(on_ticket_persisted):
+            on_ticket_persisted()
+
+        # Complete immediately after durable ticket write — before side effects —
+        # so retries always replay instead of re-creating.
+        if composite_key and idem_store is not None:
+            complete = getattr(idem_store, "complete", None)
+            if callable(complete):
+                complete(composite_key, response)
+
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=None,
@@ -239,14 +392,7 @@ class TicketService:
             recipient=ticket_notification_recipient(stored_ticket),
         )
 
-        return SubmitTicketResponse(
-            ticketId=ticket_id,
-            ticketNumber=ticket_number,
-            trackingCode=tracking_code,
-            status="SUBMITTED",
-            message="Your report was submitted successfully.",
-            createdAt=created_at_iso,
-        )
+        return response
 
     def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
         """Process one pending ticket without exposing failures to the submit request.

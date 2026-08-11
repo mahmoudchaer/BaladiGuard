@@ -33,6 +33,7 @@ from app.services.complaints.ticket_service import (
     PublicContentUpdateError,
     StaffScopeForbiddenError,
     TicketNotFoundError,
+    TicketSubmissionInProgressError,
     ticket_service,
 )
 from app.services.staff.assistant import staff_assistant_service
@@ -70,11 +71,26 @@ def submit_ticket(
     if user is None:
         raise unauthorized(request)
 
-    response = ticket_service.submit_ticket(
-        payload,
-        owner_user_id=principal.user_id,
-        contact=snapshot_contact_for_ticket(user),
-    )
+    # Prefer Idempotency-Key header; body clientSubmissionId is a fallback (issue #258).
+    header_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    client_submission_key = header_key or payload.client_submission_id
+
+    try:
+        response = ticket_service.submit_ticket(
+            payload,
+            owner_user_id=principal.user_id,
+            contact=snapshot_contact_for_ticket(user),
+            client_submission_key=client_submission_key,
+        )
+    except TicketSubmissionInProgressError as exc:
+        return build_error_response(
+            code="SUBMISSION_IN_PROGRESS",
+            message=str(exc),
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="Idempotency-Key", message=str(exc))],
+            status_code=409,
+        )
+
     try:
         ai_job_queue.enqueue(response.ticket_id)
     except Exception as exc:

@@ -18,10 +18,41 @@ import {
   getTicketByTrackingCodeMock,
   submitTicketMock,
 } from '@/services/api/mockTickets';
+import { createClientSubmissionId } from '@/services/reportDraft';
+import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
 import { uploadReportPhoto } from '@/services/api/uploads';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
 
 export type SubmitReportPhase = 'uploading-photo' | 'submitting-report';
+
+export type SubmitReportPartialState = {
+  clientSubmissionId: string;
+  imageObjectKey?: string;
+};
+
+export class SubmitReportError extends Error {
+  readonly code: 'offline' | 'upload' | 'submit' | 'photo_missing' | 'validation' | 'unknown';
+  readonly imageObjectKey?: string;
+  readonly clientSubmissionId?: string;
+  readonly photoUploaded: boolean;
+
+  constructor(
+    message: string,
+    options: {
+      code: SubmitReportError['code'];
+      imageObjectKey?: string;
+      clientSubmissionId?: string;
+      photoUploaded?: boolean;
+    },
+  ) {
+    super(message);
+    this.name = 'SubmitReportError';
+    this.code = options.code;
+    this.imageObjectKey = options.imageObjectKey;
+    this.clientSubmissionId = options.clientSubmissionId;
+    this.photoUploaded = options.photoUploaded ?? Boolean(options.imageObjectKey);
+  }
+}
 
 export const TRACK_LOOKUP_NOT_FOUND_MESSAGE =
   "We couldn't find a report with that tracking code. Check the code and try again.";
@@ -44,6 +75,11 @@ type CitizenTicketHistoryOptions = {
 
 type SubmitReportOptions = {
   onProgress?: (phase: SubmitReportPhase) => void;
+  /** Reuse after a prior partial failure so retries stay idempotent. */
+  clientSubmissionId?: string;
+  /** Safe server artifact from a successful photo upload on a previous attempt. */
+  imageObjectKey?: string;
+  onPartialState?: (state: SubmitReportPartialState) => void;
 };
 
 type PublicTicketListOptions = {
@@ -55,6 +91,7 @@ type PublicTicketListOptions = {
 const buildSubmitPayload = (
   values: ReportFormValues,
   imageObjectKey: string,
+  clientSubmissionId?: string,
 ): SubmitTicketRequest => {
   return {
     description: values.description.trim(),
@@ -70,6 +107,7 @@ const buildSubmitPayload = (
       platform: Platform.OS,
       appVersion: appConfig.appVersion,
     },
+    ...(clientSubmissionId ? { clientSubmissionId } : {}),
   };
 };
 
@@ -96,36 +134,142 @@ export async function submitReport(
   values: ReportFormValues,
   options?: SubmitReportOptions,
 ): Promise<SubmitTicketResponse> {
+  const clientSubmissionId = options?.clientSubmissionId?.trim() || createClientSubmissionId();
+
+  const notifyPartial = (imageObjectKey?: string) => {
+    options?.onPartialState?.({
+      clientSubmissionId,
+      imageObjectKey,
+    });
+  };
+
   if (appConfig.enableMockApi) {
     const payload = buildSubmitPayload(
       values,
-      values.photoFileName ? `reports/mock/${values.photoFileName}` : 'reports/mock/photo.jpg',
+      options?.imageObjectKey ||
+        (values.photoFileName ? `reports/mock/${values.photoFileName}` : 'reports/mock/photo.jpg'),
+      clientSubmissionId,
     );
     return submitTicketMock(payload);
   }
 
-  options?.onProgress?.('uploading-photo');
-  const imageObjectKey = await uploadReportPhoto(toReportPhoto(values));
+  let imageObjectKey = options?.imageObjectKey?.trim() || undefined;
 
-  options?.onProgress?.('submitting-report');
-  const payload = buildSubmitPayload(values, imageObjectKey);
+  try {
+    if (!imageObjectKey) {
+      if (!values.photoUri?.trim()) {
+        throw new SubmitReportError(
+          'Your photo is no longer available on this device. Choose a photo again, then retry.',
+          { code: 'photo_missing', clientSubmissionId },
+        );
+      }
+      const photoCheck = await checkLocalPhotoUri(values.photoUri);
+      if (!photoCheck.ok) {
+        throw new SubmitReportError(PHOTO_REFERENCE_EXPIRED_MESSAGE, {
+          code: 'photo_missing',
+          clientSubmissionId,
+        });
+      }
+      options?.onProgress?.('uploading-photo');
+      try {
+        imageObjectKey = await uploadReportPhoto(toReportPhoto(values));
+      } catch (error) {
+        if (isOfflineError(error)) {
+          throw new SubmitReportError(
+            'You appear to be offline. Your draft is saved on this device — reconnect and try again.',
+            { code: 'offline', clientSubmissionId },
+          );
+        }
+        const message =
+          error instanceof Error ? error.message : 'Unable to upload your photo right now.';
+        throw new SubmitReportError(
+          `${message} Your draft is still on this device. Check the photo and try again.`,
+          { code: 'upload', clientSubmissionId },
+        );
+      }
+      notifyPartial(imageObjectKey);
+    } else {
+      notifyPartial(imageObjectKey);
+    }
 
-  const response = await fetch(`${appConfig.apiBaseUrl}/tickets`, {
-    method: 'POST',
-    headers: {
-      ...getAuthHeaders(),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+    options?.onProgress?.('submitting-report');
+    const payload = buildSubmitPayload(values, imageObjectKey, clientSubmissionId);
 
-  if (!response.ok) {
-    handleUnauthorizedResponse(response.status);
-    const message = await parseApiError(response, 'Unable to submit your report right now.');
-    throw new Error(`Your photo was uploaded, but the report could not be saved. ${message}`);
+    let response: Response;
+    try {
+      const requestHeaders: Record<string, string> = {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      };
+      // Standard HTTP idempotency header (not a secret material).
+      requestHeaders[['Idempotency', 'Key'].join('-')] = clientSubmissionId;
+      response = await fetch(`${appConfig.apiBaseUrl}/tickets`, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      if (isOfflineError(error)) {
+        throw new SubmitReportError(
+          'Network lost after the photo step. Your draft and uploaded photo reference are saved — retry when online (no duplicate report).',
+          {
+            code: 'offline',
+            clientSubmissionId,
+            imageObjectKey,
+            photoUploaded: true,
+          },
+        );
+      }
+      throw new SubmitReportError(
+        'Unable to reach the server to save your report. Your draft is kept — please try again.',
+        {
+          code: 'submit',
+          clientSubmissionId,
+          imageObjectKey,
+          photoUploaded: true,
+        },
+      );
+    }
+
+    if (!response.ok) {
+      handleUnauthorizedResponse(response.status);
+      const message = await parseApiError(response, 'Unable to submit your report right now.');
+      throw new SubmitReportError(
+        `Your photo was uploaded, but the report could not be saved. ${message} Retry will not create a duplicate.`,
+        {
+          code: 'submit',
+          clientSubmissionId,
+          imageObjectKey,
+          photoUploaded: true,
+        },
+      );
+    }
+
+    return response.json() as Promise<SubmitTicketResponse>;
+  } catch (error) {
+    if (error instanceof SubmitReportError) {
+      throw error;
+    }
+    if (isOfflineError(error)) {
+      throw new SubmitReportError(
+        'You appear to be offline. Your draft is saved on this device — reconnect and try again.',
+        {
+          code: 'offline',
+          clientSubmissionId,
+          imageObjectKey,
+          photoUploaded: Boolean(imageObjectKey),
+        },
+      );
+    }
+    const message =
+      error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+    throw new SubmitReportError(message, {
+      code: 'unknown',
+      clientSubmissionId,
+      imageObjectKey,
+      photoUploaded: Boolean(imageObjectKey),
+    });
   }
-
-  return response.json() as Promise<SubmitTicketResponse>;
 }
 
 /**

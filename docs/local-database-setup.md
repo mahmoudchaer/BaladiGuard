@@ -93,6 +93,7 @@ persistence foundation.
 | `baladiguard-categories`             | `categoryId`       | —                                                                                           |
 | `baladiguard-counters`               | `counterId`        | — (ticket number sequence)                                                                  |
 | `baladiguard-rate-limit-buckets`     | `bucketKey`        | Shared rate-limit counters (#186); TTL on `expiresAt`.                                      |
+| `baladiguard-ticket-submission-claims` | `idempotencyKey` | Ticket create Idempotency-Key claims + replay (#258); TTL on `ttl` (14-day completed retention). |
 
 ### Legacy `users` table migration
 
