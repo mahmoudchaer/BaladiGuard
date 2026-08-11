@@ -140,9 +140,7 @@ class DynamoTicketStore:
             urgency=urgency,
             department_id=department_id if index_name != DEPARTMENT_STAFF_INDEX else None,
             department_ids=(
-                department_ids
-                if browse_mode == "municipality" and department_id is None
-                else None
+                department_ids if browse_mode == "municipality" and department_id is None else None
             ),
         )
 

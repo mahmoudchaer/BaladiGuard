@@ -299,10 +299,13 @@ describe('updateTicketStatus', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify(listPagePayload([{ ...listItemPayload, priority: 'critical' }])), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(listPagePayload([{ ...listItemPayload, priority: 'critical' }])),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       ),
     );
 

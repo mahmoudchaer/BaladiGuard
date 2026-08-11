@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents, ZoomControl } from 'react-leaflet';
+import {
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Popup,
+  TileLayer,
+  useMap,
+  useMapEvents,
+  ZoomControl,
+} from 'react-leaflet';
 import L from 'leaflet';
 import type { Ticket, TicketPriority, TicketStatus } from '@/types/ticket';
 import type { TicketMapCluster, TicketMapMarker } from '@/types/ticketCollection';
@@ -371,9 +380,7 @@ function OverviewTicketMap({
               eventHandlers={{
                 click: () => setSelectedTicketId(marker.ticketId),
                 popupclose: () =>
-                  setSelectedTicketId((current) =>
-                    current === marker.ticketId ? null : current,
-                  ),
+                  setSelectedTicketId((current) => (current === marker.ticketId ? null : current)),
               }}
             >
               <Popup className="ticket-map__popup-shell" maxWidth={280}>

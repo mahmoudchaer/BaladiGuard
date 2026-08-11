@@ -163,8 +163,7 @@ function filterRecord(filters: FetchTicketsFilters = {}): Record<string, string 
   return {
     status: filters.status && filters.status !== 'ALL' ? filters.status : undefined,
     category: filters.category && filters.category !== 'ALL' ? filters.category : undefined,
-    urgency:
-      filters.urgency && filters.urgency !== 'ALL' ? filters.urgency : undefined,
+    urgency: filters.urgency && filters.urgency !== 'ALL' ? filters.urgency : undefined,
     departmentId:
       filters.departmentId && filters.departmentId !== 'ALL' ? filters.departmentId : undefined,
     slaState: filters.slaState && filters.slaState !== 'ALL' ? filters.slaState : undefined,
@@ -249,7 +248,8 @@ function normalizeTicketListItem(data: unknown): TicketListItem {
     departmentId: typeof data.departmentId === 'string' ? data.departmentId : null,
     department: department
       ? {
-          departmentId: typeof department.departmentId === 'string' ? department.departmentId : null,
+          departmentId:
+            typeof department.departmentId === 'string' ? department.departmentId : null,
           name: typeof department.name === 'string' ? department.name : null,
         }
       : null,
@@ -520,7 +520,8 @@ function normalizeTicketMapViewport(data: unknown): TicketMapViewport {
               : null,
           latitude: typeof marker.latitude === 'number' ? marker.latitude : Number.NaN,
           longitude: typeof marker.longitude === 'number' ? marker.longitude : Number.NaN,
-          category: typeof marker.category === 'string' ? marker.category : 'PENDING_CLASSIFICATION',
+          category:
+            typeof marker.category === 'string' ? marker.category : 'PENDING_CLASSIFICATION',
         },
       ];
     }),

@@ -116,13 +116,7 @@ export function MapViewPage() {
 
     void loadViewport();
     return () => controller.abort();
-  }, [
-    debouncedBounds,
-    debouncedCategory,
-    debouncedDepartment,
-    debouncedStatus,
-    debouncedUrgency,
-  ]);
+  }, [debouncedBounds, debouncedCategory, debouncedDepartment, debouncedStatus, debouncedUrgency]);
 
   const handleViewportChange = useCallback((next: MapBounds) => {
     setBounds(next);
@@ -135,7 +129,8 @@ export function MapViewPage() {
       return all;
     }
     return all.filter((marker) => {
-      const haystack = `${marker.ticketNumber ?? ''} ${marker.ticketId} ${marker.category}`.toLowerCase();
+      const haystack =
+        `${marker.ticketNumber ?? ''} ${marker.ticketId} ${marker.category}`.toLowerCase();
       return haystack.includes(query);
     });
   }, [debouncedSearch, viewport?.markers]);

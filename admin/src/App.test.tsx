@@ -20,16 +20,8 @@ vi.mock('@/services/tickets', () => ({
 }));
 
 vi.mock('@/components/TicketMap', () => ({
-  TicketMap: ({
-    markers,
-    tickets,
-  }: {
-    markers?: TicketMapMarker[];
-    tickets?: Ticket[];
-  }) => (
-    <div data-testid="ticket-map">
-      Map with {markers?.length ?? tickets?.length ?? 0} pins
-    </div>
+  TicketMap: ({ markers, tickets }: { markers?: TicketMapMarker[]; tickets?: Ticket[] }) => (
+    <div data-testid="ticket-map">Map with {markers?.length ?? tickets?.length ?? 0} pins</div>
   ),
 }));
 
