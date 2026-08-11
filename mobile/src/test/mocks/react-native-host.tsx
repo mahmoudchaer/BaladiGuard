@@ -57,11 +57,7 @@ export function Image({ children, ...props }: HostProps) {
 export const ActivityIndicator = createHostComponent('ActivityIndicator');
 export const RefreshControl = createHostComponent('RefreshControl');
 // Function component (same idea as Image) so we do not collide with any ambient Modal types.
-export function Modal({
-  children,
-  visible = true,
-  ...props
-}: HostProps & { visible?: boolean }) {
+export function Modal({ children, visible = true, ...props }: HostProps & { visible?: boolean }) {
   if (!visible) {
     return null;
   }
