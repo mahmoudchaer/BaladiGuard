@@ -194,7 +194,6 @@ def test_complete_failure_after_ticket_does_not_duplicate(
     # Retry must not create a second ticket when the first write was bound.
     second = client.post("/v1/tickets", json=VALID_PAYLOAD, headers=headers)
     assert second.status_code == 201
-    owned = [t for t in ticket_store.list() if t.owner_user_id]
     # Exact one ticket for this submission key overall (may be filter by ticket id).
     ticket_ids = {second.json()["ticketId"]}
     if first.status_code == 201:
