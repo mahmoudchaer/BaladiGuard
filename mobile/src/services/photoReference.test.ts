@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('expo-file-system', () => ({
+  getInfoAsync: vi.fn(async () => ({ exists: false })),
+}));
+
+import * as FileSystem from 'expo-file-system';
 import {
   checkLocalPhotoUri,
   isLocalDevicePhotoUri,
@@ -12,6 +17,13 @@ import {
 } from '@/services/reportDraft';
 
 describe('photoReference', () => {
+  afterEach(() => {
+    vi.mocked(FileSystem.getInfoAsync).mockReset();
+    vi.mocked(FileSystem.getInfoAsync).mockResolvedValue({ exists: false } as Awaited<
+      ReturnType<typeof FileSystem.getInfoAsync>
+    >);
+  });
+
   it('classifies local device schemes', () => {
     expect(isLocalDevicePhotoUri('file:///tmp/a.jpg')).toBe(true);
     expect(isLocalDevicePhotoUri('content://media/1')).toBe(true);
@@ -21,28 +33,47 @@ describe('photoReference', () => {
   it('treats remote URIs as reachable without probing disk', async () => {
     const result = await checkLocalPhotoUri('https://example.com/a.jpg');
     expect(result.ok).toBe(true);
+    expect(FileSystem.getInfoAsync).not.toHaveBeenCalled();
   });
 
   it('returns empty for blank URIs', async () => {
     expect(await checkLocalPhotoUri('')).toEqual({ ok: false, reason: 'empty' });
   });
 
-  it('reports unreachable when local fetch fails and FileSystem is absent', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new Error('file gone');
-      }),
+  it('accepts an existing device photo URI via FileSystem existence check', async () => {
+    vi.mocked(FileSystem.getInfoAsync).mockResolvedValueOnce({
+      exists: true,
+      uri: 'file:///data/user/0/com.baladiguard.citizen/cache/photo.jpg',
+      size: 1024,
+      isDirectory: false,
+      modificationTime: 1,
+    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+
+    const uri = 'file:///data/user/0/com.baladiguard.citizen/cache/photo.jpg';
+    const result = await checkLocalPhotoUri(uri);
+    expect(result).toEqual({ ok: true });
+    expect(FileSystem.getInfoAsync).toHaveBeenCalledWith(uri);
+  });
+
+  it('rejects a missing device photo URI deterministically', async () => {
+    vi.mocked(FileSystem.getInfoAsync).mockResolvedValueOnce({
+      exists: false,
+      uri: 'file:///tmp/expired-picker-photo.jpg',
+      isDirectory: false,
+    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+
+    const result = await checkLocalPhotoUri('file:///tmp/expired-picker-photo.jpg');
+    expect(result).toEqual({ ok: false, reason: 'missing' });
+    expect(FileSystem.getInfoAsync).toHaveBeenCalledWith('file:///tmp/expired-picker-photo.jpg');
+  });
+
+  it('marks FileSystem failures as unreachable instead of accepting the URI', async () => {
+    vi.mocked(FileSystem.getInfoAsync).mockRejectedValueOnce(
+      new Error('native module unavailable'),
     );
-    // If expo-file-system is resolvable and reports exists, this may pass with ok:true —
-    // force the fetch path by using a content:// URI when FS returns missing, otherwise
-    // just assert we never throw.
-    const result = await checkLocalPhotoUri('file:///tmp/missing-photo-test.jpg');
-    expect(result.ok === true || result.ok === false).toBe(true);
-    if (!result.ok) {
-      expect(['missing', 'unreachable']).toContain(result.reason);
-    }
-    vi.unstubAllGlobals();
+
+    const result = await checkLocalPhotoUri('content://media/external/images/media/1');
+    expect(result).toEqual({ ok: false, reason: 'unreachable' });
   });
 
   it('clearUnusableDraftPhoto keeps description and uploaded key', () => {

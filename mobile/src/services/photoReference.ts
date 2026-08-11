@@ -1,10 +1,13 @@
 /**
  * Local photo URI reachability for report drafts (#258).
  *
- * Image-picker `file://` URIs may disappear after process restart. Before upload
- * / on draft restore we check the local file exists and clear only the dead
- * photo reference while keeping the rest of the draft.
+ * Image-picker `file://` / `content://` URIs may disappear after process restart.
+ * Before upload and on draft restore we use Expo FileSystem's existence check
+ * so dead references are cleared and the user is asked to re-pick — without
+ * relying on unreliable `fetch(file://…)` probes.
  */
+
+import * as FileSystem from 'expo-file-system';
 
 export type LocalPhotoCheckResult = {
   ok: boolean;
@@ -24,7 +27,7 @@ export function isLocalDevicePhotoUri(uri: string): boolean {
 }
 
 /**
- * Probe whether a local photo URI is still readable.
+ * Probe whether a local photo URI is still readable on device.
  * Remote/mock URIs are treated as ok (not device-temp files).
  */
 export async function checkLocalPhotoUri(
@@ -39,29 +42,11 @@ export async function checkLocalPhotoUri(
   }
 
   try {
-    // Prefer expo-file-system when available (bundled with Expo).
-    // Dynamic require keeps unit tests free of native modules when unmocked.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const FileSystem = require('expo-file-system') as {
-      getInfoAsync?: (fileUri: string) => Promise<{ exists?: boolean }>;
-    };
-    if (typeof FileSystem.getInfoAsync === 'function') {
-      const info = await FileSystem.getInfoAsync(trimmed);
-      if (info?.exists) {
-        return { ok: true };
-      }
-      return { ok: false, reason: 'missing' };
-    }
-  } catch {
-    // fall through to fetch probe
-  }
-
-  try {
-    const response = await fetch(trimmed);
-    if (response.ok) {
+    const info = await FileSystem.getInfoAsync(trimmed);
+    if (info.exists) {
       return { ok: true };
     }
-    return { ok: false, reason: 'unreachable' };
+    return { ok: false, reason: 'missing' };
   } catch {
     return { ok: false, reason: 'unreachable' };
   }
