@@ -11,8 +11,8 @@ type RequireContributionReadyProps = {
 };
 
 /**
- * Gates contribution entry points on a contribution-ready citizen session.
- * Guests and incomplete profiles are redirected to phone OTP login.
+ * Gates contribution entry points on a verified-phone citizen session (#270).
+ * Guests are redirected to phone OTP login. Full name is optional.
  */
 export function RequireContributionReady({ children, returnTo }: RequireContributionReadyProps) {
   const { isLoading, contributionReady } = useCitizenAuth();

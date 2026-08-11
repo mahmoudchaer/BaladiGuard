@@ -36,7 +36,6 @@ type CitizenAuthContextValue = {
   restoreSession: () => Promise<void>;
   refreshProfile: () => Promise<CitizenProfile | null>;
   applyVerifyResponse: (response: Awaited<ReturnType<typeof verifyCitizenOtp>>) => Promise<void>;
-  completeFullName: (fullName: string) => Promise<CitizenProfile>;
   updateProfile: (patch: CitizenProfileUpdatePayload) => Promise<CitizenProfile>;
   /** Clears local session. By default also clears this user's report draft (#258). */
   logout: (options?: { retainReportDraft?: boolean }) => Promise<void>;
@@ -139,17 +138,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
     [session],
   );
 
-  const completeFullName = useCallback(
-    async (fullName: string) => {
-      if (!session?.accessToken) {
-        throw new Error('Sign in before updating your name.');
-      }
-      const profile = await updateCitizenProfile(session.accessToken, { fullName });
-      return applyProfileToSession(profile);
-    },
-    [session, applyProfileToSession],
-  );
-
   const updateProfile = useCallback(
     async (patch: CitizenProfileUpdatePayload) => {
       if (!session?.accessToken) {
@@ -205,7 +193,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       restoreSession,
       refreshProfile,
       applyVerifyResponse,
-      completeFullName,
       updateProfile,
       logout,
       clearSessionLocally,
@@ -216,7 +203,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       restoreSession,
       refreshProfile,
       applyVerifyResponse,
-      completeFullName,
       updateProfile,
       logout,
       clearSessionLocally,

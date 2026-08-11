@@ -104,14 +104,22 @@ def test_sprint6_full_mvp_flow_acceptance(anonymous_client: TestClient, monkeypa
     assert patched.json()["email"] == "ada-demo@example.com"
     assert patched.json()["notificationPreferences"]["ticketUpdates"] == "SMS"
 
-    # Validation: empty name rejected
-    bad_name = anonymous_client.patch(
+    # Optional full name: blank clears to null (#270)
+    clear_name = anonymous_client.patch(
         "/v1/citizen/me",
         headers=headers_a,
         json={"fullName": "  "},
     )
-    assert bad_name.status_code == 400
-    assert bad_name.json()["error"]["code"] in {"VALIDATION_ERROR", "INVALID_FULL_NAME"}
+    assert clear_name.status_code == 200, clear_name.text
+    assert clear_name.json()["fullName"] is None
+    assert clear_name.json()["contributionReady"] is True
+    # Restore a name for the rest of the flow
+    restore_name = anonymous_client.patch(
+        "/v1/citizen/me",
+        headers=headers_a,
+        json={"fullName": "Ada Demo Citizen"},
+    )
+    assert restore_name.status_code == 200
 
     # --- Citizen B for cross-tenant isolation ---
     user_b, token_b = ensure_contribution_ready_citizen(
@@ -128,16 +136,15 @@ def test_sprint6_full_mvp_flow_acceptance(anonymous_client: TestClient, monkeypa
     assert empty_body["items"] == []
     assert empty_body.get("nextCursor") is None
 
-    # Incomplete profile cannot submit
+    # Phone-only profile can submit (#270)
     bare = citizen_service.create_citizen(phone="+96170999880")
     bare_token = citizen_service.issue_session(bare.user_id)
-    incomplete_submit = anonymous_client.post(
+    phone_only_submit = anonymous_client.post(
         "/v1/tickets",
         json=VALID_PAYLOAD,
         headers=_auth_headers(bare_token),
     )
-    assert incomplete_submit.status_code == 403
-    assert incomplete_submit.json()["error"]["code"] == "CONTRIBUTION_PROFILE_REQUIRED"
+    assert phone_only_submit.status_code == 201, phone_only_submit.text
 
     # Unauthenticated submit rejected
     guest_submit = anonymous_client.post("/v1/tickets", json=VALID_PAYLOAD)

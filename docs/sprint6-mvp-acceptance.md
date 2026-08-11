@@ -55,7 +55,8 @@ Tick during manual demo or after automated green run.
 
 | # | Check | Auto | Manual |
 | --- | --- | --- | --- |
-| C1 | OTP signup creates session + contribution-ready when full name provided | flow e2e | Mobile login |
+| C1 | OTP signup creates session + contribution-ready with verified phone (full name optional) | flow e2e | Mobile login |
+| C2 | Phone-only citizen can manage profile and contribute | flow e2e | Profile optional name |
 | C2 | OTP login for existing account | `test_citizen_otp_auth` | Mobile |
 | C3 | `GET /v1/citizen/me` restores profile with current token | flow e2e | Open app cold start |
 | C4 | Profile patch (email / notification pref) | flow e2e | Profile screen |
@@ -67,7 +68,7 @@ Tick during manual demo or after automated green run.
 | # | Check | Auto | Manual |
 | --- | --- | --- | --- |
 | R1 | Contribution-ready submit links `ownerUserId` | flow e2e + submit tests | Submit real report |
-| R2 | Guest / incomplete profile cannot submit (401 / 403) | flow e2e | Try without login |
+| R2 | Guest cannot submit (401); phone-only verified citizen can submit | flow e2e | Try without login / phone-only |
 | R3 | Photo upload requires contribution-ready session | `test_upload_report_photo` | Upload step |
 | R4 | Validation rejects short description / missing image key | `test_submit_ticket` | Form validation UI |
 
@@ -160,7 +161,7 @@ Total ~10–15 minutes on one machine.
 2. **Backend** — `uvicorn` on `:8000`; `GET /health` ok.
 3. **Citizen (mobile)**  
    - OTP with a test phone (dev OTP via server logs / mock).  
-   - Complete name if first login → become contribution-ready.  
+   - Verified phone alone makes the session contribution-ready (#270); optional full name may be added later in Profile.  
    - Set email optionally; leave notification on SMS/mock.  
    - Submit a report with photo; copy tracking code.  
    - Open History; confirm only that report.  

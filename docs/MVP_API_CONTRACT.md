@@ -42,15 +42,16 @@ contribution-ready authentication is implemented by #173.
 - Email is nullable secondary contact data for explicitly selected notifications, announcements,
   or receipts. It is not unique, a login identifier, an ownership key, or proof sufficient to
   recover an account after phone loss.
-- A citizen is **contribution-ready** only when the session is valid, the account is active,
-  `phoneVerifiedAt` is non-null for the account's current phone, and `fullName` is valid after
-  trimming (1–120 Unicode characters). OTP verification for an inactive account returns `403
-ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions so their next
-  use returns `401 UNAUTHORIZED`. An active but incomplete account receives `403
-CONTRIBUTION_PROFILE_REQUIRED` on contribution routes.
-- Guests and incomplete citizens may browse public data but may not create tickets or perform any
-  other contribution. Clients must never supply `ownerUserId`; protected contribution routes derive
-  it from the session.
+- A citizen is **contribution-ready** when the session is valid, the account is active, and
+  `phoneVerifiedAt` is non-null for the account's current phone. Full name is optional profile
+  data and is **not** required to contribute (#270). OTP verification for an inactive account
+  returns `403 ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions
+  so their next use returns `401 UNAUTHORIZED`. An active account that is not contribution-ready
+  (for example missing phone verification) receives `403 CONTRIBUTION_PROFILE_REQUIRED` on
+  contribution routes.
+- Guests may browse public data but may not create tickets or perform any other contribution.
+  Clients must never supply `ownerUserId`; protected contribution routes derive it from the
+  session.
 
 ### Canonical phone normalization
 
@@ -155,8 +156,8 @@ Minimal OTP payloads are fixed as follows:
 - OTP verify accepts `challengeId`, `code`, and, for first-time `LOGIN_OR_SIGNUP`, optional
   `fullName`. It returns `accessToken`, `tokenType: "Bearer"`, `expiresIn: 2592000`, and the
   citizen-safe profile.
-- `fullName` may be omitted during first verification. The new account then remains authenticated but
-  not contribution-ready until a valid name is supplied through `PATCH /v1/citizen/me`.
+- `fullName` may be omitted during first verification. The new account is still contribution-ready
+  when the phone is verified (#270); a name may be added later through `PATCH /v1/citizen/me`.
 
 Successful OTP verification returns one cryptographically random, opaque Bearer access token. Only a
 keyed hash is stored in the session record. The MVP session has an absolute 30-day lifetime, does not
@@ -187,8 +188,8 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 | `GET /v1/tickets/public/{ticketNumber}` | Public                     | Implemented citizen-safe report detail by public ticket number; unpublished reports return `404`.                                                            |
 | `GET /v1/tickets/track/{trackingCode}`  | Public, possession-based   | Existing citizen-safe tracking response; tracking code is not account authentication.                                                                        |
 | `POST /v1/locations/validate`           | Public                     | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply.                              |
-| `POST /v1/uploads/report-photo`         | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`.                |
-| `POST /v1/tickets`                      | Contribution-ready citizen | Implemented by #173. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403 CONTRIBUTION_PROFILE_REQUIRED`. |
+| `POST /v1/uploads/report-photo`         | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`. Verified-phone citizens may upload even without a full name (#270). |
+| `POST /v1/tickets`                      | Contribution-ready citizen | Implemented by #173 / #270. Guests and revoked inactive-account sessions receive `401`. Verified-phone citizens may submit without a full name. |
 | `/v1/staff/**` and staff ticket routes  | Authorized staff           | Identity/contact is returned only when the staff role and municipality/department scope authorize it.                                                        |
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, staff-reviewed
@@ -551,10 +552,10 @@ safety, then purged.
 
 ### Auth
 
-Requires a contribution-ready citizen Bearer session (issue #173). The server derives `ownerUserId`
-from that session and snapshots contact data from the citizen profile; client-supplied ownership is
-forbidden. Missing authentication and revoked inactive-account sessions return `401`; an active but
-incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
+Requires a contribution-ready citizen Bearer session (issues #173 / #270). The server derives
+`ownerUserId` from that session and snapshots contact data from the citizen profile; client-supplied
+ownership is forbidden. Missing authentication and revoked inactive-account sessions return `401`.
+Verified-phone citizens may submit without a full name; `contact.name` may be null.
 
 ### Request body
 

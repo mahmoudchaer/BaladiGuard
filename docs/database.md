@@ -103,19 +103,19 @@ contract and persistence model.
 | `userId` | string | Yes | Stable primary/ownership key, format `usr_<hex>`. Never changes with profile fields. |
 | `phone` | string | Yes | Canonical verified E.164 phone and login/reconciliation key. |
 | `phoneVerifiedAt` | string | Yes | ISO 8601 time at which the current `phone` was verified. Replaced atomically on phone change. |
-| `fullName` | string | Yes for contribution | Trimmed 1–120 character name. May be temporarily absent only during first verified-phone onboarding. |
+| `fullName` | string | No | Optional trimmed 1–120 character name. Not required for contribution (#270). Blank/null clears the name and forces `publicNameVisible=false`. |
 | `email` | string, nullable | No | Optional secondary notification/receipt address. Not unique and never used for identity, login, ownership, or automatic recovery. |
 | `notificationPreferences` | object | Yes | Opt-in channel/event preferences; defaults to no optional communications. SMS service messages required for authentication are not marketing preferences. |
 | `notificationPreferences.ticketUpdates` | enum | Yes | `SMS`, `EMAIL`, `BOTH`, or `NONE`; `EMAIL`/`BOTH` requires non-null email. |
 | `notificationPreferences.announcements` | boolean | Yes | Explicit announcement opt-in; default `false`. |
-| `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. |
+| `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. Empty names cannot be published. |
 | `active` | boolean | Yes | Default `true`. OTP verification for an inactive account returns `403 ACCOUNT_INACTIVE` without issuing a session; deactivation immediately revokes existing sessions. |
 | `sessionEpoch` | number | Yes | Monotonic account-wide session generation. Phone change and other security revocations increment it; authentication rejects any session whose stored epoch does not match. This is the strongly consistent revocation authority (GSI session scans are best-effort cleanup only). Auth must read the citizen row with DynamoDB `ConsistentRead=True`. Not returned from profile APIs. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last profile update time. |
 
-`contributionReady` is derived, not stored: `active = true`, `phoneVerifiedAt` is non-null for the
-current phone, and trimmed `fullName` is 1–120 characters. `email` and `publicNameVisible` do not
+`contributionReady` is derived, not stored: `active = true` and `phoneVerifiedAt` is non-null for the
+current phone. `fullName`, `email`, and `publicNameVisible` do not
 affect contribution eligibility.
 
 At ticket creation, `notificationPreferences.ticketUpdates` maps into the immutable singular
@@ -179,7 +179,7 @@ password fields or staff credentials.
 
 `ownerUserId` is immutable ownership; `contact` is the immutable private submission snapshot. Public
 name attribution never reads the snapshot: it dynamically resolves the active owner's current
-`publicNameVisible` and `fullName`, otherwise returns `Anonymous`. Profile changes do not rewrite
+`publicNameVisible` and `fullName`, otherwise returns `Community member`. Profile changes do not rewrite
 contact snapshots.
 
 Citizen account deletion (issue #190) anonymizes the `users` row (`active=false`, PII cleared, phone
