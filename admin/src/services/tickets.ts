@@ -42,6 +42,9 @@ export type FetchTicketsFilters = {
       ? T | 'ALL'
       : never
     : never;
+  assignmentState?: 'assigned' | 'unassigned' | 'ALL';
+  q?: string;
+  openOnly?: boolean;
 };
 
 export type FetchTicketsPageOptions = {
@@ -49,7 +52,7 @@ export type FetchTicketsPageOptions = {
   cursor?: string | null;
   limit?: number;
   signal?: AbortSignal;
-  /** When true (default), serve fresh cache and revalidate in the background. */
+  /** When true (default), serve fresh cache and revalidate stale entries. */
   useCache?: boolean;
 };
 
@@ -57,6 +60,11 @@ export type TicketListPageResult = TicketListPage & {
   /** List projection mapped into the shared Ticket shape for existing UI. */
   tickets: Ticket[];
   fromCache: boolean;
+  /**
+   * When a stale cached page was returned, resolves with the fresh page.
+   * Callers must apply it only if their request generation is still current.
+   */
+  revalidate?: Promise<TicketListPageResult>;
 };
 
 export type FetchTicketMapOptions = {
@@ -156,6 +164,32 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
   if (filters.slaState && filters.slaState !== 'ALL' && ticket.sla?.state !== filters.slaState) {
     return false;
   }
+  if (filters.assignmentState === 'unassigned' && ticket.departmentId) {
+    return false;
+  }
+  if (filters.assignmentState === 'assigned' && !ticket.departmentId) {
+    return false;
+  }
+  if (filters.openOnly) {
+    const open = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
+    if (!open.has(ticket.status)) {
+      return false;
+    }
+  }
+  const query = filters.q?.trim().toLowerCase();
+  if (query) {
+    const haystack = [
+      ticket.ticketId,
+      ticket.ticketNumber,
+      ticket.description,
+      ticket.location.addressText,
+    ]
+      .join(' ')
+      .toLowerCase();
+    if (!haystack.includes(query)) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -167,6 +201,12 @@ function filterRecord(filters: FetchTicketsFilters = {}): Record<string, string 
     departmentId:
       filters.departmentId && filters.departmentId !== 'ALL' ? filters.departmentId : undefined,
     slaState: filters.slaState && filters.slaState !== 'ALL' ? filters.slaState : undefined,
+    assignmentState:
+      filters.assignmentState && filters.assignmentState !== 'ALL'
+        ? filters.assignmentState
+        : undefined,
+    q: filters.q?.trim() ? filters.q.trim() : undefined,
+    openOnly: filters.openOnly ? 'true' : undefined,
   };
 }
 
@@ -185,6 +225,16 @@ function appendListFilters(url: URL, filters: FetchTicketsFilters = {}): void {
   }
   if (filters.slaState && filters.slaState !== 'ALL') {
     url.searchParams.set('slaState', filters.slaState);
+  }
+  if (filters.assignmentState && filters.assignmentState !== 'ALL') {
+    url.searchParams.set('assignmentState', filters.assignmentState);
+  }
+  const query = filters.q?.trim();
+  if (query) {
+    url.searchParams.set('q', query);
+  }
+  if (filters.openOnly) {
+    url.searchParams.set('openOnly', 'true');
   }
 }
 
@@ -410,11 +460,28 @@ export async function fetchTicketsPage(
       return pageResultFromPage(cached, true);
     }
     if (cached) {
-      // Stale-while-revalidate: return cached page and refresh in background.
-      void fetchTicketsPageFromApi({ ...options, signal: undefined })
-        .then((page) => writeTicketListCache(cacheKey, page))
-        .catch(() => undefined);
-      return pageResultFromPage(cached, true);
+      // Stale-while-revalidate: return cached page immediately and expose a
+      // promise so the caller can apply the fresh page when it arrives.
+      const revalidate = fetchTicketsPageFromApi({ ...options, signal: undefined }).then((page) => {
+        writeTicketListCache(cacheKey, page);
+        if (page.nextCursor) {
+          const nextKey = buildTicketListCacheKey(filterRecord(filters), page.nextCursor);
+          if (!isTicketListCacheFresh(nextKey)) {
+            void fetchTicketsPageFromApi({
+              filters,
+              cursor: page.nextCursor,
+              limit: options.limit,
+            })
+              .then((nextPage) => writeTicketListCache(nextKey, nextPage))
+              .catch(() => undefined);
+          }
+        }
+        return pageResultFromPage(page, false);
+      });
+      return {
+        ...pageResultFromPage(cached, true),
+        revalidate,
+      };
     }
   }
 

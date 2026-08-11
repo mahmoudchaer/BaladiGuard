@@ -27,9 +27,27 @@ Administrators query `adminBrowseKey = ALL`. Municipal staff query
 (including unassigned tickets).
 
 **Unsupported filter combinations must not silently fall back to an unbounded table
-scan.** Persist-field filters (`status`, `category`, `urgency`, `departmentId`) use
-`FilterExpression` on the scoped query. Derived `slaState` is applied in the service
-layer within the fetched page only.
+scan.** Persist-field filters (`status`, `category`, `urgency`, `departmentId`,
+`assignmentState`, `q`) use `FilterExpression` on the scoped query. Derived
+`slaState` is applied in the service layer within the fetched page only.
+
+## Safe deploy / backfill ordering
+
+DynamoDB GSIs are **sparse**. Existing tickets written before these attributes existed
+are invisible to the indexed collection path until rewritten.
+
+1. Run `make db-migrate` (or `python scripts/db/migrate.py`) so the staff GSIs exist.
+2. Dry-run then apply the idempotent backfill:
+   ```bash
+   cd backend
+   python scripts/db/backfill_staff_ticket_keys.py --dry-run
+   python scripts/db/backfill_staff_ticket_keys.py
+   ```
+   Resume an interrupted run with the printed `--exclusive-start-key` JSON.
+3. Verify sample tickets appear under staff list / map / aggregates.
+4. Only then route production/staging reads through the indexed collection path.
+
+New writes always set the staff keys via `ticket_to_item`.
 
 ## Cursors
 
@@ -37,9 +55,29 @@ Opaque URL-safe base64 JSON cursors. Memory encodes `{staffSortKey}`; Dynamo enc
 the GSI `ExclusiveStartKey` (including `ticketId` + index hash/range). Invalid cursors
 return `400 VALIDATION_ERROR`.
 
-Default page size is **25** (max **100**). Responses include `nextCursor`, optional
-`previousCursor`, `scannedCount`, nullable `approximateTotal`, and
-`freshnessHintSeconds` (default 30) for client cache revalidation.
+Default page size is **25** (max **100**). Responses include `nextCursor`,
+`scannedCount`, nullable `approximateTotal`, and `freshnessHintSeconds` (default 30).
+`previousCursor` stays null because Dynamo ExclusiveStartKey cursors are forward-only;
+the admin client keeps a cursor history stack for Previous navigation.
+
+When a sparse `FilterExpression` exhausts the bounded query rounds while
+`LastEvaluatedKey` remains, `nextCursor` is still returned so clients can continue
+instead of treating the response as end-of-results.
+
+## Collection filters
+
+`GET /v1/tickets` accepts:
+
+| Param | Notes |
+| --- | --- |
+| `status`, `category`, `urgency`, `departmentId` | Persist-field FilterExpression |
+| `assignmentState` | `assigned` / `unassigned` |
+| `q` | Bounded contains match on ticket number/id/description/address |
+| `slaState` | Derived; filtered within the fetched page |
+| `limit`, `cursor` | Pagination |
+
+Search and queue views (critical / high / unassigned / overdue) are sent as these
+server filters — they are not client-only filters over the current page.
 
 ## Map viewport
 
@@ -62,13 +100,12 @@ The admin dashboard:
 - Loads `GET /v1/tickets` as a cursor page (`fetchTicketsPage`) with AbortController
   cancellation, debounced filter changes, soft refresh, and next-page prefetch.
 - Caches pages in a bounded in-memory store keyed by staff scope + filters + cursor.
-  Entries honor `freshnessHintSeconds` (stale-while-revalidate) and clear on logout /
+  Stale hits return immediately and expose a `revalidate` promise so the UI applies the
+  fresh page when it arrives (guarded by request generation). Cache clears on logout /
   session clear / `401`.
+- Maintains a cursor history stack for Previous / Next.
 - Loads attention counts from `GET /v1/tickets/aggregates` and labels approximate counts.
 - Loads the map from `GET /v1/tickets/map` for the visible bounds/zoom (clusters at wider
   zooms, markers when safe). An accessible marker list sits below the map.
 - Mutations invalidate affected list cache entries; full detail / evidence remains on
   `GET /v1/tickets/{ticketId}`.
-
-Run `make db-migrate` (or the established Dynamo table ensure path) so staff GSIs exist
-before sending production/staging traffic through the indexed collection path.

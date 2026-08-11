@@ -628,6 +628,9 @@ class TicketService:
             category=None if store_filters is None else store_filters.category,
             urgency=None if store_filters is None else store_filters.urgency,
             department_id=None if store_filters is None else store_filters.department_id,
+            assignment_state=None if store_filters is None else store_filters.assignment_state,
+            q=None if store_filters is None else store_filters.q,
+            open_only=False if store_filters is None else store_filters.open_only,
         )
         items = page.items
         # SLA is derived, not indexed — filter within the fetched page only.
@@ -643,6 +646,8 @@ class TicketService:
         return TicketListPageResponse(
             items=[map_ticket_to_list_item(ticket) for ticket in items],
             nextCursor=page.next_cursor,
+            # Dynamo ExclusiveStartKey cursors are forward-only; the admin client
+            # keeps a cursor history stack for Previous navigation.
             previousCursor=None,
             limit=page_size,
             scannedCount=page.scanned_count,

@@ -121,6 +121,36 @@ function applyFetchFilters(items: Ticket[], options: FetchPageOptions = {}) {
     ) {
       return false;
     }
+    if (filters.slaState && filters.slaState !== 'ALL' && ticket.sla?.state !== filters.slaState) {
+      return false;
+    }
+    if (filters.assignmentState === 'unassigned' && ticket.departmentId) {
+      return false;
+    }
+    if (filters.assignmentState === 'assigned' && !ticket.departmentId) {
+      return false;
+    }
+    if (filters.openOnly) {
+      const open = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
+      if (!open.has(ticket.status)) {
+        return false;
+      }
+    }
+    const query = filters.q?.trim().toLowerCase();
+    if (query) {
+      const haystack = [
+        ticket.ticketId,
+        ticket.ticketNumber,
+        ticket.trackingCode,
+        ticket.description,
+        ticket.location.addressText,
+      ]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(query)) {
+        return false;
+      }
+    }
     return true;
   });
 }
@@ -165,6 +195,13 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0001');
     await user.type(screen.getByLabelText('Search tickets'), 'WASTE2');
 
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ q: 'WASTE2' }),
+        }),
+      ),
+    );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
   });
@@ -297,6 +334,7 @@ describe('TicketListPage', () => {
             urgency: 'medium',
             departmentId: 'd2222222-2222-2222-2222-222222222222',
             slaState: 'ALL',
+            q: undefined,
           },
         }),
       ),
@@ -489,6 +527,13 @@ describe('TicketListPage', () => {
 
     await screen.findByText('BG-2026-0011');
     await user.click(screen.getByRole('button', { name: /Unassigned/i }));
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({ assignmentState: 'unassigned' }),
+        }),
+      ),
+    );
     expect(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' }));

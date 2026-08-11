@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket } from '@/types/ticket';
 import type { TicketAggregates } from '@/types/ticketCollection';
-import { fetchTicketAggregates, fetchTicketsPage } from '@/services/tickets';
+import {
+  fetchTicketAggregates,
+  fetchTicketsPage,
+  type FetchTicketsFilters,
+} from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { TicketTable } from '@/components/TicketTable';
 import { QueueViewsSidebar, type QueueViewId } from '@/components/QueueViewsSidebar';
@@ -13,7 +17,6 @@ import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
-  filterTickets,
   getCategoryFilterOptions,
   type CategoryFilter,
   type DepartmentFilter,
@@ -25,34 +28,7 @@ import './TicketListPage.css';
 
 type LoadState = 'loading' | 'success' | 'error';
 
-const OPEN_STATUSES = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
-const AGING_MS = 3 * 24 * 60 * 60 * 1000;
 const FILTER_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 300;
-
-function isOpenTicket(ticket: Ticket): boolean {
-  return OPEN_STATUSES.has(ticket.status);
-}
-
-function applyQueueView(tickets: Ticket[], view: QueueViewId, now = Date.now()): Ticket[] {
-  switch (view) {
-    case 'critical':
-      return tickets.filter((ticket) => isOpenTicket(ticket) && ticket.priority === 'critical');
-    case 'high':
-      return tickets.filter((ticket) => isOpenTicket(ticket) && ticket.priority === 'high');
-    case 'unassigned':
-      return tickets.filter((ticket) => isOpenTicket(ticket) && !ticket.departmentId);
-    case 'aging':
-      return tickets.filter((ticket) => {
-        if (!isOpenTicket(ticket)) {
-          return false;
-        }
-        const createdAt = Date.parse(ticket.createdAt);
-        return Number.isFinite(createdAt) && now - createdAt >= AGING_MS;
-      });
-    default:
-      return tickets;
-  }
-}
 
 function aggregatesToAttentionStats(aggregates: TicketAggregates | null): QueueAttentionStats {
   return {
@@ -60,6 +36,44 @@ function aggregatesToAttentionStats(aggregates: TicketAggregates | null): QueueA
     unassigned: aggregates?.unassignedCount ?? 0,
     aging: aggregates?.overdueCount ?? 0,
   };
+}
+
+function buildServerFilters(input: {
+  status: StatusFilter;
+  category: CategoryFilter;
+  urgency: UrgencyFilter;
+  department: DepartmentFilter;
+  sla: SlaFilter;
+  queueView: QueueViewId;
+  search: string;
+}): FetchTicketsFilters {
+  const filters: FetchTicketsFilters = {
+    status: input.status,
+    category: input.category,
+    urgency: input.urgency,
+    departmentId: input.department,
+    slaState: input.sla,
+    q: input.search.trim() || undefined,
+  };
+
+  if (input.queueView === 'unassigned') {
+    filters.assignmentState = 'unassigned';
+    filters.openOnly = true;
+  }
+  if (input.queueView === 'aging') {
+    // "Overdue" attention view maps to the indexed/bounded slaState contract.
+    filters.slaState = 'overdue';
+  }
+  if (input.queueView === 'critical') {
+    filters.urgency = 'critical';
+    filters.openOnly = true;
+  }
+  if (input.queueView === 'high') {
+    filters.urgency = 'high';
+    filters.openOnly = true;
+  }
+
+  return filters;
 }
 
 export function TicketListPage() {
@@ -79,10 +93,11 @@ export function TicketListPage() {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [previousCursor, setPreviousCursor] = useState<string | null>(null);
+  const [canGoPrevious, setCanGoPrevious] = useState(false);
   const [approximateTotal, setApproximateTotal] = useState<number | null>(null);
   const hasLoadedTickets = useRef(false);
   const requestGeneration = useRef(0);
+  const cursorHistoryRef = useRef<(string | null)[]>([]);
 
   const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
   const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
@@ -90,28 +105,56 @@ export function TicketListPage() {
   const debouncedDepartment = useDebouncedValue(departmentFilter, FILTER_DEBOUNCE_MS);
   const debouncedSla = useDebouncedValue(slaFilter, FILTER_DEBOUNCE_MS);
   const debouncedSearch = useDebouncedValue(searchQuery, FILTER_DEBOUNCE_MS);
+  const debouncedQueueView = useDebouncedValue(queueView, FILTER_DEBOUNCE_MS);
+
+  const serverFilters = useMemo(
+    () =>
+      buildServerFilters({
+        status: debouncedStatus,
+        category: debouncedCategory,
+        urgency: debouncedUrgency,
+        department: debouncedDepartment,
+        sla: debouncedSla,
+        queueView: debouncedQueueView,
+        search: debouncedSearch,
+      }),
+    [
+      debouncedCategory,
+      debouncedDepartment,
+      debouncedQueueView,
+      debouncedSearch,
+      debouncedSla,
+      debouncedStatus,
+      debouncedUrgency,
+    ],
+  );
 
   const hasActiveServerFilters =
-    debouncedStatus !== 'ALL' ||
-    debouncedCategory !== 'ALL' ||
-    debouncedUrgency !== 'ALL' ||
-    debouncedDepartment !== 'ALL' ||
-    debouncedSla !== 'ALL';
+    (serverFilters.status && serverFilters.status !== 'ALL') ||
+    (serverFilters.category && serverFilters.category !== 'ALL') ||
+    (serverFilters.urgency && serverFilters.urgency !== 'ALL') ||
+    (serverFilters.departmentId && serverFilters.departmentId !== 'ALL') ||
+    (serverFilters.slaState && serverFilters.slaState !== 'ALL') ||
+    (serverFilters.assignmentState && serverFilters.assignmentState !== 'ALL') ||
+    Boolean(serverFilters.q) ||
+    Boolean(serverFilters.openOnly);
+
   const hasActiveFilters =
     hasActiveServerFilters ||
-    debouncedSearch.trim().length > 0 ||
-    queueView !== 'all' ||
     statusFilter !== 'ALL' ||
     categoryFilter !== 'ALL' ||
     urgencyFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
     slaFilter !== 'ALL' ||
-    searchQuery.trim().length > 0;
+    searchQuery.trim().length > 0 ||
+    queueView !== 'all';
 
   // Reset to the first page whenever server filters change.
   useEffect(() => {
     setCursor(null);
-  }, [debouncedStatus, debouncedCategory, debouncedUrgency, debouncedDepartment, debouncedSla]);
+    cursorHistoryRef.current = [];
+    setCanGoPrevious(false);
+  }, [serverFilters]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,13 +171,7 @@ export function TicketListPage() {
 
       try {
         const page = await fetchTicketsPage({
-          filters: {
-            status: debouncedStatus,
-            category: debouncedCategory,
-            urgency: debouncedUrgency,
-            departmentId: debouncedDepartment,
-            slaState: debouncedSla,
-          },
+          filters: serverFilters,
           cursor,
           signal: controller.signal,
         });
@@ -143,14 +180,36 @@ export function TicketListPage() {
         }
         setPageTickets(page.tickets);
         setNextCursor(page.nextCursor);
-        setPreviousCursor(page.previousCursor);
         setApproximateTotal(page.approximateTotal);
         if (!hasActiveServerFilters && cursor === null) {
           setBaselineTickets(page.tickets);
         }
         hasLoadedTickets.current = true;
         setLoadState('success');
-        setIsRefreshing(false);
+
+        if (page.revalidate) {
+          setIsRefreshing(true);
+          void page.revalidate
+            .then((fresh) => {
+              if (controller.signal.aborted || generation !== requestGeneration.current) {
+                return;
+              }
+              setPageTickets(fresh.tickets);
+              setNextCursor(fresh.nextCursor);
+              setApproximateTotal(fresh.approximateTotal);
+              if (!hasActiveServerFilters && cursor === null) {
+                setBaselineTickets(fresh.tickets);
+              }
+              setIsRefreshing(false);
+            })
+            .catch(() => {
+              if (generation === requestGeneration.current) {
+                setIsRefreshing(false);
+              }
+            });
+        } else {
+          setIsRefreshing(false);
+        }
       } catch (error) {
         if (controller.signal.aborted || generation !== requestGeneration.current) {
           return;
@@ -171,15 +230,7 @@ export function TicketListPage() {
     return () => {
       controller.abort();
     };
-  }, [
-    cursor,
-    debouncedCategory,
-    debouncedDepartment,
-    debouncedSla,
-    debouncedStatus,
-    debouncedUrgency,
-    hasActiveServerFilters,
-  ]);
+  }, [cursor, hasActiveServerFilters, serverFilters]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -191,9 +242,7 @@ export function TicketListPage() {
           setAggregates(data);
         }
       } catch {
-        if (!controller.signal.aborted) {
-          // Keep prior aggregates; list remains usable without sidebar totals.
-        }
+        // Keep prior aggregates; list remains usable without sidebar totals.
       }
     }
 
@@ -212,46 +261,65 @@ export function TicketListPage() {
     approximateTotal ??
     (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
-  const filteredTickets = useMemo(() => {
-    const searched = filterTickets(pageTickets, debouncedSearch, 'ALL', 'ALL', 'ALL', 'ALL');
-    return applyQueueView(searched, queueView);
-  }, [pageTickets, debouncedSearch, queueView]);
-
   const selectedTicket = useMemo(() => {
     if (!selectedTicketId) {
       return null;
     }
     return (
-      filteredTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
       pageTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
       baselineTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
       null
     );
-  }, [baselineTickets, filteredTickets, selectedTicketId, pageTickets]);
+  }, [baselineTickets, selectedTicketId, pageTickets]);
 
   useEffect(() => {
-    if (
-      selectedTicketId &&
-      !filteredTickets.some((ticket) => ticket.ticketId === selectedTicketId)
-    ) {
+    if (selectedTicketId && !pageTickets.some((ticket) => ticket.ticketId === selectedTicketId)) {
       setSelectedTicketId(null);
     }
-  }, [filteredTickets, selectedTicketId]);
+  }, [pageTickets, selectedTicketId]);
 
   function ticketMatchesActiveServerFilters(ticket: Ticket): boolean {
-    if (statusFilter !== 'ALL' && ticket.status !== statusFilter) {
+    if (
+      serverFilters.status &&
+      serverFilters.status !== 'ALL' &&
+      ticket.status !== serverFilters.status
+    ) {
       return false;
     }
-    if (categoryFilter !== 'ALL' && ticket.category !== categoryFilter) {
+    if (
+      serverFilters.category &&
+      serverFilters.category !== 'ALL' &&
+      ticket.category !== serverFilters.category
+    ) {
       return false;
     }
-    if (urgencyFilter !== 'ALL' && ticket.priority !== urgencyFilter) {
+    if (
+      serverFilters.urgency &&
+      serverFilters.urgency !== 'ALL' &&
+      ticket.priority !== serverFilters.urgency
+    ) {
       return false;
     }
-    if (departmentFilter !== 'ALL' && ticket.departmentId !== departmentFilter) {
+    if (
+      serverFilters.departmentId &&
+      serverFilters.departmentId !== 'ALL' &&
+      ticket.departmentId !== serverFilters.departmentId
+    ) {
       return false;
     }
-    if (slaFilter !== 'ALL' && ticket.sla?.state !== slaFilter) return false;
+    if (
+      serverFilters.slaState &&
+      serverFilters.slaState !== 'ALL' &&
+      ticket.sla?.state !== serverFilters.slaState
+    ) {
+      return false;
+    }
+    if (serverFilters.assignmentState === 'unassigned' && ticket.departmentId) {
+      return false;
+    }
+    if (serverFilters.assignmentState === 'assigned' && !ticket.departmentId) {
+      return false;
+    }
     return true;
   }
 
@@ -288,24 +356,58 @@ export function TicketListPage() {
     setSlaFilter('ALL');
     setQueueView('all');
     setCursor(null);
+    cursorHistoryRef.current = [];
+    setCanGoPrevious(false);
   }
 
   function handleViewChange(view: QueueViewId) {
     setQueueView(view);
     setCursor(null);
+    cursorHistoryRef.current = [];
+    setCanGoPrevious(false);
     if (view === 'critical') {
       setUrgencyFilter('critical');
+      setSlaFilter('ALL');
       return;
     }
     if (view === 'high') {
       setUrgencyFilter('high');
+      setSlaFilter('ALL');
       return;
     }
-    if (view === 'all' || view === 'unassigned' || view === 'aging') {
+    if (view === 'aging') {
+      setSlaFilter('overdue');
       if (urgencyFilter === 'critical' || urgencyFilter === 'high') {
         setUrgencyFilter('ALL');
       }
+      return;
     }
+    if (view === 'all' || view === 'unassigned') {
+      if (urgencyFilter === 'critical' || urgencyFilter === 'high') {
+        setUrgencyFilter('ALL');
+      }
+      if (slaFilter === 'overdue') {
+        setSlaFilter('ALL');
+      }
+    }
+  }
+
+  function goToNextPage() {
+    if (!nextCursor) {
+      return;
+    }
+    cursorHistoryRef.current.push(cursor);
+    setCanGoPrevious(true);
+    setCursor(nextCursor);
+  }
+
+  function goToPreviousPage() {
+    if (cursorHistoryRef.current.length === 0) {
+      return;
+    }
+    const previous = cursorHistoryRef.current.pop() ?? null;
+    setCanGoPrevious(cursorHistoryRef.current.length > 0);
+    setCursor(previous);
   }
 
   return (
@@ -353,7 +455,7 @@ export function TicketListPage() {
               departmentFilter={departmentFilter}
               slaFilter={slaFilter}
               categoryOptions={categoryOptions}
-              resultCount={filteredTickets.length}
+              resultCount={pageTickets.length}
               totalCount={totalCount}
               isRefreshing={isRefreshing}
               hideSearch
@@ -371,7 +473,14 @@ export function TicketListPage() {
                 }
               }}
               onDepartmentChange={setDepartmentFilter}
-              onSlaChange={setSlaFilter}
+              onSlaChange={(sla) => {
+                setSlaFilter(sla);
+                if (sla === 'overdue') {
+                  setQueueView('aging');
+                } else if (queueView === 'aging') {
+                  setQueueView('all');
+                }
+              }}
               onClearFilters={clearFilters}
             />
 
@@ -384,29 +493,29 @@ export function TicketListPage() {
 
             {pageTickets.length === 0 && !hasActiveFilters && <EmptyState />}
 
-            {hasActiveFilters && filteredTickets.length === 0 && (
+            {hasActiveFilters && pageTickets.length === 0 && (
               <EmptyState
                 title="No matching tickets"
                 message="Try adjusting your search, status, category, urgency, or department filters to find tickets."
               />
             )}
 
-            {filteredTickets.length > 0 && (
+            {pageTickets.length > 0 && (
               <TicketTable
-                tickets={filteredTickets}
+                tickets={pageTickets}
                 title={queueTitle}
                 selectedTicketId={selectedTicket?.ticketId ?? null}
                 onSelectTicket={setSelectedTicketId}
               />
             )}
 
-            {(nextCursor || previousCursor) && (
+            {(nextCursor || canGoPrevious) && (
               <nav className="ticket-list-page__pagination" aria-label="Ticket pages">
                 <button
                   type="button"
                   className="ticket-list-page__page-btn"
-                  disabled={!previousCursor || isRefreshing}
-                  onClick={() => setCursor(previousCursor)}
+                  disabled={!canGoPrevious || isRefreshing}
+                  onClick={goToPreviousPage}
                 >
                   Previous
                 </button>
@@ -414,7 +523,7 @@ export function TicketListPage() {
                   type="button"
                   className="ticket-list-page__page-btn"
                   disabled={!nextCursor || isRefreshing}
-                  onClick={() => setCursor(nextCursor)}
+                  onClick={goToNextPage}
                 >
                   Next
                 </button>

@@ -45,6 +45,9 @@ class TicketStore(Protocol):
         category: str | None = None,
         urgency: str | None = None,
         department_id: str | None = None,
+        assignment_state: Literal["assigned", "unassigned"] | None = None,
+        q: str | None = None,
+        open_only: bool = False,
     ) -> StaffTicketPage: ...
 
     def list_public(

@@ -122,6 +122,9 @@ class DynamoTicketStore:
         category: str | None = None,
         urgency: str | None = None,
         department_id: str | None = None,
+        assignment_state: Literal["assigned", "unassigned"] | None = None,
+        q: str | None = None,
+        open_only: bool = False,
     ) -> StaffTicketPage:
         """Indexed staff collection page.
 
@@ -142,6 +145,9 @@ class DynamoTicketStore:
             department_ids=(
                 department_ids if browse_mode == "municipality" and department_id is None else None
             ),
+            assignment_state=assignment_state,
+            q=q,
+            open_only=open_only,
         )
 
         query_kwargs: dict[str, object] = {
@@ -184,7 +190,10 @@ class DynamoTicketStore:
             query_kwargs["ExclusiveStartKey"] = last_key
 
         next_cursor = None
-        if len(items) == limit and last_key:
+        if last_key:
+            # Always continue when Dynamo still has unread keys — sparse
+            # FilterExpression pages can end a bounded round with items < limit
+            # while later matches remain (issue #267 review).
             next_cursor = _encode_staff_cursor(last_key, index_name=index_name)
         elif len(items) == limit and items:
             # Cap reached mid-page without Dynamo LEK; synthesize from last item.
@@ -581,20 +590,31 @@ def _staff_filter_expression(
     urgency: str | None,
     department_id: str | None,
     department_ids: list[str] | None,
+    assignment_state: Literal["assigned", "unassigned"] | None = None,
+    q: str | None = None,
+    open_only: bool = False,
 ):
     expression = None
     if status is not None:
         expression = Attr("status").eq(status)
+    elif open_only:
+        expression = Attr("status").is_in(["SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS"])
     if category is not None:
         clause = Attr("category").eq(category)
         expression = clause if expression is None else expression & clause
     if urgency is not None:
         clause = Attr("priority").eq(urgency)
         expression = clause if expression is None else expression & clause
+    if assignment_state == "unassigned":
+        clause = Attr("departmentId").not_exists()
+        expression = clause if expression is None else expression & clause
+    elif assignment_state == "assigned":
+        clause = Attr("departmentId").exists()
+        expression = clause if expression is None else expression & clause
     if department_id is not None:
         clause = Attr("departmentId").eq(department_id)
         expression = clause if expression is None else expression & clause
-    elif department_ids is not None:
+    elif department_ids is not None and assignment_state is None:
         # Unassigned tickets are visible to municipal staff; keep them when dept-scoped.
         allowed = list(department_ids)
         if allowed:
@@ -602,6 +622,15 @@ def _staff_filter_expression(
         else:
             clause = Attr("departmentId").not_exists()
         expression = clause if expression is None else expression & clause
+    if q is not None:
+        # Bounded contains match — keeps search on the indexed collection path.
+        search = (
+            Attr("ticketNumber").contains(q)
+            | Attr("ticketId").contains(q)
+            | Attr("description").contains(q)
+            | Attr("location.addressText").contains(q)
+        )
+        expression = search if expression is None else expression & search
     return expression
 
 

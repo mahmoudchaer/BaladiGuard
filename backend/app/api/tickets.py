@@ -123,6 +123,9 @@ def list_tickets(
     urgency: str | None = Query(default=None),
     department_id: str | None = Query(default=None, alias="departmentId"),
     sla_state: str | None = Query(default=None, alias="slaState"),
+    assignment_state: str | None = Query(default=None, alias="assignmentState"),
+    q: str | None = Query(default=None),
+    open_only: bool = Query(default=False, alias="openOnly"),
     limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
     cursor: str | None = Query(default=None),
 ) -> TicketListPageResponse | JSONResponse:
@@ -133,6 +136,9 @@ def list_tickets(
         urgency=urgency,
         department_id=department_id,
         sla_state=sla_state,
+        assignment_state=assignment_state,
+        q=q,
+        open_only=open_only,
     )
     if errors:
         return build_error_response(

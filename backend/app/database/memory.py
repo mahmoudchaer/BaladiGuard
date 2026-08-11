@@ -80,6 +80,9 @@ class InMemoryTicketStore:
         category: str | None = None,
         urgency: str | None = None,
         department_id: str | None = None,
+        assignment_state: Literal["assigned", "unassigned"] | None = None,
+        q: str | None = None,
+        open_only: bool = False,
     ) -> StaffTicketPage:
         cursor_key = _decode_staff_cursor(cursor)
         with self._lock:
@@ -99,6 +102,9 @@ class InMemoryTicketStore:
             category=category,
             urgency=urgency,  # type: ignore[arg-type]
             department_id=department_id,
+            assignment_state=assignment_state,
+            q=q,
+            open_only=open_only,
         )
         filtered = filter_stored_tickets(scoped, filters)
         filtered.sort(key=_staff_sort_tuple, reverse=True)
