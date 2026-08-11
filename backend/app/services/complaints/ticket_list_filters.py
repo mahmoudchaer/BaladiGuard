@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 from app.schemas.stored_ticket import ReportPriority, StoredTicket
 from app.schemas.ticket_status import TICKET_STATUSES, TicketStatus, is_known_ticket_status
@@ -13,6 +13,11 @@ from app.services.routing import department_ids
 
 URGENCY_LEVELS: tuple[ReportPriority, ...] = ("low", "medium", "high", "critical")
 SLA_STATES = frozenset({"on_track", "due_soon", "overdue", "completed", "unavailable"})
+ASSIGNMENT_STATES = frozenset({"assigned", "unassigned"})
+MAX_SEARCH_QUERY_LENGTH = 80
+OPEN_TICKET_STATUSES: frozenset[TicketStatus] = frozenset(
+    {"SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +29,9 @@ class TicketListFilters:
     urgency: ReportPriority | None = None
     department_id: str | None = None
     sla_state: str | None = None
+    assignment_state: Literal["assigned", "unassigned"] | None = None
+    q: str | None = None
+    open_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +47,9 @@ def parse_ticket_list_filters(
     urgency: str | None = None,
     department_id: str | None = None,
     sla_state: str | None = None,
+    assignment_state: str | None = None,
+    q: str | None = None,
+    open_only: bool = False,
 ) -> tuple[TicketListFilters | None, list[TicketListFilterValidationError]]:
     """Validate raw query values and build filters.
 
@@ -52,6 +63,8 @@ def parse_ticket_list_filters(
     parsed_urgency: ReportPriority | None = None
     parsed_department_id: str | None = None
     parsed_sla_state: str | None = None
+    parsed_assignment_state: Literal["assigned", "unassigned"] | None = None
+    parsed_q: str | None = None
 
     if status is not None:
         normalized_status = status.strip()
@@ -145,6 +158,37 @@ def parse_ticket_list_filters(
         else:
             parsed_sla_state = normalized_sla_state
 
+    if assignment_state is not None:
+        normalized_assignment = assignment_state.strip().lower()
+        if normalized_assignment not in ASSIGNMENT_STATES:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="assignmentState",
+                    message="Assignment state must be one of: assigned, unassigned.",
+                )
+            )
+        else:
+            parsed_assignment_state = cast(Literal["assigned", "unassigned"], normalized_assignment)
+
+    if q is not None:
+        normalized_q = q.strip()
+        if not normalized_q:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="q",
+                    message="Search query must not be empty.",
+                )
+            )
+        elif len(normalized_q) > MAX_SEARCH_QUERY_LENGTH:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="q",
+                    message=f"Search query must be at most {MAX_SEARCH_QUERY_LENGTH} characters.",
+                )
+            )
+        else:
+            parsed_q = normalized_q
+
     if errors:
         return None, errors
 
@@ -155,6 +199,9 @@ def parse_ticket_list_filters(
             urgency=parsed_urgency,
             department_id=parsed_department_id,
             sla_state=parsed_sla_state,
+            assignment_state=parsed_assignment_state,
+            q=parsed_q,
+            open_only=open_only,
         ),
         [],
     )
@@ -165,6 +212,8 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
 
     if filters.status is not None and ticket.status != filters.status:
         return False
+    if filters.open_only and ticket.status not in OPEN_TICKET_STATUSES:
+        return False
     if filters.category is not None and ticket.category != filters.category:
         return False
     if filters.urgency is not None and ticket.priority != filters.urgency:
@@ -173,6 +222,24 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
         return False
     if filters.sla_state is not None and derive_ticket_sla(ticket).state != filters.sla_state:
         return False
+    if filters.assignment_state == "unassigned" and ticket.department_id is not None:
+        return False
+    if filters.assignment_state == "assigned" and ticket.department_id is None:
+        return False
+    if filters.q is not None:
+        needle = filters.q.casefold()
+        haystack = " ".join(
+            part
+            for part in (
+                ticket.ticket_id,
+                ticket.ticket_number,
+                ticket.description,
+                ticket.location.address_text if ticket.location else "",
+            )
+            if part
+        ).casefold()
+        if needle not in haystack:
+            return False
     return True
 
 
@@ -190,6 +257,8 @@ __all__ = [
     "TicketListFilters",
     "URGENCY_LEVELS",
     "SLA_STATES",
+    "ASSIGNMENT_STATES",
+    "MAX_SEARCH_QUERY_LENGTH",
     "filter_stored_tickets",
     "parse_ticket_list_filters",
     "ticket_matches_filters",

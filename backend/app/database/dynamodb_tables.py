@@ -26,6 +26,10 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
             {"AttributeName": "ownerHistorySortKey", "AttributeType": "S"},
             {"AttributeName": "publicStatus", "AttributeType": "S"},
             {"AttributeName": "publicSortKey", "AttributeType": "S"},
+            {"AttributeName": "staffScopeKey", "AttributeType": "S"},
+            {"AttributeName": "staffSortKey", "AttributeType": "S"},
+            {"AttributeName": "adminBrowseKey", "AttributeType": "S"},
+            {"AttributeName": "departmentId", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
@@ -51,6 +55,30 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
                 "KeySchema": [
                     {"AttributeName": "publicStatus", "KeyType": "HASH"},
                     {"AttributeName": "publicSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "staffScopeKey-staffSortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "staffScopeKey", "KeyType": "HASH"},
+                    {"AttributeName": "staffSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "adminBrowseKey-staffSortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "adminBrowseKey", "KeyType": "HASH"},
+                    {"AttributeName": "staffSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "departmentId-staffSortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "departmentId", "KeyType": "HASH"},
+                    {"AttributeName": "staffSortKey", "KeyType": "RANGE"},
                 ],
                 "Projection": {"ProjectionType": "ALL"},
             },

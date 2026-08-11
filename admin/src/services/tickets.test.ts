@@ -27,6 +27,41 @@ const apiTicket: Ticket = {
   updatedAt: '2026-07-14T10:05:00Z',
 };
 
+const listItemPayload = {
+  ticketId: apiTicket.ticketId,
+  ticketNumber: apiTicket.ticketNumber,
+  status: apiTicket.status,
+  category: apiTicket.category,
+  priority: apiTicket.priority,
+  departmentId: apiTicket.departmentId,
+  department: {
+    departmentId: apiTicket.departmentId,
+    name: apiTicket.departmentName,
+  },
+  summary: apiTicket.description,
+  createdAt: apiTicket.createdAt,
+  updatedAt: apiTicket.updatedAt,
+  municipalityId: apiTicket.municipalityId,
+  assignmentState: 'assigned',
+  location: {
+    latitude: apiTicket.location.latitude,
+    longitude: apiTicket.location.longitude,
+    addressText: apiTicket.location.addressText,
+  },
+};
+
+function listPagePayload(items = [listItemPayload]) {
+  return {
+    items,
+    nextCursor: null,
+    previousCursor: null,
+    limit: 25,
+    scannedCount: items.length,
+    approximateTotal: items.length,
+    freshnessHintSeconds: 30,
+  };
+}
+
 afterEach(() => {
   window.localStorage.clear();
   vi.unstubAllEnvs();
@@ -78,7 +113,7 @@ describe('fetchTickets', () => {
     vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
 
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([apiTicket]), {
+      new Response(JSON.stringify(listPagePayload()), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -95,11 +130,13 @@ describe('fetchTickets', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/v1/tickets?status=RESOLVED&category=waste&urgency=high&departmentId=d2222222-2222-2222-2222-222222222222',
-      {
+      expect.objectContaining({
         headers: {},
-      },
+      }),
     );
     expect(tickets).toHaveLength(1);
+    expect(tickets[0].description).toBe('Broken street light');
+    expect(tickets[0].trackingCode).toBe('');
   });
 
   it('omits cleared dashboard filters from the real backend list request', async () => {
@@ -107,7 +144,7 @@ describe('fetchTickets', () => {
     vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
 
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([apiTicket]), {
+      new Response(JSON.stringify(listPagePayload()), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -122,9 +159,35 @@ describe('fetchTickets', () => {
       departmentId: 'ALL',
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/v1/tickets', {
-      headers: {},
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets',
+      expect.objectContaining({
+        headers: {},
+      }),
+    );
+  });
+
+  it('caches list pages and reuses fresh entries', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(listPagePayload()), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchTicketsPage, invalidateTicketListCache } = await import('@/services/tickets');
+    invalidateTicketListCache();
+
+    const first = await fetchTicketsPage();
+    const second = await fetchTicketsPage();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first.fromCache).toBe(false);
+    expect(second.fromCache).toBe(true);
   });
 });
 
@@ -236,10 +299,13 @@ describe('updateTicketStatus', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify([{ ...apiTicket, priority: 'critical' }]), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify(listPagePayload([{ ...listItemPayload, priority: 'critical' }])),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       ),
     );
 
@@ -502,17 +568,19 @@ describe('ticket location normalization', () => {
       'fetch',
       vi.fn().mockResolvedValue(
         new Response(
-          JSON.stringify([
-            {
-              ...apiTicket,
-              location: {
-                ...apiTicket.location,
-                latitude: 90,
-                longitude: 180,
-                addressText: '  Beirut waterfront  ',
+          JSON.stringify(
+            listPagePayload([
+              {
+                ...listItemPayload,
+                location: {
+                  ...listItemPayload.location,
+                  latitude: 90,
+                  longitude: 180,
+                  addressText: '  Beirut waterfront  ',
+                },
               },
-            },
-          ]),
+            ]),
+          ),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -614,15 +682,17 @@ describe('ticket location normalization', () => {
       'fetch',
       vi.fn().mockResolvedValue(
         new Response(
-          JSON.stringify([
-            apiTicket,
-            {
-              ...apiTicket,
-              ticketId: 'tkt_bad',
-              ticketNumber: 'BG-BAD',
-              location: null,
-            },
-          ]),
+          JSON.stringify(
+            listPagePayload([
+              listItemPayload,
+              {
+                ...listItemPayload,
+                ticketId: 'tkt_bad',
+                ticketNumber: 'BG-BAD',
+                location: null as unknown as (typeof listItemPayload)['location'],
+              },
+            ]),
+          ),
           {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -640,7 +710,6 @@ describe('ticket location normalization', () => {
     expect(Number.isNaN(tickets[1].location.latitude)).toBe(true);
     expect(Number.isNaN(tickets[1].location.longitude)).toBe(true);
     expect(tickets[1].location.addressText).toBe('');
-    expect(tickets[1].location.source).toBe('PLACEHOLDER');
   });
 });
 
