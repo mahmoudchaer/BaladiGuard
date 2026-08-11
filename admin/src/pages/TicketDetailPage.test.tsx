@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assignTicketDepartment,
+  createTicketComment,
   fetchTicketActivity,
   fetchTicketComments,
   reviewTicketCategory,
@@ -21,6 +22,7 @@ vi.mock('@/services/tickets', () => ({
   fetchTickets: vi.fn(),
   fetchTicketActivity: vi.fn(),
   fetchTicketComments: vi.fn(),
+  createTicketComment: vi.fn(),
   mergeDuplicateTickets: vi.fn(),
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
@@ -605,5 +607,33 @@ describe('TicketDetailPage department assignment', () => {
     );
     expect(screen.getByRole('button', { name: 'Save department' })).toBeDisabled();
     expect(assignTicketDepartment).not.toHaveBeenCalled();
+  });
+});
+
+describe('TicketDetailPage internal activity', () => {
+  it('keeps a successfully posted comment when the activity refresh fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createTicketComment).mockResolvedValue({
+      commentId: 'cmt_1',
+      ticketId: ticket.ticketId,
+      authorStaffId: 'staff_admin_001',
+      authorDisplayName: 'Administrator',
+      text: 'Please inspect the road closure.',
+      mentionedStaffIds: [],
+      createdAt: '2026-07-17T08:05:00Z',
+    });
+    vi.mocked(fetchTicketActivity)
+      .mockResolvedValueOnce({ events: [], nextCursor: null })
+      .mockRejectedValueOnce(new Error('Activity refresh failed.'));
+
+    renderPage();
+    await user.type(
+      await screen.findByLabelText('Add internal comment'),
+      'Please inspect the road closure.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+
+    expect(await screen.findByText('Please inspect the road closure.')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Activity refresh failed.');
   });
 });

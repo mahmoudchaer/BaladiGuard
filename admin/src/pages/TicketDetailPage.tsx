@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ActivityEvent, StaffComment, Ticket, TicketStatus } from '@/types/ticket';
 import {
@@ -77,11 +77,14 @@ export function TicketDetailPage() {
   const [isLoadingMoreActivity, setIsLoadingMoreActivity] = useState(false);
   const [loadMoreActivityError, setLoadMoreActivityError] = useState<string | null>(null);
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
+  const [commentsRefreshKey, setCommentsRefreshKey] = useState(0);
+  const currentTicketId = useRef<string | undefined>(ticketId);
   const [commentText, setCommentText] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   useEffect(() => {
+    currentTicketId.current = ticketId;
     if (!ticketId) {
       setLoadState('not-found');
       return;
@@ -156,10 +159,8 @@ export function TicketDetailPage() {
     let active = true;
     setActivityLoading(true);
     setActivityError(null);
-    setCommentsError(null);
     setLoadMoreActivityError(null);
     setActivity([]);
-    setComments([]);
     void fetchTicketActivity(ticketId)
       .then((page) => {
         if (active) {
@@ -176,6 +177,16 @@ export function TicketDetailPage() {
       .finally(() => {
         if (active) setActivityLoading(false);
       });
+    return () => {
+      active = false;
+    };
+  }, [activityRefreshKey, ticketId]);
+
+  useEffect(() => {
+    if (!ticketId) return;
+    let active = true;
+    setCommentsError(null);
+    setComments([]);
     void fetchTicketComments(ticketId)
       .then((loadedComments) => {
         if (active) setComments(loadedComments);
@@ -189,7 +200,7 @@ export function TicketDetailPage() {
     return () => {
       active = false;
     };
-  }, [activityRefreshKey, ticketId]);
+  }, [commentsRefreshKey, ticketId]);
 
   async function loadMoreActivity() {
     if (!ticketId || !nextActivityCursor || isLoadingMoreActivity) return;
@@ -199,20 +210,20 @@ export function TicketDetailPage() {
     setLoadMoreActivityError(null);
     try {
       const page = await fetchTicketActivity(requestedTicketId, requestedCursor);
-      if (ticketId !== requestedTicketId) return;
+      if (currentTicketId.current !== requestedTicketId) return;
       setActivity((current) => {
         const ids = new Set(current.map((event) => event.eventId));
         return [...current, ...page.events.filter((event) => !ids.has(event.eventId))];
       });
       setNextActivityCursor(page.nextCursor);
     } catch (error) {
-      if (ticketId === requestedTicketId) {
+      if (currentTicketId.current === requestedTicketId) {
         setLoadMoreActivityError(
           error instanceof Error ? error.message : 'Unable to load more activity.',
         );
       }
     } finally {
-      if (ticketId === requestedTicketId) setIsLoadingMoreActivity(false);
+      if (currentTicketId.current === requestedTicketId) setIsLoadingMoreActivity(false);
     }
   }
 
@@ -220,17 +231,29 @@ export function TicketDetailPage() {
     if (!ticketId || !commentText.trim()) return;
     setIsSubmittingComment(true);
     setCommentError(null);
+    let comment: StaffComment;
     try {
-      const comment = await createTicketComment(ticketId, commentText);
-      setCommentText('');
-      setComments((current) => [...current, comment]);
+      comment = await createTicketComment(ticketId, commentText);
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
+      setIsSubmittingComment(false);
+      return;
+    }
+    setCommentText('');
+    setComments((current) => [...current, comment]);
+    try {
       const page = await fetchTicketActivity(ticketId);
+      if (currentTicketId.current !== ticketId) return;
       setActivity(page.events);
       setNextActivityCursor(page.nextCursor);
     } catch (error) {
-      setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
+      if (currentTicketId.current === ticketId) {
+        setActivityError(
+          error instanceof Error ? error.message : 'Unable to refresh ticket activity.',
+        );
+      }
     } finally {
-      setIsSubmittingComment(false);
+      if (currentTicketId.current === ticketId) setIsSubmittingComment(false);
     }
   }
 
@@ -1073,7 +1096,7 @@ export function TicketDetailPage() {
                       {commentsError}{' '}
                       <button
                         type="button"
-                        onClick={() => setActivityRefreshKey((value) => value + 1)}
+                        onClick={() => setCommentsRefreshKey((value) => value + 1)}
                       >
                         Retry comments
                       </button>
