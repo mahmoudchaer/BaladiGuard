@@ -51,16 +51,28 @@ Primary operator entry (writes evidence automatically):
 
 ```bash
 cd backend
+# Local harness smoke (memory + fake S3) — CI-style correctness of the runner only.
 PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
 # → infra/capacity/evidence/YYYY-MM-DD-staging-equivalent-capacity.md (+ JSON)
+
+# Production-equivalent staging (required for #191 Dynamo/S3/worker measurements)
+export CAPACITY_BASE_URL=https://api.staging.example
+export CAPACITY_CITIZEN_TOKEN=...   # contribution-ready synthetic citizen
+export CAPACITY_STAFF_USER=admin
+export CAPACITY_STAFF_PASSWORD=...
+export CAPACITY_USE_REAL_S3=1      # optional — real bucket uploads
+PYTHONPATH=. python scripts/capacity/run_staging_equivalent_capacity.py
 ```
+
+The runner always stops each scenario with **duration AND max-requests**, plus per-worker
+**min-interval** pacing, so upload scenarios cannot unbounded-flood the API.
 
 Direct harness against a running API:
 
 ```bash
 cd backend
 # Against a running API (default http://127.0.0.1:8000)
-PYTHONPATH=. python scripts/capacity/concurrent_http_harness.py --base-url http://127.0.0.1:8000 --scenario smoke --concurrency 8 --duration-seconds 20
+PYTHONPATH=. python scripts/capacity/concurrent_http_harness.py --base-url http://127.0.0.1:8000 --scenario smoke --concurrency 8 --duration-seconds 20 --max-requests 120 --min-interval-ms 25
 
 # Write workloads (require contribution-ready --citizen-token; staff optional)
 PYTHONPATH=. python scripts/capacity/concurrent_http_harness.py \
@@ -68,6 +80,8 @@ PYTHONPATH=. python scripts/capacity/concurrent_http_harness.py \
   --scenario write-mixed \
   --concurrency 8 \
   --duration-seconds 45 \
+  --max-requests 400 \
+  --min-interval-ms 40 \
   --citizen-token "$CITIZEN_TOKEN" \
   --staff-user admin --staff-password "$STAFF_PASSWORD" \
   --smoke-token "$RATE_LIMIT_SMOKE_BYPASS_TOKEN" \

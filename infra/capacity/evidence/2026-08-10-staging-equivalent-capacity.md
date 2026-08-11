@@ -1,8 +1,12 @@
-# Capacity validation report — 2026-08-10 — staging-equivalent-local
+# Capacity validation report — 2026-08-10 — local-harness-smoke (historical)
+
+> **Not production-equivalent staging.** This run used the memory backend and fake S3.
+> Keep for history; regenerate with `CAPACITY_BASE_URL` for #191 Dynamo/S3 evidence.  
+> Superseded by [2026-08-11-staging-equivalent-capacity.md](./2026-08-11-staging-equivalent-capacity.md) for harness smoke.
 
 ## Method
 
-- Workload profile: **staging-equivalent-local** (synthetic only; no real citizen data)
+- Workload profile: **local-harness-smoke** (synthetic only; no real citizen data)
 - Operator script: `backend/scripts/capacity/run_staging_equivalent_capacity.py`
 - Harness: `backend/scripts/capacity/concurrent_http_harness.py` write scenarios
 - Scenarios run: write-mixed, submit-race, upload-race, staff-mutate, smoke

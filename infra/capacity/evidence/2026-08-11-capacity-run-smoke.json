@@ -1,0 +1,186 @@
+{
+  "generatedAt": "2026-08-11T13:23:50.075791Z",
+  "scenario": "smoke",
+  "baseUrl": "http://127.0.0.1:52571",
+  "concurrency": 4,
+  "durationSeconds": 8.0,
+  "maxRequests": 80,
+  "minIntervalMs": 25.0,
+  "totals": {
+    "requests": 80,
+    "ok2xx": 53,
+    "client4xx": 27,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 8.39550000091549,
+    "p95": 33.20293999349814,
+    "p99": 47.308493998279864,
+    "mean": 12.506597499123018,
+    "max": 67.98389999312349
+  },
+  "byName": {
+    "health_ready_ai": {
+      "count": 28,
+      "status_counts": {
+        "200": 28
+      },
+      "latency_ms": {
+        "p50": 8.512799999152776,
+        "p95": 31.311739994271186,
+        "p99": 58.56602999323515,
+        "mean": 13.165167854562501
+      }
+    },
+    "track_miss": {
+      "count": 27,
+      "status_counts": {
+        "404": 27
+      },
+      "latency_ms": {
+        "p50": 10.541299998294562,
+        "p95": 38.65942000265932,
+        "p99": 41.38890800153604,
+        "mean": 14.515592592673514
+      }
+    },
+    "health_live": {
+      "count": 25,
+      "status_counts": {
+        "200": 25
+      },
+      "latency_ms": {
+        "p50": 6.858699998701923,
+        "p95": 26.040019994252354,
+        "p99": 27.217228007502854,
+        "mean": 9.59928399999626
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": null,
+      "pass": null
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": 38.65942000265932,
+      "pass": true
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 28,
+      "last": {
+        "at": "2026-08-11T13:23:50.075287Z",
+        "pending": 0,
+        "processing": 0,
+        "failed": 0,
+        "status": "ok",
+        "source": "memory_store"
+      },
+      "maxPending": 0
+    }
+  },
+  "createdTicketIdsSample": [],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-11T13:23:50.060380Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.060380Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.060380Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-11T13:23:50.075287Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

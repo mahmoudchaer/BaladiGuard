@@ -24,6 +24,7 @@ import argparse
 import json
 import statistics
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -166,6 +167,8 @@ class ScenarioSummary:
     base_url: str
     concurrency: int
     duration_seconds: float
+    max_requests: int | None = None
+    min_interval_ms: float = 0.0
     total: int = 0
     ok_2xx: int = 0
     client_4xx: int = 0
@@ -342,6 +345,24 @@ class HarnessContext:
     shared_headers: dict[str, str]
 
 
+@dataclass
+class RequestBudget:
+    """Shared request budget so workers cannot spin past a fixed max."""
+
+    max_requests: int | None
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+    issued: int = 0
+
+    def try_acquire(self) -> bool:
+        if self.max_requests is None or self.max_requests <= 0:
+            return True
+        with self._lock:
+            if self.issued >= self.max_requests:
+                return False
+            self.issued += 1
+            return True
+
+
 def _worker_loop(
     *,
     base_url: str,
@@ -349,11 +370,16 @@ def _worker_loop(
     stop_at: float,
     worker_id: int,
     ctx: HarnessContext,
+    budget: RequestBudget,
+    min_interval_s: float,
 ) -> list[RequestResult]:
     results: list[RequestResult] = []
     counter = 0
     while time.perf_counter() < stop_at:
+        if not budget.try_acquire():
+            break
         counter += 1
+        started = time.perf_counter()
         results.append(
             _perform_call(
                 base_url=base_url,
@@ -363,6 +389,11 @@ def _worker_loop(
                 ctx=ctx,
             )
         )
+        if min_interval_s > 0:
+            elapsed = time.perf_counter() - started
+            remaining = min_interval_s - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
     return results
 
 
@@ -705,6 +736,8 @@ def _summarize(summary: ScenarioSummary) -> dict[str, Any]:
         "baseUrl": summary.base_url,
         "concurrency": summary.concurrency,
         "durationSeconds": summary.duration_seconds,
+        "maxRequests": summary.max_requests,
+        "minIntervalMs": summary.min_interval_ms,
         "totals": {
             "requests": summary.total,
             "ok2xx": summary.ok_2xx,
@@ -739,21 +772,42 @@ def _summarize(summary: ScenarioSummary) -> dict[str, Any]:
     }
 
 
-def _staff_login(base_url: str, username: str, password: str, headers: dict[str, str]) -> str:
-    payload = json.dumps({"username": username, "password": password}).encode("utf-8")
-    result = _request(
-        "POST",
-        urljoin(base_url.rstrip("/") + "/", "v1/staff/login"),
-        headers={**headers, "Content-Type": "application/json"},
-        body=payload,
+def _staff_login(
+    base_url: str,
+    username: str,
+    password: str,
+    headers: dict[str, str],
+    *,
+    attempts: int = 5,
+    base_delay_s: float = 0.4,
+) -> str:
+    """Login with exponential backoff so short server hiccups do not abort the run."""
+    last_status: int | None = None
+    last_error: str | None = None
+    for attempt in range(1, max(1, attempts) + 1):
+        payload = json.dumps({"username": username, "password": password}).encode("utf-8")
+        result = _request(
+            "POST",
+            urljoin(base_url.rstrip("/") + "/", "v1/staff/login"),
+            headers={**headers, "Content-Type": "application/json"},
+            body=payload,
+            timeout=60.0,
+        )
+        if result.status == 200 and result.body:
+            body = json.loads(result.body.decode("utf-8"))
+            token = body.get("accessToken")
+            if token:
+                return str(token)
+            last_error = "missing accessToken"
+            last_status = result.status
+        else:
+            last_status = result.status
+            last_error = result.error
+        if attempt < attempts:
+            time.sleep(base_delay_s * (2 ** (attempt - 1)))
+    raise SystemExit(
+        f"staff login failed status={last_status} error={last_error} after {attempts} attempts"
     )
-    if result.status != 200 or not result.body:
-        raise SystemExit(f"staff login failed status={result.status} error={result.error}")
-    body = json.loads(result.body.decode("utf-8"))
-    token = body.get("accessToken")
-    if not token:
-        raise SystemExit("staff login response missing accessToken")
-    return str(token)
 
 
 def _seed_tickets_for_staff(
@@ -789,6 +843,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scenario", choices=SCENARIOS, default="smoke")
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--duration-seconds", type=float, default=15.0)
+    parser.add_argument(
+        "--max-requests",
+        type=int,
+        default=0,
+        help="Hard cap on total requests (0 = duration-only stop). Prevents unbounded floods.",
+    )
+    parser.add_argument(
+        "--min-interval-ms",
+        type=float,
+        default=0.0,
+        help="Minimum delay between successive requests issued by the same worker.",
+    )
     parser.add_argument("--smoke-token", default="")
     parser.add_argument("--staff-user", default="")
     parser.add_argument("--staff-password", default="")
@@ -845,15 +911,21 @@ def main(argv: list[str] | None = None) -> int:
         shared_headers=headers,
     )
 
+    max_requests = args.max_requests if args.max_requests and args.max_requests > 0 else None
+    min_interval_ms = max(0.0, float(args.min_interval_ms or 0.0))
     summary = ScenarioSummary(
         scenario=args.scenario,
         base_url=args.base_url,
         concurrency=max(1, args.concurrency),
         duration_seconds=max(1.0, args.duration_seconds),
+        max_requests=max_requests,
+        min_interval_ms=min_interval_ms,
     )
     # Preserve seed ids so staff-mutate workers have targets from the start.
     summary.created_ticket_ids.extend(ticket_ids)
 
+    budget = RequestBudget(max_requests=max_requests)
+    min_interval_s = min_interval_ms / 1000.0
     stop_at = time.perf_counter() + summary.duration_seconds
     with ThreadPoolExecutor(max_workers=summary.concurrency) as pool:
         futures = [
@@ -864,6 +936,8 @@ def main(argv: list[str] | None = None) -> int:
                 stop_at=stop_at,
                 worker_id=worker_id,
                 ctx=ctx,
+                budget=budget,
+                min_interval_s=min_interval_s,
             )
             for worker_id in range(summary.concurrency)
         ]

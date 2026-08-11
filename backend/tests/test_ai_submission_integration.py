@@ -13,6 +13,7 @@ from app.schemas.classification import ClassificationInputs, ClassificationResul
 from app.schemas.cleaning import CleaningResult
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.schemas.ticket import ReportContact, ReportLocation, SubmitTicketRequest
+from app.services.ai_job_queue import ai_job_queue
 from app.services.complaints.ticket_service import ticket_service
 from tests.conftest import authenticated_test_client, contribution_ready_auth_headers
 from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
@@ -56,6 +57,7 @@ def test_submission_persists_successful_ai_output_and_read_api_returns_it(
 
     assert response.status_code == 201
     ticket_id = response.json()["ticketId"]
+    assert ai_job_queue.run_once().outcome == "succeeded"
     assert calls == [(VALID_PAYLOAD["description"], VALID_PAYLOAD["imageObjectKey"])]
 
     stored = ticket_store.get(ticket_id)
@@ -107,10 +109,11 @@ def test_provider_timeout_does_not_block_ticket_creation_or_log_report_content(
 
     assert response.status_code == 201
     ticket_id = response.json()["ticketId"]
+    assert ai_job_queue.run_once().outcome == "retried"
     stored = ticket_store.get(ticket_id)
     assert stored is not None
     assert stored.original_description == VALID_PAYLOAD["description"]
-    assert stored.ai_processing_status == "failed"
+    assert stored.ai_processing_status == "pending"
     assert stored.cleaned_description is None
     assert stored.ai_suggested_category is None
     assert stored.priority is not None
@@ -145,6 +148,7 @@ def test_classification_fallback_keeps_successful_cleaning_as_partial_success(
     response = client.post(
         "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
     )
+    assert ai_job_queue.run_once().outcome == "succeeded"
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -182,6 +186,7 @@ def test_cleaning_fallback_never_discards_a_valid_category(
     response = client.post(
         "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
     )
+    assert ai_job_queue.run_once().outcome == "succeeded"
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -218,11 +223,12 @@ def test_processing_is_failed_only_when_both_sides_fall_back(
     response = client.post(
         "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
     )
+    assert ai_job_queue.run_once().outcome == "retried"
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
     assert stored is not None
-    assert stored.ai_processing_status == "failed"
+    assert stored.ai_processing_status == "pending"
     assert stored.cleaned_description is None
     assert stored.ai_suggested_category is None
     assert stored.ai_category_explanation is None
@@ -419,6 +425,7 @@ def test_submission_ai_output_persists_with_moto_dynamodb(
         )
 
         assert response.status_code == 201
+        assert ticket_service.process_ticket_ai(response.json()["ticketId"]) is True
         stored = store.get(response.json()["ticketId"])
         assert stored is not None
         assert stored.original_description == VALID_PAYLOAD["description"]
@@ -490,6 +497,7 @@ def test_live_submission_processes_real_ai(client, monkeypatch):
     response = client.post(
         "/v1/tickets", json=VALID_PAYLOAD, headers=contribution_ready_auth_headers()
     )
+    ai_job_queue.run_once()
 
     assert response.status_code == 201
     stored = ticket_store.get(response.json()["ticketId"])
@@ -539,6 +547,7 @@ def test_live_submission_persists_real_ai_to_cloud_dynamodb(monkeypatch):
         )
         assert response.status_code == 201
         ticket_id = response.json()["ticketId"]
+        assert ticket_service.process_ticket_ai(ticket_id) is True
 
         stored = store.get(ticket_id)
         assert stored is not None

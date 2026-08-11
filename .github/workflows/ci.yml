@@ -81,6 +81,10 @@ jobs:
         working-directory: mobile
         run: npm run format:check
 
+      - name: Check mobile Expo config
+        working-directory: mobile
+        run: npm run check:config
+
       - name: Check mobile Expo Router files
         working-directory: mobile
         run: npm run check:routes

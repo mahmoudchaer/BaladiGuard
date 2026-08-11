@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-08-11T13:24:02.795157Z",
+  "scenario": "staff-mutate",
+  "baseUrl": "http://127.0.0.1:52571",
+  "concurrency": 4,
+  "durationSeconds": 12.0,
+  "maxRequests": 100,
+  "minIntervalMs": 50.0,
+  "totals": {
+    "requests": 100,
+    "ok2xx": 80,
+    "client4xx": 20,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 45.34115000569727,
+    "p95": 190.23116500829926,
+    "p99": 217.72305000224156,
+    "mean": 65.15461500021047,
+    "max": 225.38069999427535
+  },
+  "byName": {
+    "staff_category": {
+      "count": 26,
+      "status_counts": {
+        "200": 26
+      },
+      "latency_ms": {
+        "p50": 30.673400004161522,
+        "p95": 133.83469999826048,
+        "p99": 150.09344999634777,
+        "mean": 42.66354615258304
+      }
+    },
+    "staff_detail": {
+      "count": 26,
+      "status_counts": {
+        "200": 26
+      },
+      "latency_ms": {
+        "p50": 23.074150005413685,
+        "p95": 111.0828249984479,
+        "p99": 120.8236000056786,
+        "mean": 39.11853846120021
+      }
+    },
+    "staff_list": {
+      "count": 25,
+      "status_counts": {
+        "200": 25
+      },
+      "latency_ms": {
+        "p50": 140.27329999953508,
+        "p95": 215.38924000342374,
+        "p99": 223.5242999962065,
+        "mean": 132.61659200128634
+      }
+    },
+    "staff_status": {
+      "count": 23,
+      "status_counts": {
+        "400": 20,
+        "200": 3
+      },
+      "latency_ms": {
+        "p50": 27.29840000392869,
+        "p95": 127.06983999523794,
+        "p99": 176.74376200564447,
+        "mean": 46.68315217524018
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": null,
+      "pass": null
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": 215.38924000342374,
+      "pass": true
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 0,
+      "last": null,
+      "maxPending": null
+    }
+  },
+  "createdTicketIdsSample": [
+    "tkt_28ac6702cc7d420a9f0a9d7d2eaa4286",
+    "tkt_7608c9188b8046e490d5e615f41cddc8",
+    "tkt_fc720de56df34b639898a8b2eb696619",
+    "tkt_1e458a45a65649bfb4a5cae439db3f33",
+    "tkt_8d7e765188144be0bb7f8fa1be6c0367",
+    "tkt_7a05f0f63b314a5c92976fd719292658"
+  ],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

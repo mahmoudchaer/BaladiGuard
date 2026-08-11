@@ -156,9 +156,12 @@ def _run_harness(
     scenario: str,
     concurrency: int,
     duration: float,
+    max_requests: int,
+    min_interval_ms: float,
     citizen_token: str,
     output: Path,
     smoke_token: str = "",
+    seed_tickets: int = 4,
 ) -> dict:
     # Call the harness in-process (no shell/subprocess argv construction from tokens).
     from scripts.capacity.concurrent_http_harness import main as harness_main
@@ -172,6 +175,10 @@ def _run_harness(
         str(concurrency),
         "--duration-seconds",
         str(duration),
+        "--max-requests",
+        str(max_requests),
+        "--min-interval-ms",
+        str(min_interval_ms),
         "--staff-user",
         DEFAULT_STAFF_USER,
         "--staff-password",
@@ -179,7 +186,7 @@ def _run_harness(
         "--citizen-token",
         citizen_token,
         "--seed-tickets",
-        "6",
+        str(seed_tickets),
         "--output",
         str(output),
         "--quiet",
@@ -187,6 +194,8 @@ def _run_harness(
     if smoke_token:
         argv.extend(["--smoke-token", smoke_token])
 
+    # Brief pause before staff login so rate limiters recover after a write burst.
+    time.sleep(0.75)
     exit_code = harness_main(argv)
     if exit_code not in {0, 2} or not output.exists():
         raise SystemExit(f"Harness failed scenario={scenario} exit={exit_code}")
@@ -224,23 +233,33 @@ def _write_markdown(
     ]
     for note in config_notes:
         lines.append(f"- {note}")
+    lines.append(
+        "- Harness caps: concurrency + duration **and** max-requests / min-interval "
+        "(prevents unbounded upload floods)."
+    )
     lines.extend(
         [
             "",
             "## Numbers (per scenario)",
             "",
-            "| Scenario | Reqs | 2xx | 4xx | 429 | 5xx | err | p50 | p95 | p99 |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            "| Scenario | Reqs | maxReq | interval ms | 2xx | 4xx | 429 | "
+            "5xx | err | p50 | p95 | p99 |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for name, report in runs.items():
         totals = report["totals"]
         latency = report["latencyMs"]
+        max_req = report.get("maxRequests") or "—"
+        interval = report.get("minIntervalMs")
+        interval_s = interval if interval is not None else "—"
         lines.append(
-            f"| `{name}` | {totals['requests']} | {totals['ok2xx']} | "
-            f"{totals['client4xx']} | {totals['rateLimited429']} | {totals['server5xx']} | "
-            f"{totals['transportErrors']} | {_fmt(latency.get('p50'))} | "
-            f"{_fmt(latency.get('p95'))} | {_fmt(latency.get('p99'))} |"
+            f"| `{name}` | {totals['requests']} | {max_req} | "
+            f"{interval_s} | {totals['ok2xx']} | "
+            f"{totals['client4xx']} | {totals['rateLimited429']} | "
+            f"{totals['server5xx']} | {totals['transportErrors']} | "
+            f"{_fmt(latency.get('p50'))} | {_fmt(latency.get('p95'))} | "
+            f"{_fmt(latency.get('p99'))} |"
         )
 
     lines.extend(["", "### Key route p95 (write-mixed when present)", ""])
@@ -326,7 +345,12 @@ def _write_markdown(
         if os.environ.get("CAPACITY_USE_REAL_S3") == "1"
         else "fake S3 put_object stub for safety"
     )
-    evidence_names = ", ".join(p.name for p in EVIDENCE_DIR.glob("*-capacity-run-*.json"))
+    evidence_names = (
+        ", ".join(
+            sorted(p.name for p in EVIDENCE_DIR.glob(f"{_iso_now()[:10]}-capacity-run-*.json"))
+        )
+        or "see sibling JSON"
+    )
     lines.extend(
         [
             "",
@@ -432,16 +456,18 @@ def main() -> int:
             )
             config_notes.extend(
                 [
-                    "Mode: **local staging-equivalent** (in-process memory ticket/account stores)",
+                    "Mode: **local harness smoke** (NOT production-equivalent Dynamo/S3)",
                     f"Base URL: `{base_url}`",
                     "NOTIFICATION_ADAPTER=mock",
-                    "DATABASE_BACKEND=memory (production-equivalent HTTP/write "
-                    "concurrency; re-run with CAPACITY_BASE_URL for live Dynamo WCU)",
-                    "S3: fake put_object via capacity_api_app "
-                    if os.environ.get("CAPACITY_USE_REAL_S3") != "1"
-                    else "S3: real AWS credentials",
+                    "DATABASE_BACKEND=memory — use CAPACITY_BASE_URL for live Dynamo WCU/throttles",
+                    (
+                        "S3: fake put_object via capacity_api_app "
+                        if os.environ.get("CAPACITY_USE_REAL_S3") != "1"
+                        else "S3: real AWS credentials"
+                    ),
                     "AI classifier/cleaner stubbed in capacity_api_app",
                     "Rate limits raised + smoke token capacity-smoke-token",
+                    "Budgets: --max-requests + --min-interval-ms per scenario (anti-flood)",
                 ]
             )
             smoke_token = "capacity-smoke-token"
@@ -477,33 +503,66 @@ def main() -> int:
             )
 
         scenarios = [
-            ("write-mixed", 8, 25.0),
-            ("submit-race", 6, 15.0),
-            ("upload-race", 6, 12.0),
-            ("staff-mutate", 6, 12.0),
-            ("smoke", 6, 8.0),
+            # (name, concurrency, duration_s, max_requests, min_interval_ms, seed_tickets)
+            # max-requests caps floods (review: unpaced upload-race produced 32k reqs in 12s).
+            ("smoke", 4, 8.0, 80, 25.0, 0),
+            ("write-mixed", 6, 18.0, 240, 40.0, 4),
+            ("submit-race", 4, 12.0, 160, 40.0, 0),
+            ("upload-race", 4, 10.0, 120, 60.0, 0),
+            ("staff-mutate", 4, 12.0, 100, 50.0, 6),
         ]
         runs: dict[str, dict] = {}
-        for scenario, concurrency, duration in scenarios:
+        for (
+            scenario,
+            concurrency,
+            duration,
+            max_requests,
+            min_interval_ms,
+            seed_tickets,
+        ) in scenarios:
             out = EVIDENCE_DIR / f"{stamp}-capacity-run-{scenario}.json"
-            print(f"Running scenario={scenario} concurrency={concurrency} duration={duration}s")
+            print(
+                f"Running scenario={scenario} concurrency={concurrency} "
+                f"duration={duration}s max_requests={max_requests} "
+                f"min_interval_ms={min_interval_ms}",
+                flush=True,
+            )
             runs[scenario] = _run_harness(
                 base_url=base_url,
                 scenario=scenario,
                 concurrency=concurrency,
                 duration=duration,
+                max_requests=max_requests,
+                min_interval_ms=min_interval_ms,
                 citizen_token=citizen_token,
                 output=out,
                 smoke_token=smoke_token,
+                seed_tickets=seed_tickets,
+            )
+            totals = runs[scenario]["totals"]
+            print(
+                f"  done requests={totals['requests']} 5xx={totals['server5xx']} "
+                f"err={totals['transportErrors']}",
+                flush=True,
             )
 
         combined = {
             "generatedAt": _iso_now(),
-            "profile": "staging-equivalent-local" if not remote else "staging-remote",
+            "profile": "staging-remote" if remote else "local-harness-smoke",
+            "productionEquivalent": bool(remote),
             "baseUrl": base_url,
             "configNotes": config_notes,
             "scenarios": runs,
             "defects": [],
+            "gateNote": (
+                "Remote CAPACITY_BASE_URL run is required for #191 Dynamo/S3/worker "
+                "evidence. Local mode is harness regression only."
+                if not remote
+                else (
+                    "Remote staging profile — evaluate CloudWatch WCU/throttles "
+                    "alongside this report."
+                )
+            ),
         }
         combined_path = EVIDENCE_DIR / f"{stamp}-staging-equivalent-capacity-combined.json"
         combined_path.write_text(json.dumps(combined, indent=2) + "\n", encoding="utf-8")
@@ -511,6 +570,12 @@ def main() -> int:
         _write_markdown(md_path, runs, profile=combined["profile"], config_notes=config_notes)
         print(f"Wrote {combined_path}")
         print(f"Wrote {md_path}")
+        if not remote:
+            print(
+                "NOTE: local harness smoke only. For production-equivalent evidence set "
+                "CAPACITY_BASE_URL + CAPACITY_CITIZEN_TOKEN against staging Dynamo/S3.",
+                file=sys.stderr,
+            )
         return 0
     finally:
         if server is not None:

@@ -13,7 +13,7 @@ def test_status_text_for_known_statuses():
     assert status_text_for("RESOLVED") == "Resolved"
 
 
-def test_render_ticket_created_includes_ticket_id_and_status_text():
+def test_render_ticket_created_includes_ticket_number_and_status_text():
     message = render_ticket_created(
         ticket_id="tkt_abc123",
         ticket_number="BG-2026-0042",
@@ -24,14 +24,14 @@ def test_render_ticket_created_includes_ticket_id_and_status_text():
     assert message.ticket_id == "tkt_abc123"
     assert message.status == "SUBMITTED"
     assert message.status_text == "Submitted"
-    assert "tkt_abc123" in message.body
+    assert "tkt_abc123" not in message.body
     assert "BG-2026-0042" in message.body
     assert "Status: Submitted." in message.body
     assert "Tracking code: ZX98YU." in message.body
     assert "created" in message.subject.lower()
 
 
-def test_render_ticket_updated_includes_ticket_id_and_status_text():
+def test_render_ticket_updated_includes_reference_and_status_text():
     message = render_ticket_updated(
         ticket_id="tkt_abc123",
         status="IN_PROGRESS",
@@ -42,12 +42,12 @@ def test_render_ticket_updated_includes_ticket_id_and_status_text():
     assert message.ticket_id == "tkt_abc123"
     assert message.status == "IN_PROGRESS"
     assert message.status_text == "In Progress"
-    assert "tkt_abc123" in message.body
+    assert "tkt_abc123" not in message.body
     assert "Status: In Progress." in message.body
     assert "updated" in message.subject.lower()
 
 
-def test_render_ticket_resolved_includes_ticket_id_and_status_text():
+def test_render_ticket_resolved_includes_reference_and_status_text():
     message = render_ticket_resolved(
         ticket_id="tkt_abc123",
         ticket_number="BG-2026-0042",
@@ -58,7 +58,7 @@ def test_render_ticket_resolved_includes_ticket_id_and_status_text():
     assert message.ticket_id == "tkt_abc123"
     assert message.status == "RESOLVED"
     assert message.status_text == "Resolved"
-    assert "tkt_abc123" in message.body
+    assert "tkt_abc123" not in message.body
     assert "Status: Resolved." in message.body
     assert "resolved" in message.subject.lower()
 
@@ -121,8 +121,8 @@ def test_ticket_resolved_rejects_non_terminal_statuses():
     try:
         render_ticket_resolved(ticket_id="tkt_1", status="IN_PROGRESS")
         raise AssertionError("expected ValueError")
-    except ValueError as exc:
-        assert "RESOLVED or CLOSED" in str(exc)
+    except ValueError as exp:
+        assert "RESOLVED or CLOSED" in str(exp)
 
 
 def test_render_ticket_resolved_closed_uses_closed_wording():

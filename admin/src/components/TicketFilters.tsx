@@ -11,12 +11,15 @@ import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import { IconSearch } from '@/components/icons';
 import './TicketFilters.css';
 
+export type SlaFilter = 'ALL' | 'on_track' | 'due_soon' | 'overdue';
+
 type TicketFiltersProps = {
   searchQuery: string;
   statusFilter: StatusFilter;
   categoryFilter: CategoryFilter;
   urgencyFilter: UrgencyFilter;
   departmentFilter: DepartmentFilter;
+  slaFilter?: SlaFilter;
   categoryOptions: CategoryFilterOption[];
   resultCount: number;
   totalCount: number;
@@ -28,6 +31,7 @@ type TicketFiltersProps = {
   onCategoryChange: (category: CategoryFilter) => void;
   onUrgencyChange: (urgency: UrgencyFilter) => void;
   onDepartmentChange: (department: DepartmentFilter) => void;
+  onSlaChange?: (sla: SlaFilter) => void;
   onClearFilters: () => void;
 };
 
@@ -49,12 +53,20 @@ const URGENCY_OPTIONS: { value: UrgencyFilter; label: string }[] = [
   { value: 'critical', label: 'Critical' },
 ];
 
+const SLA_OPTIONS: { value: SlaFilter; label: string }[] = [
+  { value: 'ALL', label: 'All SLA states' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'due_soon', label: 'Due soon' },
+  { value: 'on_track', label: 'On track' },
+];
+
 export function TicketFilters({
   searchQuery,
   statusFilter,
   categoryFilter,
   urgencyFilter,
   departmentFilter,
+  slaFilter = 'ALL',
   categoryOptions,
   resultCount,
   totalCount,
@@ -65,6 +77,7 @@ export function TicketFilters({
   onCategoryChange,
   onUrgencyChange,
   onDepartmentChange,
+  onSlaChange = () => undefined,
   onClearFilters,
 }: TicketFiltersProps) {
   const hasActiveFilters =
@@ -72,7 +85,8 @@ export function TicketFilters({
     statusFilter !== 'ALL' ||
     categoryFilter !== 'ALL' ||
     urgencyFilter !== 'ALL' ||
-    departmentFilter !== 'ALL';
+    departmentFilter !== 'ALL' ||
+    slaFilter !== 'ALL';
 
   const activeFilterLabels: string[] = [];
   if (statusFilter !== 'ALL') {
@@ -87,6 +101,7 @@ export function TicketFilters({
   if (departmentFilter !== 'ALL') {
     activeFilterLabels.push(formatDepartment(departmentFilter));
   }
+  if (slaFilter !== 'ALL') activeFilterLabels.push(slaFilter.replace('_', ' '));
   if (searchQuery.trim()) {
     activeFilterLabels.push(`“${searchQuery.trim()}”`);
   }
@@ -121,6 +136,21 @@ export function TicketFilters({
               {categoryOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.value === 'ALL' ? opt.label : formatCategory(opt.value)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ticket-filters__select-wrap">
+            <span className="ticket-filters__select-label">SLA</span>
+            <select
+              className="ticket-filters__select"
+              value={slaFilter}
+              onChange={(e) => onSlaChange(e.target.value as SlaFilter)}
+            >
+              {SLA_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>

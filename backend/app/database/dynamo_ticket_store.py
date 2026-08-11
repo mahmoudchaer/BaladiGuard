@@ -220,12 +220,16 @@ class DynamoTicketStore:
         self,
         ticket_id: str,
         updated_at: str,
+        claim_token: str | None = None,
     ) -> StoredTicket | None:
         """Atomically claim a pending ticket for AI work (pending → processing)."""
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
-                UpdateExpression=("SET #aiProcessingStatus = :processing, #updatedAt = :updatedAt"),
+                UpdateExpression=(
+                    "SET #aiProcessingStatus = :processing, #updatedAt = :updatedAt, "
+                    "aiProcessingClaimToken = :claimToken"
+                ),
                 ConditionExpression="#aiProcessingStatus = :pending",
                 ExpressionAttributeNames={
                     "#aiProcessingStatus": "aiProcessingStatus",
@@ -235,6 +239,7 @@ class DynamoTicketStore:
                     ":pending": "pending",
                     ":processing": "processing",
                     ":updatedAt": updated_at,
+                    ":claimToken": claim_token or "",
                 },
                 ReturnValues="ALL_NEW",
             )
@@ -254,7 +259,10 @@ class DynamoTicketStore:
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
-                UpdateExpression=("SET #aiProcessingStatus = :pending, #updatedAt = :updatedAt"),
+                UpdateExpression=(
+                    "SET #aiProcessingStatus = :pending, #updatedAt = :updatedAt "
+                    "REMOVE aiProcessingClaimToken"
+                ),
                 ConditionExpression="#aiProcessingStatus = :processing",
                 ExpressionAttributeNames={
                     "#aiProcessingStatus": "aiProcessingStatus",
@@ -272,6 +280,56 @@ class DynamoTicketStore:
                 return None
             raise
 
+        return item_to_ticket(response["Attributes"])
+
+    def requeue_ai_processing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+        """Reset failed/stale processing unless a completed result already exists."""
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=(
+                    "SET #ai = :pending, #updatedAt = :updatedAt REMOVE aiProcessingClaimToken"
+                ),
+                ConditionExpression="attribute_exists(ticketId) AND #ai <> :completed",
+                ExpressionAttributeNames={
+                    "#ai": "aiProcessingStatus",
+                    "#updatedAt": "updatedAt",
+                },
+                ExpressionAttributeValues={
+                    ":pending": "pending",
+                    ":completed": "completed",
+                    ":updatedAt": updated_at,
+                },
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+        return item_to_ticket(response["Attributes"])
+
+    def patch_ai_fields(
+        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+    ) -> StoredTicket | None:
+        expression, names, values = build_update_expression(
+            {**fields, "ai_processing_claim_token": None}
+        )
+        names["#ai"] = "aiProcessingStatus"
+        values[":processing"] = "processing"
+        values[":claimToken"] = claim_token
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression=("#ai = :processing AND aiProcessingClaimToken = :claimToken"),
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
         return item_to_ticket(response["Attributes"])
 
     def has_ticket_id(self, ticket_id: str) -> bool:

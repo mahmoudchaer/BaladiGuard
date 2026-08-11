@@ -76,7 +76,7 @@ def test_http_oversized_upload_rejected_before_service(
 ) -> None:
     service_calls: list[str] = []
 
-    async def tracking_upload(file) -> str:  # type: ignore[no-untyped-def]
+    async def tracking_upload(file, **kwargs) -> str:  # type: ignore[no-untyped-def]
         service_calls.append("called")
         return "reports/photos/should-not-happen.jpg"
 
@@ -105,7 +105,7 @@ def test_http_rate_limited_upload_does_not_reach_service(
 
     service_calls: list[str] = []
 
-    async def tracking_upload(file) -> str:  # type: ignore[no-untyped-def]
+    async def tracking_upload(file, **kwargs) -> str:  # type: ignore[no-untyped-def]
         service_calls.append("called")
         return "reports/photos/ok.jpg"
 
@@ -140,7 +140,7 @@ def test_http_repeated_oversized_uploads_stay_rejected_without_service(
 ) -> None:
     service_calls: list[str] = []
 
-    async def tracking_upload(file) -> str:  # type: ignore[no-untyped-def]
+    async def tracking_upload(file, **kwargs) -> str:  # type: ignore[no-untyped-def]
         service_calls.append("called")
         return "reports/photos/nope.jpg"
 

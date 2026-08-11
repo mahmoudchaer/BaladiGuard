@@ -153,6 +153,7 @@ class InMemoryTicketStore:
         self,
         ticket_id: str,
         updated_at: str,
+        claim_token: str | None = None,
     ) -> StoredTicket | None:
         """Atomically claim a pending ticket for AI work (pending → processing)."""
         with self._lock:
@@ -162,6 +163,7 @@ class InMemoryTicketStore:
             updated_ticket = ticket.model_copy(
                 update={
                     "ai_processing_status": "processing",
+                    "ai_processing_claim_token": claim_token,
                     "updated_at": updated_at,
                 },
             )
@@ -181,11 +183,43 @@ class InMemoryTicketStore:
             updated_ticket = ticket.model_copy(
                 update={
                     "ai_processing_status": "pending",
+                    "ai_processing_claim_token": None,
                     "updated_at": updated_at,
                 },
             )
             self._tickets[ticket_id] = updated_ticket
             return updated_ticket
+
+    def requeue_ai_processing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+        """Reset a non-completed AI attempt so the durable job can retry it."""
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if ticket is None or ticket.ai_processing_status == "completed":
+                return None
+            updated_ticket = ticket.model_copy(
+                update={
+                    "ai_processing_status": "pending",
+                    "ai_processing_claim_token": None,
+                    "updated_at": updated_at,
+                }
+            )
+            self._tickets[ticket_id] = updated_ticket
+            return updated_ticket
+
+    def patch_ai_fields(
+        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+    ) -> StoredTicket | None:
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.ai_processing_status != "processing"
+                or ticket.ai_processing_claim_token != claim_token
+            ):
+                return None
+            updated = ticket.model_copy(update={**fields, "ai_processing_claim_token": None})
+            self._tickets[ticket_id] = updated
+            return updated
 
     def has_ticket_id(self, ticket_id: str) -> bool:
         with self._lock:

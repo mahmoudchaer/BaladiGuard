@@ -20,12 +20,13 @@ security scan ownership stays on their feature tickets (#74/#75/#115/#185/#186/#
 Before public launch:
 
 1. CI concurrency suite green (`capacity-validation.md` “Correctness gates”).  
-2. At least one **staging / staging-equivalent** light-load + write run with synthetic data;
-   save JSON/markdown evidence.  
-   **Current evidence:**
-   [`infra/capacity/evidence/2026-08-10-staging-equivalent-capacity.md`](../infra/capacity/evidence/2026-08-10-staging-equivalent-capacity.md)
-   (regenerate via `scripts/capacity/run_staging_equivalent_capacity.py`).  
-3. Review SLOs vs numbers; file critical defects; record operating limits and cost drivers.  
-4. Confirm no unresolved **critical** capacity defects open against launch.
+2. **Local harness smoke** (optional, for runner regression):
+   `scripts/capacity/run_staging_equivalent_capacity.py` without `CAPACITY_BASE_URL`.  
+   Evidence is labeled `local-harness-smoke` and is **not** Dynamo/S3 production proof.  
+3. At least one **production-equivalent staging** light-load + write run with synthetic data
+   (`CAPACITY_BASE_URL` + contribution-ready token against real DynamoDB and S3);
+   save JSON/markdown evidence and CloudWatch notes.  
+4. Review SLOs vs numbers; file critical defects; record operating limits and cost drivers.  
+5. Confirm no unresolved **critical** capacity defects open against launch.
 
 Do not confuse this with full #75 deployed smoke / rollback or multi-day soak tests.

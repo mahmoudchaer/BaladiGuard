@@ -43,6 +43,7 @@ class StoredTicket(BaseModel):
         default="pending",
         alias="aiProcessingStatus",
     )
+    ai_processing_claim_token: str | None = Field(default=None, alias="aiProcessingClaimToken")
     ai_model_version: str | None = Field(default=None, alias="aiModelVersion")
     priority: ReportPriority | None = None
     urgency_score: int | None = Field(default=None, alias="urgencyScore", ge=0, le=100)

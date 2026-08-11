@@ -52,6 +52,13 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
         wait_for_table(client, staff_reset_table)
     _ensure_ttl(client, staff_reset_table, attribute_name="ttl")
 
+    # Ticket submission idempotency claims (#258): completed rows retain for
+    # offline client retries; abandoned claims expire shortly after reclaim window.
+    submission_claims_table = build_table_name(prefix, "ticket-submission-claims")
+    if submission_claims_table not in created_tables:
+        wait_for_table(client, submission_claims_table)
+    _ensure_ttl(client, submission_claims_table, attribute_name="ttl")
+
     return created_tables
 
 
