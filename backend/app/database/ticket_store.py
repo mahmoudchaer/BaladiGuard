@@ -56,12 +56,19 @@ class TicketStore(Protocol):
         self,
         ticket_id: str,
         updated_at: str,
+        claim_token: str | None = None,
     ) -> StoredTicket | None: ...
 
     def release_ai_processing_claim(
         self,
         ticket_id: str,
         updated_at: str,
+    ) -> StoredTicket | None: ...
+
+    def requeue_ai_processing(self, ticket_id: str, updated_at: str) -> StoredTicket | None: ...
+
+    def patch_ai_fields(
+        self, ticket_id: str, claim_token: str, fields: dict[str, object]
     ) -> StoredTicket | None: ...
 
     def has_ticket_id(self, ticket_id: str) -> bool: ...

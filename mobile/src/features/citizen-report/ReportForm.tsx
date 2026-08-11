@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useCitizenAuth } from '@/auth';
@@ -20,8 +20,21 @@ import {
   reportFormSchema,
   type ReportFormValues,
 } from '@/schemas/reportFormSchema';
-import { submitReport, type SubmitReportPhase } from '@/services/api/tickets';
+import { submitReport, SubmitReportError, type SubmitReportPhase } from '@/services/api/tickets';
 import { appConfig } from '@/services/config';
+import {
+  buildReportDraft,
+  clearReportDraft,
+  clearUnusableDraftPhoto,
+  createClientSubmissionId,
+  draftHasRestorableContent,
+  draftToFormValues,
+  loadReportDraft,
+  saveReportDraft,
+  type ReportDraft,
+  type ReportDraftSubmissionState,
+} from '@/services/reportDraft';
+import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
@@ -52,14 +65,23 @@ const STEP_SUBTITLES: Record<ReportWizardStepKey, string> = {
   review: 'Make sure everything looks right, then send it in.',
 };
 
+const DRAFT_SAVE_DEBOUNCE_MS = 450;
+
 export function ReportForm() {
   const { profile } = useCitizenAuth();
+  const ownerUserId = profile?.userId ?? null;
+
   const [step, setStep] = useState<ReportWizardStepKey>('details');
   const [returnToReview, setReturnToReview] = useState(false);
   const [selectedPlaceholderId, setSelectedPlaceholderId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitPhase, setSubmitPhase] = useState<SubmitReportPhase | null>(null);
   const [successResult, setSuccessResult] = useState<SubmitTicketResponse | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<ReportDraft | null>(null);
+  const [draftBanner, setDraftBanner] = useState<string | null>(null);
+  const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
+  const [submission, setSubmission] = useState<ReportDraftSubmissionState | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
   const {
     control,
@@ -67,12 +89,203 @@ export function ReportForm() {
     setValue,
     trigger,
     reset,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
     defaultValues: defaultReportFormValues,
     mode: 'onBlur',
   });
+
+  const watchedValues = useWatch({ control });
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextAutosaveRef = useRef(false);
+
+  const persistDraft = useCallback(
+    async (
+      nextStep: ReportWizardStepKey,
+      form: ReportFormValues,
+      nextSubmission: ReportDraftSubmissionState | null,
+      placeholderId: string,
+    ) => {
+      if (!ownerUserId) {
+        return;
+      }
+      try {
+        const draft = buildReportDraft({
+          ownerUserId,
+          step: nextStep,
+          form,
+          selectedPlaceholderId: placeholderId,
+          submission: nextSubmission ?? undefined,
+        });
+        if (!draftHasRestorableContent(draft)) {
+          await clearReportDraft(ownerUserId);
+          setDraftSaveError(null);
+          return;
+        }
+        await saveReportDraft(draft);
+        setDraftSaveError(null);
+      } catch {
+        setDraftSaveError(
+          'Could not save your draft on this device. You can keep editing, but progress may be lost if you leave.',
+        );
+      }
+    },
+    [ownerUserId],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrate() {
+      if (!ownerUserId) {
+        if (!cancelled) {
+          setPendingDraft(null);
+          setDraftHydrated(true);
+        }
+        return;
+      }
+      try {
+        const stored = await loadReportDraft(ownerUserId);
+        if (cancelled) {
+          return;
+        }
+        if (stored && draftHasRestorableContent(stored)) {
+          setPendingDraft(stored);
+        } else {
+          setPendingDraft(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setDraftHydrated(true);
+        }
+      }
+    }
+    setDraftHydrated(false);
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerUserId]);
+
+  useEffect(() => {
+    if (!draftHydrated || !ownerUserId || pendingDraft || successResult) {
+      return;
+    }
+    if (skipNextAutosaveRef.current) {
+      skipNextAutosaveRef.current = false;
+      return;
+    }
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      void persistDraft(step, getValues(), submission, selectedPlaceholderId);
+    }, DRAFT_SAVE_DEBOUNCE_MS);
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [
+    watchedValues,
+    step,
+    selectedPlaceholderId,
+    submission,
+    ownerUserId,
+    draftHydrated,
+    pendingDraft,
+    successResult,
+    persistDraft,
+    getValues,
+  ]);
+
+  const restorePendingDraft = () => {
+    if (!pendingDraft) {
+      return;
+    }
+    void (async () => {
+      skipNextAutosaveRef.current = true;
+      let draft = pendingDraft;
+      let notice: string | null = null;
+      const hasLocalPhoto = draft.form.photoUri.trim().length > 0;
+      const hasUploadedKey = Boolean(draft.submission?.imageObjectKey);
+
+      if (hasLocalPhoto) {
+        const photoCheck = await checkLocalPhotoUri(draft.form.photoUri);
+        if (!photoCheck.ok) {
+          draft = clearUnusableDraftPhoto(draft);
+          if (ownerUserId) {
+            await saveReportDraft(draft);
+          }
+          notice = hasUploadedKey
+            ? `${PHOTO_REFERENCE_EXPIRED_MESSAGE} A photo was already uploaded for this attempt — you can resubmit without re-picking, or attach a new photo.`
+            : PHOTO_REFERENCE_EXPIRED_MESSAGE;
+        }
+      }
+
+      const values = draftToFormValues(draft);
+      if (!notice) {
+        if (!values.photoUri.trim() && hasUploadedKey) {
+          notice =
+            'Draft restored. A photo was already uploaded for this attempt — you can resubmit without re-picking if the form still has a photo, or attach again if it is missing.';
+        } else if (!values.photoUri.trim() && !hasUploadedKey) {
+          notice =
+            'Draft restored, but no local photo was saved. Attach a photo again before submitting.';
+        } else {
+          notice = 'Draft restored. You can continue or discard it.';
+        }
+      }
+
+      reset(values);
+      setStep(draft.step);
+      setSelectedPlaceholderId(draft.selectedPlaceholderId ?? '');
+      setSubmission(draft.submission ?? null);
+      setPendingDraft(null);
+      setDraftBanner(notice);
+      setSubmitError(null);
+    })();
+  };
+
+  const discardPendingDraft = async () => {
+    if (ownerUserId) {
+      await clearReportDraft(ownerUserId);
+    }
+    setPendingDraft(null);
+    setSubmission(null);
+    setDraftBanner(null);
+  };
+
+  const discardActiveDraft = () => {
+    Alert.alert(
+      'Discard draft?',
+      'This clears the saved report draft on this device. You cannot undo this.',
+      [
+        { text: 'Keep editing', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              if (ownerUserId) {
+                await clearReportDraft(ownerUserId);
+              }
+              skipNextAutosaveRef.current = true;
+              reset(defaultReportFormValues);
+              setSelectedPlaceholderId('');
+              setSubmitError(null);
+              setSubmitPhase(null);
+              setSuccessResult(null);
+              setReturnToReview(false);
+              setStep('details');
+              setSubmission(null);
+              setDraftBanner(null);
+            })();
+          },
+        },
+      ],
+    );
+  };
 
   const stepIndex = REPORT_WIZARD_STEP_ORDER.indexOf(step);
 
@@ -111,22 +324,55 @@ export function ReportForm() {
   const onSubmit = async (values: ReportFormValues) => {
     setSubmitError(null);
     setSubmitPhase(appConfig.enableMockApi ? null : 'uploading-photo');
+    const clientSubmissionId = submission?.clientSubmissionId ?? createClientSubmissionId();
+    const nextSubmission: ReportDraftSubmissionState = {
+      clientSubmissionId,
+      imageObjectKey: submission?.imageObjectKey,
+    };
+    setSubmission(nextSubmission);
+    await persistDraft('review', values, nextSubmission, selectedPlaceholderId);
 
     try {
       const response = await submitReport(values, {
         onProgress: setSubmitPhase,
+        clientSubmissionId,
+        imageObjectKey: nextSubmission.imageObjectKey,
+        onPartialState: (partial) => {
+          const updated: ReportDraftSubmissionState = {
+            clientSubmissionId: partial.clientSubmissionId,
+            imageObjectKey: partial.imageObjectKey,
+          };
+          setSubmission(updated);
+          void persistDraft('review', values, updated, selectedPlaceholderId);
+        },
       });
+      if (ownerUserId) {
+        await clearReportDraft(ownerUserId);
+      }
+      setSubmission(null);
+      setDraftBanner(null);
       setSuccessResult(response);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-      setSubmitError(message);
+      if (error instanceof SubmitReportError) {
+        const updated: ReportDraftSubmissionState = {
+          clientSubmissionId: error.clientSubmissionId ?? clientSubmissionId,
+          imageObjectKey: error.imageObjectKey ?? nextSubmission.imageObjectKey,
+        };
+        setSubmission(updated);
+        void persistDraft('review', values, updated, selectedPlaceholderId);
+        setSubmitError(error.message);
+      } else {
+        const message =
+          error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+        setSubmitError(message);
+      }
     } finally {
       setSubmitPhase(null);
     }
   };
 
   const handleReset = () => {
+    skipNextAutosaveRef.current = true;
     reset(defaultReportFormValues);
     setSelectedPlaceholderId('');
     setSubmitError(null);
@@ -134,6 +380,8 @@ export function ReportForm() {
     setSuccessResult(null);
     setReturnToReview(false);
     setStep('details');
+    setSubmission(null);
+    setDraftBanner(null);
   };
 
   if (successResult) {
@@ -163,9 +411,54 @@ export function ReportForm() {
         </Banner>
       ) : null}
 
+      {pendingDraft ? (
+        <Banner
+          visible
+          icon="content-save-outline"
+          style={styles.draftBanner}
+          testID="draft-restore-banner"
+        >
+          <Text variant="bodyMedium" style={styles.draftBannerText}>
+            You have an unfinished report on this device. Restore it to continue, or discard and
+            start fresh.
+          </Text>
+          <View style={styles.draftActions}>
+            <Button mode="contained" onPress={restorePendingDraft} testID="draft-restore-button">
+              Restore draft
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => void discardPendingDraft()}
+              testID="draft-discard-offer-button"
+            >
+              Discard
+            </Button>
+          </View>
+        </Banner>
+      ) : null}
+
+      {draftBanner ? (
+        <Banner visible icon="check-circle-outline" testID="draft-status-banner">
+          {draftBanner}
+        </Banner>
+      ) : null}
+
+      {draftSaveError ? (
+        <Banner visible icon="alert" style={styles.errorBanner} testID="draft-save-error">
+          {draftSaveError}
+        </Banner>
+      ) : null}
+
       {step === 'review' && submitError ? (
-        <Banner visible icon="alert-circle" style={styles.errorBanner}>
+        <Banner visible icon="alert-circle" style={styles.errorBanner} testID="submit-error-banner">
           {submitError}
+        </Banner>
+      ) : null}
+
+      {submission?.imageObjectKey && !successResult ? (
+        <Banner visible icon="cloud-check-outline" testID="partial-upload-banner">
+          Photo already uploaded for this attempt. Retry uses the same server photo and will not
+          create a duplicate ticket.
         </Banner>
       ) : null}
 
@@ -217,9 +510,10 @@ export function ReportForm() {
           <Button
             mode="contained"
             onPress={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(pendingDraft)}
             style={[styles.navButton, styles.primaryNavButton]}
             contentStyle={styles.navButtonContent}
+            testID="submit-report-button"
           >
             {isSubmitting ? (
               <View style={styles.submittingContent}>
@@ -228,6 +522,8 @@ export function ReportForm() {
                   {submitPhaseLabels[submitPhase ?? 'uploading-photo']}
                 </Text>
               </View>
+            ) : submitError ? (
+              'Retry submit'
             ) : (
               'Submit report'
             )}
@@ -238,6 +534,7 @@ export function ReportForm() {
             onPress={() => {
               void goNext();
             }}
+            disabled={Boolean(pendingDraft)}
             style={[styles.navButton, styles.primaryNavButton]}
             contentStyle={styles.navButtonContent}
           >
@@ -245,6 +542,17 @@ export function ReportForm() {
           </Button>
         )}
       </View>
+
+      {!pendingDraft && !successResult ? (
+        <Button
+          mode="text"
+          onPress={discardActiveDraft}
+          textColor={colors.textMuted}
+          testID="discard-draft-button"
+        >
+          Discard draft
+        </Button>
+      ) : null}
     </ScrollView>
   );
 }
@@ -309,5 +617,19 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     backgroundColor: colors.dangerSoft,
+  },
+  draftBanner: {
+    backgroundColor: colors.brandSoft,
+    gap: spacing[2],
+  },
+  draftBannerText: {
+    color: colors.text,
+    marginBottom: spacing[2],
+  },
+  draftActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+    marginTop: spacing[2],
   },
 });

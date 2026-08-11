@@ -674,7 +674,7 @@ class CitizenService:
 
         if challenge.attempt_count >= OTP_MAX_ATTEMPTS:
             raise CitizenServiceError(
-                "RATE_LIMITED",
+                "RATE_LIMIT_EXCEEDED",
                 "Too many verification attempts. Request a new code.",
                 status_code=429,
             )
@@ -689,7 +689,7 @@ class CitizenService:
                 )
             if updated.attempt_count >= OTP_MAX_ATTEMPTS:
                 raise CitizenServiceError(
-                    "RATE_LIMITED",
+                    "RATE_LIMIT_EXCEEDED",
                     "Too many verification attempts. Request a new code.",
                     status_code=429,
                 )

@@ -129,6 +129,11 @@ export function TicketTable({
                       <StatusBadge status={ticket.status} />
                       <PriorityBadge priority={ticket.priority} />
                       <CategoryBadge category={ticket.category} />
+                      {ticket.sla && ticket.sla.state !== 'unavailable' && (
+                        <span aria-label={`SLA ${ticket.sla.state.replace('_', ' ')}`}>
+                          SLA: {ticket.sla.state.replace('_', ' ')}
+                        </span>
+                      )}
                     </div>
 
                     <div className="ticket-queue__footer">

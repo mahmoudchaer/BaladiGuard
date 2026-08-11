@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, HelperText, Text, TextInput } from 'react-native-paper';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
+import { CountryDialingCodeSelector } from '@/components/CountryDialingCodeSelector';
 import {
   DEFAULT_PHONE_REGION,
   defaultPhoneOtpRequestValues,
@@ -13,6 +14,7 @@ import {
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose } from '@/types/citizen';
+import { findCountryDialingOption, listCountryDialingOptions } from '@/utils/countryDialing';
 import { validatePhoneInput } from '@/utils/phone';
 
 export type PhoneEntrySuccess = {
@@ -50,6 +52,14 @@ export function PhoneEntryForm({
     defaultValues: defaultPhoneOtpRequestValues,
     mode: 'onBlur',
   });
+
+  const selectedRegion = useWatch({ control, name: 'region' }) ?? DEFAULT_PHONE_REGION;
+  const countryCatalog = useMemo(() => listCountryDialingOptions(), []);
+  const selectedCountry = findCountryDialingOption(selectedRegion, 'en', countryCatalog);
+  const nationalPlaceholder = selectedRegion === 'LB' ? '70123456' : 'National number';
+  const nationalHelper = selectedCountry
+    ? `Enter the national mobile number for ${selectedCountry.name} (without the +${selectedCountry.callingCode} prefix), or a full E.164 number like +${selectedCountry.callingCode}70123456.`
+    : 'Enter a national mobile number for the selected country, or a full E.164 number like +96170123456.';
 
   const onSubmit = async (values: PhoneOtpRequestValues) => {
     if (requestInFlight.current) {
@@ -110,19 +120,12 @@ export function PhoneEntryForm({
           control={control}
           name="region"
           render={({ field: { value, onChange, onBlur } }) => (
-            <TextInput
-              mode="outlined"
-              label="Region"
-              placeholder="LB"
-              autoCapitalize="characters"
-              maxLength={2}
-              value={value}
-              onChangeText={(text) => onChange(text.toUpperCase())}
+            <CountryDialingCodeSelector
+              value={value ?? DEFAULT_PHONE_REGION}
+              onChange={onChange}
               onBlur={onBlur}
-              outlineColor={colors.border}
-              activeOutlineColor={colors.brand}
-              style={styles.regionInput}
-              testID="phone-region-input"
+              error={Boolean(errors.region)}
+              testID="country-dialing-selector"
             />
           )}
         />
@@ -134,7 +137,7 @@ export function PhoneEntryForm({
               mode="outlined"
               label="Phone number"
               keyboardType="phone-pad"
-              placeholder="70123456"
+              placeholder={nationalPlaceholder}
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -143,13 +146,18 @@ export function PhoneEntryForm({
               activeOutlineColor={colors.brand}
               style={styles.phoneInput}
               testID="phone-input"
+              accessibilityLabel="Phone number"
+              accessibilityHint={
+                selectedCountry
+                  ? `National number for ${selectedCountry.name}, or full international number`
+                  : 'National or full international phone number'
+              }
             />
           )}
         />
       </View>
-      <HelperText type="info" visible style={styles.helper}>
-        Use an ISO country code (for example LB) with a national number, or enter a full E.164
-        number like +96170123456.
+      <HelperText type="info" visible style={styles.helper} testID="phone-national-helper">
+        {nationalHelper}
       </HelperText>
       {errors.phone ? (
         <HelperText type="error" visible testID="phone-error">
@@ -194,13 +202,15 @@ const styles = StyleSheet.create({
   },
   fieldRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing[2],
-  },
-  regionInput: {
-    flexBasis: 96,
+    alignItems: 'flex-end',
   },
   phoneInput: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 160,
+    minWidth: 140,
   },
   helper: {
     marginTop: -spacing[1],

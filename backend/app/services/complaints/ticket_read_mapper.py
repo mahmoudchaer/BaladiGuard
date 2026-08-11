@@ -25,8 +25,10 @@ from app.schemas.ticket_response import (
     TicketImageReference,
     TicketPublicFields,
     TicketResponse,
+    TicketSlaFields,
     TicketStatusHistoryEntry,
 )
+from app.services.complaints.sla import derive_ticket_sla
 from app.services.routing import department_name
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
@@ -46,8 +48,12 @@ def build_image_url(object_key: str) -> str | None:
     try:
         return get_s3_client().generate_presigned_url(
             "get_object",
-            Params={"Bucket": settings.aws_s3_bucket, "Key": object_key},
-            ExpiresIn=3600,
+            Params={
+                "Bucket": settings.aws_s3_bucket,
+                "Key": object_key,
+                "ResponseContentDisposition": "inline",
+            },
+            ExpiresIn=settings.s3_presigned_url_ttl_seconds,
         )
     except (BotoCoreError, ClientError):
         return None
@@ -210,6 +216,7 @@ def map_ticket_to_response(
         updatedAt=ticket.updated_at,
         updatedBy=ticket.updated_by,
         ai=build_ticket_ai_fields(ticket),
+        sla=TicketSlaFields.model_validate(derive_ticket_sla(ticket).model_dump(by_alias=True)),
         public=TicketPublicFields(
             status=ticket.public_status,
             description=ticket.public_description,

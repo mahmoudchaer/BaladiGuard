@@ -247,10 +247,25 @@ describe('TicketListPage', () => {
         category: 'waste',
         urgency: 'medium',
         departmentId: 'd2222222-2222-2222-2222-222222222222',
+        slaState: 'ALL',
       }),
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
+  });
+
+  it('requests the overdue SLA queue filter', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.selectOptions(screen.getByLabelText('SLA'), 'overdue');
+
+    await waitFor(() =>
+      expect(fetchTickets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ slaState: 'overdue' }),
+      ),
+    );
   });
 
   it('shows a filtered empty state when filters match no tickets', async () => {

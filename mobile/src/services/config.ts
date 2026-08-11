@@ -5,4 +5,8 @@ export const appConfig = {
   enableMockApi: process.env.EXPO_PUBLIC_ENABLE_MOCK_API === 'true',
   appEnv: process.env.EXPO_PUBLIC_APP_ENV ?? 'local',
   appVersion: Constants.expoConfig?.version ?? '0.1.0',
+  /** Host claimed for HTTPS notification deep links (mirrors app.config.ts). */
+  citizenAppLinkHost:
+    (Constants.expoConfig?.extra as { citizenAppLinkHost?: string } | undefined)
+      ?.citizenAppLinkHost ?? 'app.baladiguard.example',
 };

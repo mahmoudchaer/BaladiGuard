@@ -31,12 +31,14 @@ get_settings.cache_clear()
 from app.core.rate_limit import clear_rate_limiter_cache, public_ticket_rate_limiter  # noqa: E402
 from app.database.memory import ticket_store  # noqa: E402
 from app.database.memory_account_audit import account_audit_store  # noqa: E402
+from app.database.memory_ai_job import ai_job_store  # noqa: E402
 from app.database.memory_audit_history import audit_history_store  # noqa: E402
 from app.database.memory_citizen import citizen_store  # noqa: E402
 from app.database.memory_citizen_otp import citizen_otp_store  # noqa: E402
 from app.database.memory_citizen_session import citizen_session_store  # noqa: E402
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_notification_delivery import notification_delivery_store  # noqa: E402
+from app.database.memory_photo_claim import photo_claim_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
 from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
@@ -125,13 +127,24 @@ def authenticated_test_client() -> TestClient:
 
 
 @pytest.fixture(autouse=True)
+def force_mock_notification_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep HTTP workflow tests on the mock adapter even if local `.env` sets real SES/SNS."""
+    monkeypatch.setenv("NOTIFICATION_ADAPTER", "mock")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
     audit_history_store.clear()
     account_audit_store.clear()
+    ai_job_store.clear()
     duplicate_group_store.clear()
     notification_delivery_store.clear()
+    photo_claim_store.clear()
     citizen_store.clear()
     citizen_session_store.clear()
     citizen_otp_store.clear()
@@ -147,6 +160,11 @@ def reset_ticket_store() -> None:
     from app.services.notifications import reset_delivery_ledger
 
     reset_delivery_ledger()
+    from app.services.complaints.ticket_submission_idempotency import (
+        reset_ticket_submission_idempotency_store,
+    )
+
+    reset_ticket_submission_idempotency_store()
 
 
 @pytest.fixture(autouse=True)

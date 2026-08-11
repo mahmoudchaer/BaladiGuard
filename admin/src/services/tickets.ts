@@ -22,6 +22,11 @@ export type FetchTicketsFilters = {
   category?: string | 'ALL';
   urgency?: Ticket['priority'] | 'ALL';
   departmentId?: string | 'ALL';
+  slaState?: Ticket['sla'] extends infer S
+    ? S extends { state: infer T }
+      ? T | 'ALL'
+      : never
+    : never;
 };
 
 /**
@@ -100,6 +105,9 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
   ) {
     return false;
   }
+  if (filters.slaState && filters.slaState !== 'ALL' && ticket.sla?.state !== filters.slaState) {
+    return false;
+  }
   return true;
 }
 
@@ -129,6 +137,9 @@ function buildTicketListUrl(filters: FetchTicketsFilters): string {
   }
   if (filters.departmentId && filters.departmentId !== 'ALL') {
     url.searchParams.set('departmentId', filters.departmentId);
+  }
+  if (filters.slaState && filters.slaState !== 'ALL') {
+    url.searchParams.set('slaState', filters.slaState);
   }
   return url.toString();
 }
@@ -360,6 +371,29 @@ function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   return hasAiData ? ai : undefined;
 }
 
+function normalizeTicketSla(data: unknown): Ticket['sla'] {
+  if (!isRecord(data)) return undefined;
+  const states = ['on_track', 'due_soon', 'overdue', 'completed', 'unavailable'] as const;
+  const state = data.state;
+  if (!states.includes(state as (typeof states)[number])) return undefined;
+  return {
+    state: state as (typeof states)[number],
+    acknowledgementDueAt:
+      typeof data.acknowledgementDueAt === 'string' ? data.acknowledgementDueAt : null,
+    resolutionDueAt: typeof data.resolutionDueAt === 'string' ? data.resolutionDueAt : null,
+    targetAt: typeof data.targetAt === 'string' ? data.targetAt : null,
+    remainingSeconds: typeof data.remainingSeconds === 'number' ? data.remainingSeconds : null,
+    overdueSeconds: typeof data.overdueSeconds === 'number' ? data.overdueSeconds : null,
+    policyKey:
+      data.policyKey === 'low' ||
+      data.policyKey === 'medium' ||
+      data.policyKey === 'high' ||
+      data.policyKey === 'critical'
+        ? data.policyKey
+        : null,
+  };
+}
+
 function normalizeTicketLocation(data: unknown): TicketLocation {
   // Tolerant for list/detail reads: one malformed ticket must not fail the whole fetch.
   // Invalid coordinates are filtered later when plotting pins (getPlottableTickets).
@@ -479,6 +513,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
     ai: normalizeTicketAiFields(data.ai),
+    sla: normalizeTicketSla(data.sla),
     public: normalizeTicketPublicFields(data.public),
   };
 }

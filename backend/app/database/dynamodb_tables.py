@@ -81,6 +81,14 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        "suffix": "photo-upload-claims",
+        "key_schema": [{"AttributeName": "objectKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "objectKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "citizen-otp-challenges",
         "key_schema": [{"AttributeName": "challengeId", "KeyType": "HASH"}],
         "attribute_definitions": [
@@ -220,6 +228,15 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        # Ticket create Idempotency-Key claims + replay payload (issue #258).
+        "suffix": "ticket-submission-claims",
+        "key_schema": [{"AttributeName": "idempotencyKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "idempotencyKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
         "attribute_definitions": [
@@ -233,6 +250,15 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
+    },
+    {
+        # Durable AI work queue. The deterministic jobId makes enqueue idempotent.
+        "suffix": "ai-processing-jobs",
+        "key_schema": [{"AttributeName": "jobId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "jobId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
     },
     {
         "suffix": "duplicate-groups",

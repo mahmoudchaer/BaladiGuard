@@ -9,6 +9,7 @@ import pytest
 from app.config import get_settings
 from app.core.staff_auth import issue_staff_access_token
 from app.database.memory import ticket_store
+from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -27,6 +28,7 @@ def _create_ticket(client) -> dict:
         headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
+    assert ai_job_queue.run_once().outcome == "succeeded"
     return response.json()
 
 
@@ -259,6 +261,26 @@ def test_municipal_staff_out_of_scope_detail_matches_missing_ticket(
     assert out_of_scope.status_code == 404
     assert missing.status_code == 404
     assert out_of_scope.json()["error"]["code"] == missing.json()["error"]["code"]
+
+
+def test_out_of_scope_ticket_returns_404_to_municipal_staff_and_200_to_admin(
+    anonymous_client,
+    client,
+):
+    created = _create_ticket(client)
+    _stamp_ticket_scope(created["ticketId"], department_id=WASTE_MANAGEMENT, category="waste")
+
+    municipal = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}", headers=_staff_headers(anonymous_client, "staff")
+    )
+    administrator = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}", headers=_staff_headers(anonymous_client, "admin")
+    )
+
+    assert municipal.status_code == 404
+    assert municipal.json()["error"]["code"] == "TICKET_NOT_FOUND"
+    assert administrator.status_code == 200
+    assert administrator.json()["ticketId"] == created["ticketId"]
 
 
 def test_municipal_staff_cannot_assign_unscoped_department(anonymous_client, client):

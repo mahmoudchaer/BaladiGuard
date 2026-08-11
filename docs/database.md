@@ -457,3 +457,4 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `categories` | `categoryId` | Reference taxonomy for AI/admin |
 | `counters` | `counterId` | Ticket number sequence counter |
 | `rate-limit-buckets` | `bucketKey` | Shared fixed-window rate-limit counters (issue #186); TTL on `expiresAt` |
+| `ticket-submission-claims` | `idempotencyKey` | Citizen ticket submit ledger (#258); TTL on `ttl` (~14d completed; shorter for abandoned claims). Covered by backup PITR suffix list. |

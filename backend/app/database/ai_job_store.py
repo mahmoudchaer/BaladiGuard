@@ -1,0 +1,33 @@
+from typing import Protocol
+
+from app.schemas.stored_ai_job import StoredAiJob
+
+
+class AiJobStore(Protocol):
+    def enqueue(self, ticket_id: str, now: int) -> StoredAiJob: ...
+
+    def get(self, job_id: str) -> StoredAiJob | None: ...
+
+    def claim_next(self, *, now: int, claim_ttl_seconds: int) -> StoredAiJob | None: ...
+
+    def succeed(self, job_id: str, claim_token: str, now: int) -> bool: ...
+
+    def retry(
+        self,
+        job_id: str,
+        claim_token: str,
+        *,
+        available_at: int,
+        now: int,
+        reason: str,
+    ) -> bool: ...
+
+    def dead_letter(self, job_id: str, claim_token: str, *, now: int, reason: str) -> bool: ...
+
+    def recover_stale(self, *, now: int) -> list[StoredAiJob]: ...
+
+    def replay(self, job_id: str, *, now: int) -> StoredAiJob | None: ...
+
+    def list(self) -> list[StoredAiJob]: ...
+
+    def clear(self) -> None: ...
