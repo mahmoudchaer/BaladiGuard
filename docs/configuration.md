@@ -80,6 +80,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
 | `CITIZEN_APP_BASE_URL` | Staging + production | local/dev/test: `http://localhost:8081` when unset | Citizen app base for notification deep links (`/t/{trackingCode}`); staging/production must be https and non-localhost (#257) |
+| `CORS_ALLOWED_ORIGINS` | Staging + production | local/dev/test: Vite admin `:5173`, citizen-web `:5174`, Expo ports when unset | Comma-separated browser origins for CORS (#263). Staging/production must set explicit https non-localhost origins (admin + citizen-web). |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
@@ -122,6 +123,16 @@ Production observability (dashboards, alarms, retention, staging drill) is docum
 
 Vite embeds these values in the browser bundle. They are not backend secrets.
 
+## Citizen web (`citizen-web/`)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `VITE_APP_ENV` | `local` | `local` \| `development` \| `test` \| `staging` \| `production` |
+| `VITE_API_BASE_URL` | `http://localhost:8000` (local/dev/test only) | Staging/production **require** https non-localhost; never silent localhost |
+| `VITE_USE_MOCK_DATA` | `false` | Local/dev mock fixtures only — rejected in staging/production |
+
+Dev server defaults to port **5174** (admin uses 5173). Ensure backend `CORS_ALLOWED_ORIGINS` (or local defaults) include the citizen-web origin.
+
 ## Mobile (`mobile/`)
 
 | Variable | Default | Notes |
@@ -142,6 +153,7 @@ Vite embeds these values in the browser bundle. They are not backend secrets.
    copy backend\.env.example backend\.env
    copy .env.example .env
    copy admin\.env.example admin\.env
+   copy citizen-web\.env.example citizen-web\.env
    copy mobile\.env.example mobile\.env
    ```
 
@@ -163,9 +175,11 @@ Before deploy (#74):
 8. `AWS_S3_BUCKET=<bucket>`
 9. `SEED_SAMPLE_TICKETS=false`
 10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links). Staging uses the same rule with `APP_ENV=staging`.
-11. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-12. Confirm process starts (validation aborts on failure) and `/health` is `ok`
-13. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
+11. `CORS_ALLOWED_ORIGINS=https://admin…,https://citizen…` (explicit https non-localhost browser origins for admin + citizen-web, `#263`)
+12. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+13. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
+14. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+15. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
 
 ## Health payload
 
