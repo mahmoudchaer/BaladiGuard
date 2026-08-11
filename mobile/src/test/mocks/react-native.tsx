@@ -16,6 +16,7 @@ export const ScrollView = createHostComponent('ScrollView');
 export const Text = createHostComponent('Text');
 export const TextInput = createHostComponent('TextInput');
 export const View = createHostComponent('View');
+export const Modal = createHostComponent('Modal');
 // Keep Image as a function component (not a host string) so event props like
 // onError are preserved under react-test-renderer / React 19.
 export function Image({ children, ...props }: HostProps) {
