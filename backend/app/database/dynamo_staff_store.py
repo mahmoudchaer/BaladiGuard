@@ -133,6 +133,19 @@ class DynamoStaffStore:
             return None
         return self.get(staff_id)
 
+    def list(self) -> list[StoredStaffUser]:
+        """Return all staff accounts without exposing the username-claim records."""
+        users: list[StoredStaffUser] = []
+        params: dict[str, Any] = {}
+        while True:
+            response = self._users_table.scan(**params)
+            users.extend(_item_to_user(item) for item in response.get("Items", []))
+            key = response.get("LastEvaluatedKey")
+            if not key:
+                break
+            params["ExclusiveStartKey"] = key
+        return sorted(users, key=lambda user: (user.username, user.staff_id))
+
     def update(self, user: StoredStaffUser) -> StoredStaffUser:
         existing = self.get(user.staff_id)
         if existing is None:

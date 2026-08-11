@@ -33,9 +33,14 @@ vi.mock('@/services/config', () => ({
   },
 }));
 
-vi.mock('@/services/api/tickets', () => ({
-  submitReport: vi.fn(),
-}));
+vi.mock('@/services/api/tickets', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/services/api/tickets')>('@/services/api/tickets');
+  return {
+    ...actual,
+    submitReport: vi.fn(),
+  };
+});
 
 vi.mock('@/services/deviceLocation', () => ({
   getCurrentDeviceLocation: getCurrentDeviceLocationMock,

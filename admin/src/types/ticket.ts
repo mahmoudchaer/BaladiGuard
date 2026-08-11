@@ -93,6 +93,16 @@ export type TicketPublicFields = {
   publishedAt?: string | null;
 };
 
+export type TicketSla = {
+  state: 'on_track' | 'due_soon' | 'overdue' | 'completed' | 'unavailable';
+  acknowledgementDueAt?: string | null;
+  resolutionDueAt?: string | null;
+  targetAt?: string | null;
+  remainingSeconds?: number | null;
+  overdueSeconds?: number | null;
+  policyKey?: TicketPriority | null;
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -119,6 +129,7 @@ export type Ticket = {
   updatedAt: string | null;
   updatedBy?: string | null;
   ai?: TicketAiFields;
+  sla?: TicketSla | null;
   public?: TicketPublicFields;
 };
 

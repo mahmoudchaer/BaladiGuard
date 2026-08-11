@@ -12,6 +12,7 @@ import { colors, radii, spacing, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
 import type { PublicTicketResponse } from '@/types/ticket';
 import { openInMapsApp } from '@/utils/openMaps';
+import { isValidMapCoordinate } from '@/utils/publicMapClustering';
 
 export default function PublicReportDetailScreen() {
   const { ticketNumber } = useLocalSearchParams<{ ticketNumber?: string | string[] }>();
@@ -118,10 +119,18 @@ export default function PublicReportDetailScreen() {
                 contentStyle={styles.mapsButtonContent}
                 buttonColor={colors.brand}
                 textColor={colors.textInverse}
+                disabled={
+                  !isValidMapCoordinate(report.mapLocation?.latitude, report.mapLocation?.longitude)
+                }
                 onPress={() => {
+                  const latitude = report.mapLocation?.latitude;
+                  const longitude = report.mapLocation?.longitude;
+                  if (!isValidMapCoordinate(latitude, longitude)) {
+                    return;
+                  }
                   void openInMapsApp({
-                    latitude: report.mapLocation.latitude,
-                    longitude: report.mapLocation.longitude,
+                    latitude,
+                    longitude,
                     label: report.mapLocation.addressText || report.ticketNumber,
                   });
                 }}

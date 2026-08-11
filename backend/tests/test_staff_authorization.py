@@ -263,6 +263,26 @@ def test_municipal_staff_out_of_scope_detail_matches_missing_ticket(
     assert out_of_scope.json()["error"]["code"] == missing.json()["error"]["code"]
 
 
+def test_out_of_scope_ticket_returns_404_to_municipal_staff_and_200_to_admin(
+    anonymous_client,
+    client,
+):
+    created = _create_ticket(client)
+    _stamp_ticket_scope(created["ticketId"], department_id=WASTE_MANAGEMENT, category="waste")
+
+    municipal = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}", headers=_staff_headers(anonymous_client, "staff")
+    )
+    administrator = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}", headers=_staff_headers(anonymous_client, "admin")
+    )
+
+    assert municipal.status_code == 404
+    assert municipal.json()["error"]["code"] == "TICKET_NOT_FOUND"
+    assert administrator.status_code == 200
+    assert administrator.json()["ticketId"] == created["ticketId"]
+
+
 def test_municipal_staff_cannot_assign_unscoped_department(anonymous_client, client):
     created = _create_ticket(client)
     _stamp_ticket_scope(created["ticketId"], department_id=ROAD_MAINTENANCE)

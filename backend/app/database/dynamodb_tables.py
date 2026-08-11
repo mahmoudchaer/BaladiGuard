@@ -228,6 +228,15 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        # Ticket create Idempotency-Key claims + replay payload (issue #258).
+        "suffix": "ticket-submission-claims",
+        "key_schema": [{"AttributeName": "idempotencyKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "idempotencyKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
         "attribute_definitions": [

@@ -164,6 +164,30 @@ describe('HistoryScreen', () => {
     });
   });
 
+  it('shows a loading state while report history is being fetched', async () => {
+    await seedSession();
+    let resolveHistory: (value: CitizenTicketHistoryResponse) => void = () => undefined;
+    vi.mocked(getCitizenTicketHistory).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHistory = resolve;
+        }),
+    );
+
+    const screen = await renderWithProvidersAsync(<HistoryScreen />);
+    await flush();
+
+    expect(screen.root.findByProps({ testID: 'history-loading' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Loading your reports...' })).toBeTruthy();
+
+    await act(async () => {
+      resolveHistory({ items: [], nextCursor: null, limit: 20 });
+    });
+    await flush();
+
+    expect(screen.root.findByProps({ testID: 'history-empty' })).toBeTruthy();
+  });
+
   it('shows an empty state for an authenticated citizen with no reports', async () => {
     await seedSession();
     vi.mocked(getCitizenTicketHistory).mockResolvedValue({

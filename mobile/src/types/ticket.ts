@@ -23,6 +23,7 @@ export type SubmitTicketRequest = {
     platform: string;
     appVersion: string;
   };
+  clientSubmissionId?: string;
 };
 
 export type SubmitTicketResponse = {

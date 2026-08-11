@@ -24,6 +24,7 @@ def test_backup_scope_covers_persistent_mvp_data():
         "account-audit",
         "notification-deliveries",
         "notification-claims",
+        "ticket-submission-claims",
         "ai-processing-jobs",
         "duplicate-groups",
         "rate-limit-buckets",
