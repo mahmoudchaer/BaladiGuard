@@ -1,18 +1,18 @@
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
 COPY requirements.lock ./
 RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.lock
 
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN find /usr/local/lib/python3.11/site-packages -maxdepth 1 \
+RUN find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
         \( -name 'pip*' -o -name 'setuptools*' -o -name 'wheel*' \) \
         -exec rm -rf {} + \
     && addgroup --system app \
