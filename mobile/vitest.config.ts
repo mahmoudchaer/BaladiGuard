@@ -37,6 +37,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/test/mocks/expo-secure-store.ts'),
       },
       {
+        find: /^expo-file-system$/,
+        replacement: path.resolve(__dirname, './src/test/mocks/expo-file-system.ts'),
+      },
+      {
         find: /^expo-constants$/,
         replacement: path.resolve(__dirname, './src/test/mocks/expo-constants.ts'),
       },

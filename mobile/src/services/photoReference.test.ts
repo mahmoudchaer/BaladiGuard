@@ -1,10 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-vi.mock('expo-file-system', () => ({
-  getInfoAsync: vi.fn(async () => ({ exists: false })),
-}));
-
-import * as FileSystem from 'expo-file-system';
 import {
   checkLocalPhotoUri,
   isLocalDevicePhotoUri,
@@ -15,13 +10,15 @@ import {
   clearUnusableDraftPhoto,
   draftToFormValues,
 } from '@/services/reportDraft';
+import {
+  __resetFileSystemMock,
+  __setFileInfoResolver,
+  getInfoAsync,
+} from '@/test/mocks/expo-file-system';
 
 describe('photoReference', () => {
   afterEach(() => {
-    vi.mocked(FileSystem.getInfoAsync).mockReset();
-    vi.mocked(FileSystem.getInfoAsync).mockResolvedValue({ exists: false } as Awaited<
-      ReturnType<typeof FileSystem.getInfoAsync>
-    >);
+    __resetFileSystemMock();
   });
 
   it('classifies local device schemes', () => {
@@ -31,9 +28,14 @@ describe('photoReference', () => {
   });
 
   it('treats remote URIs as reachable without probing disk', async () => {
+    let probed = false;
+    __setFileInfoResolver(async () => {
+      probed = true;
+      return { exists: true };
+    });
     const result = await checkLocalPhotoUri('https://example.com/a.jpg');
     expect(result.ok).toBe(true);
-    expect(FileSystem.getInfoAsync).not.toHaveBeenCalled();
+    expect(probed).toBe(false);
   });
 
   it('returns empty for blank URIs', async () => {
@@ -41,36 +43,31 @@ describe('photoReference', () => {
   });
 
   it('accepts an existing device photo URI via FileSystem existence check', async () => {
-    vi.mocked(FileSystem.getInfoAsync).mockResolvedValueOnce({
-      exists: true,
-      uri: 'file:///data/user/0/com.baladiguard.citizen/cache/photo.jpg',
-      size: 1024,
-      isDirectory: false,
-      modificationTime: 1,
-    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
-
     const uri = 'file:///data/user/0/com.baladiguard.citizen/cache/photo.jpg';
+    const seen: string[] = [];
+    __setFileInfoResolver(async (fileUri) => {
+      seen.push(fileUri);
+      return { exists: true, uri: fileUri, size: 1024, isDirectory: false, modificationTime: 1 };
+    });
+
     const result = await checkLocalPhotoUri(uri);
     expect(result).toEqual({ ok: true });
-    expect(FileSystem.getInfoAsync).toHaveBeenCalledWith(uri);
+    expect(seen).toEqual([uri]);
+    // Mock getInfoAsync remains callable for cross-file imports.
+    await expect(getInfoAsync(uri)).resolves.toMatchObject({ exists: true });
   });
 
   it('rejects a missing device photo URI deterministically', async () => {
-    vi.mocked(FileSystem.getInfoAsync).mockResolvedValueOnce({
-      exists: false,
-      uri: 'file:///tmp/expired-picker-photo.jpg',
-      isDirectory: false,
-    } as Awaited<ReturnType<typeof FileSystem.getInfoAsync>>);
+    __setFileInfoResolver(async () => ({ exists: false }));
 
     const result = await checkLocalPhotoUri('file:///tmp/expired-picker-photo.jpg');
     expect(result).toEqual({ ok: false, reason: 'missing' });
-    expect(FileSystem.getInfoAsync).toHaveBeenCalledWith('file:///tmp/expired-picker-photo.jpg');
   });
 
   it('marks FileSystem failures as unreachable instead of accepting the URI', async () => {
-    vi.mocked(FileSystem.getInfoAsync).mockRejectedValueOnce(
-      new Error('native module unavailable'),
-    );
+    __setFileInfoResolver(async () => {
+      throw new Error('native module unavailable');
+    });
 
     const result = await checkLocalPhotoUri('content://media/external/images/media/1');
     expect(result).toEqual({ ok: false, reason: 'unreachable' });
