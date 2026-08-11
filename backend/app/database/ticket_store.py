@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
@@ -9,6 +11,13 @@ from app.schemas.ticket_response import TicketStatus
 class TicketHistoryPage:
     items: list[StoredTicket]
     next_cursor: str | None
+
+
+@dataclass(frozen=True)
+class StaffTicketPage:
+    items: list[StoredTicket]
+    next_cursor: str | None
+    scanned_count: int
 
 
 class TicketStore(Protocol):
@@ -23,6 +32,32 @@ class TicketStore(Protocol):
     def get_by_ticket_number(self, ticket_number: str) -> StoredTicket | None: ...
 
     def list(self) -> list[StoredTicket]: ...
+
+    def list_staff_page(
+        self,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        limit: int,
+        cursor: str | None,
+        status: str | None = None,
+        category: str | None = None,
+        urgency: str | None = None,
+        department_id: str | None = None,
+        assignment_state: Literal["assigned", "unassigned"] | None = None,
+        q: str | None = None,
+        open_only: bool = False,
+    ) -> StaffTicketPage: ...
+
+    def staff_continuation_cursor(
+        self,
+        ticket: StoredTicket,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_id: str | None = None,
+    ) -> str: ...
 
     def list_public(
         self,
