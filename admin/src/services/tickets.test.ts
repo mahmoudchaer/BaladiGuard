@@ -943,16 +943,14 @@ describe('fetchDuplicateCandidates', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
-            }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } },
-          ),
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
+          }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } },
         ),
+      ),
     );
 
     const { fetchDuplicateCandidates } = await import('@/services/tickets');
@@ -1066,16 +1064,14 @@ describe('fetchDuplicateComparison', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
-            }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } },
-          ),
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
+          }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } },
         ),
+      ),
     );
 
     const { fetchDuplicateComparison } = await import('@/services/tickets');
