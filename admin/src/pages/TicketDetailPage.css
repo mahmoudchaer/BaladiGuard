@@ -812,6 +812,14 @@
   font-weight: 600;
 }
 
+.ticket-detail__candidate-more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
 .ticket-detail__candidates {
   margin: 0 0 var(--space-3);
   padding: 0;

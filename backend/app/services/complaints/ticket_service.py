@@ -1,4 +1,5 @@
 import logging
+import math
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
@@ -40,6 +41,12 @@ from app.schemas.ticket_ai_update import (
     ReviewTicketCategoryRequest,
     SaveTicketAiOutputRequest,
 )
+from app.schemas.ticket_duplicates import (
+    DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+    DUPLICATE_CANDIDATE_MAX_LIMIT,
+    DuplicateCandidatePageResponse,
+    DuplicateComparisonResponse,
+)
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
@@ -62,11 +69,17 @@ from app.services.complaints.status_workflow import (
 from app.services.complaints.ticket_list_filters import TicketListFilters, ticket_matches_filters
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
+    map_ticket_to_duplicate_candidate,
+    map_ticket_to_duplicate_comparison,
     map_ticket_to_list_item,
     map_ticket_to_public_response,
     map_ticket_to_response,
 )
-from app.services.duplicates import OPEN_TICKET_STATUSES, find_nearby_duplicates
+from app.services.duplicates import (
+    OPEN_TICKET_STATUSES,
+    find_nearby_duplicates,
+    haversine_meters,
+)
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.routing import department_ids, suggest_department_id
@@ -90,6 +103,9 @@ PUBLIC_TICKET_MAX_LIMIT = 50
 STAFF_TICKET_DEFAULT_LIMIT = 25
 STAFF_TICKET_MAX_LIMIT = 100
 STAFF_SLA_FILTER_MAX_ROUNDS = 20
+# Effective-category matching is derived, so candidate pages continue across
+# source pages the same way derived SLA filters do.
+DUPLICATE_CANDIDATE_MAX_ROUNDS = 20
 STAFF_MAP_DEFAULT_LIMIT = 200
 STAFF_MAP_MAX_LIMIT = 500
 STAFF_MAP_MARKER_ZOOM = 14
@@ -909,6 +925,134 @@ class TicketService:
             return None
         return self._map_ticket(ticket, include_duplicate_suggestions=True)
 
+    def list_duplicate_candidates(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+        q: str | None = None,
+        limit: int = DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> DuplicateCandidatePageResponse:
+        """Page mergeable duplicate candidates for one source ticket (issue #269).
+
+        Candidates are always ungrouped, open, and share the source's effective
+        category, so every returned row satisfies the merge preconditions the API
+        can verify up front.
+        """
+        source = self._store.get(ticket_id)
+        if source is None or not staff_can_access_ticket(staff_principal, source):
+            raise TicketNotFoundError(ticket_id)
+
+        page_size = min(max(limit, 1), DUPLICATE_CANDIDATE_MAX_LIMIT)
+        source_category = effective_ticket_category(source)
+        if source_category is None:
+            # Unclassified tickets cannot be merged, so there is nothing to offer.
+            return DuplicateCandidatePageResponse(items=[], nextCursor=None, limit=page_size)
+
+        suggestions = {
+            suggestion.ticket_id: suggestion
+            for suggestion in self._duplicate_suggestions_for_ticket(source)
+        }
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        search = (q or "").strip() or None
+
+        collected: list[StoredTicket] = []
+        current_cursor = cursor
+        next_cursor: str | None = None
+
+        for _ in range(DUPLICATE_CANDIDATE_MAX_ROUNDS):
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=page_size,
+                cursor=current_cursor,
+                q=search,
+                # The nearby-duplicate detector only considers open tickets.
+                open_only=True,
+            )
+
+            page_filled = False
+            for index, candidate in enumerate(page.items):
+                if not _is_duplicate_candidate(
+                    candidate,
+                    source=source,
+                    source_category=source_category,
+                ):
+                    continue
+                collected.append(candidate)
+                if len(collected) < page_size:
+                    continue
+                # Continue after the last included candidate so remaining matches
+                # on this source page are not skipped.
+                remaining = page.items[index + 1 :]
+                if remaining or page.next_cursor:
+                    next_cursor = self._store.staff_continuation_cursor(
+                        candidate,
+                        browse_mode=browse_mode,
+                        municipality_id=municipality_id,
+                    )
+                else:
+                    next_cursor = None
+                page_filled = True
+                break
+
+            if page_filled:
+                break
+            next_cursor = page.next_cursor
+            if not page.next_cursor:
+                break
+            current_cursor = page.next_cursor
+
+        items = []
+        for candidate in collected[:page_size]:
+            suggestion = suggestions.get(candidate.ticket_id)
+            items.append(
+                map_ticket_to_duplicate_candidate(
+                    candidate,
+                    distance_meters=(
+                        suggestion.distance_meters
+                        if suggestion is not None
+                        else _distance_between_tickets(source, candidate)
+                    ),
+                    suggested=suggestion is not None,
+                    score=None if suggestion is None else suggestion.score,
+                    category_match=None if suggestion is None else suggestion.category_match,
+                )
+            )
+
+        return DuplicateCandidatePageResponse(
+            items=items,
+            nextCursor=next_cursor,
+            limit=page_size,
+        )
+
+    def get_duplicate_comparison(
+        self,
+        ticket_id: str,
+        candidate_ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> DuplicateComparisonResponse:
+        """Bounded comparison projection of a candidate against a source ticket.
+
+        Either ticket being missing or out of scope is a single 404 so callers
+        never learn whether an out-of-scope ID exists.
+        """
+        source = self._store.get(ticket_id)
+        if source is None or not staff_can_access_ticket(staff_principal, source):
+            raise TicketNotFoundError(ticket_id)
+
+        candidate = self._store.get(candidate_ticket_id)
+        if candidate is None or not staff_can_access_ticket(staff_principal, candidate):
+            raise TicketNotFoundError(candidate_ticket_id)
+
+        return map_ticket_to_duplicate_comparison(
+            candidate,
+            distance_meters=_distance_between_tickets(source, candidate),
+        )
+
     def get_ticket_by_tracking_code(self, tracking_code: str) -> CitizenTicketResponse | None:
         ticket = self._store.get_by_tracking_code(tracking_code)
         if ticket is None:
@@ -1602,6 +1746,34 @@ def _staff_browse_scope(
         principal.municipality_id,
         None if principal.department_ids is None else list(principal.department_ids),
     )
+
+
+def _is_duplicate_candidate(
+    candidate: StoredTicket,
+    *,
+    source: StoredTicket,
+    source_category: str,
+) -> bool:
+    """Merge preconditions the candidate endpoint can verify before staff choose."""
+    if candidate.ticket_id == source.ticket_id:
+        return False
+    if candidate.duplicate_group_id:
+        return False
+    return effective_ticket_category(candidate) == source_category
+
+
+def _distance_between_tickets(source: StoredTicket, candidate: StoredTicket) -> float | None:
+    try:
+        distance = haversine_meters(
+            source.location.latitude,
+            source.location.longitude,
+            candidate.location.latitude,
+            candidate.location.longitude,
+        )
+    except (TypeError, ValueError):
+        return None
+    # Placeholder locations can carry non-finite coordinates, which are not JSON.
+    return round(distance, 2) if math.isfinite(distance) else None
 
 
 def _location_in_bounds(

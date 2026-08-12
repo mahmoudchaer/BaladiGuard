@@ -792,3 +792,294 @@ describe('assignTicketDepartment', () => {
     ).rejects.toThrow('Request validation failed. departmentId: Department is not in the catalog.');
   });
 });
+
+const candidatePayload = {
+  ticketId: 'tkt_candidate',
+  ticketNumber: 'BG-0099',
+  status: 'SUBMITTED',
+  category: 'street_lighting',
+  priority: 'high',
+  summary: 'Second report about the same broken light.',
+  createdAt: '2026-07-14T09:00:00Z',
+  location: {
+    latitude: 33.894,
+    longitude: 35.5019,
+    addressText: 'Beirut, Hamra',
+  },
+  distanceMeters: 24.5,
+  imageUrl: 'https://s3.example/presigned/candidate.jpg?X-Amz-Signature=abc',
+  suggested: true,
+  score: 0.82,
+  categoryMatch: 'same',
+  mergeable: true,
+};
+
+describe('fetchDuplicateCandidates', () => {
+  it('asks the dedicated candidate endpoint with search and cursor parameters', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ items: [candidatePayload], nextCursor: 'cursor-2', limit: 20 }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchDuplicateCandidates } = await import('@/services/tickets');
+    const page = await fetchDuplicateCandidates('tkt_123', { q: ' pothole ', cursor: 'cursor-1' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets/tkt_123/duplicate-candidates?q=pothole&cursor=cursor-1',
+      expect.objectContaining({ headers: {} }),
+    );
+    expect(page.nextCursor).toBe('cursor-2');
+    expect(page.limit).toBe(20);
+    expect(page.items).toEqual([
+      {
+        ticketId: 'tkt_candidate',
+        ticketNumber: 'BG-0099',
+        status: 'SUBMITTED',
+        category: 'street_lighting',
+        priority: 'high',
+        summary: 'Second report about the same broken light.',
+        createdAt: '2026-07-14T09:00:00Z',
+        location: {
+          latitude: 33.894,
+          longitude: 35.5019,
+          addressText: 'Beirut, Hamra',
+        },
+        distanceMeters: 24.5,
+        imageUrl: 'https://s3.example/presigned/candidate.jpg?X-Amz-Signature=abc',
+        suggested: true,
+        score: 0.82,
+        categoryMatch: 'same',
+        mergeable: true,
+      },
+    ]);
+  });
+
+  it('drops private ticket fields a server or proxy may add to a candidate row', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                ...candidatePayload,
+                trackingCode: 'TRACK-999',
+                contact: { name: 'Citizen Name', phone: '+96170000000' },
+                imageObjectKey: 'reports/tkt_candidate.jpg',
+                auditHistory: [{ actionType: 'STATUS_CHANGE', summary: 'leaked' }],
+                statusHistory: [{ status: 'SUBMITTED', changedAt: '2026-07-14T09:00:00Z' }],
+              },
+            ],
+            nextCursor: null,
+            limit: 20,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+
+    const { fetchDuplicateCandidates } = await import('@/services/tickets');
+    const page = await fetchDuplicateCandidates('tkt_123');
+
+    expect(Object.keys(page.items[0]).sort()).toEqual(
+      [
+        'categoryMatch',
+        'category',
+        'createdAt',
+        'distanceMeters',
+        'imageUrl',
+        'location',
+        'mergeable',
+        'priority',
+        'score',
+        'status',
+        'suggested',
+        'summary',
+        'ticketId',
+        'ticketNumber',
+      ].sort(),
+    );
+  });
+
+  it('skips malformed candidate rows instead of failing the whole page', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            items: [candidatePayload, { ticketNumber: 'BG-BROKEN' }],
+            nextCursor: null,
+            limit: 20,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+
+    const { fetchDuplicateCandidates } = await import('@/services/tickets');
+    const page = await fetchDuplicateCandidates('tkt_123');
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].ticketId).toBe('tkt_candidate');
+  });
+
+  it('surfaces backend errors for the candidate search', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
+            }),
+            { status: 404, headers: { 'Content-Type': 'application/json' } },
+          ),
+        ),
+    );
+
+    const { fetchDuplicateCandidates } = await import('@/services/tickets');
+
+    await expect(fetchDuplicateCandidates('tkt_missing')).rejects.toThrow('Ticket was not found.');
+  });
+});
+
+describe('fetchDuplicateComparison', () => {
+  it('reads the bounded comparison projection for one candidate', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ticketId: 'tkt_candidate',
+          ticketNumber: 'BG-0099',
+          description: 'Second report about the same broken light.',
+          status: 'SUBMITTED',
+          category: 'street_lighting',
+          priority: 'high',
+          createdAt: '2026-07-14T09:00:00Z',
+          location: {
+            latitude: 33.894,
+            longitude: 35.5019,
+            addressText: 'Beirut, Hamra',
+          },
+          imageUrl: 'https://s3.example/presigned/candidate.jpg?X-Amz-Signature=abc',
+          distanceMeters: 24.5,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchDuplicateComparison } = await import('@/services/tickets');
+    const comparison = await fetchDuplicateComparison('tkt_123', 'tkt_candidate');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:8000/v1/tickets/tkt_123/duplicate-comparison/tkt_candidate',
+      expect.objectContaining({ headers: {} }),
+    );
+    expect(comparison).toEqual({
+      ticketId: 'tkt_candidate',
+      ticketNumber: 'BG-0099',
+      description: 'Second report about the same broken light.',
+      status: 'SUBMITTED',
+      category: 'street_lighting',
+      priority: 'high',
+      createdAt: '2026-07-14T09:00:00Z',
+      location: {
+        latitude: 33.894,
+        longitude: 35.5019,
+        addressText: 'Beirut, Hamra',
+      },
+      imageUrl: 'https://s3.example/presigned/candidate.jpg?X-Amz-Signature=abc',
+      distanceMeters: 24.5,
+    });
+  });
+
+  it('never carries contact, tracking, storage keys, or history into the comparison', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...apiTicket,
+            contact: { name: 'Citizen Name', phone: '+96170000000' },
+            auditHistory: [{ actionType: 'STATUS_CHANGE', summary: 'leaked' }],
+            statusHistory: [{ status: 'SUBMITTED', changedAt: '2026-07-14T10:00:00Z' }],
+            ai: { aiSuggestedCategory: 'street_lighting' },
+            public: { status: 'DRAFT', description: 'draft copy' },
+            location: {
+              latitude: 33.8938,
+              longitude: 35.5018,
+              addressText: 'Beirut',
+              source: 'GPS',
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+
+    const { fetchDuplicateComparison } = await import('@/services/tickets');
+    const comparison = await fetchDuplicateComparison('tkt_123', 'tkt_candidate');
+
+    expect(Object.keys(comparison ?? {}).sort()).toEqual([
+      'category',
+      'createdAt',
+      'description',
+      'location',
+      'priority',
+      'status',
+      'ticketId',
+      'ticketNumber',
+    ]);
+    expect(JSON.stringify(comparison)).not.toContain('TRACK-123');
+    expect(JSON.stringify(comparison)).not.toContain('+96170000000');
+    expect(JSON.stringify(comparison)).not.toContain('reports/tkt_123.jpg');
+    expect(JSON.stringify(comparison)).not.toContain('draft copy');
+  });
+
+  it('treats a missing or out-of-scope pair as no comparison', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    vi.stubEnv('VITE_USE_MOCK_DATA', undefined);
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              error: { code: 'TICKET_NOT_FOUND', message: 'Ticket was not found.' },
+            }),
+            { status: 404, headers: { 'Content-Type': 'application/json' } },
+          ),
+        ),
+    );
+
+    const { fetchDuplicateComparison } = await import('@/services/tickets');
+
+    await expect(fetchDuplicateComparison('tkt_123', 'tkt_missing')).resolves.toBeNull();
+  });
+});

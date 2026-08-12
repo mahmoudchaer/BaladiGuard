@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import type { Ticket, TicketPriority, TicketStatus } from '@/types/ticket';
+import type { DuplicateCandidate, Ticket, TicketStatus } from '@/types/ticket';
 import {
   assignTicketDepartment,
+  fetchDuplicateCandidates,
+  fetchDuplicateComparison,
   fetchTicketById,
-  fetchTickets,
   mergeDuplicateTickets,
   reviewTicketCategory,
   updateTicketStatus,
@@ -61,42 +62,22 @@ type ComparisonState =
   | { status: 'ready'; data: DuplicateComparison }
   | { status: 'error'; message: string };
 
-type DuplicateCandidate = {
-  ticketId: string;
-  ticketNumber: string;
-  status: TicketStatus;
-  category: string;
-  priority: TicketPriority | null;
-  description?: string;
-  createdAt?: string;
-  addressText?: string;
-  distanceMeters?: number;
-  imageObjectKey?: string;
-  imageUrl?: string;
-  /** Surfaced by the automated duplicate detector rather than staff browsing. */
-  suggested: boolean;
-  /** Ungrouped and same effective category, so the merge mutation would accept it. */
-  mergeable: boolean;
-};
+type CandidateLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
-/** Candidate lists stay bounded; staff narrow them with the filter instead. */
-const MAX_DUPLICATE_CANDIDATES = 20;
+/** Server-side search runs after typing settles so each keystroke is not a request. */
+const CANDIDATE_SEARCH_DEBOUNCE_MS = 250;
 
 function CandidateThumb({
   ticketNumber,
   category,
-  imageObjectKey,
   imageUrl,
 }: {
   ticketNumber: string;
   category: string;
-  imageObjectKey?: string;
   imageUrl?: string;
 }) {
-  const resolvedUrl =
-    imageObjectKey && imageObjectKey !== 'unavailable'
-      ? getTicketImageUrl(imageObjectKey, category, imageUrl)
-      : null;
+  // Candidates carry a presigned URL only; there is no raw storage key to resolve.
+  const resolvedUrl = imageUrl ? getTicketImageUrl(undefined, category, imageUrl) : null;
 
   if (!resolvedUrl) {
     return (
@@ -133,7 +114,6 @@ function ComparisonColumn({
       <p className="ticket-detail__eyebrow">{eyebrow}</p>
       <h5 className="ticket-detail__comparison-title">{heading}</h5>
       <TicketPhoto
-        imageObjectKey={data.imageObjectKey}
         imageUrl={data.imageUrl}
         category={data.category}
         alt={`Report photo for ${data.ticketNumber}`}
@@ -196,11 +176,20 @@ export function TicketDetailPage() {
   const [departmentUpdateSuccess, setDepartmentUpdateSuccess] = useState<string | null>(null);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
 
-  const [mergeCandidates, setMergeCandidates] = useState<Ticket[]>([]);
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([]);
+  const [candidateLoadState, setCandidateLoadState] = useState<CandidateLoadState>('idle');
+  const [candidateError, setCandidateError] = useState<string | null>(null);
+  const [candidateNextCursor, setCandidateNextCursor] = useState<string | null>(null);
+  const [isLoadingMoreCandidates, setIsLoadingMoreCandidates] = useState(false);
   const [selectedDuplicateIds, setSelectedDuplicateIds] = useState<string[]>([]);
+  /** Keeps selected rows describable even after a search narrows the visible page. */
+  const [selectedCandidatesById, setSelectedCandidatesById] = useState<
+    Record<string, DuplicateCandidate>
+  >({});
   const [expandedDuplicateIds, setExpandedDuplicateIds] = useState<string[]>([]);
   const [comparisons, setComparisons] = useState<Record<string, ComparisonState>>({});
   const [candidateFilter, setCandidateFilter] = useState('');
+  const [candidateQuery, setCandidateQuery] = useState('');
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [isMerging, setIsMerging] = useState(false);
@@ -255,29 +244,9 @@ export function TicketDetailPage() {
         setDepartmentUpdateError(null);
         setDepartmentUpdateSuccess(null);
         setSelectedDuplicateIds([]);
+        setSelectedCandidatesById({});
         setMergeError(null);
         setLoadState('success');
-
-        try {
-          // Use the effective category (final -> AI suggestion -> classified
-          // category) so pending tickets never match everything.
-          const ticketCategory = effectiveTicketCategory(data);
-          const tickets = ticketCategory === null ? [] : await fetchTickets();
-          if (!cancelled) {
-            setMergeCandidates(
-              tickets.filter(
-                (candidate) =>
-                  candidate.ticketId !== data.ticketId &&
-                  !candidate.duplicateGroupId &&
-                  effectiveTicketCategory(candidate) === ticketCategory,
-              ),
-            );
-          }
-        } catch {
-          if (!cancelled) {
-            setMergeCandidates([]);
-          }
-        }
       } catch (error) {
         if (!cancelled) {
           setErrorMessage(error instanceof Error ? error.message : 'Unable to load ticket.');
@@ -465,22 +434,19 @@ export function TicketDetailPage() {
     }
   };
 
-  const toggleDuplicateSelection = (candidateId: string) => {
-    setSelectedDuplicateIds((current) =>
-      current.includes(candidateId)
-        ? current.filter((id) => id !== candidateId)
-        : [...current, candidateId],
-    );
-    setMergeError(null);
-  };
-
   const loadComparison = useCallback(async (candidateId: string) => {
+    const sourceTicketId = loadedTicketRef.current?.ticketId;
+    if (!sourceTicketId) {
+      return;
+    }
+
     requestedComparisonsRef.current.add(candidateId);
     setComparisons((current) => ({ ...current, [candidateId]: { status: 'loading' } }));
 
     try {
-      const candidateTicket = await fetchTicketById(candidateId);
-      if (!candidateTicket) {
+      // Bounded projection: no contact, tracking code, storage key, or history.
+      const comparison = await fetchDuplicateComparison(sourceTicketId, candidateId);
+      if (!comparison) {
         requestedComparisonsRef.current.delete(candidateId);
         setComparisons((current) => ({
           ...current,
@@ -494,7 +460,7 @@ export function TicketDetailPage() {
 
       setComparisons((current) => ({
         ...current,
-        [candidateId]: { status: 'ready', data: toDuplicateComparison(candidateTicket) },
+        [candidateId]: { status: 'ready', data: comparison },
       }));
     } catch (error) {
       // Allow a retry for this candidate only; other rows stay untouched.
@@ -510,6 +476,31 @@ export function TicketDetailPage() {
     }
   }, []);
 
+  const ensureComparisonRequested = useCallback(
+    (candidateId: string) => {
+      if (!requestedComparisonsRef.current.has(candidateId)) {
+        void loadComparison(candidateId);
+      }
+    },
+    [loadComparison],
+  );
+
+  const toggleDuplicateSelection = (candidate: DuplicateCandidate) => {
+    const isSelected = selectedDuplicateIds.includes(candidate.ticketId);
+    setSelectedDuplicateIds((current) =>
+      isSelected
+        ? current.filter((id) => id !== candidate.ticketId)
+        : [...current, candidate.ticketId],
+    );
+    setSelectedCandidatesById((current) => ({ ...current, [candidate.ticketId]: candidate }));
+    setMergeError(null);
+
+    if (!isSelected) {
+      // Merging is only allowed once staff can see the comparison, so start it now.
+      ensureComparisonRequested(candidate.ticketId);
+    }
+  };
+
   const toggleCandidateExpanded = (candidateId: string) => {
     setExpandedDuplicateIds((current) =>
       current.includes(candidateId)
@@ -517,9 +508,7 @@ export function TicketDetailPage() {
         : [...current, candidateId],
     );
 
-    if (!requestedComparisonsRef.current.has(candidateId)) {
-      void loadComparison(candidateId);
-    }
+    ensureComparisonRequested(candidateId);
   };
 
   const handleMergeDuplicates = async () => {
@@ -529,6 +518,11 @@ export function TicketDetailPage() {
 
     if (selectedDuplicateIds.length === 0) {
       setMergeError('Select at least one duplicate ticket to merge.');
+      return;
+    }
+
+    if (selectedDuplicateIds.some((id) => comparisons[id]?.status !== 'ready')) {
+      setMergeError('Review the side-by-side comparison of every selected ticket before merging.');
       return;
     }
 
@@ -548,13 +542,14 @@ export function TicketDetailPage() {
 
       loadedTicketRef.current = updatedTicket;
       setTicket(updatedTicket);
-      setMergeCandidates((current) =>
+      setDuplicateCandidates((current) =>
         current.filter((candidate) => !selectedDuplicateIds.includes(candidate.ticketId)),
       );
       setExpandedDuplicateIds((current) =>
         current.filter((id) => !selectedDuplicateIds.includes(id)),
       );
       setSelectedDuplicateIds([]);
+      setSelectedCandidatesById({});
       setIsMergeDialogOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to merge duplicate tickets.';
@@ -576,79 +571,6 @@ export function TicketDetailPage() {
     [ticket],
   );
 
-  const duplicateCandidates = useMemo<DuplicateCandidate[]>(() => {
-    if (!ticket) {
-      return [];
-    }
-
-    const mergeCandidateById = new Map(
-      mergeCandidates.map((candidate) => [candidate.ticketId, candidate]),
-    );
-    const candidates: DuplicateCandidate[] = [];
-    const seen = new Set<string>();
-
-    for (const suggestion of ticket.duplicateSuggestions ?? []) {
-      const enriched = mergeCandidateById.get(suggestion.ticketId);
-      candidates.push({
-        ticketId: suggestion.ticketId,
-        ticketNumber: suggestion.ticketNumber ?? enriched?.ticketNumber ?? suggestion.ticketId,
-        status: enriched?.status ?? suggestion.status,
-        category: enriched
-          ? (effectiveTicketCategory(enriched) ?? enriched.category)
-          : suggestion.category,
-        priority: enriched?.priority ?? null,
-        description: enriched?.description,
-        createdAt: enriched?.createdAt,
-        addressText: enriched?.location.addressText,
-        distanceMeters: suggestion.distanceMeters,
-        imageObjectKey: enriched?.imageObjectKey,
-        imageUrl: enriched?.imageUrl,
-        suggested: true,
-        mergeable: Boolean(enriched),
-      });
-      seen.add(suggestion.ticketId);
-    }
-
-    for (const candidate of mergeCandidates) {
-      if (seen.has(candidate.ticketId)) {
-        continue;
-      }
-      const distance = distanceMetersBetween(ticket.location, candidate.location);
-      candidates.push({
-        ticketId: candidate.ticketId,
-        ticketNumber: candidate.ticketNumber,
-        status: candidate.status,
-        category: effectiveTicketCategory(candidate) ?? candidate.category,
-        priority: candidate.priority,
-        description: candidate.description,
-        createdAt: candidate.createdAt,
-        addressText: candidate.location.addressText,
-        distanceMeters: distance ?? undefined,
-        imageObjectKey: candidate.imageObjectKey,
-        imageUrl: candidate.imageUrl,
-        suggested: false,
-        mergeable: true,
-      });
-    }
-
-    return candidates;
-  }, [ticket, mergeCandidates]);
-
-  const filteredCandidates = useMemo(() => {
-    const query = candidateFilter.trim().toLowerCase();
-    if (!query) {
-      return duplicateCandidates;
-    }
-    return duplicateCandidates.filter((candidate) =>
-      [candidate.ticketNumber, candidate.description, candidate.addressText]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query),
-    );
-  }, [duplicateCandidates, candidateFilter]);
-
-  const visibleCandidates = filteredCandidates.slice(0, MAX_DUPLICATE_CANDIDATES);
   const activityEvents = useMemo(() => buildActivityTimeline(ticket), [ticket]);
 
   const suggestionCount = ticket?.duplicateSuggestions?.length ?? 0;
@@ -656,9 +578,103 @@ export function TicketDetailPage() {
   const isCanonicalTicket =
     !!ticket &&
     (!ticket.duplicateGroupId || ticket.duplicateGroup?.canonicalTicketId === ticket.ticketId);
-  const selectedCandidates = duplicateCandidates.filter((candidate) =>
-    selectedDuplicateIds.includes(candidate.ticketId),
-  );
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setCandidateQuery(candidateFilter.trim()),
+      CANDIDATE_SEARCH_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [candidateFilter]);
+
+  // The candidate source is only known once the ticket resolves with a usable
+  // (reviewed or AI-suggested) category; unclassified tickets match everything.
+  const candidateSourceId = loadState === 'success' && effectiveCategory !== null ? ticketId : null;
+
+  useEffect(() => {
+    if (!candidateSourceId) {
+      setDuplicateCandidates([]);
+      setCandidateNextCursor(null);
+      setCandidateError(null);
+      setCandidateLoadState('idle');
+      return;
+    }
+
+    const controller = new AbortController();
+    setCandidateLoadState('loading');
+    setCandidateError(null);
+
+    async function loadCandidates(sourceTicketId: string) {
+      try {
+        const page = await fetchDuplicateCandidates(sourceTicketId, {
+          q: candidateQuery || undefined,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) {
+          return;
+        }
+        setDuplicateCandidates(page.items);
+        setCandidateNextCursor(page.nextCursor);
+        setCandidateLoadState('ready');
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setDuplicateCandidates([]);
+        setCandidateNextCursor(null);
+        setCandidateError(
+          error instanceof Error ? error.message : 'Unable to load duplicate candidates.',
+        );
+        setCandidateLoadState('error');
+      }
+    }
+
+    void loadCandidates(candidateSourceId);
+
+    return () => controller.abort();
+  }, [candidateSourceId, candidateQuery, refreshToken]);
+
+  const handleLoadMoreCandidates = async () => {
+    if (!candidateSourceId || !candidateNextCursor || isLoadingMoreCandidates) {
+      return;
+    }
+
+    setIsLoadingMoreCandidates(true);
+    setCandidateError(null);
+
+    try {
+      const page = await fetchDuplicateCandidates(candidateSourceId, {
+        q: candidateQuery || undefined,
+        cursor: candidateNextCursor,
+      });
+      setDuplicateCandidates((current) => {
+        const seen = new Set(current.map((candidate) => candidate.ticketId));
+        return [...current, ...page.items.filter((item) => !seen.has(item.ticketId))];
+      });
+      setCandidateNextCursor(page.nextCursor);
+    } catch (error) {
+      setCandidateError(
+        error instanceof Error ? error.message : 'Unable to load more duplicate candidates.',
+      );
+    } finally {
+      setIsLoadingMoreCandidates(false);
+    }
+  };
+
+  const selectedCandidates = selectedDuplicateIds.flatMap((candidateId) => {
+    const candidate =
+      duplicateCandidates.find((item) => item.ticketId === candidateId) ??
+      selectedCandidatesById[candidateId];
+    return candidate ? [candidate] : [];
+  });
+  const unresolvedSelectionCount = selectedDuplicateIds.filter(
+    (candidateId) => comparisons[candidateId]?.status !== 'ready',
+  ).length;
+  const failedSelectionCount = selectedDuplicateIds.filter(
+    (candidateId) => comparisons[candidateId]?.status === 'error',
+  ).length;
+  /** Merging is a destructive link, so every selected report must be reviewable. */
+  const canMergeSelection = selectedDuplicateIds.length > 0 && unresolvedSelectionCount === 0;
 
   return (
     <DashboardLayout
@@ -1316,14 +1332,10 @@ export function TicketDetailPage() {
                       This ticket has no reviewed or AI-suggested category yet. Duplicate
                       suggestions and merging are available once it is classified.
                     </p>
-                  ) : duplicateCandidates.length === 0 ? (
-                    <p className="ticket-detail__merge-empty">
-                      No possible duplicate tickets found.
-                    </p>
                   ) : (
                     <>
                       <div className="ticket-detail__candidate-toolbar">
-                        <label htmlFor="duplicate-filter">Filter duplicate candidates</label>
+                        <label htmlFor="duplicate-filter">Search duplicate candidates</label>
                         <input
                           id="duplicate-filter"
                           type="search"
@@ -1333,10 +1345,36 @@ export function TicketDetailPage() {
                           placeholder="Ticket number, description, or address"
                         />
                         <p className="ticket-detail__candidate-count" role="status">
-                          Showing {visibleCandidates.length} of {filteredCandidates.length}{' '}
-                          candidates
+                          {candidateLoadState === 'loading'
+                            ? 'Searching duplicate candidates…'
+                            : `Showing ${duplicateCandidates.length} candidate${
+                                duplicateCandidates.length === 1 ? '' : 's'
+                              }${candidateNextCursor ? ' so far' : ''}`}
                         </p>
                       </div>
+
+                      {candidateLoadState === 'error' && (
+                        <div className="ticket-detail__comparison-error">
+                          <p className="ticket-detail__status-error" role="alert">
+                            {candidateError ?? 'Unable to load duplicate candidates.'}
+                          </p>
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                            onClick={() => setRefreshToken((current) => current + 1)}
+                          >
+                            Retry candidate search
+                          </button>
+                        </div>
+                      )}
+
+                      {candidateLoadState === 'ready' && duplicateCandidates.length === 0 && (
+                        <p className="ticket-detail__merge-empty">
+                          {candidateQuery
+                            ? 'No duplicate candidates match this search.'
+                            : 'No possible duplicate tickets found.'}
+                        </p>
+                      )}
 
                       {selectedCandidates.length > 1 && (
                         <div className="ticket-detail__compare-selected">
@@ -1361,7 +1399,7 @@ export function TicketDetailPage() {
                       )}
 
                       <ul className="ticket-detail__candidates">
-                        {visibleCandidates.map((candidate) => {
+                        {duplicateCandidates.map((candidate) => {
                           const isExpanded = expandedDuplicateIds.includes(candidate.ticketId);
                           const comparison = comparisons[candidate.ticketId];
                           const panelId = `duplicate-comparison-${candidate.ticketId}`;
@@ -1375,7 +1413,7 @@ export function TicketDetailPage() {
                                     type="checkbox"
                                     className="ticket-detail__candidate-checkbox"
                                     checked={selectedDuplicateIds.includes(candidate.ticketId)}
-                                    onChange={() => toggleDuplicateSelection(candidate.ticketId)}
+                                    onChange={() => toggleDuplicateSelection(candidate)}
                                     disabled={isMerging}
                                     aria-label={`Select ${candidate.ticketNumber} as a duplicate`}
                                   />
@@ -1384,7 +1422,6 @@ export function TicketDetailPage() {
                                 <CandidateThumb
                                   ticketNumber={candidate.ticketNumber}
                                   category={candidate.category}
-                                  imageObjectKey={candidate.imageObjectKey}
                                   imageUrl={candidate.imageUrl}
                                 />
 
@@ -1409,7 +1446,7 @@ export function TicketDetailPage() {
                                   </div>
 
                                   <p className="ticket-detail__candidate-excerpt">
-                                    {describeExcerpt(candidate.description)}
+                                    {describeExcerpt(candidate.summary)}
                                   </p>
 
                                   <div className="ticket-detail__candidate-meta">
@@ -1428,7 +1465,8 @@ export function TicketDetailPage() {
                                       </span>
                                     )}
                                     <span>
-                                      {candidate.addressText?.trim() || 'Location not provided'}
+                                      {candidate.location.addressText.trim() ||
+                                        'Location not provided'}
                                     </span>
                                   </div>
                                 </div>
@@ -1511,11 +1549,23 @@ export function TicketDetailPage() {
                         })}
                       </ul>
 
-                      {filteredCandidates.length > visibleCandidates.length && (
-                        <p className="ticket-detail__merge-help">
-                          Only the first {MAX_DUPLICATE_CANDIDATES} candidates are shown. Use the
-                          filter to narrow the list.
-                        </p>
+                      {candidateNextCursor && (
+                        <div className="ticket-detail__candidate-more">
+                          <button
+                            type="button"
+                            className="ticket-detail__ghost-button"
+                            onClick={() => void handleLoadMoreCandidates()}
+                            disabled={isLoadingMoreCandidates}
+                          >
+                            {isLoadingMoreCandidates
+                              ? 'Loading more candidates…'
+                              : 'Load more candidates'}
+                          </button>
+                          <p className="ticket-detail__merge-help">
+                            More same-category candidates are available. Searching narrows the list
+                            across every page.
+                          </p>
+                        </div>
                       )}
                     </>
                   )}
@@ -1527,11 +1577,22 @@ export function TicketDetailPage() {
                           ? 'Add more same-category tickets to this duplicate group.'
                           : 'Choose other same-category tickets to link under this main report.'}
                       </p>
+                      {unresolvedSelectionCount > 0 && (
+                        <p className="ticket-detail__merge-help" role="status">
+                          {failedSelectionCount > 0
+                            ? `A comparison could not be loaded for ${failedSelectionCount} selected ticket${
+                                failedSelectionCount === 1 ? '' : 's'
+                              }. Open the candidate and retry the comparison before merging.`
+                            : `Loading the comparison for ${unresolvedSelectionCount} selected ticket${
+                                unresolvedSelectionCount === 1 ? '' : 's'
+                              }. Merging unlocks once every comparison is ready to review.`}
+                        </p>
+                      )}
                       <button
                         type="button"
                         className="ticket-detail__review-button"
                         onClick={() => setIsMergeDialogOpen(true)}
-                        disabled={isMerging || selectedDuplicateIds.length === 0}
+                        disabled={isMerging || !canMergeSelection}
                       >
                         {isMerging ? 'Merging...' : 'Merge selected as duplicates'}
                       </button>
@@ -1653,7 +1714,7 @@ export function TicketDetailPage() {
                       ref={confirmMergeRef}
                       className="ticket-detail__review-button ticket-detail__review-button--danger"
                       onClick={() => void handleMergeDuplicates()}
-                      disabled={isMerging || selectedDuplicateIds.length === 0}
+                      disabled={isMerging || !canMergeSelection}
                     >
                       {isMerging ? 'Merging...' : 'Confirm merge'}
                     </button>

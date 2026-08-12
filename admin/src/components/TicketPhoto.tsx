@@ -6,7 +6,11 @@ import { IconImage } from '@/components/icons';
 import './TicketPhoto.css';
 
 type TicketPhotoProps = {
-  imageObjectKey: string;
+  /**
+   * Absent on bounded projections (duplicate comparison) that only receive a
+   * presigned URL. Mock mode still uses it for a deterministic placeholder.
+   */
+  imageObjectKey?: string;
   category: string;
   alt: string;
   imageUrl?: string;

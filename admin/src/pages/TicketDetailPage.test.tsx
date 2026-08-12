@@ -6,17 +6,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assignTicketDepartment,
   reviewTicketCategory,
+  fetchDuplicateCandidates,
+  fetchDuplicateComparison,
   fetchTicketById,
-  fetchTickets,
   mergeDuplicateTickets,
 } from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
-import type { Ticket } from '@/types/ticket';
+import type {
+  DuplicateCandidate,
+  DuplicateCandidatePage,
+  DuplicateComparison,
+  Ticket,
+} from '@/types/ticket';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
 
 vi.mock('@/services/tickets', () => ({
   fetchTicketById: vi.fn(),
-  fetchTickets: vi.fn(),
+  fetchDuplicateCandidates: vi.fn(),
+  fetchDuplicateComparison: vi.fn(),
   mergeDuplicateTickets: vi.fn(),
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
@@ -80,11 +87,53 @@ async function openSection(user: TestUser, name: RegExp | string) {
   await user.click(await screen.findByRole('tab', { name }));
 }
 
-function buildCandidate(overrides: Partial<Ticket>): Ticket {
+/**
+ * Candidates arrive from `GET /v1/tickets/{id}/duplicate-candidates`, which only
+ * returns mergeable rows, so fixtures mirror that bounded shape.
+ */
+function buildCandidate(overrides: Partial<DuplicateCandidate> = {}): DuplicateCandidate {
   return {
-    ...ticket,
-    ticketId: 'tkt_candidate',
-    ticketNumber: 'BG-2026-0099',
+    ticketId: 'tkt_same_category',
+    ticketNumber: 'BG-2026-0201',
+    status: 'SUBMITTED',
+    category: 'road_damage',
+    priority: null,
+    summary: 'Second report about the same pothole.',
+    createdAt: '2026-07-17T07:30:00Z',
+    location: {
+      latitude: 33.8965,
+      longitude: 35.4782,
+      addressText: 'Bliss Street, Beirut',
+    },
+    distanceMeters: 42.4,
+    suggested: false,
+    mergeable: true,
+    ...overrides,
+  };
+}
+
+function candidatePage(
+  items: DuplicateCandidate[],
+  nextCursor: string | null = null,
+): DuplicateCandidatePage {
+  return { items, nextCursor, limit: 20 };
+}
+
+function buildComparison(overrides: Partial<DuplicateComparison> = {}): DuplicateComparison {
+  return {
+    ticketId: 'tkt_same_category',
+    ticketNumber: 'BG-2026-0201',
+    description: 'Second report about the same pothole.',
+    status: 'SUBMITTED',
+    category: 'road_damage',
+    priority: null,
+    createdAt: '2026-07-17T07:30:00Z',
+    location: {
+      latitude: 33.8965,
+      longitude: 35.4782,
+      addressText: 'Bliss Street, Beirut',
+    },
+    distanceMeters: 42.4,
     ...overrides,
   };
 }
@@ -92,7 +141,8 @@ function buildCandidate(overrides: Partial<Ticket>): Ticket {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchTicketById).mockResolvedValue(ticket);
-  vi.mocked(fetchTickets).mockResolvedValue([]);
+  vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([]));
+  vi.mocked(fetchDuplicateComparison).mockResolvedValue(buildComparison());
 });
 
 describe('TicketDetailPage states', () => {
@@ -206,7 +256,7 @@ describe('TicketDetailPage section navigation', () => {
     expect(window.location.search).toBe('?section=activity');
 
     expect(fetchTicketById).toHaveBeenCalledTimes(1);
-    expect(fetchTickets).toHaveBeenCalledTimes(1);
+    expect(fetchDuplicateCandidates).toHaveBeenCalledTimes(1);
   });
 
   it('moves between tabs with the keyboard', async () => {
@@ -604,22 +654,22 @@ describe('TicketDetailPage department assignment', () => {
 
 describe('TicketDetailPage duplicate candidates', () => {
   it('shows possible duplicate details and links to the suggested ticket', async () => {
-    vi.mocked(fetchTicketById).mockResolvedValue({
-      ...ticket,
-      duplicateSuggestions: [
-        {
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([
+        buildCandidate({
           ticketId: 'tkt_duplicate',
           ticketNumber: 'BG-2026-0201',
-          distanceMeters: 42.4,
           status: 'IN_PROGRESS',
           category: 'waste',
-        },
-      ],
-    });
+          distanceMeters: 42.4,
+          suggested: true,
+        }),
+      ]),
+    );
     renderPage('/tickets/tkt_123?section=duplicates');
 
     expect(await screen.findByText('Possible duplicates')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'BG-2026-0201' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'BG-2026-0201' })).toHaveAttribute(
       'href',
       '/tickets/tkt_duplicate',
     );
@@ -627,6 +677,75 @@ describe('TicketDetailPage duplicate candidates', () => {
     expect(screen.getByText('In Progress')).toBeInTheDocument();
     expect(screen.getAllByText('Waste').length).toBeGreaterThan(0);
     expect(screen.getByText('Suggested match')).toBeInTheDocument();
+  });
+
+  it('loads candidates from the dedicated endpoint for this ticket only', async () => {
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([buildCandidate({ ticketNumber: 'BG-2026-0201' })]),
+    );
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    expect(await screen.findByText('BG-2026-0201')).toBeInTheDocument();
+    expect(fetchDuplicateCandidates).toHaveBeenCalledWith(
+      'tkt_123',
+      expect.objectContaining({ q: undefined }),
+    );
+  });
+
+  it('sends the candidate search to the backend instead of filtering one page', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([buildCandidate({ ticketNumber: 'BG-2026-0201' })]),
+    );
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    await user.type(
+      await screen.findByRole('searchbox', { name: 'Search duplicate candidates' }),
+      'bliss',
+    );
+
+    await waitFor(() =>
+      expect(fetchDuplicateCandidates).toHaveBeenLastCalledWith(
+        'tkt_123',
+        expect.objectContaining({ q: 'bliss' }),
+      ),
+    );
+  });
+
+  it('reaches a candidate beyond the first page through the continuation cursor', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchDuplicateCandidates).mockImplementation(async (_ticketId, options) =>
+      options?.cursor === 'cursor-2'
+        ? candidatePage([
+            buildCandidate({ ticketId: 'tkt_page_two', ticketNumber: 'BG-2026-0399' }),
+          ])
+        : candidatePage([buildCandidate({ ticketNumber: 'BG-2026-0201' })], 'cursor-2'),
+    );
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    expect(await screen.findByText('BG-2026-0201')).toBeInTheDocument();
+    expect(screen.queryByText('BG-2026-0399')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Load more candidates' }));
+
+    expect(await screen.findByText('BG-2026-0399')).toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0201')).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select BG-2026-0399 as a duplicate' }),
+    ).toBeInTheDocument();
+  });
+
+  it('reports a failed candidate search without discarding the ticket', async () => {
+    vi.mocked(fetchDuplicateCandidates).mockRejectedValue(
+      new Error('Unable to load duplicate candidates.'),
+    );
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to load duplicate candidates.',
+    );
+    expect(screen.getByRole('button', { name: 'Retry candidate search' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
   });
 
   it('badges the duplicates tab with the suggestion count', async () => {
@@ -670,60 +789,39 @@ describe('TicketDetailPage duplicate candidates', () => {
     renderPage('/tickets/tkt_123?section=duplicates');
 
     expect(await screen.findByText(/no reviewed or AI-suggested category yet/)).toBeInTheDocument();
-    expect(fetchTickets).not.toHaveBeenCalled();
+    expect(fetchDuplicateCandidates).not.toHaveBeenCalled();
     expect(
       screen.queryByRole('button', { name: 'Merge selected as duplicates' }),
     ).not.toBeInTheDocument();
   });
 
-  it('only offers ungrouped candidates that share the effective category', async () => {
-    vi.mocked(fetchTickets).mockResolvedValue([
-      buildCandidate({
-        ticketId: 'tkt_same_category',
-        ticketNumber: 'BG-2026-0201',
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-      buildCandidate({
-        ticketId: 'tkt_other_category',
-        ticketNumber: 'BG-2026-0202',
-        ai: { aiSuggestedCategory: 'waste' },
-      }),
-      buildCandidate({
-        ticketId: 'tkt_already_grouped',
-        ticketNumber: 'BG-2026-0203',
-        duplicateGroupId: 'dup_existing',
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-      buildCandidate({
-        ticketId: 'tkt_pending',
-        ticketNumber: 'BG-2026-0204',
-        ai: { aiProcessingStatus: 'pending' },
-      }),
-    ]);
+  it('offers every returned candidate as mergeable', async () => {
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([
+        buildCandidate({ ticketId: 'tkt_first', ticketNumber: 'BG-2026-0201' }),
+        buildCandidate({ ticketId: 'tkt_second', ticketNumber: 'BG-2026-0202' }),
+      ]),
+    );
     renderPage('/tickets/tkt_123?section=duplicates');
 
     expect(await screen.findByText('BG-2026-0201')).toBeInTheDocument();
-    expect(screen.queryByText('BG-2026-0202')).not.toBeInTheDocument();
-    expect(screen.queryByText('BG-2026-0203')).not.toBeInTheDocument();
-    expect(screen.queryByText('BG-2026-0204')).not.toBeInTheDocument();
+    expect(screen.getByText('BG-2026-0202')).toBeInTheDocument();
+    expect(screen.queryByText('Not available to merge')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
+    ).toBeEnabled();
   });
 
   it('gives each candidate enough context to make a responsible decision', async () => {
-    vi.mocked(fetchTickets).mockResolvedValue([
-      buildCandidate({
-        ticketId: 'tkt_same_category',
-        ticketNumber: 'BG-2026-0201',
-        description: 'Deep pothole opposite the campus entrance.',
-        priority: 'high',
-        location: {
-          latitude: 33.8965,
-          longitude: 35.4782,
-          addressText: 'Bliss Street, Beirut',
-          source: 'GPS',
-        },
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-    ]);
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([
+        buildCandidate({
+          ticketNumber: 'BG-2026-0201',
+          summary: 'Deep pothole opposite the campus entrance.',
+          priority: 'high',
+        }),
+      ]),
+    );
     renderPage('/tickets/tkt_123?section=duplicates');
 
     expect(await screen.findByText('BG-2026-0201')).toBeInTheDocument();
@@ -737,21 +835,24 @@ describe('TicketDetailPage duplicate candidates', () => {
   });
 });
 
-const comparisonCandidate = buildCandidate({
-  ticketId: 'tkt_same_category',
-  ticketNumber: 'BG-2026-0201',
-  trackingCode: 'XYZ789',
-  description: 'Second report about the same pothole.',
-  contact: { name: 'Citizen Name', phone: '+96170000000' },
-  imageObjectKey: 'reports/tkt_same_category.jpg',
-  ai: { aiSuggestedCategory: 'road_damage' },
-});
+const comparisonCandidate = buildCandidate();
 
-function mockComparisonDetail(candidate: Ticket = comparisonCandidate) {
-  vi.mocked(fetchTicketById).mockImplementation(async (requestedId: string) =>
-    requestedId === ticket.ticketId ? ticket : candidate,
+function mockComparisonDetail(candidate: DuplicateCandidate = comparisonCandidate) {
+  vi.mocked(fetchTicketById).mockResolvedValue(ticket);
+  vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([candidate]));
+  vi.mocked(fetchDuplicateComparison).mockResolvedValue(
+    buildComparison({
+      ticketId: candidate.ticketId,
+      ticketNumber: candidate.ticketNumber,
+      description: candidate.summary,
+      status: candidate.status,
+      category: candidate.category,
+      priority: candidate.priority,
+      createdAt: candidate.createdAt,
+      location: candidate.location,
+      distanceMeters: candidate.distanceMeters,
+    }),
   );
-  vi.mocked(fetchTickets).mockResolvedValue([candidate]);
 }
 
 async function findComparisonRegion(candidateNumber = 'BG-2026-0201') {
@@ -801,21 +902,23 @@ describe('TicketDetailPage duplicate comparison', () => {
     expect(
       await (await findComparisonRegion()).findByText('Second report about the same pothole.'),
     ).toBeInTheDocument();
-    expect(fetchTicketById).toHaveBeenCalledTimes(2);
+    expect(fetchDuplicateComparison).toHaveBeenCalledTimes(1);
+    expect(fetchDuplicateComparison).toHaveBeenCalledWith('tkt_123', 'tkt_same_category');
+    expect(fetchTicketById).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Hide comparison for BG-2026-0201' }));
     await user.click(screen.getByRole('button', { name: 'Compare BG-2026-0201' }));
     expect(
       (await findComparisonRegion()).getByText('Second report about the same pothole.'),
     ).toBeInTheDocument();
-    expect(fetchTicketById).toHaveBeenCalledTimes(2);
+    expect(fetchDuplicateComparison).toHaveBeenCalledTimes(1);
 
     await openSection(user, 'Activity');
     await openSection(user, /^Duplicates/);
     expect(
       (await findComparisonRegion()).getByText('Second report about the same pothole.'),
     ).toBeInTheDocument();
-    expect(fetchTicketById).toHaveBeenCalledTimes(2);
+    expect(fetchDuplicateComparison).toHaveBeenCalledTimes(1);
   });
 
   it('preserves selections while comparisons are opened and closed', async () => {
@@ -839,7 +942,7 @@ describe('TicketDetailPage duplicate comparison', () => {
     ).toBeChecked();
   });
 
-  it('excludes contact details, tracking codes, and raw storage keys from the comparison', async () => {
+  it('never requests the full candidate ticket for a comparison', async () => {
     const user = userEvent.setup();
     mockComparisonDetail();
     renderPage('/tickets/tkt_123?section=duplicates');
@@ -849,6 +952,10 @@ describe('TicketDetailPage duplicate comparison', () => {
       await (await findComparisonRegion()).findByText('Second report about the same pothole.'),
     ).toBeInTheDocument();
 
+    // The bounded projection is the only candidate read, so contact details,
+    // tracking codes, and storage keys never reach the browser at all.
+    expect(fetchDuplicateComparison).toHaveBeenCalledWith('tkt_123', 'tkt_same_category');
+    expect(vi.mocked(fetchTicketById).mock.calls).toEqual([['tkt_123']]);
     expect(screen.queryByText('XYZ789')).not.toBeInTheDocument();
     expect(screen.queryByText('Citizen Name')).not.toBeInTheDocument();
     expect(screen.queryByText('+96170000000')).not.toBeInTheDocument();
@@ -857,13 +964,10 @@ describe('TicketDetailPage duplicate comparison', () => {
 
   it('handles a failed comparison locally and retries without reloading the ticket', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchTickets).mockResolvedValue([comparisonCandidate]);
-    vi.mocked(fetchTicketById).mockImplementation(async (requestedId: string) => {
-      if (requestedId === ticket.ticketId) {
-        return ticket;
-      }
-      throw new Error('Comparison service unavailable.');
-    });
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([comparisonCandidate]));
+    vi.mocked(fetchDuplicateComparison).mockRejectedValue(
+      new Error('Comparison service unavailable.'),
+    );
     renderPage('/tickets/tkt_123?section=duplicates');
 
     await user.click(await screen.findByRole('button', { name: 'Compare BG-2026-0201' }));
@@ -888,7 +992,7 @@ describe('TicketDetailPage duplicate comparison', () => {
     expect(
       await (await findComparisonRegion()).findByText('Second report about the same pothole.'),
     ).toBeInTheDocument();
-    expect(fetchTicketById).toHaveBeenCalledTimes(2);
+    expect(fetchDuplicateComparison).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(queryComparisonRegion()).not.toBeInTheDocument());
@@ -897,19 +1001,29 @@ describe('TicketDetailPage duplicate comparison', () => {
     expect(
       await (await findComparisonRegion()).findByText('Second report about the same pothole.'),
     ).toBeInTheDocument();
-    expect(fetchTicketById).toHaveBeenCalledTimes(4);
+    expect(fetchTicketById).toHaveBeenCalledTimes(2);
+    expect(fetchDuplicateComparison).toHaveBeenCalledTimes(2);
   });
 });
+
+/**
+ * Selecting a candidate starts its comparison fetch; merging only unlocks once
+ * that comparison is ready, so tests wait for the gate to open.
+ */
+async function selectCandidate(user: TestUser, ticketNumber: string) {
+  await user.click(
+    await screen.findByRole('checkbox', { name: `Select ${ticketNumber} as a duplicate` }),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Merge selected as duplicates' })).toBeEnabled(),
+  );
+}
 
 describe('TicketDetailPage duplicate merge', () => {
   it('requires confirmation naming the canonical ticket before merging', async () => {
     const user = userEvent.setup();
-    const candidate = buildCandidate({
-      ticketId: 'tkt_same_category',
-      ticketNumber: 'BG-2026-0201',
-      ai: { aiSuggestedCategory: 'road_damage' },
-    });
-    vi.mocked(fetchTickets).mockResolvedValue([candidate]);
+    const candidate = buildCandidate();
+    mockComparisonDetail(candidate);
     vi.mocked(mergeDuplicateTickets).mockResolvedValue({
       ...ticket,
       duplicateGroupId: 'dup_new',
@@ -921,9 +1035,7 @@ describe('TicketDetailPage duplicate merge', () => {
     });
     renderPage('/tickets/tkt_123?section=duplicates');
 
-    await user.click(
-      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
-    );
+    await selectCandidate(user, 'BG-2026-0201');
     await user.click(screen.getByRole('button', { name: 'Merge selected as duplicates' }));
 
     const dialog = await screen.findByRole('dialog');
@@ -947,18 +1059,10 @@ describe('TicketDetailPage duplicate merge', () => {
 
   it('cancels the merge without applying the mutation', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchTickets).mockResolvedValue([
-      buildCandidate({
-        ticketId: 'tkt_same_category',
-        ticketNumber: 'BG-2026-0201',
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-    ]);
+    mockComparisonDetail();
     renderPage('/tickets/tkt_123?section=duplicates');
 
-    await user.click(
-      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
-    );
+    await selectCandidate(user, 'BG-2026-0201');
     await user.click(screen.getByRole('button', { name: 'Merge selected as duplicates' }));
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
@@ -970,13 +1074,7 @@ describe('TicketDetailPage duplicate merge', () => {
 
   it('disables merging until a valid candidate is selected', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchTickets).mockResolvedValue([
-      buildCandidate({
-        ticketId: 'tkt_same_category',
-        ticketNumber: 'BG-2026-0201',
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-    ]);
+    mockComparisonDetail();
     renderPage('/tickets/tkt_123?section=duplicates');
 
     const mergeButton = await screen.findByRole('button', {
@@ -984,32 +1082,30 @@ describe('TicketDetailPage duplicate merge', () => {
     });
     expect(mergeButton).toBeDisabled();
 
-    await user.click(screen.getByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }));
+    await selectCandidate(user, 'BG-2026-0201');
     expect(mergeButton).toBeEnabled();
   });
 
   it('summarises the selection when more than one candidate is chosen', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchTickets).mockResolvedValue([
-      buildCandidate({
-        ticketId: 'tkt_first',
-        ticketNumber: 'BG-2026-0201',
-        ai: { aiSuggestedCategory: 'road_damage' },
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([
+        buildCandidate({ ticketId: 'tkt_first', ticketNumber: 'BG-2026-0201' }),
+        buildCandidate({ ticketId: 'tkt_second', ticketNumber: 'BG-2026-0202' }),
+      ]),
+    );
+    vi.mocked(fetchDuplicateComparison).mockImplementation(async (_sourceId, candidateId) =>
+      buildComparison({
+        ticketId: candidateId,
+        ticketNumber: candidateId === 'tkt_first' ? 'BG-2026-0201' : 'BG-2026-0202',
       }),
-      buildCandidate({
-        ticketId: 'tkt_second',
-        ticketNumber: 'BG-2026-0202',
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-    ]);
+    );
     renderPage('/tickets/tkt_123?section=duplicates');
 
-    await user.click(
-      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
-    );
+    await selectCandidate(user, 'BG-2026-0201');
     expect(screen.queryByText(/Compare selected/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('checkbox', { name: 'Select BG-2026-0202 as a duplicate' }));
+    await selectCandidate(user, 'BG-2026-0202');
     expect(screen.getByText('Compare selected (2)')).toBeInTheDocument();
   });
 
@@ -1055,21 +1151,13 @@ describe('TicketDetailPage duplicate merge', () => {
 
   it('surfaces merge failures without discarding the ticket', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchTickets).mockResolvedValue([
-      buildCandidate({
-        ticketId: 'tkt_same_category',
-        ticketNumber: 'BG-2026-0201',
-        ai: { aiSuggestedCategory: 'road_damage' },
-      }),
-    ]);
+    mockComparisonDetail();
     vi.mocked(mergeDuplicateTickets).mockRejectedValue(
       new Error('Unable to merge duplicate tickets.'),
     );
     renderPage('/tickets/tkt_123?section=duplicates');
 
-    await user.click(
-      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
-    );
+    await selectCandidate(user, 'BG-2026-0201');
     await user.click(screen.getByRole('button', { name: 'Merge selected as duplicates' }));
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm merge' }),
@@ -1079,6 +1167,114 @@ describe('TicketDetailPage duplicate merge', () => {
       'Unable to merge duplicate tickets.',
     );
     expect(screen.getByText('BG-2026-0201')).toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage merge gate', () => {
+  it('starts the comparison as soon as a candidate is selected', async () => {
+    const user = userEvent.setup();
+    mockComparisonDetail();
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
+    );
+
+    await waitFor(() =>
+      expect(fetchDuplicateComparison).toHaveBeenCalledWith('tkt_123', 'tkt_same_category'),
+    );
+  });
+
+  it('keeps merging disabled while a selected comparison is still loading', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([buildCandidate()]));
+    vi.mocked(fetchDuplicateComparison).mockReturnValue(new Promise(() => undefined));
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
+    );
+
+    expect(screen.getByRole('button', { name: 'Merge selected as duplicates' })).toBeDisabled();
+    expect(
+      screen.getByText(/Merging unlocks once every comparison is ready to review/),
+    ).toBeInTheDocument();
+  });
+
+  it('does not open the confirm dialog while a selected comparison is unresolved', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([buildCandidate()]));
+    vi.mocked(fetchDuplicateComparison).mockReturnValue(new Promise(() => undefined));
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Merge selected as duplicates' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mergeDuplicateTickets).not.toHaveBeenCalled();
+  });
+
+  it('keeps merging disabled when a selected comparison failed and offers a retry', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([buildCandidate()]));
+    vi.mocked(fetchDuplicateComparison).mockRejectedValue(
+      new Error('Comparison service unavailable.'),
+    );
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select BG-2026-0201 as a duplicate' }),
+    );
+
+    expect(
+      await screen.findByText(/A comparison could not be loaded for 1 selected ticket/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Merge selected as duplicates' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Compare BG-2026-0201' }));
+    expect(screen.getByRole('button', { name: 'Retry comparison' })).toBeInTheDocument();
+
+    vi.mocked(fetchDuplicateComparison).mockResolvedValue(buildComparison());
+    await user.click(screen.getByRole('button', { name: 'Retry comparison' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Merge selected as duplicates' })).toBeEnabled(),
+    );
+  });
+
+  it('enables merging only once every selected comparison is ready', async () => {
+    const user = userEvent.setup();
+    let resolveSecond: ((comparison: DuplicateComparison) => void) | undefined;
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(
+      candidatePage([
+        buildCandidate({ ticketId: 'tkt_first', ticketNumber: 'BG-2026-0201' }),
+        buildCandidate({ ticketId: 'tkt_second', ticketNumber: 'BG-2026-0202' }),
+      ]),
+    );
+    vi.mocked(fetchDuplicateComparison).mockImplementation(async (_sourceId, candidateId) => {
+      if (candidateId === 'tkt_first') {
+        return buildComparison({ ticketId: 'tkt_first', ticketNumber: 'BG-2026-0201' });
+      }
+      return new Promise<DuplicateComparison>((resolve) => {
+        resolveSecond = resolve;
+      });
+    });
+    renderPage('/tickets/tkt_123?section=duplicates');
+
+    await selectCandidate(user, 'BG-2026-0201');
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select BG-2026-0202 as a duplicate' }));
+    const mergeButton = screen.getByRole('button', { name: 'Merge selected as duplicates' });
+    expect(mergeButton).toBeDisabled();
+
+    resolveSecond?.(buildComparison({ ticketId: 'tkt_second', ticketNumber: 'BG-2026-0202' }));
+
+    await waitFor(() => expect(mergeButton).toBeEnabled());
+    expect(
+      screen.queryByText(/Merging unlocks once every comparison is ready to review/),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -17,6 +17,12 @@ from app.schemas.staff_ticket_collection import (
 )
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
+from app.schemas.ticket_duplicates import (
+    DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+    DUPLICATE_CANDIDATE_MAX_LIMIT,
+    DuplicateCandidatePageResponse,
+    DuplicateComparisonResponse,
+)
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
@@ -337,6 +343,74 @@ def get_ticket(
             status_code=404,
         )
     return ticket
+
+
+@router.get(
+    "/tickets/{ticket_id}/duplicate-candidates",
+    response_model=DuplicateCandidatePageResponse,
+)
+def list_duplicate_candidates(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+    q: str | None = Query(default=None),
+    limit: int = Query(
+        default=DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+        ge=1,
+        le=DUPLICATE_CANDIDATE_MAX_LIMIT,
+    ),
+    cursor: str | None = Query(default=None),
+) -> DuplicateCandidatePageResponse | JSONResponse:
+    """Mergeable duplicate candidates for one ticket, cursor-paginated (issue #269)."""
+    try:
+        return ticket_service.list_duplicate_candidates(
+            ticket_id,
+            staff_principal=principal,
+            q=q,
+            limit=limit,
+            cursor=cursor,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The duplicate candidate cursor is invalid.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
+            status_code=400,
+        )
+
+
+@router.get(
+    "/tickets/{ticket_id}/duplicate-comparison/{candidate_ticket_id}",
+    response_model=DuplicateComparisonResponse,
+)
+def get_duplicate_comparison(
+    ticket_id: str,
+    candidate_ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> DuplicateComparisonResponse | JSONResponse:
+    """Bounded side-by-side comparison projection for the merge review (issue #269)."""
+    try:
+        return ticket_service.get_duplicate_comparison(
+            ticket_id,
+            candidate_ticket_id,
+            staff_principal=principal,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
 
 
 @router.patch("/tickets/{ticket_id}/status", response_model=TicketResponse)
