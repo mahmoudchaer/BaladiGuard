@@ -56,4 +56,25 @@ describe('citizenSession', () => {
     await clearCitizenSession();
     expect(await loadCitizenSession()).toBeNull();
   });
+
+  it('migrates pre-#270 cached contributionReady for verified phone-only profiles', async () => {
+    const { CITIZEN_SESSION_STORAGE_KEY } = await import('@/services/citizenSession');
+    const { __getSecureStoreMock } = await import('@/test/mocks/expo-secure-store');
+    __getSecureStoreMock().set(
+      CITIZEN_SESSION_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: 'tok_legacy',
+        expiresAt: Date.now() + 3_600_000,
+        profile: {
+          ...profile,
+          fullName: null,
+          contributionReady: false,
+        },
+      }),
+    );
+
+    const restored = await loadCitizenSession();
+    expect(restored?.profile.fullName).toBeNull();
+    expect(restored?.profile.contributionReady).toBe(true);
+  });
 });

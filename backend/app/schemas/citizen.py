@@ -86,11 +86,12 @@ class CitizenProfileUpdateRequest(BaseModel):
     @field_validator("full_name")
     @classmethod
     def validate_full_name(cls, value: str | None) -> str | None:
+        """Optional profile field (#270). Blank clears to null; non-empty must be 1–120."""
         if value is None:
             return None
         trimmed = value.strip()
         if not trimmed:
-            raise ValueError("fullName must be 1–120 characters after trimming.")
+            return None
         if len(trimmed) > 120:
             raise ValueError("fullName must be 1–120 characters after trimming.")
         return trimmed

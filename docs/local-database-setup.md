@@ -218,7 +218,7 @@ python -m app.workers.ai_worker --replay ai:tkt_<ticket-id> --once
 1. Run `make db-migrate` — all tables should report as created or already existing.
 2. Run `make db-seed` — should print counts for municipalities, departments, and categories. Optional for a basic submit/get check; required if your flow depends on seed reference data.
 3. Start the API with `DATABASE_BACKEND=dynamodb`.
-4. Obtain a **contribution-ready** citizen session (verify OTP + complete profile with full name and email). Demo/local account setup is described in the root [README.md](../README.md) and [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md). Environment variables come from `scripts/sync_env.py` / [env-sync.md](./env-sync.md) and [configuration.md](./configuration.md) — do not invent a parallel env workflow.
+4. Obtain a **contribution-ready** citizen session (verify phone OTP — full name is optional; #270). Demo/local account setup is described in the root [README.md](../README.md) and [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md). Environment variables come from `scripts/sync_env.py` / [env-sync.md](./env-sync.md) and [configuration.md](./configuration.md) — do not invent a parallel env workflow.
 5. Submit a ticket with the citizen Bearer token (client does **not** send contact/owner fields):
 
 ```bash
