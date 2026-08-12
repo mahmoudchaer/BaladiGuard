@@ -31,6 +31,36 @@ function isCitizenSession(value: unknown): value is CitizenSession {
   );
 }
 
+/**
+ * Contribution readiness matches the #270 backend contract: active account +
+ * verified phone. Full name is optional and must not gate contribution.
+ */
+export function isContributionReadyFromProfile(
+  profile: Pick<CitizenProfile, 'active' | 'phoneVerifiedAt'>,
+): boolean {
+  return Boolean(profile.active && String(profile.phoneVerifiedAt ?? '').trim());
+}
+
+/**
+ * Migrate pre-#270 cached profiles that still store `contributionReady: false`
+ * for verified phone-only citizens. Does not weaken expiry or 401 handling.
+ */
+export function migrateCitizenProfile(profile: CitizenProfile): CitizenProfile {
+  const contributionReady = isContributionReadyFromProfile(profile);
+  if (profile.contributionReady === contributionReady) {
+    return profile;
+  }
+  return { ...profile, contributionReady };
+}
+
+export function migrateCitizenSession(session: CitizenSession): CitizenSession {
+  const profile = migrateCitizenProfile(session.profile);
+  if (profile === session.profile) {
+    return session;
+  }
+  return { ...session, profile };
+}
+
 export async function loadCitizenSession(): Promise<CitizenSession | null> {
   let raw: string | null;
   try {
@@ -53,7 +83,12 @@ export async function loadCitizenSession(): Promise<CitizenSession | null> {
       await clearCitizenSession();
       return null;
     }
-    return parsed;
+    const migrated = migrateCitizenSession(parsed);
+    if (migrated.profile.contributionReady !== parsed.profile.contributionReady) {
+      // Persist the #270 readiness migration so offline restores stay correct.
+      await saveCitizenSession(migrated);
+    }
+    return migrated;
   } catch {
     await clearCitizenSession();
     return null;
@@ -61,7 +96,10 @@ export async function loadCitizenSession(): Promise<CitizenSession | null> {
 }
 
 export async function saveCitizenSession(session: CitizenSession): Promise<void> {
-  await SecureStore.setItemAsync(CITIZEN_SESSION_STORAGE_KEY, JSON.stringify(session));
+  await SecureStore.setItemAsync(
+    CITIZEN_SESSION_STORAGE_KEY,
+    JSON.stringify(migrateCitizenSession(session)),
+  );
 }
 
 export async function clearCitizenSession(): Promise<void> {
@@ -80,6 +118,6 @@ export function buildCitizenSession(
   return {
     accessToken,
     expiresAt: Date.now() + expiresInSeconds * 1000,
-    profile,
+    profile: migrateCitizenProfile(profile),
   };
 }

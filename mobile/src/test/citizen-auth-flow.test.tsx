@@ -127,6 +127,28 @@ describe('citizen auth flows', () => {
     expect(__getRouterMockState().replaceCalls).toHaveLength(0);
   });
 
+  it('migrates pre-#270 phone-only cached readiness when profile refresh fails', async () => {
+    // Simulate a session persisted before #270: verified phone, no name, stale false flag.
+    const legacyPhoneOnlySession = {
+      accessToken: 'tok_legacy',
+      expiresAt: Date.now() + 3_600_000,
+      profile: {
+        ...readyProfile,
+        fullName: null,
+        contributionReady: false,
+      },
+    };
+    const { CITIZEN_SESSION_STORAGE_KEY } = await import('@/services/citizenSession');
+    const { __getSecureStoreMock } = await import('@/test/mocks/expo-secure-store');
+    __getSecureStoreMock().set(CITIZEN_SESSION_STORAGE_KEY, JSON.stringify(legacyPhoneOnlySession));
+    vi.mocked(getCitizenMe).mockRejectedValue(new Error('Network unavailable'));
+
+    const screen = await renderWithProvidersAsync(<ReportScreen />);
+    expect(findByTestId(screen, 'report-form')).toBeTruthy();
+    expect(__getRouterMockState().replaceCalls).toHaveLength(0);
+    expect(getCitizenMe).toHaveBeenCalled();
+  });
+
   it('restores a session on home and supports logout', async () => {
     await saveCitizenSession(buildCitizenSession('tok_1', 3600, readyProfile));
     vi.mocked(getCitizenMe).mockResolvedValue(readyProfile);

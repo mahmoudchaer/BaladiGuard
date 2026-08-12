@@ -21,7 +21,9 @@ import { setCitizenAccessTokenProvider, setCitizenUnauthorizedHandler } from '@/
 import {
   buildCitizenSession,
   clearCitizenSession,
+  isContributionReadyFromProfile,
   loadCitizenSession,
+  migrateCitizenSession,
   saveCitizenSession,
 } from '@/services/citizenSession';
 import { clearReportDraft } from '@/services/reportDraft';
@@ -87,8 +89,13 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
           setSession(null);
           return;
         }
-        // Offline / transient: keep cached session so contribution gates still work.
-        setSession(stored);
+        // Offline / transient: keep cached session (with #270 readiness migration)
+        // so contribution gates still work without a successful profile refresh.
+        const migrated = migrateCitizenSession(stored);
+        setSession(migrated);
+        if (migrated.profile.contributionReady !== stored.profile.contributionReady) {
+          await saveCitizenSession(migrated);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -188,7 +195,7 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       profile: session?.profile ?? null,
       isLoading,
       isAuthenticated: Boolean(session?.accessToken),
-      contributionReady: Boolean(session?.profile?.contributionReady),
+      contributionReady: session ? isContributionReadyFromProfile(session.profile) : false,
       accessToken: session?.accessToken ?? null,
       restoreSession,
       refreshProfile,
