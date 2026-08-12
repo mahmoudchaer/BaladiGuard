@@ -34,7 +34,7 @@ const DEFAULT_FILTERS: PublicBrowseFilters = {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isAuthenticated, contributionReady, profile, logout, isLoading } = useCitizenAuth();
+  const { isAuthenticated, profile, logout, isLoading } = useCitizenAuth();
   const [reports, setReports] = useState<PublicTicketResponse[]>([]);
   const [filters, setFilters] = useState<PublicBrowseFilters>(DEFAULT_FILTERS);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
@@ -151,9 +151,7 @@ export default function HomeScreen() {
               Your account
             </Text>
             <Text variant="bodyMedium" style={styles.sessionText}>
-              {contributionReady
-                ? `Signed in as ${profile?.fullName ?? profile?.phone}`
-                : `Signed in as ${profile?.fullName ?? profile?.phone}\nFinish setup in Profile to submit reports.`}
+              {`Signed in as ${profile?.fullName?.trim() || profile?.phone}`}
             </Text>
             <View style={styles.sessionActions}>
               <Link href={'/profile' as Href} asChild>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
@@ -6,7 +6,6 @@ import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-route
 import { useCitizenAuth } from '@/auth';
 import { sanitizeReturnTo } from '@/auth/returnTo';
 import { BrandMark, BrandStripe } from '@/components/BrandMark';
-import { FullNameForm } from '@/features/citizen-auth/FullNameForm';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
 import { colors, spacing } from '@/theme';
@@ -18,17 +17,9 @@ export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = useMemo(() => sanitizeReturnTo(params.returnTo), [params.returnTo]);
-  const { applyVerifyResponse, completeFullName, contributionReady, isAuthenticated, isLoading } =
-    useCitizenAuth();
+  const { applyVerifyResponse, contributionReady, isAuthenticated, isLoading } = useCitizenAuth();
 
   const [challenge, setChallenge] = useState<ChallengeState>(null);
-  const [needsFullName, setNeedsFullName] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && isAuthenticated && !contributionReady && !challenge) {
-      setNeedsFullName(true);
-    }
-  }, [isLoading, isAuthenticated, contributionReady, challenge]);
 
   const finishAndReturn = () => {
     router.replace(returnTo as Href);
@@ -36,19 +27,11 @@ export default function LoginScreen() {
 
   const handleVerified = async (response: CitizenOtpVerifyResponse) => {
     await applyVerifyResponse(response);
-    if (response.contributionReady) {
-      finishAndReturn();
-      return;
-    }
-    setNeedsFullName(true);
-  };
-
-  const handleFullName = async (fullName: string) => {
-    await completeFullName(fullName);
+    // Verified phone alone is contribution-ready (#270); no mandatory name step.
     finishAndReturn();
   };
 
-  if (!isLoading && isAuthenticated && contributionReady && !challenge && !needsFullName) {
+  if (!isLoading && isAuthenticated && contributionReady && !challenge) {
     return <Redirect href={returnTo as Href} />;
   }
 
@@ -60,9 +43,7 @@ export default function LoginScreen() {
             <BrandStripe />
             <BrandMark size={32} />
           </View>
-          {needsFullName ? (
-            <FullNameForm onSubmitName={handleFullName} />
-          ) : challenge ? (
+          {challenge ? (
             <OtpVerifyForm
               challengeId={challenge.challengeId}
               expiresIn={challenge.expiresIn}
@@ -82,7 +63,10 @@ export default function LoginScreen() {
               onVerified={handleVerified}
             />
           ) : (
-            <PhoneEntryForm onSuccess={setChallenge} />
+            <PhoneEntryForm
+              onSuccess={setChallenge}
+              subtitle="Enter your mobile number to receive a one-time verification code. A verified phone is enough to submit reports — no password or full name required."
+            />
           )}
         </View>
       </ScrollView>

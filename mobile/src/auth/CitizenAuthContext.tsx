@@ -21,7 +21,9 @@ import { setCitizenAccessTokenProvider, setCitizenUnauthorizedHandler } from '@/
 import {
   buildCitizenSession,
   clearCitizenSession,
+  isContributionReadyFromProfile,
   loadCitizenSession,
+  migrateCitizenSession,
   saveCitizenSession,
 } from '@/services/citizenSession';
 import { clearReportDraft } from '@/services/reportDraft';
@@ -36,7 +38,6 @@ type CitizenAuthContextValue = {
   restoreSession: () => Promise<void>;
   refreshProfile: () => Promise<CitizenProfile | null>;
   applyVerifyResponse: (response: Awaited<ReturnType<typeof verifyCitizenOtp>>) => Promise<void>;
-  completeFullName: (fullName: string) => Promise<CitizenProfile>;
   updateProfile: (patch: CitizenProfileUpdatePayload) => Promise<CitizenProfile>;
   /** Clears local session. By default also clears this user's report draft (#258). */
   logout: (options?: { retainReportDraft?: boolean }) => Promise<void>;
@@ -88,8 +89,13 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
           setSession(null);
           return;
         }
-        // Offline / transient: keep cached session so contribution gates still work.
-        setSession(stored);
+        // Offline / transient: keep cached session (with #270 readiness migration)
+        // so contribution gates still work without a successful profile refresh.
+        const migrated = migrateCitizenSession(stored);
+        setSession(migrated);
+        if (migrated.profile.contributionReady !== stored.profile.contributionReady) {
+          await saveCitizenSession(migrated);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -137,17 +143,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       return profile;
     },
     [session],
-  );
-
-  const completeFullName = useCallback(
-    async (fullName: string) => {
-      if (!session?.accessToken) {
-        throw new Error('Sign in before updating your name.');
-      }
-      const profile = await updateCitizenProfile(session.accessToken, { fullName });
-      return applyProfileToSession(profile);
-    },
-    [session, applyProfileToSession],
   );
 
   const updateProfile = useCallback(
@@ -200,12 +195,11 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       profile: session?.profile ?? null,
       isLoading,
       isAuthenticated: Boolean(session?.accessToken),
-      contributionReady: Boolean(session?.profile?.contributionReady),
+      contributionReady: session ? isContributionReadyFromProfile(session.profile) : false,
       accessToken: session?.accessToken ?? null,
       restoreSession,
       refreshProfile,
       applyVerifyResponse,
-      completeFullName,
       updateProfile,
       logout,
       clearSessionLocally,
@@ -216,7 +210,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       restoreSession,
       refreshProfile,
       applyVerifyResponse,
-      completeFullName,
       updateProfile,
       logout,
       clearSessionLocally,

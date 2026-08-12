@@ -23,7 +23,7 @@ export function AppRoutes() {
           element={
             <StubPage
               title="Sign in"
-              message="Citizen account sign-in arrives in the follow-up Sprint 7 issue. Guests can still browse public reports and track by code."
+              message="Citizen phone OTP sign-in arrives in the follow-up Sprint 7 issue (#264). A verified phone alone will be enough to contribute — full name stays optional (#270). Guests can still browse public reports and track by code."
             />
           }
         />
@@ -32,7 +32,7 @@ export function AppRoutes() {
           element={
             <StubPage
               title="Submit a report"
-              message="Web report creation is planned for the citizen account/contribution follow-up. Use the mobile app to submit today."
+              message="Web report creation follows citizen phone OTP accounts (#264/#270): verified phone only, no mandatory full name. Use the mobile app to submit today."
             />
           }
         />
