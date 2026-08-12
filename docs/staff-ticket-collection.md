@@ -83,6 +83,19 @@ instead of treating the response as end-of-results.
 Search and queue views (critical / high / unassigned / overdue) are sent as these
 server filters — they are not client-only filters over the current page.
 
+## Duplicate workspace reads (issue #269)
+
+The staff page path is also the scan source for
+`GET /v1/tickets/{ticketId}/duplicate-candidates`. That endpoint pages the scoped staff
+list with `openOnly` and post-filters for the source's effective category, using the same
+continue-fetch pattern as `slaState`: it keeps pulling source pages (bounded rounds) until
+the requested page size is filled. When the page fills mid-scan it returns a continuation
+cursor built from the last included ticket, so remaining matches on that source page are
+never skipped. `GET /v1/tickets/{ticketId}/duplicate-comparison/{candidateTicketId}` is a
+direct scoped read of both tickets. Both projections are bounded (no contact, tracking
+code, `imageObjectKey`, history, AI blobs, or public drafts) and are documented in
+`docs/MVP_API_CONTRACT.md`.
+
 ## Map viewport
 
 `GET /v1/tickets/map` accepts `north`, `south`, `east`, `west`, `zoom`, the same
@@ -113,3 +126,8 @@ The admin dashboard:
   zooms, markers when safe). An accessible marker list sits below the map.
 - Mutations invalidate affected list cache entries; full detail / evidence remains on
   `GET /v1/tickets/{ticketId}`.
+- Loads merge candidates from `GET /v1/tickets/{ticketId}/duplicate-candidates`
+  (debounced server-side search, Load more via `nextCursor`) rather than filtering one
+  ticket-list page, and reads each side-by-side comparison from
+  `GET /v1/tickets/{ticketId}/duplicate-comparison/{candidateTicketId}`. Merging stays
+  disabled until every selected candidate's comparison has loaded.

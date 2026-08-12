@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -14,6 +15,10 @@ from app.schemas.staff_ticket_collection import (
 from app.schemas.stored_audit_history import StoredAuditHistory
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
+from app.schemas.ticket_duplicates import (
+    DuplicateCandidateResponse,
+    DuplicateComparisonResponse,
+)
 from app.schemas.ticket_response import (
     CitizenTicketDepartment,
     CitizenTicketLocation,
@@ -34,6 +39,7 @@ from app.schemas.ticket_response import (
     TicketStatusHistoryEntry,
 )
 from app.services.complaints.sla import derive_ticket_sla
+from app.services.duplicates import effective_ticket_category
 from app.services.routing import department_name
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
@@ -132,6 +138,65 @@ def _bounded_list_summary(ticket: StoredTicket) -> str:
                 return text
             return text[: LIST_SUMMARY_MAX_CHARS - 1].rstrip() + "…"
     return ""
+
+
+def map_ticket_to_duplicate_candidate(
+    ticket: StoredTicket,
+    *,
+    distance_meters: float | None = None,
+    suggested: bool = False,
+    score: float | None = None,
+    category_match: Literal["same", "similar"] | None = None,
+) -> DuplicateCandidateResponse:
+    """Bounded merge-candidate projection — no contact, tracking code, or object key."""
+    return DuplicateCandidateResponse(
+        ticketId=ticket.ticket_id,
+        ticketNumber=ticket.ticket_number,
+        status=ticket.status,
+        category=effective_ticket_category(ticket),
+        priority=ticket.priority,
+        summary=_bounded_list_summary(ticket),
+        createdAt=ticket.created_at,
+        location=_duplicate_location(ticket),
+        distanceMeters=distance_meters,
+        imageUrl=build_image_url(ticket.image_object_key),
+        suggested=suggested,
+        score=score,
+        categoryMatch=category_match,
+        mergeable=True,
+    )
+
+
+def map_ticket_to_duplicate_comparison(
+    ticket: StoredTicket,
+    *,
+    distance_meters: float | None = None,
+) -> DuplicateComparisonResponse:
+    """Bounded side-by-side comparison projection.
+
+    Deliberately omits contact, tracking code, raw ``imageObjectKey``, audit and
+    status history, AI fields, public drafts, and owner identity.
+    """
+    return DuplicateComparisonResponse(
+        ticketId=ticket.ticket_id,
+        ticketNumber=ticket.ticket_number,
+        description=ticket.description,
+        status=ticket.status,
+        category=effective_ticket_category(ticket),
+        priority=ticket.priority,
+        createdAt=ticket.created_at,
+        location=_duplicate_location(ticket),
+        imageUrl=build_image_url(ticket.image_object_key),
+        distanceMeters=distance_meters,
+    )
+
+
+def _duplicate_location(ticket: StoredTicket) -> TicketListLocation:
+    return TicketListLocation(
+        latitude=ticket.location.latitude,
+        longitude=ticket.location.longitude,
+        addressText=ticket.location.address_text,
+    )
 
 
 def map_ticket_to_citizen_response(

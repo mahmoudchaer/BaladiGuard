@@ -67,6 +67,29 @@ export type TicketStatusHistoryEntry = {
   note?: string | null;
 };
 
+export type TicketAuditActionType =
+  | 'STATUS_CHANGE'
+  | 'CATEGORY_REVIEW'
+  | 'DEPARTMENT_ASSIGN'
+  | 'DUPLICATE_MERGE'
+  | 'PUBLIC_CONTENT_UPDATE';
+
+export type TicketStaffRole = 'municipal_staff' | 'administrator';
+
+/**
+ * Staff-only audit entry returned by the ticket read endpoint.
+ * Mirrors backend/app/schemas/ticket_response.py TicketAuditHistoryEntry.
+ */
+export type TicketAuditHistoryEntry = {
+  actionType: TicketAuditActionType;
+  summary: string;
+  changedAt: string;
+  actorId?: string;
+  actorRole?: TicketStaffRole;
+  previousValue?: string;
+  newValue?: string;
+};
+
 export type TicketDuplicateReference = {
   duplicateGroupId: string;
   ticketIds?: string[];
@@ -81,6 +104,65 @@ export type TicketDuplicateSuggestion = {
   category: string;
   score?: number;
   categoryMatch?: 'same' | 'similar';
+};
+
+/** Coarse location shared by the bounded duplicate-workspace projections. */
+export type DuplicateLocation = {
+  latitude: number;
+  longitude: number;
+  addressText: string;
+};
+
+/**
+ * One mergeable candidate from `GET /v1/tickets/{id}/duplicate-candidates`.
+ *
+ * The endpoint only returns ungrouped, open tickets that share the source's
+ * effective category, so every candidate satisfies the merge preconditions.
+ */
+export type DuplicateCandidate = {
+  ticketId: string;
+  ticketNumber: string;
+  status: TicketStatus;
+  category: string;
+  priority: TicketPriority | null;
+  summary: string;
+  createdAt: string;
+  location: DuplicateLocation;
+  distanceMeters?: number;
+  /** Presigned URL only; raw storage keys are never exposed. */
+  imageUrl?: string;
+  /** Surfaced by the automated duplicate detector rather than staff browsing. */
+  suggested: boolean;
+  score?: number;
+  categoryMatch?: 'same' | 'similar';
+  mergeable: boolean;
+};
+
+export type DuplicateCandidatePage = {
+  items: DuplicateCandidate[];
+  nextCursor: string | null;
+  limit: number;
+};
+
+/**
+ * Bounded projection used for the side-by-side duplicate comparison.
+ *
+ * Deliberately excludes citizen contact details, tracking codes, raw storage
+ * keys, audit/status history, AI fields, and public-content drafts: staff
+ * comparing candidates only need the evidence to judge whether two reports
+ * describe the same problem.
+ */
+export type DuplicateComparison = {
+  ticketId: string;
+  ticketNumber: string;
+  description: string;
+  status: TicketStatus;
+  category: string;
+  priority: TicketPriority | null;
+  createdAt: string;
+  location: DuplicateLocation;
+  imageUrl?: string;
+  distanceMeters?: number;
 };
 
 export type PublicTicketStatus = 'DRAFT' | 'PUBLISHED' | 'UNPUBLISHED';
@@ -125,6 +207,7 @@ export type Ticket = {
   duplicateGroup?: TicketDuplicateReference | null;
   duplicateSuggestions?: TicketDuplicateSuggestion[];
   statusHistory?: TicketStatusHistoryEntry[];
+  auditHistory?: TicketAuditHistoryEntry[];
   createdAt: string;
   updatedAt: string | null;
   updatedBy?: string | null;

@@ -1,11 +1,18 @@
 import type {
   AiProcessingStatus,
+  DuplicateCandidate,
+  DuplicateCandidatePage,
+  DuplicateComparison,
+  DuplicateLocation,
   PublicTicketStatus,
   Ticket,
   TicketAiFields,
+  TicketAuditActionType,
+  TicketAuditHistoryEntry,
   TicketDuplicateReference,
   TicketDuplicateSuggestion,
   TicketLocation,
+  TicketStaffRole,
   TicketStatus,
   TicketStatusHistoryEntry,
 } from '@/types/ticket';
@@ -28,6 +35,7 @@ import {
   writeTicketListCache,
 } from '@/services/ticketListCache';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
+import { distanceMetersBetween } from '@/utils/ticketLocation';
 
 const MOCK_LOAD_DELAY_MS = 350;
 const DEFAULT_PAGE_LIMIT = 25;
@@ -845,6 +853,73 @@ function normalizeStatusHistory(data: unknown): TicketStatusHistoryEntry[] {
   });
 }
 
+const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
+  'STATUS_CHANGE',
+  'CATEGORY_REVIEW',
+  'DEPARTMENT_ASSIGN',
+  'DUPLICATE_MERGE',
+  'PUBLIC_CONTENT_UPDATE',
+];
+
+function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {
+  return AUDIT_ACTION_TYPES.find((actionType) => actionType === value) ?? null;
+}
+
+function normalizeAuditActorRole(value: unknown): TicketStaffRole | undefined {
+  return value === 'municipal_staff' || value === 'administrator' ? value : undefined;
+}
+
+function optionalTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * Staff-only audit rows. Entries without a usable action type or timestamp are
+ * dropped so a partially malformed audit trail never breaks the ticket read.
+ */
+function normalizeAuditHistory(data: unknown): TicketAuditHistoryEntry[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(isRecord).flatMap((entry) => {
+    const actionType = normalizeAuditActionType(entry.actionType);
+    if (!actionType) {
+      return [];
+    }
+
+    const changedAt = typeof entry.changedAt === 'string' ? entry.changedAt.trim() : '';
+    if (!changedAt || Number.isNaN(Date.parse(changedAt))) {
+      return [];
+    }
+
+    const normalized: TicketAuditHistoryEntry = {
+      actionType,
+      summary: optionalTrimmedString(entry.summary) ?? '',
+      changedAt,
+    };
+
+    const actorId = optionalTrimmedString(entry.actorId);
+    if (actorId) {
+      normalized.actorId = actorId;
+    }
+    const actorRole = normalizeAuditActorRole(entry.actorRole);
+    if (actorRole) {
+      normalized.actorRole = actorRole;
+    }
+    const previousValue = optionalTrimmedString(entry.previousValue);
+    if (previousValue) {
+      normalized.previousValue = previousValue;
+    }
+    const newValue = optionalTrimmedString(entry.newValue);
+    if (newValue) {
+      normalized.newValue = newValue;
+    }
+
+    return [normalized];
+  });
+}
+
 function normalizeTicketAiFields(data: unknown): TicketAiFields | undefined {
   if (!isRecord(data)) {
     return undefined;
@@ -1021,6 +1096,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     duplicateGroup: normalizeDuplicateGroup(data.duplicateGroup),
     duplicateSuggestions: normalizeDuplicateSuggestions(data.duplicateSuggestions),
     statusHistory: normalizeStatusHistory(data.statusHistory),
+    auditHistory: normalizeAuditHistory(data.auditHistory),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
@@ -1072,6 +1148,302 @@ export async function fetchTicketById(ticketId: string): Promise<Ticket | null> 
   }
 
   return fetchTicketByIdFromApi(ticketId);
+}
+
+export type FetchDuplicateCandidatesOptions = {
+  q?: string;
+  cursor?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+};
+
+const DUPLICATE_CANDIDATE_LIMIT = 20;
+
+function normalizeTicketPriority(value: unknown): Ticket['priority'] {
+  return value === 'low' || value === 'medium' || value === 'high' || value === 'critical'
+    ? value
+    : null;
+}
+
+function normalizeDuplicateLocation(data: unknown): DuplicateLocation {
+  const location = isRecord(data) ? data : {};
+  return {
+    latitude: typeof location.latitude === 'number' ? location.latitude : Number.NaN,
+    longitude: typeof location.longitude === 'number' ? location.longitude : Number.NaN,
+    addressText: typeof location.addressText === 'string' ? location.addressText.trim() : '',
+  };
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * Keeps only the bounded candidate contract. Any extra field a server or proxy
+ * adds (contact, tracking code, raw object key) is dropped here rather than
+ * relying on the UI to avoid rendering it.
+ */
+function normalizeDuplicateCandidate(data: unknown): DuplicateCandidate | null {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    return null;
+  }
+
+  const candidate: DuplicateCandidate = {
+    ticketId: data.ticketId,
+    ticketNumber:
+      typeof data.ticketNumber === 'string' && data.ticketNumber.trim().length > 0
+        ? data.ticketNumber
+        : data.ticketId,
+    status: normalizeTicketStatus(data.status),
+    category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
+    priority: normalizeTicketPriority(data.priority),
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    location: normalizeDuplicateLocation(data.location),
+    suggested: data.suggested === true,
+    // The endpoint only returns rows that already satisfy the merge rules.
+    mergeable: data.mergeable !== false,
+  };
+
+  const distanceMeters = optionalFiniteNumber(data.distanceMeters);
+  if (distanceMeters !== undefined) {
+    candidate.distanceMeters = distanceMeters;
+  }
+  if (typeof data.imageUrl === 'string' && data.imageUrl.trim().length > 0) {
+    candidate.imageUrl = data.imageUrl;
+  }
+  const score = optionalFiniteNumber(data.score);
+  if (score !== undefined) {
+    candidate.score = score;
+  }
+  if (data.categoryMatch === 'same' || data.categoryMatch === 'similar') {
+    candidate.categoryMatch = data.categoryMatch;
+  }
+
+  return candidate;
+}
+
+function normalizeDuplicateCandidatePage(data: unknown): DuplicateCandidatePage {
+  if (!isRecord(data) || !Array.isArray(data.items)) {
+    throw new Error('Unexpected duplicate candidate response shape.');
+  }
+
+  return {
+    items: data.items.flatMap((item) => {
+      const candidate = normalizeDuplicateCandidate(item);
+      return candidate ? [candidate] : [];
+    }),
+    nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null,
+    limit: typeof data.limit === 'number' ? data.limit : DUPLICATE_CANDIDATE_LIMIT,
+  };
+}
+
+function normalizeDuplicateComparison(data: unknown): DuplicateComparison {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    throw new Error('Unexpected duplicate comparison response shape.');
+  }
+
+  const comparison: DuplicateComparison = {
+    ticketId: data.ticketId,
+    ticketNumber:
+      typeof data.ticketNumber === 'string' && data.ticketNumber.trim().length > 0
+        ? data.ticketNumber
+        : data.ticketId,
+    description: typeof data.description === 'string' ? data.description : '',
+    status: normalizeTicketStatus(data.status),
+    category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
+    priority: normalizeTicketPriority(data.priority),
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    location: normalizeDuplicateLocation(data.location),
+  };
+
+  if (typeof data.imageUrl === 'string' && data.imageUrl.trim().length > 0) {
+    comparison.imageUrl = data.imageUrl;
+  }
+  const distanceMeters = optionalFiniteNumber(data.distanceMeters);
+  if (distanceMeters !== undefined) {
+    comparison.distanceMeters = distanceMeters;
+  }
+
+  return comparison;
+}
+
+function mockCandidateSummary(ticket: Ticket): string {
+  return ticket.description.length > 240
+    ? `${ticket.description.slice(0, 239).trimEnd()}…`
+    : ticket.description;
+}
+
+async function fetchMockDuplicateCandidates(
+  ticketId: string,
+  options: FetchDuplicateCandidatesOptions,
+): Promise<DuplicateCandidatePage> {
+  const limit = options.limit ?? DUPLICATE_CANDIDATE_LIMIT;
+  const tickets = await fetchMockTickets();
+  const source = tickets.find((ticket) => ticket.ticketId === ticketId);
+  if (!source) {
+    throw new Error('Ticket was not found.');
+  }
+
+  const sourceCategory = effectiveTicketCategory(source);
+  if (sourceCategory === null) {
+    return { items: [], nextCursor: null, limit };
+  }
+
+  const matches = tickets.filter(
+    (candidate) =>
+      candidate.ticketId !== source.ticketId &&
+      !candidate.duplicateGroupId &&
+      effectiveTicketCategory(candidate) === sourceCategory &&
+      ticketMatchesFetchFilters(candidate, { openOnly: true, q: options.q }),
+  );
+  const suggestedIds = new Set(
+    (source.duplicateSuggestions ?? []).map((suggestion) => suggestion.ticketId),
+  );
+
+  const start = options.cursor ? Number.parseInt(options.cursor, 10) || 0 : 0;
+  const slice = matches.slice(start, start + limit);
+  const nextStart = start + limit;
+
+  return {
+    items: slice.map((candidate) => {
+      const distance = distanceMetersBetween(source.location, candidate.location);
+      const item: DuplicateCandidate = {
+        ticketId: candidate.ticketId,
+        ticketNumber: candidate.ticketNumber,
+        status: candidate.status,
+        category: effectiveTicketCategory(candidate) ?? candidate.category,
+        priority: candidate.priority,
+        summary: mockCandidateSummary(candidate),
+        createdAt: candidate.createdAt,
+        location: {
+          latitude: candidate.location.latitude,
+          longitude: candidate.location.longitude,
+          addressText: candidate.location.addressText,
+        },
+        suggested: suggestedIds.has(candidate.ticketId),
+        mergeable: true,
+      };
+      if (distance !== null) {
+        item.distanceMeters = distance;
+      }
+      return item;
+    }),
+    nextCursor: nextStart < matches.length ? String(nextStart) : null,
+    limit,
+  };
+}
+
+async function fetchDuplicateCandidatesFromApi(
+  ticketId: string,
+  options: FetchDuplicateCandidatesOptions,
+): Promise<DuplicateCandidatePage> {
+  const url = new URL(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/duplicate-candidates`,
+  );
+  const query = options.q?.trim();
+  if (query) {
+    url.searchParams.set('q', query);
+  }
+  if (options.cursor) {
+    url.searchParams.set('cursor', options.cursor);
+  }
+  if (options.limit) {
+    url.searchParams.set('limit', String(options.limit));
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      ...getStaffAuthHeaders(),
+    },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load duplicate candidates.');
+  }
+
+  return normalizeDuplicateCandidatePage(await response.json());
+}
+
+/** Dedicated merge-candidate search for one ticket, cursor-paginated (issue #269). */
+export async function fetchDuplicateCandidates(
+  ticketId: string,
+  options: FetchDuplicateCandidatesOptions = {},
+): Promise<DuplicateCandidatePage> {
+  if (config.useMockData) {
+    return fetchMockDuplicateCandidates(ticketId, options);
+  }
+
+  return fetchDuplicateCandidatesFromApi(ticketId, options);
+}
+
+async function fetchMockDuplicateComparison(
+  ticketId: string,
+  candidateTicketId: string,
+): Promise<DuplicateComparison | null> {
+  const source = await fetchMockTicketById(ticketId);
+  const candidate = await fetchMockTicketById(candidateTicketId);
+  if (!source || !candidate) {
+    return null;
+  }
+
+  const comparison: DuplicateComparison = {
+    ticketId: candidate.ticketId,
+    ticketNumber: candidate.ticketNumber,
+    description: candidate.description,
+    status: candidate.status,
+    category: effectiveTicketCategory(candidate) ?? candidate.category,
+    priority: candidate.priority,
+    createdAt: candidate.createdAt,
+    location: {
+      latitude: candidate.location.latitude,
+      longitude: candidate.location.longitude,
+      addressText: candidate.location.addressText,
+    },
+  };
+  const distance = distanceMetersBetween(source.location, candidate.location);
+  if (distance !== null) {
+    comparison.distanceMeters = distance;
+  }
+  return comparison;
+}
+
+async function fetchDuplicateComparisonFromApi(
+  ticketId: string,
+  candidateTicketId: string,
+): Promise<DuplicateComparison | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}` +
+      `/duplicate-comparison/${encodeURIComponent(candidateTicketId)}`,
+    {
+      headers: {
+        ...getStaffAuthHeaders(),
+      },
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load the duplicate comparison.');
+  }
+
+  return normalizeDuplicateComparison(await response.json());
+}
+
+/** Bounded side-by-side comparison projection for the merge review (issue #269). */
+export async function fetchDuplicateComparison(
+  ticketId: string,
+  candidateTicketId: string,
+): Promise<DuplicateComparison | null> {
+  if (config.useMockData) {
+    return fetchMockDuplicateComparison(ticketId, candidateTicketId);
+  }
+
+  return fetchDuplicateComparisonFromApi(ticketId, candidateTicketId);
 }
 
 async function updateMockTicketStatus(

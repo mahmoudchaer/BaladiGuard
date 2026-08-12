@@ -996,6 +996,136 @@ Staff responses also append a `DEPARTMENT_ASSIGN` entry to `auditHistory`.
 | `UNAUTHORIZED`     |    401 | Missing/invalid staff auth once issue #72 is wired.                   |
 | `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the requested department. |
 
+## `GET /v1/tickets/{ticketId}/duplicate-candidates`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Dedicated merge-candidate search for one ticket (issue #269). The admin duplicate workspace
+uses it instead of scanning a single `GET /v1/tickets` page, so a valid candidate is never
+hidden behind list pagination or an unrelated dashboard filter.
+
+### Query Parameters
+
+| Name     | Type   |                Default | Notes                                                                    |
+| -------- | ------ | ---------------------: | ------------------------------------------------------------------------ |
+| `q`      | string |                   none | Case-insensitive match on ticket number, description, and address text. |
+| `limit`  | int    |                     20 | Page size, max 50.                                                       |
+| `cursor` | string |                   none | Opaque continuation cursor from a previous `nextCursor`.                  |
+
+### Candidate rules
+
+- The source ticket must be visible to the caller under the same staff scope as
+  `GET /v1/tickets/{ticketId}`; otherwise `404 TICKET_NOT_FOUND`.
+- The source ticket must already be classified. An unclassified source has no effective
+  category to match, so the response is an empty page.
+- Returned tickets always exclude the source itself, exclude tickets that already belong to a
+  duplicate group, keep only open statuses (`SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`,
+  `IN_PROGRESS`), and share the source's **effective category** (`finalCategory`, else
+  `aiSuggestedCategory`, else the stored category) — the same semantics
+  `POST /v1/tickets/merge` enforces.
+- Because the effective category is derived rather than persisted, the service keeps pulling
+  staff list pages until the requested page size is filled or the scan ends. `nextCursor` is
+  the continuation for the *underlying list scan*, so a page can be short and still have more.
+- Every returned row satisfies the merge preconditions the API can check up front, hence
+  `mergeable: true`.
+
+### Response `200`
+
+```json
+{
+  "items": [
+    {
+      "ticketId": "tkt_55555555555555555555555555555555",
+      "ticketNumber": "BG-2026-0201",
+      "status": "SUBMITTED",
+      "category": "road_damage",
+      "priority": "high",
+      "summary": "Deep pothole opposite the campus entrance.",
+      "createdAt": "2026-07-17T07:30:00Z",
+      "location": {
+        "latitude": 33.8965,
+        "longitude": 35.4782,
+        "addressText": "Bliss Street, Beirut"
+      },
+      "distanceMeters": 42.4,
+      "imageUrl": "https://s3.example/presigned/...",
+      "suggested": true,
+      "score": 0.82,
+      "categoryMatch": "same",
+      "mergeable": true
+    }
+  ],
+  "nextCursor": "eyJ0aWNrZXRJZCI6...",
+  "limit": 20
+}
+```
+
+| Field            | Type    | Notes                                                                                    |
+| ---------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `summary`        | string  | Bounded description excerpt, same shape as staff list items.                              |
+| `distanceMeters` | number? | Great-circle distance from the source ticket; omitted when either location is unusable.  |
+| `imageUrl`       | string? | Short-lived presigned GET URL. The raw `imageObjectKey` is never returned.                |
+| `suggested`      | bool    | `true` when the automated detector also flagged this pair for the source ticket.          |
+| `score`          | number? | Detector confidence, present only for suggested rows.                                     |
+| `categoryMatch`  | string? | `same` or `similar`, present only for suggested rows.                                     |
+| `mergeable`      | bool    | Always `true`; the endpoint filters out rows the merge mutation would reject.              |
+
+This projection deliberately omits `contact`, `trackingCode`, `imageObjectKey`, `auditHistory`,
+`statusHistory`, AI blobs, and public-content drafts: choosing duplicates needs evidence, not
+citizen identity.
+
+### Duplicate candidate error codes
+
+| Code               | Status | Meaning                                                       |
+| ------------------ | -----: | ------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.              |
+| `TICKET_NOT_FOUND` |    404 | Source ticket does not exist or is outside the staff scope.   |
+| `VALIDATION_ERROR` |    400 | `cursor` is malformed, or `limit` is outside `1..50`.         |
+
+## `GET /v1/tickets/{ticketId}/duplicate-comparison/{candidateTicketId}`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Bounded side-by-side projection of one candidate for the merge review (issue #269). The admin
+comparison panel reads this instead of `GET /v1/tickets/{candidateTicketId}`, so reviewing a
+possible duplicate never pulls another citizen's full record into the browser.
+
+Both the source and the candidate ticket must be visible to the caller under the staff list
+scope; either miss returns `404 TICKET_NOT_FOUND`.
+
+### Response `200`
+
+```json
+{
+  "ticketId": "tkt_55555555555555555555555555555555",
+  "ticketNumber": "BG-2026-0201",
+  "description": "Second report about the same pothole.",
+  "status": "SUBMITTED",
+  "category": "road_damage",
+  "priority": "high",
+  "createdAt": "2026-07-17T07:30:00Z",
+  "location": {
+    "latitude": 33.8965,
+    "longitude": 35.4782,
+    "addressText": "Bliss Street, Beirut"
+  },
+  "imageUrl": "https://s3.example/presigned/...",
+  "distanceMeters": 42.4
+}
+```
+
+`category` is the effective category. `distanceMeters` is measured against the source ticket.
+`imageUrl` is a presigned GET URL only. The response omits `contact`, `trackingCode`,
+`imageObjectKey`, `auditHistory`, `statusHistory`, AI fields, public-content drafts, and
+`createdBy`/owner identity.
+
+### Duplicate comparison error codes
+
+| Code               | Status | Meaning                                                                        |
+| ------------------ | -----: | ------------------------------------------------------------------------------ |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                               |
+| `TICKET_NOT_FOUND` |    404 | Source or candidate ticket does not exist or is outside the staff scope.       |
+
 ## `POST /v1/tickets/merge`
 
 Staff-only. Requires `Authorization: Bearer <accessToken>`.
