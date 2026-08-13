@@ -1,0 +1,41 @@
+{
+  "generatedAt": null,
+  "scenario": "mixed",
+  "baseUrl": "https://staging.example",
+  "concurrency": 12,
+  "durationSeconds": 60,
+  "totals": {
+    "requests": null,
+    "ok2xx": null,
+    "client4xx": null,
+    "rateLimited429": null,
+    "server5xx": null,
+    "transportErrors": null
+  },
+  "latencyMs": {
+    "p50": null,
+    "p95": null,
+    "p99": null,
+    "mean": null,
+    "max": null
+  },
+  "byName": {},
+  "slosEvaluation": {
+    "submitP95Ms": { "target": 2500, "actual": null, "pass": null },
+    "trackOrListP95Ms": { "target": 800, "actual": null, "pass": null },
+    "server5xxRate": { "target": 0.01, "actual": null, "pass": null },
+    "aiQueueAgeP95Minutes": { "targetSteady": 2, "targetBurst": 10, "actual": null, "pass": null }
+  },
+  "capacityRecommendations": [],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "defects": [],
+  "notes": [
+    "Fill by running backend/scripts/capacity/concurrent_http_harness.py --output this path.",
+    "Synthetic data only. See docs/capacity-validation.md."
+  ]
+}

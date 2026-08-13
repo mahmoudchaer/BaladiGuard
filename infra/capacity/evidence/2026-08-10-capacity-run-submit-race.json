@@ -1,0 +1,217 @@
+{
+  "generatedAt": "2026-08-10T07:59:48.576197Z",
+  "scenario": "submit-race",
+  "baseUrl": "http://127.0.0.1:61874",
+  "concurrency": 6,
+  "durationSeconds": 15.0,
+  "totals": {
+    "requests": 1552,
+    "ok2xx": 1552,
+    "client4xx": 0,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 51.26749999999447,
+    "p95": 132.30196999984395,
+    "p99": 189.7953669998697,
+    "mean": 58.38954381444312,
+    "max": 229.98069999994186
+  },
+  "byName": {
+    "citizen_me": {
+      "count": 312,
+      "status_counts": {
+        "200": 312
+      },
+      "latency_ms": {
+        "p50": 49.238900000091235,
+        "p95": 140.31852999985404,
+        "p99": 162.39117899998735,
+        "mean": 55.976459615411116
+      }
+    },
+    "citizen_history": {
+      "count": 312,
+      "status_counts": {
+        "200": 312
+      },
+      "latency_ms": {
+        "p50": 51.617400000168345,
+        "p95": 98.27270500004487,
+        "p99": 188.73069299966085,
+        "mean": 55.84871282052407
+      }
+    },
+    "ticket_submit": {
+      "count": 622,
+      "status_counts": {
+        "201": 622
+      },
+      "latency_ms": {
+        "p50": 57.662800000116476,
+        "p95": 154.24271000003944,
+        "p99": 211.74367099998562,
+        "mean": 66.43719147910402
+      }
+    },
+    "health_ready_ai": {
+      "count": 306,
+      "status_counts": {
+        "200": 306
+      },
+      "latency_ms": {
+        "p50": 40.95194999990781,
+        "p95": 101.22000000001208,
+        "p99": 158.27742999995274,
+        "mean": 47.08230424837007
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": 154.24271000003944,
+      "pass": true
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": null,
+      "pass": null
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 306,
+      "last": {
+        "at": "2026-08-10T07:59:48.571083Z",
+        "pending": 1,
+        "processing": 0,
+        "failed": 0,
+        "status": "ok",
+        "source": "memory_store"
+      },
+      "maxPending": 3
+    }
+  },
+  "createdTicketIdsSample": [
+    "tkt_150cb85a9e764dd3a78bff1eb8f34b6b",
+    "tkt_e895d55611f74829b2eed18fca116581",
+    "tkt_fc905e7ebc4d43729da54632a51c37c3",
+    "tkt_d0c3ef67c03b4e499beacd5d561bed17",
+    "tkt_2a3b09d520234400a6174555e428e816",
+    "tkt_f7c4a1dc35024325aabbe5a4373ec382",
+    "tkt_a060be0217b04afca061dc8497c34678",
+    "tkt_a59e8f3c01fd46828cc4d3135ae5bb7f",
+    "tkt_2da7bddead484469b2ffb1bff4f1da43",
+    "tkt_8a8bb0c76b5f45fd9c6d559b8d43c1cb",
+    "tkt_10e6f3391acc4c83af98f39da315199d",
+    "tkt_488ac8702e7549009c51fbf30dbeb56f",
+    "tkt_8a6b8d53cbd2495690929299c9c3ed09",
+    "tkt_77b87e1c3d034ad785da357362c9e377",
+    "tkt_3a50ff6e37f348308e0ac1799c942f73",
+    "tkt_ef7f4ca567cd4c629545c066f76a20fe",
+    "tkt_105ce4295516427d87425c23f3ede6d1",
+    "tkt_d1a5bc17adcf4599974831ee41c6f311",
+    "tkt_1e88a73a38384c65889051c68196bda5",
+    "tkt_6de22522daa441e78327dc8c463c5f6c"
+  ],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 3,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 0,
+      "processing": 1,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:48.571083Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

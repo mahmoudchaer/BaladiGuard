@@ -1,7 +1,9 @@
 import logging
+import math
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
+from typing import Literal
 from uuid import uuid4
 
 from app.config import get_settings
@@ -21,6 +23,13 @@ from app.database.store_factory import (
 from app.database.ticket_store import TicketStore
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.staff_ticket_collection import (
+    TicketAggregatesResponse,
+    TicketListPageResponse,
+    TicketMapClusterResponse,
+    TicketMapMarkerResponse,
+    TicketMapViewportResponse,
+)
 from app.schemas.staff_user import StaffRole
 from app.schemas.stored_audit_history import AuditActionType, StoredAuditHistory
 from app.schemas.stored_duplicate_group import StoredDuplicateGroup
@@ -31,6 +40,12 @@ from app.schemas.ticket_ai_update import (
     AssignTicketDepartmentRequest,
     ReviewTicketCategoryRequest,
     SaveTicketAiOutputRequest,
+)
+from app.schemas.ticket_duplicates import (
+    DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+    DUPLICATE_CANDIDATE_MAX_LIMIT,
+    DuplicateCandidatePageResponse,
+    DuplicateComparisonResponse,
 )
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
@@ -46,17 +61,25 @@ from app.schemas.ticket_response import (
 from app.schemas.ticket_status import TicketStatus
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
+from app.services.complaints.sla import derive_ticket_sla
 from app.services.complaints.status_workflow import (
     MissingDepartmentAssignmentError,
     validate_status_transition,
 )
-from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
+from app.services.complaints.ticket_list_filters import TicketListFilters, ticket_matches_filters
 from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_citizen_response,
+    map_ticket_to_duplicate_candidate,
+    map_ticket_to_duplicate_comparison,
+    map_ticket_to_list_item,
     map_ticket_to_public_response,
     map_ticket_to_response,
 )
-from app.services.duplicates import find_nearby_duplicates
+from app.services.duplicates import (
+    OPEN_TICKET_STATUSES,
+    find_nearby_duplicates,
+    haversine_meters,
+)
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.routing import department_ids, suggest_department_id
@@ -77,6 +100,17 @@ Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
 PUBLIC_TICKET_DEFAULT_LIMIT = 20
 PUBLIC_TICKET_MAX_LIMIT = 50
+STAFF_TICKET_DEFAULT_LIMIT = 25
+STAFF_TICKET_MAX_LIMIT = 100
+STAFF_SLA_FILTER_MAX_ROUNDS = 20
+# Effective-category matching is derived, so candidate pages continue across
+# source pages the same way derived SLA filters do.
+DUPLICATE_CANDIDATE_MAX_ROUNDS = 20
+STAFF_MAP_DEFAULT_LIMIT = 200
+STAFF_MAP_MAX_LIMIT = 500
+STAFF_MAP_MARKER_ZOOM = 14
+STAFF_MAP_CANDIDATE_BUDGET = 500
+STAFF_AGGREGATE_SAMPLE_LIMIT = 500
 
 
 def _parse_iso_utc(value: str) -> datetime | None:
@@ -88,6 +122,10 @@ def _parse_iso_utc(value: str) -> datetime | None:
 
 class TicketNotFoundError(LookupError):
     pass
+
+
+class TicketSubmissionInProgressError(RuntimeError):
+    """Same Idempotency-Key is claimed but not yet completed (issue #258)."""
 
 
 class DuplicateMergeError(ValueError):
@@ -183,6 +221,124 @@ class TicketService:
         *,
         owner_user_id: str,
         contact: ReportContact,
+        client_submission_key: str | None = None,
+    ) -> SubmitTicketResponse:
+        from app.services.complaints.ticket_submission_idempotency import (
+            composite_submission_key,
+            get_ticket_submission_idempotency_store,
+            normalize_client_submission_key,
+        )
+
+        # Prefer explicit key (header/body already merged by the route); optional body field.
+        raw_key = client_submission_key or payload.client_submission_id
+        client_key = normalize_client_submission_key(raw_key)
+        composite_key: str | None = None
+        idem_store = None
+        if client_key:
+            idem_store = get_ticket_submission_idempotency_store()
+            composite_key = composite_submission_key(
+                owner_user_id=owner_user_id,
+                client_key=client_key,
+            )
+            existing = idem_store.get_completed(composite_key)
+            if existing is not None:
+                return existing
+            recovered = self._recover_idempotent_submission(
+                composite_key,
+                idem_store=idem_store,
+                owner_user_id=owner_user_id,
+            )
+            if recovered is not None:
+                return recovered
+            if not idem_store.try_begin(composite_key):
+                existing = idem_store.get_completed(composite_key)
+                if existing is not None:
+                    return existing
+                recovered = self._recover_idempotent_submission(
+                    composite_key,
+                    idem_store=idem_store,
+                    owner_user_id=owner_user_id,
+                )
+                if recovered is not None:
+                    return recovered
+                raise TicketSubmissionInProgressError(
+                    "A submission with this idempotency key is already in progress. "
+                    "Please wait a moment and retry."
+                )
+
+        ticket_persisted = False
+
+        def _mark_ticket_persisted() -> None:
+            nonlocal ticket_persisted
+            ticket_persisted = True
+
+        try:
+            return self._create_submitted_ticket(
+                payload,
+                owner_user_id=owner_user_id,
+                contact=contact,
+                composite_key=composite_key,
+                idem_store=idem_store,
+                on_ticket_persisted=_mark_ticket_persisted,
+            )
+        except Exception:
+            if composite_key and idem_store is not None and not ticket_persisted:
+                force_release = getattr(idem_store, "force_release", None)
+                if callable(force_release):
+                    force_release(composite_key)
+                else:
+                    idem_store.release(composite_key)
+            raise
+
+    def _recover_idempotent_submission(
+        self,
+        composite_key: str,
+        *,
+        idem_store: object,
+        owner_user_id: str,
+    ) -> SubmitTicketResponse | None:
+        """Replay a prior create after crash/complete failure using bound ticket id."""
+        try_recover = getattr(idem_store, "try_recover", None)
+        if callable(try_recover):
+            recovered = try_recover(composite_key)
+            if recovered is not None:
+                return recovered
+
+        get_pending = getattr(idem_store, "get_pending_ticket_id", None)
+        if not callable(get_pending):
+            return None
+        pending_ticket_id = get_pending(composite_key)
+        if not pending_ticket_id:
+            return None
+
+        ticket = self._store.get(pending_ticket_id)
+        if ticket is None:
+            return None
+        if ticket.owner_user_id and ticket.owner_user_id != owner_user_id:
+            return None
+
+        response = SubmitTicketResponse(
+            ticketId=ticket.ticket_id,
+            ticketNumber=ticket.ticket_number,
+            trackingCode=ticket.tracking_code,
+            status="SUBMITTED",
+            message="Your report was submitted successfully.",
+            createdAt=ticket.created_at,
+        )
+        complete = getattr(idem_store, "complete", None)
+        if callable(complete):
+            complete(composite_key, response)
+        return response
+
+    def _create_submitted_ticket(
+        self,
+        payload: SubmitTicketRequest,
+        *,
+        owner_user_id: str,
+        contact: ReportContact,
+        composite_key: str | None,
+        idem_store: object | None,
+        on_ticket_persisted=None,
     ) -> SubmitTicketResponse:
         ticket_id = generate_ticket_id()
         ticket_number = generate_ticket_number(self._store.next_sequence())
@@ -206,6 +362,22 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
+        response = SubmitTicketResponse(
+            ticketId=ticket_id,
+            ticketNumber=ticket_number,
+            trackingCode=tracking_code,
+            status="SUBMITTED",
+            message="Your report was submitted successfully.",
+            createdAt=created_at_iso,
+        )
+
+        # Bind ticket identity before save so a crash after save / before complete
+        # remains recoverable via pendingTicketId + ticket load.
+        if composite_key and idem_store is not None:
+            bind = getattr(idem_store, "bind_ticket", None)
+            if callable(bind):
+                bind(composite_key, ticket_id=ticket_id)
+
         photo_claimed = photo_upload_service.claim_for_ticket(
             payload.image_object_key,
             owner_user_id=owner_user_id,
@@ -220,7 +392,22 @@ class TicketService:
                     owner_user_id=owner_user_id,
                     ticket_id=ticket_id,
                 )
+            if composite_key and idem_store is not None:
+                force_release = getattr(idem_store, "force_release", None)
+                if callable(force_release):
+                    force_release(composite_key)
             raise
+
+        if callable(on_ticket_persisted):
+            on_ticket_persisted()
+
+        # Complete immediately after durable ticket write — before side effects —
+        # so retries always replay instead of re-creating.
+        if composite_key and idem_store is not None:
+            complete = getattr(idem_store, "complete", None)
+            if callable(complete):
+                complete(composite_key, response)
+
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=None,
@@ -239,14 +426,7 @@ class TicketService:
             recipient=ticket_notification_recipient(stored_ticket),
         )
 
-        return SubmitTicketResponse(
-            ticketId=ticket_id,
-            ticketNumber=ticket_number,
-            trackingCode=tracking_code,
-            status="SUBMITTED",
-            message="Your report was submitted successfully.",
-            createdAt=created_at_iso,
-        )
+        return response
 
     def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
         """Process one pending ticket without exposing failures to the submit request.
@@ -444,25 +624,268 @@ class TicketService:
         age_seconds = (now - claimed_at.astimezone(UTC)).total_seconds()
         return age_seconds >= get_settings().ai_processing_claim_timeout_seconds
 
+    def list_tickets_page(
+        self,
+        filters: TicketListFilters | None = None,
+        *,
+        staff_principal: StaffPrincipal,
+        limit: int = STAFF_TICKET_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> TicketListPageResponse:
+        page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        store_filters = filters
+        sla_state = None if store_filters is None else store_filters.sla_state
+
+        collected: list[StoredTicket] = []
+        scanned_count = 0
+        current_cursor = cursor
+        next_cursor: str | None = None
+        # Derived SLA filters need continuation across source pages so a page of
+        # non-matching tickets cannot hide later overdue/on-track matches.
+        max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS if sla_state is not None else 1
+
+        for _ in range(max_rounds):
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=page_size,
+                cursor=current_cursor,
+                status=None if store_filters is None else store_filters.status,
+                category=None if store_filters is None else store_filters.category,
+                urgency=None if store_filters is None else store_filters.urgency,
+                department_id=None if store_filters is None else store_filters.department_id,
+                assignment_state=None if store_filters is None else store_filters.assignment_state,
+                q=None if store_filters is None else store_filters.q,
+                open_only=False if store_filters is None else store_filters.open_only,
+            )
+            scanned_count += page.scanned_count
+            page_items = page.items
+
+            if sla_state is None:
+                collected.extend(page_items)
+                next_cursor = page.next_cursor
+                break
+
+            page_filled = False
+            for index, ticket in enumerate(page_items):
+                if not ticket_matches_filters(
+                    ticket,
+                    TicketListFilters(sla_state=sla_state),
+                ):
+                    continue
+                collected.append(ticket)
+                if len(collected) < page_size:
+                    continue
+                # Continue after the last included ticket so remaining matches
+                # on this source page are not skipped.
+                remaining = page_items[index + 1 :]
+                if remaining or page.next_cursor:
+                    next_cursor = self._store.staff_continuation_cursor(
+                        ticket,
+                        browse_mode=browse_mode,
+                        municipality_id=municipality_id,
+                        department_id=(
+                            None if store_filters is None else store_filters.department_id
+                        ),
+                    )
+                else:
+                    next_cursor = None
+                page_filled = True
+                break
+
+            if page_filled:
+                break
+            next_cursor = page.next_cursor
+            if not page.next_cursor:
+                break
+            current_cursor = page.next_cursor
+
+        return TicketListPageResponse(
+            items=[map_ticket_to_list_item(ticket) for ticket in collected[:page_size]],
+            nextCursor=next_cursor,
+            # Dynamo ExclusiveStartKey cursors are forward-only; the admin client
+            # keeps a cursor history stack for Previous navigation.
+            previousCursor=None,
+            limit=page_size,
+            scannedCount=scanned_count,
+            approximateTotal=None,
+            freshnessHintSeconds=30,
+        )
+
     def list_tickets(
         self,
         filters: TicketListFilters | None = None,
         *,
         staff_principal: StaffPrincipal | None = None,
-    ) -> list[TicketResponse]:
-        stored_tickets = filter_stored_tickets(self._store.list(), filters)
-        if staff_principal is not None:
-            stored_tickets = [
-                ticket
-                for ticket in stored_tickets
-                if staff_can_access_ticket(staff_principal, ticket)
-            ]
-        tickets = sorted(
-            stored_tickets,
-            key=lambda ticket: (ticket.created_at, ticket.ticket_number),
-            reverse=True,
+    ):
+        """Deprecated wrapper — returns lightweight page items for internal callers."""
+        if staff_principal is None:
+            raise ValueError("staff_principal is required for list_tickets.")
+        return self.list_tickets_page(
+            filters,
+            staff_principal=staff_principal,
+            limit=STAFF_TICKET_MAX_LIMIT,
+            cursor=None,
+        ).items
+
+    def map_viewport(
+        self,
+        *,
+        staff_principal: StaffPrincipal,
+        north: float,
+        south: float,
+        east: float,
+        west: float,
+        zoom: float,
+        filters: TicketListFilters | None = None,
+        limit: int = STAFF_MAP_DEFAULT_LIMIT,
+    ) -> TicketMapViewportResponse:
+        result_limit = min(max(limit, 1), STAFF_MAP_MAX_LIMIT)
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        candidates = self._collect_staff_candidates(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            filters=filters,
+            budget=STAFF_MAP_CANDIDATE_BUDGET,
         )
-        return [self._map_ticket(ticket) for ticket in tickets]
+        in_bounds = [
+            ticket
+            for ticket in candidates
+            if _location_in_bounds(
+                ticket.location.latitude,
+                ticket.location.longitude,
+                north=north,
+                south=south,
+                east=east,
+                west=west,
+            )
+        ]
+        truncated = len(candidates) >= STAFF_MAP_CANDIDATE_BUDGET
+        use_clusters = zoom < STAFF_MAP_MARKER_ZOOM or len(in_bounds) > result_limit
+        if use_clusters:
+            clusters = _grid_clusters(in_bounds, zoom=zoom, limit=result_limit)
+            return TicketMapViewportResponse(
+                markers=[],
+                clusters=clusters,
+                limit=result_limit,
+                truncated=truncated or len(in_bounds) > result_limit,
+                zoom=zoom,
+            )
+
+        markers = [
+            TicketMapMarkerResponse(
+                ticketId=ticket.ticket_id,
+                ticketNumber=ticket.ticket_number,
+                status=ticket.status,
+                priority=ticket.priority,
+                latitude=ticket.location.latitude,
+                longitude=ticket.location.longitude,
+                category=ticket.final_category or ticket.category,
+            )
+            for ticket in in_bounds[:result_limit]
+        ]
+        return TicketMapViewportResponse(
+            markers=markers,
+            clusters=[],
+            limit=result_limit,
+            truncated=truncated or len(in_bounds) > result_limit,
+            zoom=zoom,
+        )
+
+    def ticket_aggregates(self, staff_principal: StaffPrincipal) -> TicketAggregatesResponse:
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        tickets, approximate = self._collect_staff_candidates_with_approx(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            filters=None,
+            budget=STAFF_AGGREGATE_SAMPLE_LIMIT,
+        )
+        open_count = 0
+        critical_count = 0
+        high_count = 0
+        unassigned_count = 0
+        overdue_count = 0
+        for ticket in tickets:
+            if ticket.status in OPEN_TICKET_STATUSES:
+                open_count += 1
+            if ticket.priority == "critical":
+                critical_count += 1
+            elif ticket.priority == "high":
+                high_count += 1
+            if ticket.department_id is None:
+                unassigned_count += 1
+            if derive_ticket_sla(ticket).state == "overdue":
+                overdue_count += 1
+        return TicketAggregatesResponse(
+            openCount=open_count,
+            criticalCount=critical_count,
+            highCount=high_count,
+            unassignedCount=unassigned_count,
+            overdueCount=overdue_count,
+            approximate=approximate,
+        )
+
+    def _collect_staff_candidates(
+        self,
+        *,
+        browse_mode,
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        filters: TicketListFilters | None,
+        budget: int,
+    ) -> list[StoredTicket]:
+        tickets, _ = self._collect_staff_candidates_with_approx(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_ids=department_ids,
+            filters=filters,
+            budget=budget,
+        )
+        return tickets
+
+    def _collect_staff_candidates_with_approx(
+        self,
+        *,
+        browse_mode,
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        filters: TicketListFilters | None,
+        budget: int,
+    ) -> tuple[list[StoredTicket], bool]:
+        collected: list[StoredTicket] = []
+        cursor: str | None = None
+        while len(collected) < budget:
+            page_limit = min(100, budget - len(collected))
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=page_limit,
+                cursor=cursor,
+                status=None if filters is None else filters.status,
+                category=None if filters is None else filters.category,
+                urgency=None if filters is None else filters.urgency,
+                department_id=None if filters is None else filters.department_id,
+            )
+            items = page.items
+            if filters is not None and filters.sla_state is not None:
+                items = [
+                    ticket
+                    for ticket in items
+                    if ticket_matches_filters(
+                        ticket,
+                        TicketListFilters(sla_state=filters.sla_state),
+                    )
+                ]
+            collected.extend(items)
+            if not page.next_cursor:
+                return collected, False
+            cursor = page.next_cursor
+        return collected[:budget], True
 
     def list_public_tickets(
         self,
@@ -501,6 +924,134 @@ class TicketService:
         if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
             return None
         return self._map_ticket(ticket, include_duplicate_suggestions=True)
+
+    def list_duplicate_candidates(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+        q: str | None = None,
+        limit: int = DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+        cursor: str | None = None,
+    ) -> DuplicateCandidatePageResponse:
+        """Page mergeable duplicate candidates for one source ticket (issue #269).
+
+        Candidates are always ungrouped, open, and share the source's effective
+        category, so every returned row satisfies the merge preconditions the API
+        can verify up front.
+        """
+        source = self._store.get(ticket_id)
+        if source is None or not staff_can_access_ticket(staff_principal, source):
+            raise TicketNotFoundError(ticket_id)
+
+        page_size = min(max(limit, 1), DUPLICATE_CANDIDATE_MAX_LIMIT)
+        source_category = effective_ticket_category(source)
+        if source_category is None:
+            # Unclassified tickets cannot be merged, so there is nothing to offer.
+            return DuplicateCandidatePageResponse(items=[], nextCursor=None, limit=page_size)
+
+        suggestions = {
+            suggestion.ticket_id: suggestion
+            for suggestion in self._duplicate_suggestions_for_ticket(source)
+        }
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        search = (q or "").strip() or None
+
+        collected: list[StoredTicket] = []
+        current_cursor = cursor
+        next_cursor: str | None = None
+
+        for _ in range(DUPLICATE_CANDIDATE_MAX_ROUNDS):
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=page_size,
+                cursor=current_cursor,
+                q=search,
+                # The nearby-duplicate detector only considers open tickets.
+                open_only=True,
+            )
+
+            page_filled = False
+            for index, candidate in enumerate(page.items):
+                if not _is_duplicate_candidate(
+                    candidate,
+                    source=source,
+                    source_category=source_category,
+                ):
+                    continue
+                collected.append(candidate)
+                if len(collected) < page_size:
+                    continue
+                # Continue after the last included candidate so remaining matches
+                # on this source page are not skipped.
+                remaining = page.items[index + 1 :]
+                if remaining or page.next_cursor:
+                    next_cursor = self._store.staff_continuation_cursor(
+                        candidate,
+                        browse_mode=browse_mode,
+                        municipality_id=municipality_id,
+                    )
+                else:
+                    next_cursor = None
+                page_filled = True
+                break
+
+            if page_filled:
+                break
+            next_cursor = page.next_cursor
+            if not page.next_cursor:
+                break
+            current_cursor = page.next_cursor
+
+        items = []
+        for candidate in collected[:page_size]:
+            suggestion = suggestions.get(candidate.ticket_id)
+            items.append(
+                map_ticket_to_duplicate_candidate(
+                    candidate,
+                    distance_meters=(
+                        suggestion.distance_meters
+                        if suggestion is not None
+                        else _distance_between_tickets(source, candidate)
+                    ),
+                    suggested=suggestion is not None,
+                    score=None if suggestion is None else suggestion.score,
+                    category_match=None if suggestion is None else suggestion.category_match,
+                )
+            )
+
+        return DuplicateCandidatePageResponse(
+            items=items,
+            nextCursor=next_cursor,
+            limit=page_size,
+        )
+
+    def get_duplicate_comparison(
+        self,
+        ticket_id: str,
+        candidate_ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> DuplicateComparisonResponse:
+        """Bounded comparison projection of a candidate against a source ticket.
+
+        Either ticket being missing or out of scope is a single 404 so callers
+        never learn whether an out-of-scope ID exists.
+        """
+        source = self._store.get(ticket_id)
+        if source is None or not staff_can_access_ticket(staff_principal, source):
+            raise TicketNotFoundError(ticket_id)
+
+        candidate = self._store.get(candidate_ticket_id)
+        if candidate is None or not staff_can_access_ticket(staff_principal, candidate):
+            raise TicketNotFoundError(candidate_ticket_id)
+
+        return map_ticket_to_duplicate_comparison(
+            candidate,
+            distance_meters=_distance_between_tickets(source, candidate),
+        )
 
     def get_ticket_by_tracking_code(self, tracking_code: str) -> CitizenTicketResponse | None:
         ticket = self._store.get_by_tracking_code(tracking_code)
@@ -1183,6 +1734,98 @@ class TicketService:
                 ticket_id,
             )
             return []
+
+
+def _staff_browse_scope(
+    principal: StaffPrincipal,
+) -> tuple[Literal["admin", "municipality"], str | None, list[str] | None]:
+    if principal.role == "administrator":
+        return "admin", None, None
+    return (
+        "municipality",
+        principal.municipality_id,
+        None if principal.department_ids is None else list(principal.department_ids),
+    )
+
+
+def _is_duplicate_candidate(
+    candidate: StoredTicket,
+    *,
+    source: StoredTicket,
+    source_category: str,
+) -> bool:
+    """Merge preconditions the candidate endpoint can verify before staff choose."""
+    if candidate.ticket_id == source.ticket_id:
+        return False
+    if candidate.duplicate_group_id:
+        return False
+    return effective_ticket_category(candidate) == source_category
+
+
+def _distance_between_tickets(source: StoredTicket, candidate: StoredTicket) -> float | None:
+    try:
+        distance = haversine_meters(
+            source.location.latitude,
+            source.location.longitude,
+            candidate.location.latitude,
+            candidate.location.longitude,
+        )
+    except (TypeError, ValueError):
+        return None
+    # Placeholder locations can carry non-finite coordinates, which are not JSON.
+    return round(distance, 2) if math.isfinite(distance) else None
+
+
+def _location_in_bounds(
+    latitude: float,
+    longitude: float,
+    *,
+    north: float,
+    south: float,
+    east: float,
+    west: float,
+) -> bool:
+    if latitude > north or latitude < south:
+        return False
+    if west <= east:
+        return west <= longitude <= east
+    # Viewport crosses the antimeridian.
+    return longitude >= west or longitude <= east
+
+
+def _grid_clusters(
+    tickets: list[StoredTicket],
+    *,
+    zoom: float,
+    limit: int,
+) -> list[TicketMapClusterResponse]:
+    cell = max(0.002, 45.0 / (2 ** max(zoom, 1.0)))
+    buckets: dict[tuple[int, int], list[StoredTicket]] = {}
+    for ticket in tickets:
+        key = (
+            int(ticket.location.latitude // cell),
+            int(ticket.location.longitude // cell),
+        )
+        buckets.setdefault(key, []).append(ticket)
+
+    clusters: list[TicketMapClusterResponse] = []
+    for (lat_idx, lng_idx), members in sorted(
+        buckets.items(),
+        key=lambda item: (-len(item[1]), item[0][0], item[0][1]),
+    ):
+        if len(clusters) >= limit:
+            break
+        avg_lat = sum(member.location.latitude for member in members) / len(members)
+        avg_lng = sum(member.location.longitude for member in members) / len(members)
+        clusters.append(
+            TicketMapClusterResponse(
+                id=f"c-{lat_idx}-{lng_idx}",
+                latitude=avg_lat,
+                longitude=avg_lng,
+                count=len(members),
+            )
+        )
+    return clusters
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

@@ -110,7 +110,7 @@ def test_list_tickets_succeeds_with_staff_token(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    tickets = response.json()
+    tickets = response.json()["items"]
     assert any(ticket["ticketId"] == created["ticketId"] for ticket in tickets)
 
 
@@ -240,7 +240,7 @@ def test_municipal_staff_list_is_scoped_by_municipality_and_departments(
     )
 
     assert response.status_code == 200
-    visible_ids = {ticket["ticketId"] for ticket in response.json()}
+    visible_ids = {ticket["ticketId"] for ticket in response.json()["items"]}
     assert in_department["ticketId"] in visible_ids
     assert unassigned["ticketId"] in visible_ids
     assert other_department["ticketId"] not in visible_ids

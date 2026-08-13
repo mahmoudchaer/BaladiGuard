@@ -56,7 +56,7 @@ export function ProfileSummary({
     ? 'Inactive'
     : profile.contributionReady
       ? 'Contribution-ready'
-      : 'Setup incomplete';
+      : 'Not contribution-ready';
 
   return (
     <View style={styles.container} testID="profile-summary">
@@ -65,7 +65,8 @@ export function ProfileSummary({
           Your profile
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Review your identity, communication preferences, and public attribution settings.
+          Review your identity, communication preferences, and public attribution settings. Full
+          name is optional — a verified phone is enough to submit reports.
         </Text>
       </View>
 
@@ -75,8 +76,9 @@ export function ProfileSummary({
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Full name"
+            label="Full name (optional)"
             value={profile.fullName?.trim() || 'Not set'}
+            hint="Optional. Not used for sign-in, recovery, ownership, or reporting."
             valueTestID="profile-full-name"
           />
           <View style={styles.divider} />

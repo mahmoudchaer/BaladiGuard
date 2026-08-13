@@ -67,6 +67,17 @@ Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb
 | `make db-seed`    | Load municipalities, departments, and categories     |
 | `make db-reset`   | Delete project tables, recreate them, and seed again |
 
+Staff collection GSIs (#267) are created by `make db-migrate`, but existing ticket
+rows also need attribute backfill before indexed list/map/aggregates can see them:
+
+```bash
+cd backend
+python scripts/db/backfill_staff_ticket_keys.py --dry-run
+python scripts/db/backfill_staff_ticket_keys.py
+```
+
+See `docs/staff-ticket-collection.md` for deploy ordering and resume flags.
+
 ## Current tables (including Sprint 6 citizen persistence)
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
@@ -76,7 +87,7 @@ persistence foundation.
 
 | Table                                | Partition key      | GSIs                                                                                        |
 | ------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------- |
-| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`         |
+| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`, `publicStatus-publicSortKey-index`, `staffScopeKey-staffSortKey-index`, `adminBrowseKey-staffSortKey-index`, `departmentId-staffSortKey-index` |
 | `baladiguard-users`                  | `userId`           | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
 | `baladiguard-phone-claims`           | `phoneKey`         | No GSI; transactional phone-uniqueness authority.                                           |
 | `baladiguard-citizen-otp-challenges` | `challengeId`      | TTL on `ttl`; plain OTP codes are never stored.                                             |
@@ -93,6 +104,7 @@ persistence foundation.
 | `baladiguard-categories`             | `categoryId`       | —                                                                                           |
 | `baladiguard-counters`               | `counterId`        | — (ticket number sequence)                                                                  |
 | `baladiguard-rate-limit-buckets`     | `bucketKey`        | Shared rate-limit counters (#186); TTL on `expiresAt`.                                      |
+| `baladiguard-ticket-submission-claims` | `idempotencyKey` | Ticket create Idempotency-Key claims + replay (#258); TTL on `ttl` (14-day completed retention). |
 
 ### Legacy `users` table migration
 
@@ -206,7 +218,7 @@ python -m app.workers.ai_worker --replay ai:tkt_<ticket-id> --once
 1. Run `make db-migrate` — all tables should report as created or already existing.
 2. Run `make db-seed` — should print counts for municipalities, departments, and categories. Optional for a basic submit/get check; required if your flow depends on seed reference data.
 3. Start the API with `DATABASE_BACKEND=dynamodb`.
-4. Obtain a **contribution-ready** citizen session (verify OTP + complete profile with full name and email). Demo/local account setup is described in the root [README.md](../README.md) and [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md). Environment variables come from `scripts/sync_env.py` / [env-sync.md](./env-sync.md) and [configuration.md](./configuration.md) — do not invent a parallel env workflow.
+4. Obtain a **contribution-ready** citizen session (verify phone OTP — full name is optional; #270). Demo/local account setup is described in the root [README.md](../README.md) and [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md). Environment variables come from `scripts/sync_env.py` / [env-sync.md](./env-sync.md) and [configuration.md](./configuration.md) — do not invent a parallel env workflow.
 5. Submit a ticket with the citizen Bearer token (client does **not** send contact/owner fields):
 
 ```bash

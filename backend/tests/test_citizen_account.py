@@ -91,7 +91,8 @@ def test_get_profile_returns_citizen_safe_fields_and_contribution_ready(
     assert "sessionId" not in body
 
 
-def test_incomplete_profile_is_not_contribution_ready(anonymous_client: TestClient) -> None:
+def test_phone_only_profile_is_contribution_ready(anonymous_client: TestClient) -> None:
+    """Verified phone alone is enough to contribute (#270); full name is optional."""
     user = citizen_service.create_citizen(phone="+96170123456")
     token = citizen_service.issue_session(user.user_id)
     response = anonymous_client.get(
@@ -99,7 +100,7 @@ def test_incomplete_profile_is_not_contribution_ready(anonymous_client: TestClie
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
-    assert response.json()["contributionReady"] is False
+    assert response.json()["contributionReady"] is True
     assert response.json()["fullName"] is None
 
 
@@ -142,15 +143,19 @@ def test_email_is_nullable_and_non_unique() -> None:
     assert first.email == second.email == "shared@example.com"
 
 
-def test_rejected_update_empty_name(anonymous_client: TestClient) -> None:
+def test_clear_full_name_with_blank_string(anonymous_client: TestClient) -> None:
+    """Blank fullName clears the optional name and forces publicNameVisible off (#270)."""
     _user, token = _create_ready_citizen()
     response = anonymous_client.patch(
         "/v1/citizen/me",
         headers={"Authorization": f"Bearer {token}"},
-        json={"fullName": "   "},
+        json={"fullName": "   ", "publicNameVisible": True},
     )
-    assert response.status_code == 400
-    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["fullName"] is None
+    assert body["publicNameVisible"] is False
+    assert body["contributionReady"] is True
 
 
 def test_rejected_email_preference_without_email(anonymous_client: TestClient) -> None:

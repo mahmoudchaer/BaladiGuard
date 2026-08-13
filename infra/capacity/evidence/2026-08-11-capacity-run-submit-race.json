@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-08-11T17:52:06.574491Z",
+  "scenario": "submit-race",
+  "baseUrl": "http://127.0.0.1:55529",
+  "concurrency": 3,
+  "durationSeconds": 10.0,
+  "maxRequests": 60,
+  "minIntervalMs": 60.0,
+  "totals": {
+    "requests": 9,
+    "ok2xx": 9,
+    "client4xx": 0,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 3780.4367000062484,
+    "p95": 5596.915279998211,
+    "p99": 5843.804815997137,
+    "mean": 4068.835900001836,
+    "max": 5905.527199996868
+  },
+  "byName": {
+    "citizen_me": {
+      "count": 3,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "p50": 3190.8016000088537,
+        "p95": 3193.516900004761,
+        "p99": 3193.758260004397,
+        "mean": 3191.3704666706813
+      }
+    },
+    "citizen_history": {
+      "count": 3,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "p50": 3780.4367000062484,
+        "p95": 3809.5724900020286,
+        "p99": 3812.1623380016536,
+        "mean": 3735.369433333593
+      }
+    },
+    "ticket_submit": {
+      "count": 3,
+      "status_counts": {
+        "201": 3
+      },
+      "latency_ms": {
+        "p50": 5133.997400000226,
+        "p95": 5828.374219997204,
+        "p99": 5890.096603996935,
+        "mean": 5279.767800001234
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": 5828.374219997204,
+      "pass": false
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": null,
+      "pass": null
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 0,
+      "last": null,
+      "maxPending": null
+    }
+  },
+  "createdTicketIdsSample": [
+    "tkt_3083bb0daa2f402da898eddef373feb0",
+    "tkt_288d9c34a2a1441b9d1b0c239279d66e",
+    "tkt_febb67e76318431c84aa4768c7de5df3"
+  ],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

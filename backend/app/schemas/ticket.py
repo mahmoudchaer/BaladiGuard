@@ -82,6 +82,12 @@ class SubmitTicketRequest(BaseModel):
     location: ReportLocation
     image_object_key: str = Field(alias="imageObjectKey", min_length=1, max_length=500)
     client_metadata: ClientMetadata = Field(alias="clientMetadata")
+    # Optional; prefer Idempotency-Key header. Same shape rules as the header (issue #258).
+    client_submission_id: str | None = Field(
+        default=None,
+        alias="clientSubmissionId",
+        max_length=128,
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -106,6 +112,14 @@ class SubmitTicketRequest(BaseModel):
         if not trimmed:
             raise ValueError("This field is required.")
         return trimmed
+
+    @field_validator("client_submission_id")
+    @classmethod
+    def normalize_client_submission_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
 
 
 class SubmitTicketResponse(BaseModel):

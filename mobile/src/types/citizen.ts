@@ -52,7 +52,8 @@ export type CitizenSession = {
 };
 
 export type CitizenProfileUpdatePayload = {
-  fullName?: string;
+  /** Omit to leave unchanged; `null` clears the optional full name. */
+  fullName?: string | null;
   /** Omit to leave unchanged; `null` clears the optional email. */
   email?: string | null;
   notificationPreferences?: Partial<NotificationPreferences>;

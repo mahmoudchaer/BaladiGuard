@@ -107,21 +107,21 @@ def test_upload_report_photo_requires_auth(client, monkeypatch):
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
-def test_upload_report_photo_rejects_incomplete_profile(client, monkeypatch):
+def test_upload_report_photo_allows_phone_only_profile(client, monkeypatch):
     set_aws_env(monkeypatch)
     monkeypatch.setattr(photo_upload_service, "_s3_client", FakeS3Client())
-    # Phone-only account: authenticated but not contribution-ready.
+    # Phone-only account: authenticated and contribution-ready without a full name (#270).
     user = citizen_service.create_citizen(phone="+96170999888")
     token = citizen_service.issue_session(user.user_id)
 
     response = client.post(
         "/v1/uploads/report-photo",
-        files={"file": ("pothole.png", b"image-bytes", "image/png")},
+        files={"file": ("pothole.png", image_bytes(), "image/png")},
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "CONTRIBUTION_PROFILE_REQUIRED"
+    assert response.status_code == 200, response.text
+    assert "imageObjectKey" in response.json()
 
 
 def test_upload_report_photo_rejects_missing_file(client):

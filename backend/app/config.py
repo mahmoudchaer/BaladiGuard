@@ -187,6 +187,10 @@ class Settings:
         # Production must set an explicit non-localhost https URL.
         self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None
 
+        # Browser CORS allowlist (issue #263). Comma-separated origins.
+        # Staging/production require an explicit non-localhost list.
+        self.cors_allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip() or None
+
         # Staff auth (issue #175). Individual staff accounts are persisted;
         # DEMO_STAFF_PASSWORD is only used when bootstrapping local/test seed
         # accounts. Shared env-credential login has been removed.

@@ -1,0 +1,193 @@
+{
+  "generatedAt": "2026-08-10T08:00:02.188260Z",
+  "scenario": "upload-race",
+  "baseUrl": "http://127.0.0.1:61874",
+  "concurrency": 6,
+  "durationSeconds": 12.0,
+  "totals": {
+    "requests": 1422,
+    "ok2xx": 1422,
+    "client4xx": 0,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 52.49509999998736,
+    "p95": 66.70500999980504,
+    "p99": 74.67462299975976,
+    "mean": 50.51035154711064,
+    "max": 192.8075999999237
+  },
+  "byName": {
+    "photo_upload": {
+      "count": 1068,
+      "status_counts": {
+        "200": 1068
+      },
+      "latency_ms": {
+        "p50": 54.53665000004548,
+        "p95": 67.67598999997517,
+        "p99": 75.31572599981695,
+        "mean": 52.0332194756492
+      }
+    },
+    "health_ready_ai": {
+      "count": 354,
+      "status_counts": {
+        "200": 354
+      },
+      "latency_ms": {
+        "p50": 47.130599999945844,
+        "p95": 62.06169499971564,
+        "p99": 70.60137599994485,
+        "mean": 45.91593644067228
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": null,
+      "pass": null
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": null,
+      "pass": null
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 354,
+      "last": {
+        "at": "2026-08-10T08:00:02.188260Z",
+        "pending": 0,
+        "processing": 0,
+        "failed": 0,
+        "status": "ok",
+        "source": "memory_store"
+      },
+      "maxPending": 0
+    }
+  },
+  "createdTicketIdsSample": [],
+  "uploadedObjectKeysSample": [
+    "reports/photos/23c48b01-9fe7-4d0f-8bb3-43818dadf597.jpg",
+    "reports/photos/a8bdb44e-84b9-4378-9afb-743ecac4c416.jpg",
+    "reports/photos/0efa6e77-3c06-442f-8ff9-76816b99f89e.jpg",
+    "reports/photos/c5ad8322-20c6-4a8b-8aa2-e1788a99bdda.jpg",
+    "reports/photos/e5bfcaef-938a-4c3d-8483-b2eec54755b5.jpg",
+    "reports/photos/b2dbb0fb-db28-458c-b6c4-1070cf53e664.jpg",
+    "reports/photos/8dfb1df3-08e7-4294-bf79-63d9b717bc55.jpg",
+    "reports/photos/a27bdbb1-8004-468a-b5e0-04d7ee6d085c.jpg",
+    "reports/photos/baf31dfb-c43b-4a90-b17a-aedf0844a871.jpg",
+    "reports/photos/c79b2461-2e5f-4696-8e24-43f4e6c93acb.jpg",
+    "reports/photos/942b098a-ce02-461f-a587-1f10776034b8.jpg",
+    "reports/photos/5e10f03e-7fd4-4afd-8326-e70e8a84d67e.jpg",
+    "reports/photos/799a1852-d5de-4969-bde3-bccf62ba2736.jpg",
+    "reports/photos/4bd22af9-fcb8-4727-ae52-3c72f20230d3.jpg",
+    "reports/photos/74873489-fe7b-45f9-bbff-9acd819ae9ca.jpg",
+    "reports/photos/e6c6c619-9fcd-44ab-b664-ef9de3387b96.jpg",
+    "reports/photos/4bb40366-4ebb-4ae3-995c-5d3de21030c1.jpg",
+    "reports/photos/bfe682d1-827a-4b65-bce6-173c6bb420b5.jpg",
+    "reports/photos/bc561fe6-eb29-41d6-9bd0-0b3bc90cb3f1.jpg",
+    "reports/photos/3634ccb2-72ed-40d6-9925-c807101bd468.jpg"
+  ],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T08:00:02.188260Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

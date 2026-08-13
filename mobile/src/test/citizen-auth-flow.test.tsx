@@ -75,10 +75,10 @@ const readyProfile: CitizenProfile = {
   updatedAt: '2026-08-01T12:00:00Z',
 };
 
-const incompleteProfile: CitizenProfile = {
+const phoneOnlyProfile: CitizenProfile = {
   ...readyProfile,
   fullName: null,
-  contributionReady: false,
+  contributionReady: true,
 };
 
 function findByTestId(screen: ReturnType<typeof renderWithProviders>, testID: string) {
@@ -125,6 +125,28 @@ describe('citizen auth flows', () => {
     const screen = await renderWithProvidersAsync(<ReportScreen />);
     expect(findByTestId(screen, 'report-form')).toBeTruthy();
     expect(__getRouterMockState().replaceCalls).toHaveLength(0);
+  });
+
+  it('migrates pre-#270 phone-only cached readiness when profile refresh fails', async () => {
+    // Simulate a session persisted before #270: verified phone, no name, stale false flag.
+    const legacyPhoneOnlySession = {
+      accessToken: 'tok_legacy',
+      expiresAt: Date.now() + 3_600_000,
+      profile: {
+        ...readyProfile,
+        fullName: null,
+        contributionReady: false,
+      },
+    };
+    const { CITIZEN_SESSION_STORAGE_KEY } = await import('@/services/citizenSession');
+    const { __getSecureStoreMock } = await import('@/test/mocks/expo-secure-store');
+    __getSecureStoreMock().set(CITIZEN_SESSION_STORAGE_KEY, JSON.stringify(legacyPhoneOnlySession));
+    vi.mocked(getCitizenMe).mockRejectedValue(new Error('Network unavailable'));
+
+    const screen = await renderWithProvidersAsync(<ReportScreen />);
+    expect(findByTestId(screen, 'report-form')).toBeTruthy();
+    expect(__getRouterMockState().replaceCalls).toHaveLength(0);
+    expect(getCitizenMe).toHaveBeenCalled();
   });
 
   it('restores a session on home and supports logout', async () => {
@@ -174,7 +196,7 @@ describe('citizen auth flows', () => {
     expect(__getRouterMockState().replaceCalls).toContain('/report');
   });
 
-  it('collects a first-time full name before returning', async () => {
+  it('returns to the intended route after phone-only OTP without collecting a name', async () => {
     __setSearchParams({ returnTo: '/report' });
     vi.mocked(requestCitizenOtp).mockResolvedValue({
       challengeId: 'ch_1',
@@ -185,9 +207,8 @@ describe('citizen auth flows', () => {
       accessToken: 'tok_1',
       tokenType: 'Bearer',
       expiresIn: 2592000,
-      ...incompleteProfile,
+      ...phoneOnlyProfile,
     });
-    vi.mocked(updateCitizenProfile).mockResolvedValue(readyProfile);
 
     const screen = await renderWithProvidersAsync(<LoginScreen />);
 
@@ -204,16 +225,8 @@ describe('citizen auth flows', () => {
       findButton(screen, 'Verify code').props.onPress();
     });
 
-    expect(findByTestId(screen, 'full-name-input')).toBeTruthy();
-
-    await act(async () => {
-      findByTestId(screen, 'full-name-input').props.onChangeText('Ada Citizen');
-    });
-    await act(async () => {
-      findButton(screen, 'Continue').props.onPress();
-    });
-
-    expect(updateCitizenProfile).toHaveBeenCalledWith('tok_1', { fullName: 'Ada Citizen' });
+    expect(() => findByTestId(screen, 'full-name-input')).toThrow();
+    expect(updateCitizenProfile).not.toHaveBeenCalled();
     expect(__getRouterMockState().replaceCalls).toContain('/report');
   });
 

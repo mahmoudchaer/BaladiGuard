@@ -1,23 +1,46 @@
 import type {
   AiProcessingStatus,
+  ActivityPage,
+  DuplicateCandidate,
+  DuplicateCandidatePage,
+  DuplicateComparison,
+  DuplicateLocation,
   PublicTicketStatus,
+  StaffComment,
   Ticket,
   TicketAiFields,
+  TicketAuditActionType,
+  TicketAuditHistoryEntry,
   TicketDuplicateReference,
   TicketDuplicateSuggestion,
   TicketLocation,
+  TicketStaffRole,
   TicketStatus,
   TicketStatusHistoryEntry,
-  StaffComment,
-  ActivityPage,
 } from '@/types/ticket';
+import type {
+  TicketAggregates,
+  TicketListItem,
+  TicketListPage,
+  TicketMapViewport,
+} from '@/types/ticketCollection';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
 import { clearStoredStaffSession, getStaffAuthHeaders } from '@/services/auth';
 import { config } from '@/services/config';
+import {
+  buildTicketListCacheKey,
+  invalidateTicketListCache,
+  invalidateTicketListCacheKeysMatching,
+  isTicketListCacheFresh,
+  readTicketListCache,
+  writeTicketListCache,
+} from '@/services/ticketListCache';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
+import { distanceMetersBetween } from '@/utils/ticketLocation';
 
 const MOCK_LOAD_DELAY_MS = 350;
+const DEFAULT_PAGE_LIMIT = 25;
 
 export type FetchTicketsFilters = {
   status?: TicketStatus | 'ALL';
@@ -29,6 +52,40 @@ export type FetchTicketsFilters = {
       ? T | 'ALL'
       : never
     : never;
+  assignmentState?: 'assigned' | 'unassigned' | 'ALL';
+  q?: string;
+  openOnly?: boolean;
+};
+
+export type FetchTicketsPageOptions = {
+  filters?: FetchTicketsFilters;
+  cursor?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+  /** When true (default), serve fresh cache and revalidate stale entries. */
+  useCache?: boolean;
+};
+
+export type TicketListPageResult = TicketListPage & {
+  /** List projection mapped into the shared Ticket shape for existing UI. */
+  tickets: Ticket[];
+  fromCache: boolean;
+  /**
+   * When a stale cached page was returned, resolves with the fresh page.
+   * Callers must apply it only if their request generation is still current.
+   */
+  revalidate?: Promise<TicketListPageResult>;
+};
+
+export type FetchTicketMapOptions = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  zoom: number;
+  filters?: FetchTicketsFilters;
+  limit?: number;
+  signal?: AbortSignal;
 };
 
 /**
@@ -52,6 +109,12 @@ function applyMockMergeState(ticket: Ticket): Ticket {
 
 function isTicketArray(value: unknown): value is Ticket[] {
   return Array.isArray(value);
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError';
 }
 
 async function readApiErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
@@ -84,6 +147,7 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string):
 async function throwApiError(response: Response, fallbackMessage: string): Promise<never> {
   if (response.status === 401) {
     clearStoredStaffSession();
+    invalidateTicketListCache();
   }
 
   const message = await readApiErrorMessage(response, fallbackMessage);
@@ -110,24 +174,53 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
   if (filters.slaState && filters.slaState !== 'ALL' && ticket.sla?.state !== filters.slaState) {
     return false;
   }
+  if (filters.assignmentState === 'unassigned' && ticket.departmentId) {
+    return false;
+  }
+  if (filters.assignmentState === 'assigned' && !ticket.departmentId) {
+    return false;
+  }
+  if (filters.openOnly) {
+    const open = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
+    if (!open.has(ticket.status)) {
+      return false;
+    }
+  }
+  const query = filters.q?.trim().toLowerCase();
+  if (query) {
+    const haystack = [
+      ticket.ticketId,
+      ticket.ticketNumber,
+      ticket.description,
+      ticket.location.addressText,
+    ]
+      .join(' ')
+      .toLowerCase();
+    if (!haystack.includes(query)) {
+      return false;
+    }
+  }
   return true;
 }
 
-async function fetchMockTickets(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
-  await new Promise((resolve) => setTimeout(resolve, MOCK_LOAD_DELAY_MS));
-
-  if (!isTicketArray(mockTickets)) {
-    throw new Error('Invalid mock ticket fixtures.');
-  }
-
-  return [...mockTickets]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .map((ticket) => applyMockMergeState(ticket))
-    .filter((ticket) => ticketMatchesFetchFilters(ticket, filters));
+function filterRecord(filters: FetchTicketsFilters = {}): Record<string, string | undefined> {
+  return {
+    status: filters.status && filters.status !== 'ALL' ? filters.status : undefined,
+    category: filters.category && filters.category !== 'ALL' ? filters.category : undefined,
+    urgency: filters.urgency && filters.urgency !== 'ALL' ? filters.urgency : undefined,
+    departmentId:
+      filters.departmentId && filters.departmentId !== 'ALL' ? filters.departmentId : undefined,
+    slaState: filters.slaState && filters.slaState !== 'ALL' ? filters.slaState : undefined,
+    assignmentState:
+      filters.assignmentState && filters.assignmentState !== 'ALL'
+        ? filters.assignmentState
+        : undefined,
+    q: filters.q?.trim() ? filters.q.trim() : undefined,
+    openOnly: filters.openOnly ? 'true' : undefined,
+  };
 }
 
-function buildTicketListUrl(filters: FetchTicketsFilters): string {
-  const url = new URL(`${config.apiBaseUrl}/v1/tickets`);
+function appendListFilters(url: URL, filters: FetchTicketsFilters = {}): void {
   if (filters.status && filters.status !== 'ALL') {
     url.searchParams.set('status', filters.status);
   }
@@ -143,14 +236,208 @@ function buildTicketListUrl(filters: FetchTicketsFilters): string {
   if (filters.slaState && filters.slaState !== 'ALL') {
     url.searchParams.set('slaState', filters.slaState);
   }
+  if (filters.assignmentState && filters.assignmentState !== 'ALL') {
+    url.searchParams.set('assignmentState', filters.assignmentState);
+  }
+  const query = filters.q?.trim();
+  if (query) {
+    url.searchParams.set('q', query);
+  }
+  if (filters.openOnly) {
+    url.searchParams.set('openOnly', 'true');
+  }
+}
+
+function listItemToTicket(item: TicketListItem): Ticket {
+  const departmentName = item.department?.name ?? undefined;
+  const departmentId = item.departmentId ?? item.department?.departmentId ?? null;
+  return {
+    ticketId: item.ticketId,
+    ticketNumber: item.ticketNumber?.trim() || item.ticketId,
+    trackingCode: '',
+    description: item.summary,
+    contact: {},
+    location: {
+      latitude: item.location.latitude,
+      longitude: item.location.longitude,
+      addressText: item.location.addressText,
+      source: 'GPS',
+    },
+    imageObjectKey: 'unavailable',
+    status: item.status,
+    category: item.category,
+    priority: item.priority,
+    createdBy: null,
+    municipalityId: item.municipalityId,
+    departmentId,
+    departmentName,
+    department:
+      departmentId || departmentName
+        ? {
+            departmentId: departmentId ?? undefined,
+            name: departmentName,
+          }
+        : null,
+    duplicateGroupId: null,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function normalizeTicketListItem(data: unknown): TicketListItem {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    throw new Error('Unexpected ticket list item shape.');
+  }
+  const location = isRecord(data.location) ? data.location : {};
+  const department = isRecord(data.department) ? data.department : null;
+  const status = normalizeTicketStatus(data.status);
+  const priority =
+    data.priority === 'low' ||
+    data.priority === 'medium' ||
+    data.priority === 'high' ||
+    data.priority === 'critical'
+      ? data.priority
+      : null;
+
+  return {
+    ticketId: data.ticketId,
+    ticketNumber: typeof data.ticketNumber === 'string' ? data.ticketNumber : null,
+    status,
+    category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
+    priority,
+    departmentId: typeof data.departmentId === 'string' ? data.departmentId : null,
+    department: department
+      ? {
+          departmentId:
+            typeof department.departmentId === 'string' ? department.departmentId : null,
+          name: typeof department.name === 'string' ? department.name : null,
+        }
+      : null,
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
+    municipalityId: typeof data.municipalityId === 'string' ? data.municipalityId : null,
+    assignmentState: data.assignmentState === 'unassigned' ? 'unassigned' : 'assigned',
+    location: {
+      latitude: typeof location.latitude === 'number' ? location.latitude : Number.NaN,
+      longitude: typeof location.longitude === 'number' ? location.longitude : Number.NaN,
+      addressText: typeof location.addressText === 'string' ? location.addressText.trim() : '',
+    },
+  };
+}
+
+function normalizeTicketListPage(data: unknown): TicketListPage {
+  if (!isRecord(data) || !Array.isArray(data.items)) {
+    throw new Error('Unexpected ticket list response shape.');
+  }
+  return {
+    items: data.items.map((item) => normalizeTicketListItem(item)),
+    nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null,
+    previousCursor: typeof data.previousCursor === 'string' ? data.previousCursor : null,
+    limit: typeof data.limit === 'number' ? data.limit : DEFAULT_PAGE_LIMIT,
+    scannedCount: typeof data.scannedCount === 'number' ? data.scannedCount : null,
+    approximateTotal: typeof data.approximateTotal === 'number' ? data.approximateTotal : null,
+    freshnessHintSeconds:
+      typeof data.freshnessHintSeconds === 'number' ? data.freshnessHintSeconds : 30,
+  };
+}
+
+function pageResultFromPage(page: TicketListPage, fromCache: boolean): TicketListPageResult {
+  return {
+    ...page,
+    tickets: page.items.map(listItemToTicket),
+    fromCache,
+  };
+}
+
+async function fetchMockTickets(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
+  await new Promise((resolve) => setTimeout(resolve, MOCK_LOAD_DELAY_MS));
+
+  if (!isTicketArray(mockTickets)) {
+    throw new Error('Invalid mock ticket fixtures.');
+  }
+
+  return [...mockTickets]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map((ticket) => applyMockMergeState(ticket))
+    .filter((ticket) => ticketMatchesFetchFilters(ticket, filters));
+}
+
+function ticketToListItem(ticket: Ticket): TicketListItem {
+  return {
+    ticketId: ticket.ticketId,
+    ticketNumber: ticket.ticketNumber,
+    status: ticket.status,
+    category: ticket.category,
+    priority: ticket.priority,
+    departmentId: ticket.departmentId,
+    department: ticket.departmentId
+      ? {
+          departmentId: ticket.departmentId,
+          name: ticket.departmentName ?? ticket.department?.name ?? null,
+        }
+      : null,
+    summary: ticket.description,
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
+    municipalityId: ticket.municipalityId,
+    assignmentState: ticket.departmentId ? 'assigned' : 'unassigned',
+    location: {
+      latitude: ticket.location.latitude,
+      longitude: ticket.location.longitude,
+      addressText: ticket.location.addressText,
+    },
+  };
+}
+
+async function fetchMockTicketsPage(
+  options: FetchTicketsPageOptions = {},
+): Promise<TicketListPageResult> {
+  const filters = options.filters ?? {};
+  const limit = options.limit ?? DEFAULT_PAGE_LIMIT;
+  const all = await fetchMockTickets(filters);
+  const start = options.cursor ? Number.parseInt(options.cursor, 10) || 0 : 0;
+  const slice = all.slice(start, start + limit);
+  const nextStart = start + limit;
+  const page: TicketListPage = {
+    items: slice.map(ticketToListItem),
+    nextCursor: nextStart < all.length ? String(nextStart) : null,
+    previousCursor: start > 0 ? String(Math.max(0, start - limit)) : null,
+    limit,
+    scannedCount: all.length,
+    approximateTotal: all.length,
+    freshnessHintSeconds: 30,
+  };
+  return pageResultFromPage(page, false);
+}
+
+function buildTicketListUrl(
+  filters: FetchTicketsFilters = {},
+  cursor: string | null = null,
+  limit = DEFAULT_PAGE_LIMIT,
+): string {
+  const url = new URL(`${config.apiBaseUrl}/v1/tickets`);
+  appendListFilters(url, filters);
+  if (cursor) {
+    url.searchParams.set('cursor', cursor);
+  }
+  if (limit !== DEFAULT_PAGE_LIMIT) {
+    url.searchParams.set('limit', String(limit));
+  }
   return url.toString();
 }
 
-async function fetchTicketsFromApi(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
-  const response = await fetch(buildTicketListUrl(filters), {
+async function fetchTicketsPageFromApi(
+  options: FetchTicketsPageOptions = {},
+): Promise<TicketListPage> {
+  const filters = options.filters ?? {};
+  const cursor = options.cursor ?? null;
+  const limit = options.limit ?? DEFAULT_PAGE_LIMIT;
+  const response = await fetch(buildTicketListUrl(filters, cursor, limit), {
     headers: {
       ...getStaffAuthHeaders(),
     },
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -158,21 +445,254 @@ async function fetchTicketsFromApi(filters: FetchTicketsFilters = {}): Promise<T
   }
 
   const data: unknown = await response.json();
-
-  if (!isTicketArray(data)) {
-    throw new Error('Unexpected ticket list response shape.');
-  }
-
-  return data.map((ticket) => normalizeTicketFromApi(ticket));
+  return normalizeTicketListPage(data);
 }
 
-export async function fetchTickets(filters: FetchTicketsFilters = {}): Promise<Ticket[]> {
+export async function fetchTicketsPage(
+  options: FetchTicketsPageOptions = {},
+): Promise<TicketListPageResult> {
+  if (options.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
+
   if (config.useMockData) {
-    return fetchMockTickets(filters);
+    return fetchMockTicketsPage(options);
   }
 
-  return fetchTicketsFromApi(filters);
+  const filters = options.filters ?? {};
+  const cursor = options.cursor ?? null;
+  const useCache = options.useCache !== false;
+  const cacheKey = buildTicketListCacheKey(filterRecord(filters), cursor);
+
+  if (useCache) {
+    const cached = readTicketListCache(cacheKey);
+    if (cached && isTicketListCacheFresh(cacheKey)) {
+      return pageResultFromPage(cached, true);
+    }
+    if (cached) {
+      // Stale-while-revalidate: return cached page immediately and expose a
+      // promise so the caller can apply the fresh page when it arrives.
+      const revalidate = fetchTicketsPageFromApi({ ...options, signal: undefined }).then((page) => {
+        writeTicketListCache(cacheKey, page);
+        if (page.nextCursor) {
+          const nextKey = buildTicketListCacheKey(filterRecord(filters), page.nextCursor);
+          if (!isTicketListCacheFresh(nextKey)) {
+            void fetchTicketsPageFromApi({
+              filters,
+              cursor: page.nextCursor,
+              limit: options.limit,
+            })
+              .then((nextPage) => writeTicketListCache(nextKey, nextPage))
+              .catch(() => undefined);
+          }
+        }
+        return pageResultFromPage(page, false);
+      });
+      return {
+        ...pageResultFromPage(cached, true),
+        revalidate,
+      };
+    }
+  }
+
+  const page = await fetchTicketsPageFromApi(options);
+  writeTicketListCache(cacheKey, page);
+
+  if (page.nextCursor && useCache) {
+    const nextKey = buildTicketListCacheKey(filterRecord(filters), page.nextCursor);
+    if (!isTicketListCacheFresh(nextKey)) {
+      void fetchTicketsPageFromApi({
+        filters,
+        cursor: page.nextCursor,
+        limit: options.limit,
+      })
+        .then((nextPage) => writeTicketListCache(nextKey, nextPage))
+        .catch(() => undefined);
+    }
+  }
+
+  return pageResultFromPage(page, false);
 }
+
+/**
+ * Convenience wrapper that returns the current page of tickets as Ticket[].
+ * Prefer fetchTicketsPage for pagination, cache, and AbortSignal support.
+ */
+export async function fetchTickets(
+  filters: FetchTicketsFilters = {},
+  options: Omit<FetchTicketsPageOptions, 'filters'> = {},
+): Promise<Ticket[]> {
+  try {
+    const page = await fetchTicketsPage({ ...options, filters });
+    return page.tickets;
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    throw error;
+  }
+}
+
+function normalizeTicketAggregates(data: unknown): TicketAggregates {
+  if (!isRecord(data)) {
+    throw new Error('Unexpected ticket aggregates response shape.');
+  }
+  return {
+    openCount: typeof data.openCount === 'number' ? data.openCount : 0,
+    criticalCount: typeof data.criticalCount === 'number' ? data.criticalCount : 0,
+    highCount: typeof data.highCount === 'number' ? data.highCount : 0,
+    unassignedCount: typeof data.unassignedCount === 'number' ? data.unassignedCount : 0,
+    overdueCount: typeof data.overdueCount === 'number' ? data.overdueCount : 0,
+    approximate: Boolean(data.approximate),
+  };
+}
+
+export async function fetchTicketAggregates(signal?: AbortSignal): Promise<TicketAggregates> {
+  if (config.useMockData) {
+    const tickets = await fetchMockTickets();
+    const open = new Set(['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS']);
+    return {
+      openCount: tickets.filter((ticket) => open.has(ticket.status)).length,
+      criticalCount: tickets.filter((ticket) => ticket.priority === 'critical').length,
+      highCount: tickets.filter((ticket) => ticket.priority === 'high').length,
+      unassignedCount: tickets.filter((ticket) => !ticket.departmentId).length,
+      overdueCount: tickets.filter((ticket) => ticket.sla?.state === 'overdue').length,
+      approximate: false,
+    };
+  }
+
+  const response = await fetch(`${config.apiBaseUrl}/v1/tickets/aggregates`, {
+    headers: {
+      ...getStaffAuthHeaders(),
+    },
+    signal,
+  });
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load ticket aggregates.');
+  }
+  return normalizeTicketAggregates(await response.json());
+}
+
+function normalizeTicketMapViewport(data: unknown): TicketMapViewport {
+  if (!isRecord(data) || !Array.isArray(data.markers) || !Array.isArray(data.clusters)) {
+    throw new Error('Unexpected ticket map response shape.');
+  }
+
+  return {
+    markers: data.markers.filter(isRecord).flatMap((marker) => {
+      if (typeof marker.ticketId !== 'string') {
+        return [];
+      }
+      return [
+        {
+          ticketId: marker.ticketId,
+          ticketNumber: typeof marker.ticketNumber === 'string' ? marker.ticketNumber : null,
+          status: normalizeTicketStatus(marker.status),
+          priority:
+            marker.priority === 'low' ||
+            marker.priority === 'medium' ||
+            marker.priority === 'high' ||
+            marker.priority === 'critical'
+              ? marker.priority
+              : null,
+          latitude: typeof marker.latitude === 'number' ? marker.latitude : Number.NaN,
+          longitude: typeof marker.longitude === 'number' ? marker.longitude : Number.NaN,
+          category:
+            typeof marker.category === 'string' ? marker.category : 'PENDING_CLASSIFICATION',
+        },
+      ];
+    }),
+    clusters: data.clusters.filter(isRecord).flatMap((cluster) => {
+      if (typeof cluster.id !== 'string' || typeof cluster.count !== 'number') {
+        return [];
+      }
+      return [
+        {
+          id: cluster.id,
+          latitude: typeof cluster.latitude === 'number' ? cluster.latitude : Number.NaN,
+          longitude: typeof cluster.longitude === 'number' ? cluster.longitude : Number.NaN,
+          count: cluster.count,
+        },
+      ];
+    }),
+    limit: typeof data.limit === 'number' ? data.limit : 200,
+    truncated: Boolean(data.truncated),
+    zoom: typeof data.zoom === 'number' ? data.zoom : 12,
+  };
+}
+
+export async function fetchTicketMapViewport(
+  options: FetchTicketMapOptions,
+): Promise<TicketMapViewport> {
+  if (config.useMockData) {
+    const tickets = await fetchMockTickets(options.filters ?? {});
+    const markers = tickets
+      .filter(
+        (ticket) =>
+          Number.isFinite(ticket.location.latitude) &&
+          Number.isFinite(ticket.location.longitude) &&
+          ticket.location.latitude >= options.south &&
+          ticket.location.latitude <= options.north &&
+          ticket.location.longitude >= options.west &&
+          ticket.location.longitude <= options.east,
+      )
+      .slice(0, options.limit ?? 200)
+      .map((ticket) => ({
+        ticketId: ticket.ticketId,
+        ticketNumber: ticket.ticketNumber,
+        status: ticket.status,
+        priority: ticket.priority,
+        latitude: ticket.location.latitude,
+        longitude: ticket.location.longitude,
+        category: ticket.category,
+      }));
+    return {
+      markers: options.zoom < 14 ? [] : markers,
+      clusters:
+        options.zoom < 14 && markers.length > 0
+          ? [
+              {
+                id: 'mock-cluster',
+                latitude: markers.reduce((sum, m) => sum + m.latitude, 0) / markers.length,
+                longitude: markers.reduce((sum, m) => sum + m.longitude, 0) / markers.length,
+                count: markers.length,
+              },
+            ]
+          : [],
+      limit: options.limit ?? 200,
+      truncated: false,
+      zoom: options.zoom,
+    };
+  }
+
+  const url = new URL(`${config.apiBaseUrl}/v1/tickets/map`);
+  url.searchParams.set('north', String(options.north));
+  url.searchParams.set('south', String(options.south));
+  url.searchParams.set('east', String(options.east));
+  url.searchParams.set('west', String(options.west));
+  url.searchParams.set('zoom', String(options.zoom));
+  appendListFilters(url, options.filters ?? {});
+  if (options.limit) {
+    url.searchParams.set('limit', String(options.limit));
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      ...getStaffAuthHeaders(),
+    },
+    signal: options.signal,
+  });
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load map tickets.');
+  }
+  return normalizeTicketMapViewport(await response.json());
+}
+
+function invalidateCachesForTicket(ticketId: string): void {
+  invalidateTicketListCacheKeysMatching(ticketId);
+}
+
+export { invalidateTicketListCache };
 
 function buildMockGroupReference(
   tickets: Ticket[],
@@ -329,6 +849,73 @@ function normalizeStatusHistory(data: unknown): TicketStatusHistoryEntry[] {
     }
     if (typeof entry.note === 'string' && entry.note.trim().length > 0) {
       normalized.note = entry.note.trim();
+    }
+
+    return [normalized];
+  });
+}
+
+const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
+  'STATUS_CHANGE',
+  'CATEGORY_REVIEW',
+  'DEPARTMENT_ASSIGN',
+  'DUPLICATE_MERGE',
+  'PUBLIC_CONTENT_UPDATE',
+];
+
+function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {
+  return AUDIT_ACTION_TYPES.find((actionType) => actionType === value) ?? null;
+}
+
+function normalizeAuditActorRole(value: unknown): TicketStaffRole | undefined {
+  return value === 'municipal_staff' || value === 'administrator' ? value : undefined;
+}
+
+function optionalTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * Staff-only audit rows. Entries without a usable action type or timestamp are
+ * dropped so a partially malformed audit trail never breaks the ticket read.
+ */
+function normalizeAuditHistory(data: unknown): TicketAuditHistoryEntry[] {
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.filter(isRecord).flatMap((entry) => {
+    const actionType = normalizeAuditActionType(entry.actionType);
+    if (!actionType) {
+      return [];
+    }
+
+    const changedAt = typeof entry.changedAt === 'string' ? entry.changedAt.trim() : '';
+    if (!changedAt || Number.isNaN(Date.parse(changedAt))) {
+      return [];
+    }
+
+    const normalized: TicketAuditHistoryEntry = {
+      actionType,
+      summary: optionalTrimmedString(entry.summary) ?? '',
+      changedAt,
+    };
+
+    const actorId = optionalTrimmedString(entry.actorId);
+    if (actorId) {
+      normalized.actorId = actorId;
+    }
+    const actorRole = normalizeAuditActorRole(entry.actorRole);
+    if (actorRole) {
+      normalized.actorRole = actorRole;
+    }
+    const previousValue = optionalTrimmedString(entry.previousValue);
+    if (previousValue) {
+      normalized.previousValue = previousValue;
+    }
+    const newValue = optionalTrimmedString(entry.newValue);
+    if (newValue) {
+      normalized.newValue = newValue;
     }
 
     return [normalized];
@@ -511,6 +1098,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     duplicateGroup: normalizeDuplicateGroup(data.duplicateGroup),
     duplicateSuggestions: normalizeDuplicateSuggestions(data.duplicateSuggestions),
     statusHistory: normalizeStatusHistory(data.statusHistory),
+    auditHistory: normalizeAuditHistory(data.auditHistory),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
@@ -564,6 +1152,302 @@ export async function fetchTicketById(ticketId: string): Promise<Ticket | null> 
   return fetchTicketByIdFromApi(ticketId);
 }
 
+export type FetchDuplicateCandidatesOptions = {
+  q?: string;
+  cursor?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+};
+
+const DUPLICATE_CANDIDATE_LIMIT = 20;
+
+function normalizeTicketPriority(value: unknown): Ticket['priority'] {
+  return value === 'low' || value === 'medium' || value === 'high' || value === 'critical'
+    ? value
+    : null;
+}
+
+function normalizeDuplicateLocation(data: unknown): DuplicateLocation {
+  const location = isRecord(data) ? data : {};
+  return {
+    latitude: typeof location.latitude === 'number' ? location.latitude : Number.NaN,
+    longitude: typeof location.longitude === 'number' ? location.longitude : Number.NaN,
+    addressText: typeof location.addressText === 'string' ? location.addressText.trim() : '',
+  };
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * Keeps only the bounded candidate contract. Any extra field a server or proxy
+ * adds (contact, tracking code, raw object key) is dropped here rather than
+ * relying on the UI to avoid rendering it.
+ */
+function normalizeDuplicateCandidate(data: unknown): DuplicateCandidate | null {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    return null;
+  }
+
+  const candidate: DuplicateCandidate = {
+    ticketId: data.ticketId,
+    ticketNumber:
+      typeof data.ticketNumber === 'string' && data.ticketNumber.trim().length > 0
+        ? data.ticketNumber
+        : data.ticketId,
+    status: normalizeTicketStatus(data.status),
+    category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
+    priority: normalizeTicketPriority(data.priority),
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    location: normalizeDuplicateLocation(data.location),
+    suggested: data.suggested === true,
+    // The endpoint only returns rows that already satisfy the merge rules.
+    mergeable: data.mergeable !== false,
+  };
+
+  const distanceMeters = optionalFiniteNumber(data.distanceMeters);
+  if (distanceMeters !== undefined) {
+    candidate.distanceMeters = distanceMeters;
+  }
+  if (typeof data.imageUrl === 'string' && data.imageUrl.trim().length > 0) {
+    candidate.imageUrl = data.imageUrl;
+  }
+  const score = optionalFiniteNumber(data.score);
+  if (score !== undefined) {
+    candidate.score = score;
+  }
+  if (data.categoryMatch === 'same' || data.categoryMatch === 'similar') {
+    candidate.categoryMatch = data.categoryMatch;
+  }
+
+  return candidate;
+}
+
+function normalizeDuplicateCandidatePage(data: unknown): DuplicateCandidatePage {
+  if (!isRecord(data) || !Array.isArray(data.items)) {
+    throw new Error('Unexpected duplicate candidate response shape.');
+  }
+
+  return {
+    items: data.items.flatMap((item) => {
+      const candidate = normalizeDuplicateCandidate(item);
+      return candidate ? [candidate] : [];
+    }),
+    nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null,
+    limit: typeof data.limit === 'number' ? data.limit : DUPLICATE_CANDIDATE_LIMIT,
+  };
+}
+
+function normalizeDuplicateComparison(data: unknown): DuplicateComparison {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    throw new Error('Unexpected duplicate comparison response shape.');
+  }
+
+  const comparison: DuplicateComparison = {
+    ticketId: data.ticketId,
+    ticketNumber:
+      typeof data.ticketNumber === 'string' && data.ticketNumber.trim().length > 0
+        ? data.ticketNumber
+        : data.ticketId,
+    description: typeof data.description === 'string' ? data.description : '',
+    status: normalizeTicketStatus(data.status),
+    category: typeof data.category === 'string' ? data.category : 'PENDING_CLASSIFICATION',
+    priority: normalizeTicketPriority(data.priority),
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+    location: normalizeDuplicateLocation(data.location),
+  };
+
+  if (typeof data.imageUrl === 'string' && data.imageUrl.trim().length > 0) {
+    comparison.imageUrl = data.imageUrl;
+  }
+  const distanceMeters = optionalFiniteNumber(data.distanceMeters);
+  if (distanceMeters !== undefined) {
+    comparison.distanceMeters = distanceMeters;
+  }
+
+  return comparison;
+}
+
+function mockCandidateSummary(ticket: Ticket): string {
+  return ticket.description.length > 240
+    ? `${ticket.description.slice(0, 239).trimEnd()}…`
+    : ticket.description;
+}
+
+async function fetchMockDuplicateCandidates(
+  ticketId: string,
+  options: FetchDuplicateCandidatesOptions,
+): Promise<DuplicateCandidatePage> {
+  const limit = options.limit ?? DUPLICATE_CANDIDATE_LIMIT;
+  const tickets = await fetchMockTickets();
+  const source = tickets.find((ticket) => ticket.ticketId === ticketId);
+  if (!source) {
+    throw new Error('Ticket was not found.');
+  }
+
+  const sourceCategory = effectiveTicketCategory(source);
+  if (sourceCategory === null) {
+    return { items: [], nextCursor: null, limit };
+  }
+
+  const matches = tickets.filter(
+    (candidate) =>
+      candidate.ticketId !== source.ticketId &&
+      !candidate.duplicateGroupId &&
+      effectiveTicketCategory(candidate) === sourceCategory &&
+      ticketMatchesFetchFilters(candidate, { openOnly: true, q: options.q }),
+  );
+  const suggestedIds = new Set(
+    (source.duplicateSuggestions ?? []).map((suggestion) => suggestion.ticketId),
+  );
+
+  const start = options.cursor ? Number.parseInt(options.cursor, 10) || 0 : 0;
+  const slice = matches.slice(start, start + limit);
+  const nextStart = start + limit;
+
+  return {
+    items: slice.map((candidate) => {
+      const distance = distanceMetersBetween(source.location, candidate.location);
+      const item: DuplicateCandidate = {
+        ticketId: candidate.ticketId,
+        ticketNumber: candidate.ticketNumber,
+        status: candidate.status,
+        category: effectiveTicketCategory(candidate) ?? candidate.category,
+        priority: candidate.priority,
+        summary: mockCandidateSummary(candidate),
+        createdAt: candidate.createdAt,
+        location: {
+          latitude: candidate.location.latitude,
+          longitude: candidate.location.longitude,
+          addressText: candidate.location.addressText,
+        },
+        suggested: suggestedIds.has(candidate.ticketId),
+        mergeable: true,
+      };
+      if (distance !== null) {
+        item.distanceMeters = distance;
+      }
+      return item;
+    }),
+    nextCursor: nextStart < matches.length ? String(nextStart) : null,
+    limit,
+  };
+}
+
+async function fetchDuplicateCandidatesFromApi(
+  ticketId: string,
+  options: FetchDuplicateCandidatesOptions,
+): Promise<DuplicateCandidatePage> {
+  const url = new URL(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/duplicate-candidates`,
+  );
+  const query = options.q?.trim();
+  if (query) {
+    url.searchParams.set('q', query);
+  }
+  if (options.cursor) {
+    url.searchParams.set('cursor', options.cursor);
+  }
+  if (options.limit) {
+    url.searchParams.set('limit', String(options.limit));
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      ...getStaffAuthHeaders(),
+    },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load duplicate candidates.');
+  }
+
+  return normalizeDuplicateCandidatePage(await response.json());
+}
+
+/** Dedicated merge-candidate search for one ticket, cursor-paginated (issue #269). */
+export async function fetchDuplicateCandidates(
+  ticketId: string,
+  options: FetchDuplicateCandidatesOptions = {},
+): Promise<DuplicateCandidatePage> {
+  if (config.useMockData) {
+    return fetchMockDuplicateCandidates(ticketId, options);
+  }
+
+  return fetchDuplicateCandidatesFromApi(ticketId, options);
+}
+
+async function fetchMockDuplicateComparison(
+  ticketId: string,
+  candidateTicketId: string,
+): Promise<DuplicateComparison | null> {
+  const source = await fetchMockTicketById(ticketId);
+  const candidate = await fetchMockTicketById(candidateTicketId);
+  if (!source || !candidate) {
+    return null;
+  }
+
+  const comparison: DuplicateComparison = {
+    ticketId: candidate.ticketId,
+    ticketNumber: candidate.ticketNumber,
+    description: candidate.description,
+    status: candidate.status,
+    category: effectiveTicketCategory(candidate) ?? candidate.category,
+    priority: candidate.priority,
+    createdAt: candidate.createdAt,
+    location: {
+      latitude: candidate.location.latitude,
+      longitude: candidate.location.longitude,
+      addressText: candidate.location.addressText,
+    },
+  };
+  const distance = distanceMetersBetween(source.location, candidate.location);
+  if (distance !== null) {
+    comparison.distanceMeters = distance;
+  }
+  return comparison;
+}
+
+async function fetchDuplicateComparisonFromApi(
+  ticketId: string,
+  candidateTicketId: string,
+): Promise<DuplicateComparison | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}` +
+      `/duplicate-comparison/${encodeURIComponent(candidateTicketId)}`,
+    {
+      headers: {
+        ...getStaffAuthHeaders(),
+      },
+    },
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load the duplicate comparison.');
+  }
+
+  return normalizeDuplicateComparison(await response.json());
+}
+
+/** Bounded side-by-side comparison projection for the merge review (issue #269). */
+export async function fetchDuplicateComparison(
+  ticketId: string,
+  candidateTicketId: string,
+): Promise<DuplicateComparison | null> {
+  if (config.useMockData) {
+    return fetchMockDuplicateComparison(ticketId, candidateTicketId);
+  }
+
+  return fetchDuplicateComparisonFromApi(ticketId, candidateTicketId);
+}
+
 export async function fetchTicketActivity(
   ticketId: string,
   cursor?: string,
@@ -597,6 +1481,7 @@ export async function fetchTicketActivity(
 }
 
 export async function fetchTicketComments(ticketId: string): Promise<StaffComment[]> {
+  if (config.useMockData) return [];
   const response = await fetch(
     `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/comments`,
     { headers: getStaffAuthHeaders() },
@@ -672,7 +1557,9 @@ async function updateTicketStatusFromApi(
   }
 
   const data: unknown = await response.json();
-  return normalizeTicketFromApi(data);
+  const ticket = normalizeTicketFromApi(data);
+  invalidateCachesForTicket(ticketId);
+  return ticket;
 }
 
 export async function updateTicketStatus(
@@ -680,7 +1567,11 @@ export async function updateTicketStatus(
   status: TicketStatus,
 ): Promise<Ticket | null> {
   if (config.useMockData) {
-    return updateMockTicketStatus(ticketId, status);
+    const ticket = await updateMockTicketStatus(ticketId, status);
+    if (ticket) {
+      invalidateCachesForTicket(ticketId);
+    }
+    return ticket;
   }
 
   return updateTicketStatusFromApi(ticketId, status);
@@ -740,7 +1631,9 @@ async function reviewTicketCategoryFromApi(
   }
 
   const data: unknown = await response.json();
-  return normalizeTicketFromApi(data);
+  const ticket = normalizeTicketFromApi(data);
+  invalidateCachesForTicket(ticketId);
+  return ticket;
 }
 
 export async function reviewTicketCategory(
@@ -748,7 +1641,11 @@ export async function reviewTicketCategory(
   input: ReviewTicketCategoryInput,
 ): Promise<Ticket | null> {
   if (config.useMockData) {
-    return reviewMockTicketCategory(ticketId, input);
+    const ticket = await reviewMockTicketCategory(ticketId, input);
+    if (ticket) {
+      invalidateCachesForTicket(ticketId);
+    }
+    return ticket;
   }
 
   return reviewTicketCategoryFromApi(ticketId, input);
@@ -857,14 +1754,20 @@ async function mergeDuplicateTicketsFromApi(
   }
 
   const data: unknown = await response.json();
-  return normalizeTicketFromApi(data);
+  const ticket = normalizeTicketFromApi(data);
+  invalidateTicketListCache();
+  return ticket;
 }
 
 export async function mergeDuplicateTickets(
   input: MergeDuplicateTicketsInput,
 ): Promise<Ticket | null> {
   if (config.useMockData) {
-    return mergeMockDuplicateTickets(input);
+    const ticket = await mergeMockDuplicateTickets(input);
+    if (ticket) {
+      invalidateTicketListCache();
+    }
+    return ticket;
   }
 
   return mergeDuplicateTicketsFromApi(input);
@@ -935,7 +1838,9 @@ async function assignTicketDepartmentFromApi(
   }
 
   const data: unknown = await response.json();
-  return normalizeTicketFromApi(data);
+  const ticket = normalizeTicketFromApi(data);
+  invalidateCachesForTicket(ticketId);
+  return ticket;
 }
 
 export async function assignTicketDepartment(
@@ -943,7 +1848,11 @@ export async function assignTicketDepartment(
   input: AssignTicketDepartmentInput,
 ): Promise<Ticket | null> {
   if (config.useMockData) {
-    return assignMockTicketDepartment(ticketId, input);
+    const ticket = await assignMockTicketDepartment(ticketId, input);
+    if (ticket) {
+      invalidateCachesForTicket(ticketId);
+    }
+    return ticket;
   }
 
   return assignTicketDepartmentFromApi(ticketId, input);
@@ -1016,7 +1925,9 @@ async function updateTicketPublicContentFromApi(
   }
 
   const data: unknown = await response.json();
-  return normalizeTicketFromApi(data);
+  const ticket = normalizeTicketFromApi(data);
+  invalidateCachesForTicket(ticketId);
+  return ticket;
 }
 
 export async function updateTicketPublicContent(
@@ -1024,7 +1935,11 @@ export async function updateTicketPublicContent(
   input: UpdateTicketPublicContentInput,
 ): Promise<Ticket | null> {
   if (config.useMockData) {
-    return updateMockTicketPublicContent(ticketId, input);
+    const ticket = await updateMockTicketPublicContent(ticketId, input);
+    if (ticket) {
+      invalidateCachesForTicket(ticketId);
+    }
+    return ticket;
   }
 
   return updateTicketPublicContentFromApi(ticketId, input);

@@ -42,15 +42,16 @@ contribution-ready authentication is implemented by #173.
 - Email is nullable secondary contact data for explicitly selected notifications, announcements,
   or receipts. It is not unique, a login identifier, an ownership key, or proof sufficient to
   recover an account after phone loss.
-- A citizen is **contribution-ready** only when the session is valid, the account is active,
-  `phoneVerifiedAt` is non-null for the account's current phone, and `fullName` is valid after
-  trimming (1–120 Unicode characters). OTP verification for an inactive account returns `403
-ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions so their next
-  use returns `401 UNAUTHORIZED`. An active but incomplete account receives `403
-CONTRIBUTION_PROFILE_REQUIRED` on contribution routes.
-- Guests and incomplete citizens may browse public data but may not create tickets or perform any
-  other contribution. Clients must never supply `ownerUserId`; protected contribution routes derive
-  it from the session.
+- A citizen is **contribution-ready** when the session is valid, the account is active, and
+  `phoneVerifiedAt` is non-null for the account's current phone. Full name is optional profile
+  data and is **not** required to contribute (#270). OTP verification for an inactive account
+  returns `403 ACCOUNT_INACTIVE` without a session, while deactivation revokes existing sessions
+  so their next use returns `401 UNAUTHORIZED`. An active account that is not contribution-ready
+  (for example missing phone verification) receives `403 CONTRIBUTION_PROFILE_REQUIRED` on
+  contribution routes.
+- Guests may browse public data but may not create tickets or perform any other contribution.
+  Clients must never supply `ownerUserId`; protected contribution routes derive it from the
+  session.
 
 ### Canonical phone normalization
 
@@ -155,8 +156,8 @@ Minimal OTP payloads are fixed as follows:
 - OTP verify accepts `challengeId`, `code`, and, for first-time `LOGIN_OR_SIGNUP`, optional
   `fullName`. It returns `accessToken`, `tokenType: "Bearer"`, `expiresIn: 2592000`, and the
   citizen-safe profile.
-- `fullName` may be omitted during first verification. The new account then remains authenticated but
-  not contribution-ready until a valid name is supplied through `PATCH /v1/citizen/me`.
+- `fullName` may be omitted during first verification. The new account is still contribution-ready
+  when the phone is verified (#270); a name may be added later through `PATCH /v1/citizen/me`.
 
 Successful OTP verification returns one cryptographically random, opaque Bearer access token. Only a
 keyed hash is stored in the session record. The MVP session has an absolute 30-day lifetime, does not
@@ -187,8 +188,8 @@ recovery remain a separate staff-only contract; a staff token cannot authenticat
 | `GET /v1/tickets/public/{ticketNumber}` | Public                     | Implemented citizen-safe report detail by public ticket number; unpublished reports return `404`.                                                            |
 | `GET /v1/tickets/track/{trackingCode}`  | Public, possession-based   | Existing citizen-safe tracking response; tracking code is not account authentication.                                                                        |
 | `POST /v1/locations/validate`           | Public                     | Guest-allowed draft assistance. It validates input but persists no report or contribution. Existing abuse controls still apply.                              |
-| `POST /v1/uploads/report-photo`         | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`; incomplete citizens receive `403`.                |
-| `POST /v1/tickets`                      | Contribution-ready citizen | Implemented by #173. Guests and revoked inactive-account sessions receive `401`; active but incomplete citizens receive `403 CONTRIBUTION_PROFILE_REQUIRED`. |
+| `POST /v1/uploads/report-photo`         | Contribution-ready citizen | Upload creates a persistent contribution artifact and is gated like ticket creation. Guests receive `401`. Verified-phone citizens may upload even without a full name (#270). |
+| `POST /v1/tickets`                      | Contribution-ready citizen | Implemented by #173 / #270. Guests and revoked inactive-account sessions receive `401`. Verified-phone citizens may submit without a full name. |
 | `/v1/staff/**` and staff ticket routes  | Authorized staff           | Identity/contact is returned only when the staff role and municipality/department scope authorize it.                                                        |
 
 Public list, map, and detail responses expose exactly `ticketNumber`, public `status`, staff-reviewed
@@ -540,12 +541,21 @@ Creates a submitted citizen report ticket.
 Shared HTTP rate limits apply (`public-ticket-submission`; default 20 / 60s) because submit
 triggers AI intake. Exceeding the budget returns `429 RATE_LIMIT_EXCEEDED` with `Retry-After`.
 
+Optional idempotency (issue #258): send `Idempotency-Key: <key>` on the request (or body
+`clientSubmissionId`). Replays with the same key and same owner return the original `201`
+response body. A claim that is still in progress may return `409 SUBMISSION_IN_PROGRESS`.
+Claims bind the created ticket id before finalizing the ledger entry and can be recovered
+after a crash/`complete` failure; unfinished claims without a ticket become reclaimable after
+~2 minutes. Keys without a valid shape are ignored (treated as non-idempotent submits).
+Completed claim records are retained ~14 days (DynamoDB TTL attribute `ttl`) for offline retry
+safety, then purged.
+
 ### Auth
 
-Requires a contribution-ready citizen Bearer session (issue #173). The server derives `ownerUserId`
-from that session and snapshots contact data from the citizen profile; client-supplied ownership is
-forbidden. Missing authentication and revoked inactive-account sessions return `401`; an active but
-incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
+Requires a contribution-ready citizen Bearer session (issues #173 / #270). The server derives
+`ownerUserId` from that session and snapshots contact data from the citizen profile; client-supplied
+ownership is forbidden. Missing authentication and revoked inactive-account sessions return `401`.
+Verified-phone citizens may submit without a full name; `contact.name` may be null.
 
 ### Request body
 
@@ -581,6 +591,7 @@ incomplete citizen returns `403 CONTRIBUTION_PROFILE_REQUIRED`.
 | `location.addressText`      | string |      Yes | Trimmed readable address, landmark, or selected placeholder location text (3–500 characters).                                                                                                                                   |
 | `location.source`           | enum   |      Yes | `GPS`, `MANUAL`, or `PLACEHOLDER`.                                                                                                                                                                                              |
 | `imageObjectKey`            | string |      Yes | Stable image object key/reference used by the backend.                                                                                                                                                                          |
+| `clientSubmissionId`        | string |       No | Optional client idempotency id (issue #258). Prefer the `Idempotency-Key` HTTP header. 8–128 characters matching `[A-Za-z0-9_-]`. Scoped per citizen; retries return the original success payload without creating a second ticket. |
 | `clientMetadata`            | object |      Yes | Client metadata sent by the mobile app.                                                                                                                                                                                         |
 | `clientMetadata.platform`   | string |      Yes | Example values: `ios`, `android`, `web`.                                                                                                                                                                                        |
 | `clientMetadata.appVersion` | string |      Yes | Mobile app version.                                                                                                                                                                                                             |
@@ -704,10 +715,17 @@ Citizen tracking codes are 6 characters drawn from `A-Z` and `2-9`, excluding am
 
 Staff-only. Requires `Authorization: Bearer <accessToken>`.
 
-Returns persisted tickets using the ticket record shape, sorted by `createdAt` descending.
-Optional query filters match **persisted** ticket fields and are combined with AND. Omitting a
-parameter leaves that dimension unfiltered. An empty match set returns `[]` (HTTP 200), not an
-error.
+Returns a **lightweight paginated collection** (`TicketListPageResponse`), sorted by
+`createdAt` / `ticketId` descending via indexed staff GSIs (issue #267). Items do **not**
+include contact, tracking codes, status/audit history, image URLs, or AI/public blobs.
+Full detail remains on `GET /v1/tickets/{ticketId}`. See
+[staff-ticket-collection.md](./staff-ticket-collection.md).
+
+Optional query filters match **persisted** ticket fields and are combined with AND.
+`slaState` is derived (not indexed); the service continues fetching bounded source pages
+until the filtered page is filled or the source is exhausted. Omitting a
+parameter leaves that dimension unfiltered. An empty match set returns
+`{ "items": [], ... }` (HTTP 200), not an error.
 
 ### Query Parameters
 
@@ -717,53 +735,56 @@ error.
 | `category`     | string | No       | Exact match on ticket `category` (including `PENDING_CLASSIFICATION`). Must be a seeded catalog category ID.                                                                |
 | `urgency`      | enum   | No       | Exact match on persisted urgency level stored as ticket `priority`. One of `low`, `medium`, `high`, `critical`. Tickets with `priority: null` do not match.                 |
 | `departmentId` | string | No       | Exact match on assigned `departmentId` (staff override or automatic assignment). Must be a seeded department catalog ID. Does **not** filter on `ai.suggestedDepartmentId`. |
+| `slaState`     | enum   | No       | Derived SLA filter with bounded continue-fetch: `on_track`, `due_soon`, `overdue`, `completed`, `unavailable`.                                                              |
+| `limit`        | int    | No       | Page size (default 25, max 100).                                                                                                                                            |
+| `cursor`       | string | No       | Opaque continuation cursor from a prior `nextCursor`.                                                                                                                       |
 
-Invalid or blank filter values return `400` with `error.code = VALIDATION_ERROR` and a `details[]`
-entry whose `field` is the query parameter name (`status`, `category`, `urgency`, or
-`departmentId`).
+Invalid or blank filter values / cursors return `400` with `error.code = VALIDATION_ERROR`.
 
 ### Response `200`
 
 ```json
-[
-  {
-    "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
-    "ticketNumber": "BG-2026-0001",
-    "trackingCode": "AB23CD",
-    "description": "Large pothole reported near the university gate causing traffic disruption.",
-    "contact": {
-      "name": "Citizen Name",
-      "phone": "+96170123456",
-      "email": "citizen@example.com"
-    },
-    "location": {
-      "latitude": 33.896112,
-      "longitude": 35.478419,
-      "addressText": "Near AUB Main Gate, Hamra, Beirut",
-      "source": "PLACEHOLDER"
-    },
-    "imageReferences": [
-      {
-        "objectKey": "reports/mock/photo.jpg",
-        "url": null,
-        "contentType": null,
-        "createdAt": null
+{
+  "items": [
+    {
+      "ticketId": "tkt_2f7b3a5e4c9d4a0c9c1b8f1234567890",
+      "ticketNumber": "BG-2026-0001",
+      "status": "SUBMITTED",
+      "category": "PENDING_CLASSIFICATION",
+      "priority": null,
+      "departmentId": null,
+      "department": null,
+      "summary": "Large pothole reported near the university gate causing traffic disruption.",
+      "createdAt": "2026-07-03T00:54:15Z",
+      "updatedAt": "2026-07-03T00:54:15Z",
+      "municipalityId": null,
+      "assignmentState": "unassigned",
+      "location": {
+        "latitude": 33.896112,
+        "longitude": 35.478419,
+        "addressText": "Near AUB Main Gate, Hamra, Beirut"
       }
-    ],
-    "imageObjectKey": "reports/mock/photo.jpg",
-    "status": "SUBMITTED",
-    "category": "PENDING_CLASSIFICATION",
-    "priority": null,
-    "department": null,
-    "createdBy": null,
-    "municipalityId": null,
-    "departmentId": null,
-    "duplicateGroupId": null,
-    "createdAt": "2026-07-03T00:54:15Z",
-    "updatedAt": "2026-07-03T00:54:15Z"
-  }
-]
+    }
+  ],
+  "nextCursor": null,
+  "previousCursor": null,
+  "limit": 25,
+  "scannedCount": 1,
+  "approximateTotal": null,
+  "freshnessHintSeconds": 30
+}
 ```
+
+## `GET /v1/tickets/map`
+
+Staff-only. Viewport-bounded map contract (issue #267). Query: `north`, `south`, `east`,
+`west`, `zoom`, optional collection filters, `limit` (default 200, max 500). Returns
+`markers` and/or `clusters` with `truncated` when the candidate budget is exhausted.
+
+## `GET /v1/tickets/aggregates`
+
+Staff-only. Scoped attention counts (`openCount`, `criticalCount`, `highCount`,
+`unassignedCount`, `overdueCount`) with `approximate` when sampled.
 
 ## `GET /v1/tickets/{ticketId}`
 
@@ -974,6 +995,136 @@ Staff responses also append a `DEPARTMENT_ASSIGN` entry to `auditHistory`.
 | `VALIDATION_ERROR` |    400 | The department ID is missing or not in the seeded department catalog. |
 | `UNAUTHORIZED`     |    401 | Missing/invalid staff auth once issue #72 is wired.                   |
 | `FORBIDDEN`        |    403 | Authenticated staff principal cannot assign the requested department. |
+
+## `GET /v1/tickets/{ticketId}/duplicate-candidates`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Dedicated merge-candidate search for one ticket (issue #269). The admin duplicate workspace
+uses it instead of scanning a single `GET /v1/tickets` page, so a valid candidate is never
+hidden behind list pagination or an unrelated dashboard filter.
+
+### Query Parameters
+
+| Name     | Type   |                Default | Notes                                                                    |
+| -------- | ------ | ---------------------: | ------------------------------------------------------------------------ |
+| `q`      | string |                   none | Case-insensitive match on ticket number, description, and address text. |
+| `limit`  | int    |                     20 | Page size, max 50.                                                       |
+| `cursor` | string |                   none | Opaque continuation cursor from a previous `nextCursor`.                  |
+
+### Candidate rules
+
+- The source ticket must be visible to the caller under the same staff scope as
+  `GET /v1/tickets/{ticketId}`; otherwise `404 TICKET_NOT_FOUND`.
+- The source ticket must already be classified. An unclassified source has no effective
+  category to match, so the response is an empty page.
+- Returned tickets always exclude the source itself, exclude tickets that already belong to a
+  duplicate group, keep only open statuses (`SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`,
+  `IN_PROGRESS`), and share the source's **effective category** (`finalCategory`, else
+  `aiSuggestedCategory`, else the stored category) — the same semantics
+  `POST /v1/tickets/merge` enforces.
+- Because the effective category is derived rather than persisted, the service keeps pulling
+  staff list pages until the requested page size is filled or the scan ends. `nextCursor` is
+  the continuation for the *underlying list scan*, so a page can be short and still have more.
+- Every returned row satisfies the merge preconditions the API can check up front, hence
+  `mergeable: true`.
+
+### Response `200`
+
+```json
+{
+  "items": [
+    {
+      "ticketId": "tkt_55555555555555555555555555555555",
+      "ticketNumber": "BG-2026-0201",
+      "status": "SUBMITTED",
+      "category": "road_damage",
+      "priority": "high",
+      "summary": "Deep pothole opposite the campus entrance.",
+      "createdAt": "2026-07-17T07:30:00Z",
+      "location": {
+        "latitude": 33.8965,
+        "longitude": 35.4782,
+        "addressText": "Bliss Street, Beirut"
+      },
+      "distanceMeters": 42.4,
+      "imageUrl": "https://s3.example/presigned/...",
+      "suggested": true,
+      "score": 0.82,
+      "categoryMatch": "same",
+      "mergeable": true
+    }
+  ],
+  "nextCursor": "eyJ0aWNrZXRJZCI6...",
+  "limit": 20
+}
+```
+
+| Field            | Type    | Notes                                                                                    |
+| ---------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `summary`        | string  | Bounded description excerpt, same shape as staff list items.                              |
+| `distanceMeters` | number? | Great-circle distance from the source ticket; omitted when either location is unusable.  |
+| `imageUrl`       | string? | Short-lived presigned GET URL. The raw `imageObjectKey` is never returned.                |
+| `suggested`      | bool    | `true` when the automated detector also flagged this pair for the source ticket.          |
+| `score`          | number? | Detector confidence, present only for suggested rows.                                     |
+| `categoryMatch`  | string? | `same` or `similar`, present only for suggested rows.                                     |
+| `mergeable`      | bool    | Always `true`; the endpoint filters out rows the merge mutation would reject.              |
+
+This projection deliberately omits `contact`, `trackingCode`, `imageObjectKey`, `auditHistory`,
+`statusHistory`, AI blobs, and public-content drafts: choosing duplicates needs evidence, not
+citizen identity.
+
+### Duplicate candidate error codes
+
+| Code               | Status | Meaning                                                       |
+| ------------------ | -----: | ------------------------------------------------------------- |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.              |
+| `TICKET_NOT_FOUND` |    404 | Source ticket does not exist or is outside the staff scope.   |
+| `VALIDATION_ERROR` |    400 | `cursor` is malformed, or `limit` is outside `1..50`.         |
+
+## `GET /v1/tickets/{ticketId}/duplicate-comparison/{candidateTicketId}`
+
+Staff-only. Requires `Authorization: Bearer <accessToken>`.
+
+Bounded side-by-side projection of one candidate for the merge review (issue #269). The admin
+comparison panel reads this instead of `GET /v1/tickets/{candidateTicketId}`, so reviewing a
+possible duplicate never pulls another citizen's full record into the browser.
+
+Both the source and the candidate ticket must be visible to the caller under the staff list
+scope; either miss returns `404 TICKET_NOT_FOUND`.
+
+### Response `200`
+
+```json
+{
+  "ticketId": "tkt_55555555555555555555555555555555",
+  "ticketNumber": "BG-2026-0201",
+  "description": "Second report about the same pothole.",
+  "status": "SUBMITTED",
+  "category": "road_damage",
+  "priority": "high",
+  "createdAt": "2026-07-17T07:30:00Z",
+  "location": {
+    "latitude": 33.8965,
+    "longitude": 35.4782,
+    "addressText": "Bliss Street, Beirut"
+  },
+  "imageUrl": "https://s3.example/presigned/...",
+  "distanceMeters": 42.4
+}
+```
+
+`category` is the effective category. `distanceMeters` is measured against the source ticket.
+`imageUrl` is a presigned GET URL only. The response omits `contact`, `trackingCode`,
+`imageObjectKey`, `auditHistory`, `statusHistory`, AI fields, public-content drafts, and
+`createdBy`/owner identity.
+
+### Duplicate comparison error codes
+
+| Code               | Status | Meaning                                                                        |
+| ------------------ | -----: | ------------------------------------------------------------------------------ |
+| `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                               |
+| `TICKET_NOT_FOUND` |    404 | Source or candidate ticket does not exist or is outside the staff scope.       |
 
 ## `POST /v1/tickets/merge`
 

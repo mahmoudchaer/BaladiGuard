@@ -134,7 +134,7 @@ def test_list_tickets_filters_by_urgency(client):
     response = client.get("/v1/tickets", params={"urgency": "high"})
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["items"]
     assert [ticket["ticketId"] for ticket in body] == [high["ticketId"]]
     assert all(ticket["priority"] == "high" for ticket in body)
 
@@ -154,7 +154,7 @@ def test_list_tickets_filters_by_department(client):
     response = client.get("/v1/tickets", params={"departmentId": WASTE_MANAGEMENT})
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["items"]
     assert [ticket["ticketId"] for ticket in body] == [waste["ticketId"]]
     assert all(ticket["departmentId"] == WASTE_MANAGEMENT for ticket in body)
 
@@ -185,7 +185,7 @@ def test_list_tickets_filters_by_status_and_category(client):
     )
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["items"]
     assert [ticket["ticketId"] for ticket in body] == [matching["ticketId"]]
 
 
@@ -218,7 +218,7 @@ def test_list_tickets_combines_urgency_department_status_and_category(client):
     )
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["items"]
     assert [ticket["ticketId"] for ticket in body] == [matching["ticketId"]]
 
 
@@ -236,7 +236,7 @@ def test_list_tickets_returns_empty_list_when_filters_match_nothing(client):
     )
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
 
 
 def test_list_tickets_rejects_invalid_filter_values(client):
@@ -278,7 +278,7 @@ def test_list_tickets_without_filters_still_returns_all(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    assert [ticket["ticketId"] for ticket in response.json()] == [
+    assert [ticket["ticketId"] for ticket in response.json()["items"]] == [
         second["ticketId"],
         first["ticketId"],
     ]
@@ -345,7 +345,7 @@ def test_list_tickets_filters_work_in_dynamodb(dynamodb_settings: Settings) -> N
             },
         )
         assert response.status_code == 200
-        body = response.json()
+        body = response.json()["items"]
         assert [ticket["ticketId"] for ticket in body] == [ticket_id]
 
         empty = client.get(
@@ -353,6 +353,6 @@ def test_list_tickets_filters_work_in_dynamodb(dynamodb_settings: Settings) -> N
             params={"urgency": "critical", "departmentId": STREET_LIGHTING},
         )
         assert empty.status_code == 200
-        assert empty.json() == []
+        assert empty.json()["items"] == []
     finally:
         ticket_service._store = original_store
