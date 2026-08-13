@@ -7,6 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.database.store_factory import get_citizen_store
 from app.schemas.citizen import StoredCitizenUser
+from app.schemas.image_redaction import TicketImageRedaction
 from app.schemas.staff_ticket_collection import (
     TicketListDepartment,
     TicketListItemResponse,
@@ -41,6 +42,7 @@ from app.schemas.ticket_response import (
 from app.services.complaints.sla import derive_ticket_sla
 from app.services.duplicates import effective_ticket_category
 from app.services.routing import department_name
+from app.services.uploads.photo_upload_service import PhotoUploadService
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
 LIST_SUMMARY_MAX_CHARS = 240
@@ -248,7 +250,7 @@ def map_ticket_to_public_response(
     # Only staff-approved public photos are projected. Raw upload keys stay private.
     # Presigned URLs may include the approved key in the path; that is expected for
     # time-limited GET access and is not the same as exposing imageObjectKey in JSON.
-    approved_photo_key = (ticket.public_image_object_key or "").strip()
+    approved_photo_key = _approved_redacted_key(ticket)
     photo_url = build_image_url(approved_photo_key) if approved_photo_key else None
 
     return PublicTicketResponse(
@@ -268,6 +270,12 @@ def map_ticket_to_public_response(
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
     )
+
+
+def _approved_redacted_key(ticket: StoredTicket) -> str:
+    key = (ticket.public_image_object_key or "").strip()
+    expected = f"reports/redacted/v1/{PhotoUploadService.ticket_scope(ticket.ticket_id)}/"
+    return key if key.startswith(expected) and key != ticket.image_object_key else ""
 
 
 def _citizen_visible_category(ticket: StoredTicket) -> str | None:
@@ -343,6 +351,16 @@ def map_ticket_to_response(
             locationLabel=ticket.public_location_label,
             imageObjectKey=ticket.public_image_object_key,
             publishedAt=ticket.public_published_at,
+        ),
+        imageRedaction=TicketImageRedaction(
+            status=ticket.image_redaction_status,
+            generation=ticket.image_redaction_generation,
+            detector=ticket.image_redaction_detector,
+            detectorVersion=ticket.image_redaction_detector_version,
+            faceCount=ticket.image_redaction_face_count,
+            plateCount=ticket.image_redaction_plate_count,
+            completedAt=ticket.image_redaction_completed_at,
+            reasonCode=ticket.image_redaction_reason_code,
         ),
         statusHistory=[
             TicketStatusHistoryEntry(

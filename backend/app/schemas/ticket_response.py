@@ -1,8 +1,9 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.image_redaction import TicketImageRedaction
 from app.schemas.stored_ticket import PublicTicketStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
@@ -198,17 +199,10 @@ class UpdateTicketPublicContentRequest(BaseModel):
     public_status: PublicTicketStatus = Field(alias="publicStatus")
     public_description: str = Field(default="", alias="publicDescription", max_length=2000)
     public_location_label: str = Field(default="", alias="publicLocationLabel", max_length=200)
-    approve_original_photo: bool = Field(default=False, alias="approveOriginalPhoto")
     clear_public_photo: bool = Field(default=False, alias="clearPublicPhoto")
     updated_by: str | None = Field(default=None, alias="updatedBy", max_length=120)
 
     model_config = {"populate_by_name": True, "extra": "forbid"}
-
-    @model_validator(mode="after")
-    def validate_photo_modes(self) -> "UpdateTicketPublicContentRequest":
-        if self.approve_original_photo and self.clear_public_photo:
-            raise ValueError("Cannot both approve and clear the public photo in one request.")
-        return self
 
 
 class TicketPublicFields(BaseModel):
@@ -261,6 +255,10 @@ class TicketResponse(BaseModel):
     ai: TicketAiFields | None = None
     sla: TicketSlaFields | None = None
     public: TicketPublicFields | None = None
+    image_redaction: TicketImageRedaction = Field(
+        default_factory=lambda: TicketImageRedaction(status="pending", generation=1),
+        alias="imageRedaction",
+    )
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,
         alias="statusHistory",

@@ -26,6 +26,7 @@ def test_backup_scope_covers_persistent_mvp_data():
         "notification-claims",
         "ticket-submission-claims",
         "ai-processing-jobs",
+        "image-redaction-jobs",
         "duplicate-groups",
         "rate-limit-buckets",
     }.issubset(DEFAULT_TABLE_SUFFIXES)
@@ -54,6 +55,7 @@ def test_photo_lifecycle_upsert_preserves_unrelated_rules():
         "KeepLogCleanup",
         "ReportPhotoVersionRetention",
         "OrphanReportPhotoCleanup",
+        "RedactedDerivativeVersionRetention",
     ]
     assert merged["Rules"][1]["Status"] == "Enabled"
 
@@ -63,6 +65,10 @@ def test_photo_lifecycle_health_requires_expected_rule():
     assert rule["ID"] == "ReportPhotoVersionRetention"
     assert rule["Filter"]["Prefix"] == "reports/photos/"
     assert rule["NoncurrentVersionExpiration"]["NoncurrentDays"] == 90
+    derivative = _s3_lifecycle()["Rules"][2]
+    assert derivative["ID"] == "RedactedDerivativeVersionRetention"
+    assert derivative["Filter"]["Prefix"] == "reports/redacted/"
+    assert derivative["NoncurrentVersionExpiration"]["NoncurrentDays"] == 90
 
 
 def test_apply_enforces_encryption_and_complete_public_access_block():

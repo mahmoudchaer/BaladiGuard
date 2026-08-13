@@ -175,6 +175,20 @@ export type TicketPublicFields = {
   publishedAt?: string | null;
 };
 
+export type ImageRedactionStatus =
+  'pending' | 'processing' | 'completed' | 'failed' | 'review_required';
+
+export type TicketImageRedaction = {
+  status: ImageRedactionStatus;
+  generation: number;
+  detector?: string | null;
+  detectorVersion?: string | null;
+  faceCount: number;
+  plateCount: number;
+  completedAt?: string | null;
+  reasonCode?: string | null;
+};
+
 export type TicketSla = {
   state: 'on_track' | 'due_soon' | 'overdue' | 'completed' | 'unavailable';
   acknowledgementDueAt?: string | null;
@@ -214,6 +228,7 @@ export type Ticket = {
   ai?: TicketAiFields;
   sla?: TicketSla | null;
   public?: TicketPublicFields;
+  imageRedaction?: TicketImageRedaction;
 };
 
 export type TicketListItem = Pick<

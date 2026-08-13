@@ -86,21 +86,22 @@ def main() -> int:
         time.sleep(5)
     paginator = s3.get_paginator("list_object_versions")
     copied = 0
-    for page in paginator.paginate(Bucket=args.bucket, Prefix="reports/photos/"):
-        for version in page.get("Versions", []):
-            source = {
-                "Bucket": args.bucket,
-                "Key": version["Key"],
-                "VersionId": version["VersionId"],
-            }
-            target_key = target_bucket_prefix + version["Key"]
-            s3.copy_object(
-                Bucket=args.bucket,
-                Key=target_key,
-                CopySource=source,
-                ServerSideEncryption="AES256",
-            )
-            copied += 1
+    for prefix in ("reports/photos/", "reports/redacted/"):
+        for page in paginator.paginate(Bucket=args.bucket, Prefix=prefix):
+            for version in page.get("Versions", []):
+                source = {
+                    "Bucket": args.bucket,
+                    "Key": version["Key"],
+                    "VersionId": version["VersionId"],
+                }
+                target_key = target_bucket_prefix + version["Key"]
+                s3.copy_object(
+                    Bucket=args.bucket,
+                    Key=target_key,
+                    CopySource=source,
+                    ServerSideEncryption="AES256",
+                )
+                copied += 1
     print(
         json.dumps(
             {

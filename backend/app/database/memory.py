@@ -292,6 +292,84 @@ class InMemoryTicketStore:
             self._tickets[ticket_id] = updated
             return updated
 
+    def claim_image_redaction(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.image_redaction_generation != generation
+                or ticket.image_redaction_status != "pending"
+            ):
+                return None
+            updated = ticket.model_copy(
+                update={
+                    "image_redaction_status": "processing",
+                    "image_redaction_claim_token": claim_token,
+                    "updated_at": updated_at,
+                }
+            )
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def finalize_image_redaction(
+        self, ticket_id: str, generation: int, claim_token: str, fields: dict[str, Any]
+    ) -> StoredTicket | None:
+        for field_name in fields:
+            resolve_ticket_attr_name(field_name)
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.image_redaction_generation != generation
+                or ticket.image_redaction_status != "processing"
+                or ticket.image_redaction_claim_token != claim_token
+            ):
+                return None
+            updated = ticket.model_copy(update={**fields, "image_redaction_claim_token": None})
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def requeue_image_redaction(
+        self, ticket_id: str, generation: int, updated_at: str
+    ) -> StoredTicket | None:
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.image_redaction_generation != generation
+                or ticket.image_redaction_status != "processing"
+            ):
+                return None
+            updated = ticket.model_copy(
+                update={
+                    "image_redaction_status": "pending",
+                    "image_redaction_claim_token": None,
+                    "updated_at": updated_at,
+                }
+            )
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if ticket is None:
+                return None
+            updated = ticket.model_copy(
+                update={
+                    "image_redaction_generation": ticket.image_redaction_generation + 1,
+                    "image_redaction_status": "pending",
+                    "image_redaction_claim_token": None,
+                    "image_redaction_completed_at": None,
+                    "image_redaction_reason_code": None,
+                    "updated_at": updated_at,
+                }
+            )
+            self._tickets[ticket_id] = updated
+            return updated
+
     def has_ticket_id(self, ticket_id: str) -> bool:
         with self._lock:
             return ticket_id in self._tickets

@@ -9,6 +9,7 @@ from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
+from app.schemas.image_redaction import ReprocessImageResponse
 from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
 from app.schemas.staff_ticket_collection import (
     TicketAggregatesResponse,
@@ -51,6 +52,7 @@ from app.services.complaints.ticket_service import (
     TicketSubmissionInProgressError,
     ticket_service,
 )
+from app.services.redaction.queue import image_redaction_queue
 from app.services.staff.assistant import staff_assistant_service
 from app.utils.ticket_ids import is_valid_tracking_code
 
@@ -117,7 +119,38 @@ def submit_ticket(
             response.ticket_id,
             type(exc).__name__,
         )
+    try:
+        image_redaction_queue.enqueue(response.ticket_id)
+    except Exception as exc:
+        logger.warning(
+            "Image redaction queue write deferred ticket_id=%s error=%s",
+            response.ticket_id,
+            type(exc).__name__,
+        )
     return response
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/reprocess",
+    response_model=ReprocessImageResponse,
+    status_code=202,
+)
+def reprocess_ticket_image(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ReprocessImageResponse | JSONResponse:
+    try:
+        generation = ticket_service.request_image_reprocessing(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    image_redaction_queue.enqueue(ticket_id, generation)
+    return ReprocessImageResponse(ticketId=ticket_id, generation=generation)
 
 
 @router.get("/tickets", response_model=TicketListPageResponse)

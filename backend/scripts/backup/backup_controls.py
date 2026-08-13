@@ -35,6 +35,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "ticket-submission-claims",
     "ai-outputs",
     "ai-processing-jobs",
+    "image-redaction-jobs",
     "duplicate-groups",
     "municipalities",
     "departments",
@@ -78,6 +79,13 @@ def _s3_lifecycle() -> dict[str, Any]:
                     }
                 },
                 "Expiration": {"Days": 2},
+            },
+            {
+                "ID": "RedactedDerivativeVersionRetention",
+                "Status": "Enabled",
+                "Filter": {"Prefix": "reports/redacted/"},
+                "NoncurrentVersionExpiration": {"NoncurrentDays": 90},
+                "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7},
             },
         ]
     }
@@ -168,6 +176,13 @@ def audit(dynamodb, s3, prefix: str, bucket: str) -> dict[str, Any]:
                 and rule.get("Expiration", {}).get("Days") == 2
                 for rule in lifecycle
             ),
+            "redactedDerivativeLifecycle": any(
+                rule.get("ID") == "RedactedDerivativeVersionRetention"
+                and rule.get("Status") == "Enabled"
+                and rule.get("Filter", {}).get("Prefix") == "reports/redacted/"
+                and rule.get("NoncurrentVersionExpiration", {}).get("NoncurrentDays") == 90
+                for rule in lifecycle
+            ),
         },
     }
 
@@ -232,7 +247,14 @@ def main() -> int:
     healthy = healthy and all(
         report["s3"][key] for key in ("versioning", "encryption", "publicAccessBlock")
     )
-    healthy = healthy and report["s3"]["photoLifecycle"] and report["s3"]["orphanPhotoLifecycle"]
+    healthy = healthy and all(
+        report["s3"][key]
+        for key in (
+            "photoLifecycle",
+            "orphanPhotoLifecycle",
+            "redactedDerivativeLifecycle",
+        )
+    )
     return 0 if healthy else 2
 
 
