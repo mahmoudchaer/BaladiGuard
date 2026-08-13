@@ -85,6 +85,9 @@ export function TicketDetailPage() {
 
   useEffect(() => {
     currentTicketId.current = ticketId;
+    setIsSubmittingComment(false);
+    setCommentError(null);
+    setCommentText('');
     if (!ticketId) {
       setLoadState('not-found');
       return;
@@ -229,31 +232,35 @@ export function TicketDetailPage() {
 
   async function handleCommentSubmit() {
     if (!ticketId || !commentText.trim()) return;
+    const requestedTicketId = ticketId;
+    const requestedCommentText = commentText;
     setIsSubmittingComment(true);
     setCommentError(null);
     let comment: StaffComment;
     try {
-      comment = await createTicketComment(ticketId, commentText);
+      comment = await createTicketComment(requestedTicketId, requestedCommentText);
     } catch (error) {
+      if (currentTicketId.current !== requestedTicketId) return;
       setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
       setIsSubmittingComment(false);
       return;
     }
+    if (currentTicketId.current !== requestedTicketId) return;
     setCommentText('');
     setComments((current) => [...current, comment]);
     try {
-      const page = await fetchTicketActivity(ticketId);
-      if (currentTicketId.current !== ticketId) return;
+      const page = await fetchTicketActivity(requestedTicketId);
+      if (currentTicketId.current !== requestedTicketId) return;
       setActivity(page.events);
       setNextActivityCursor(page.nextCursor);
     } catch (error) {
-      if (currentTicketId.current === ticketId) {
+      if (currentTicketId.current === requestedTicketId) {
         setActivityError(
           error instanceof Error ? error.message : 'Unable to refresh ticket activity.',
         );
       }
     } finally {
-      if (currentTicketId.current === ticketId) setIsSubmittingComment(false);
+      if (currentTicketId.current === requestedTicketId) setIsSubmittingComment(false);
     }
   }
 

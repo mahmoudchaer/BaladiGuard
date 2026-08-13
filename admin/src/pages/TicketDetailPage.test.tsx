@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -77,6 +77,21 @@ function renderPage() {
       <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
     </Routes>,
     { route: '/tickets/tkt_123' },
+  );
+}
+
+function TicketNavigationHarness() {
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <button type="button" onClick={() => navigate('/tickets/tkt_456')}>
+        Open second ticket
+      </button>
+      <Routes>
+        <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+      </Routes>
+    </>
   );
 }
 
@@ -635,5 +650,56 @@ describe('TicketDetailPage internal activity', () => {
 
     expect(await screen.findByText('Please inspect the road closure.')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Activity refresh failed.');
+  });
+
+  it('ignores a comment post that completes after navigating to another ticket', async () => {
+    const user = userEvent.setup();
+    let resolveComment:
+      | ((comment: {
+          commentId: string;
+          ticketId: string;
+          authorStaffId: string;
+          authorDisplayName: string;
+          text: string;
+          mentionedStaffIds: string[];
+          createdAt: string;
+        }) => void)
+      | undefined;
+    vi.mocked(createTicketComment).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveComment = resolve;
+        }),
+    );
+    vi.mocked(fetchTicketById).mockImplementation(async (ticketId) => ({
+      ...ticket,
+      ticketId,
+      ticketNumber: ticketId === 'tkt_456' ? 'BG-2026-0002' : ticket.ticketNumber,
+    }));
+
+    renderWithProviders(<TicketNavigationHarness />, { route: '/tickets/tkt_123' });
+    const commentInput = await screen.findByLabelText('Add internal comment');
+    await user.type(commentInput, 'Comment for the first ticket');
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Open second ticket' }));
+    await waitFor(() => expect(fetchTicketById).toHaveBeenCalledWith('tkt_456'));
+
+    await act(async () => {
+      resolveComment?.({
+        commentId: 'cmt_first_ticket',
+        ticketId: 'tkt_123',
+        authorStaffId: 'staff_admin_001',
+        authorDisplayName: 'Administrator',
+        text: 'Comment for the first ticket',
+        mentionedStaffIds: [],
+        createdAt: '2026-07-17T08:05:00Z',
+      });
+    });
+
+    expect(screen.getByLabelText('Add internal comment')).toHaveValue('');
+    expect(screen.queryByText('Comment for the first ticket')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
   });
 });
