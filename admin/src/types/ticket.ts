@@ -90,6 +90,30 @@ export type TicketAuditHistoryEntry = {
   newValue?: string;
 };
 
+export type StaffComment = {
+  commentId: string;
+  ticketId: string;
+  authorStaffId: string;
+  authorDisplayName: string;
+  text: string;
+  mentionedStaffIds: string[];
+  createdAt: string;
+};
+
+export type ActivityEvent = {
+  eventId: string;
+  eventType: string;
+  occurredAt: string;
+  actorDisplayName?: string | null;
+  details: Record<string, string>;
+  sourceReference: string;
+};
+
+export type ActivityPage = {
+  events: ActivityEvent[];
+  nextCursor: string | null;
+};
+
 export type TicketDuplicateReference = {
   duplicateGroupId: string;
   ticketIds?: string[];

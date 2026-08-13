@@ -32,6 +32,7 @@ BaladiGuard provides a centralized platform where citizens can submit reports us
 - Filter by category, urgency, department, and status
 - Staff-only SLA indicators and overdue queue filtering (see `docs/sla-policy.md`)
 - Secure public-image face and license-plate redaction (see `docs/image-redaction.md`)
+- Internal staff comments and normalized activity timeline (see `docs/staff-comments-and-activity.md`)
 - Assign and update tickets
 - Monitor complaint locations on a map
 

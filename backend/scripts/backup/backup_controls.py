@@ -29,6 +29,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "staff-password-reset-challenges",
     "ticket-status-history",
     "ticket-audit-history",
+    "staff-comments",
     "account-audit",
     "notification-deliveries",
     "notification-claims",

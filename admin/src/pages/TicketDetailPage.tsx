@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import type { DuplicateCandidate, Ticket, TicketStatus } from '@/types/ticket';
+import type {
+  ActivityEvent as InternalActivityEvent,
+  DuplicateCandidate,
+  StaffComment,
+  Ticket,
+  TicketStatus,
+} from '@/types/ticket';
 import {
   assignTicketDepartment,
   fetchDuplicateCandidates,
   fetchDuplicateComparison,
+  createTicketComment,
+  fetchTicketActivity,
   fetchTicketById,
+  fetchTicketComments,
   mergeDuplicateTickets,
   reviewTicketCategory,
   updateTicketStatus,
@@ -45,7 +54,6 @@ import {
   ticketDetailTabId,
   type TicketDetailSection,
 } from './ticketDetail/sections';
-import { buildActivityTimeline } from './ticketDetail/activityTimeline';
 import {
   describeExcerpt,
   distanceMetersBetween,
@@ -195,7 +203,23 @@ export function TicketDetailPage() {
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [isMerging, setIsMerging] = useState(false);
 
+  const [internalActivity, setInternalActivity] = useState<InternalActivityEvent[]>([]);
+  const [comments, setComments] = useState<StaffComment[]>([]);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [nextActivityCursor, setNextActivityCursor] = useState<string | null>(null);
+  const [isLoadingMoreActivity, setIsLoadingMoreActivity] = useState(false);
+  const [loadMoreActivityError, setLoadMoreActivityError] = useState<string | null>(null);
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
+  const [commentsRefreshKey, setCommentsRefreshKey] = useState(0);
+  const [commentText, setCommentText] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
   const loadedTicketRef = useRef<Ticket | null>(null);
+  const currentTicketId = useRef<string | undefined>(ticketId);
   /** Guards against a second request for a candidate already fetched this session. */
   const requestedComparisonsRef = useRef<Set<string>>(new Set());
   const tabRefs = useRef<Partial<Record<TicketDetailSection, HTMLButtonElement | null>>>({});
@@ -270,6 +294,132 @@ export function TicketDetailPage() {
     // Section changes are deliberately absent: the ticket loads once per route
     // entry and only an explicit refresh revalidates it.
   }, [ticketId, refreshToken]);
+
+  useEffect(() => {
+    currentTicketId.current = ticketId;
+    setInternalActivity([]);
+    setComments([]);
+    setNextActivityCursor(null);
+    setLoadMoreActivityError(null);
+    setCommentText('');
+    setCommentError(null);
+    setIsSubmittingComment(false);
+  }, [ticketId]);
+
+  useEffect(() => {
+    if (!ticketId) return;
+    let active = true;
+    setActivityLoading(true);
+    setActivityError(null);
+    setLoadMoreActivityError(null);
+    void fetchTicketActivity(ticketId)
+      .then((page) => {
+        if (!active) return;
+        setInternalActivity(page.events);
+        setNextActivityCursor(page.nextCursor);
+      })
+      .catch((error) => {
+        if (active) {
+          setActivityError(
+            error instanceof Error ? error.message : 'Unable to load ticket activity.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setActivityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activityRefreshKey, ticketId]);
+
+  useEffect(() => {
+    if (!ticketId) return;
+    let active = true;
+    setCommentsLoading(true);
+    setCommentsError(null);
+    void fetchTicketComments(ticketId)
+      .then((loadedComments) => {
+        if (active) setComments(loadedComments);
+      })
+      .catch((error) => {
+        if (active) {
+          setCommentsError(
+            error instanceof Error ? error.message : 'Unable to load ticket comments.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setCommentsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [commentsRefreshKey, ticketId]);
+
+  async function loadMoreActivity() {
+    if (!ticketId || !nextActivityCursor || isLoadingMoreActivity) return;
+    const requestedTicketId = ticketId;
+    const requestedCursor = nextActivityCursor;
+    setIsLoadingMoreActivity(true);
+    setLoadMoreActivityError(null);
+    try {
+      const page = await fetchTicketActivity(requestedTicketId, requestedCursor);
+      if (currentTicketId.current !== requestedTicketId) return;
+      setInternalActivity((current) => {
+        const ids = new Set(current.map((event) => event.eventId));
+        return [...current, ...page.events.filter((event) => !ids.has(event.eventId))];
+      });
+      setNextActivityCursor(page.nextCursor);
+    } catch (error) {
+      if (currentTicketId.current === requestedTicketId) {
+        setLoadMoreActivityError(
+          error instanceof Error ? error.message : 'Unable to load more activity.',
+        );
+      }
+    } finally {
+      if (currentTicketId.current === requestedTicketId) setIsLoadingMoreActivity(false);
+    }
+  }
+
+  async function handleCommentSubmit() {
+    if (!ticketId || !commentText.trim()) return;
+    const requestedTicketId = ticketId;
+    const requestedCommentText = commentText;
+    setIsSubmittingComment(true);
+    setCommentError(null);
+    let comment: StaffComment;
+    try {
+      comment = await createTicketComment(requestedTicketId, requestedCommentText);
+    } catch (error) {
+      if (currentTicketId.current !== requestedTicketId) return;
+      setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
+      setIsSubmittingComment(false);
+      return;
+    }
+    if (currentTicketId.current !== requestedTicketId) return;
+    setCommentText('');
+    setComments((current) =>
+      current.some((item) => item.commentId === comment.commentId)
+        ? current
+        : [...current, comment],
+    );
+    try {
+      const page = await fetchTicketActivity(requestedTicketId);
+      if (currentTicketId.current !== requestedTicketId) return;
+      setInternalActivity(page.events);
+      setNextActivityCursor(page.nextCursor);
+      setActivityError(null);
+    } catch (error) {
+      if (currentTicketId.current === requestedTicketId) {
+        setActivityError(
+          error instanceof Error ? error.message : 'Unable to refresh ticket activity.',
+        );
+      }
+    } finally {
+      if (currentTicketId.current === requestedTicketId) setIsSubmittingComment(false);
+    }
+  }
 
   const selectSection = useCallback(
     (section: TicketDetailSection) => {
@@ -572,7 +722,38 @@ export function TicketDetailPage() {
     [ticket],
   );
 
-  const activityEvents = useMemo(() => buildActivityTimeline(ticket), [ticket]);
+  const unifiedInternalActivity = useMemo(() => {
+    const commentsById = new Map(comments.map((comment) => [comment.commentId, comment]));
+    const linkedCommentIds = new Set<string>();
+    const items = internalActivity.map((event) => {
+      const commentId = event.eventType === 'STAFF_COMMENT' ? event.details.commentId : undefined;
+      const comment = commentId ? commentsById.get(commentId) : undefined;
+      if (commentId) linkedCommentIds.add(commentId);
+      return { event, comment };
+    });
+
+    // Keep comments available when activity fails, and show a new comment while
+    // its follow-up activity refresh is still pending.
+    for (const comment of comments) {
+      if (linkedCommentIds.has(comment.commentId)) continue;
+      items.push({
+        event: {
+          eventId: `comment:${comment.commentId}`,
+          eventType: 'STAFF_COMMENT',
+          occurredAt: comment.createdAt,
+          actorDisplayName: comment.authorDisplayName,
+          details: { commentId: comment.commentId },
+          sourceReference: `comment:${comment.commentId}`,
+        },
+        comment,
+      });
+    }
+
+    return items.sort((left, right) => {
+      const timestampDelta = Date.parse(left.event.occurredAt) - Date.parse(right.event.occurredAt);
+      return timestampDelta || left.event.eventId.localeCompare(right.event.eventId);
+    });
+  }, [comments, internalActivity]);
 
   const suggestionCount = ticket?.duplicateSuggestions?.length ?? 0;
   const effectiveCategory = ticket ? effectiveTicketCategory(ticket) : null;
@@ -1620,33 +1801,32 @@ export function TicketDetailPage() {
                 <h3 className="sr-only">Activity</h3>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Operational timeline</h4>
+                  <h4 className="ticket-detail__card-title">Activity timeline</h4>
                   <p className="ticket-detail__card-hint">
-                    Submission, status changes, and staff audit events, newest first.
+                    Private comments and normalized operational events visible only to staff.
                   </p>
-
-                  {(ticket.statusHistory ?? []).length === 0 && (
-                    <p className="ticket-detail__review-notice" role="status">
-                      Status history is unavailable for this ticket; showing the activity that could
-                      be loaded.
-                    </p>
+                  {activityLoading && internalActivity.length === 0 && (
+                    <p role="status">Loading internal activity…</p>
                   )}
-
-                  {activityEvents.length === 0 ? (
-                    <p className="ticket-detail__merge-empty">
-                      No activity has been recorded for this ticket yet.
-                    </p>
-                  ) : (
-                    <ol className="ticket-detail__activity" aria-label="Ticket activity timeline">
-                      {activityEvents.map((event) => (
-                        <li
-                          key={event.id}
-                          className={`ticket-detail__activity-item ticket-detail__activity-item--${event.kind}`}
-                        >
+                  {!activityLoading &&
+                    !commentsLoading &&
+                    !activityError &&
+                    !commentsError &&
+                    unifiedInternalActivity.length === 0 && (
+                      <p className="ticket-detail__merge-empty">No internal activity yet.</p>
+                    )}
+                  {unifiedInternalActivity.length > 0 && (
+                    <ol className="ticket-detail__activity" aria-label="Internal ticket activity">
+                      {unifiedInternalActivity.map(({ event, comment }) => (
+                        <li key={event.eventId} className="ticket-detail__activity-item">
                           <span className="ticket-detail__activity-marker" aria-hidden="true" />
                           <div className="ticket-detail__activity-body">
                             <div className="ticket-detail__activity-heading">
-                              <span className="ticket-detail__activity-title">{event.title}</span>
+                              <span className="ticket-detail__activity-title">
+                                {comment
+                                  ? 'Internal comment'
+                                  : event.eventType.replaceAll('_', ' ')}
+                              </span>
                               <time
                                 className="ticket-detail__activity-time"
                                 dateTime={event.occurredAt}
@@ -1654,19 +1834,92 @@ export function TicketDetailPage() {
                                 {formatCreatedDate(event.occurredAt)}
                               </time>
                             </div>
-                            {event.change && (
-                              <p className="ticket-detail__activity-change">{event.change}</p>
+                            {comment ? (
+                              <>
+                                <p className="ticket-detail__activity-detail">{comment.text}</p>
+                                {comment.mentionedStaffIds.length > 0 && (
+                                  <p>Mentioned: {comment.mentionedStaffIds.join(', ')}</p>
+                                )}
+                              </>
+                            ) : (
+                              event.details.summary && (
+                                <p className="ticket-detail__activity-detail">
+                                  {event.details.summary}
+                                </p>
+                              )
                             )}
-                            {event.detail && (
-                              <p className="ticket-detail__activity-detail">{event.detail}</p>
-                            )}
-                            {event.actor && (
-                              <p className="ticket-detail__activity-actor">By {event.actor}</p>
+                            {event.actorDisplayName && (
+                              <p className="ticket-detail__activity-actor">
+                                By {event.actorDisplayName}
+                              </p>
                             )}
                           </div>
                         </li>
                       ))}
                     </ol>
+                  )}
+                  {activityError && (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {activityError}{' '}
+                      <button
+                        type="button"
+                        className="ticket-detail__ghost-button"
+                        onClick={() => setActivityRefreshKey((value) => value + 1)}
+                      >
+                        Retry activity
+                      </button>
+                    </p>
+                  )}
+                  {loadMoreActivityError && (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {loadMoreActivityError}
+                    </p>
+                  )}
+                  {nextActivityCursor && (
+                    <button
+                      type="button"
+                      className="ticket-detail__ghost-button"
+                      onClick={() => void loadMoreActivity()}
+                      disabled={isLoadingMoreActivity}
+                    >
+                      {isLoadingMoreActivity ? 'Loading…' : 'Load more activity'}
+                    </button>
+                  )}
+
+                  {commentsLoading && comments.length === 0 && (
+                    <p role="status">Loading internal comments…</p>
+                  )}
+                  {commentsError && (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {commentsError}{' '}
+                      <button
+                        type="button"
+                        className="ticket-detail__ghost-button"
+                        onClick={() => setCommentsRefreshKey((value) => value + 1)}
+                      >
+                        Retry comments
+                      </button>
+                    </p>
+                  )}
+                  <label htmlFor="internal-comment">Add internal comment</label>
+                  <textarea
+                    id="internal-comment"
+                    value={commentText}
+                    onChange={(event) => setCommentText(event.target.value)}
+                    maxLength={2000}
+                  />
+                  <button
+                    type="button"
+                    className="ticket-detail__review-button"
+                    onClick={() => void handleCommentSubmit()}
+                    disabled={isSubmittingComment || !commentText.trim()}
+                  >
+                    {isSubmittingComment ? 'Posting…' : 'Post comment'}
+                  </button>
+                  {commentError && (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {commentError}
+                    </p>
                   )}
                 </div>
               </section>
