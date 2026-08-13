@@ -1,10 +1,13 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assignTicketDepartment,
+  createTicketComment,
+  fetchTicketActivity,
+  fetchTicketComments,
   reviewTicketCategory,
   fetchDuplicateCandidates,
   fetchDuplicateComparison,
@@ -28,6 +31,9 @@ vi.mock('@/services/tickets', () => ({
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
   assignTicketDepartment: vi.fn(),
+  createTicketComment: vi.fn(),
+  fetchTicketActivity: vi.fn(),
+  fetchTicketComments: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -80,6 +86,20 @@ function renderPage(route = '/tickets/tkt_123') {
       <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
     </Routes>,
     { route },
+  );
+}
+
+function TicketNavigationHarness() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button type="button" onClick={() => navigate('/tickets/tkt_456?section=activity')}>
+        Open second ticket
+      </button>
+      <Routes>
+        <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+      </Routes>
+    </>
   );
 }
 
@@ -143,6 +163,8 @@ beforeEach(() => {
   vi.mocked(fetchTicketById).mockResolvedValue(ticket);
   vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([]));
   vi.mocked(fetchDuplicateComparison).mockResolvedValue(buildComparison());
+  vi.mocked(fetchTicketActivity).mockResolvedValue({ events: [], nextCursor: null });
+  vi.mocked(fetchTicketComments).mockResolvedValue([]);
 });
 
 describe('TicketDetailPage states', () => {
@@ -1279,7 +1301,7 @@ describe('TicketDetailPage merge gate', () => {
 });
 
 describe('TicketDetailPage activity', () => {
-  it('merges submission, status history, and audit events into one timeline', async () => {
+  it('renders normalized events and private comments once in chronological order', async () => {
     vi.mocked(fetchTicketById).mockResolvedValue({
       ...ticket,
       statusHistory: [
@@ -1302,27 +1324,152 @@ describe('TicketDetailPage activity', () => {
         },
       ],
     });
+    vi.mocked(fetchTicketActivity).mockResolvedValue({
+      events: [
+        {
+          eventId: 'status:1',
+          eventType: 'STATUS_CHANGED',
+          occurredAt: '2026-07-17T08:00:00Z',
+          actorDisplayName: 'Administrator',
+          details: { status: 'UNDER_REVIEW' },
+          sourceReference: 'status-history:1',
+        },
+        {
+          eventId: 'comment:cmt_1',
+          eventType: 'STAFF_COMMENT',
+          occurredAt: '2026-07-17T08:30:00Z',
+          actorDisplayName: 'Roads operator',
+          details: { commentId: 'cmt_1' },
+          sourceReference: 'comment:cmt_1',
+        },
+        {
+          eventId: 'audit:1',
+          eventType: 'CATEGORY_REVIEW',
+          occurredAt: '2026-07-17T09:00:00Z',
+          actorDisplayName: 'Administrator',
+          details: { summary: 'Category confirmed.' },
+          sourceReference: 'audit:1',
+        },
+      ],
+      nextCursor: null,
+    });
+    vi.mocked(fetchTicketComments).mockResolvedValue([
+      {
+        commentId: 'cmt_1',
+        ticketId: ticket.ticketId,
+        authorStaffId: 'staff_roads_1',
+        authorDisplayName: 'Roads operator',
+        text: 'Inspection is scheduled for this afternoon.',
+        mentionedStaffIds: ['staff_admin_001'],
+        createdAt: '2026-07-17T08:30:00Z',
+      },
+    ]);
     renderPage('/tickets/tkt_123?section=activity');
 
-    const timeline = await screen.findByRole('list', { name: 'Ticket activity timeline' });
+    const timeline = await screen.findByRole('list', { name: 'Internal ticket activity' });
     const items = within(timeline).getAllByRole('listitem');
 
-    expect(items).toHaveLength(4);
-    expect(items[0]).toHaveTextContent('Department assignment');
-    expect(items[0]).toHaveTextContent('Unassigned → Road Maintenance');
-    expect(items[1]).toHaveTextContent('Status set to Under Review');
-    expect(items[3]).toHaveTextContent('Report submitted by citizen');
-    // The audit twin of a status transition is not repeated.
-    expect(screen.queryByText('Status changed to UNDER_REVIEW')).not.toBeInTheDocument();
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent('STATUS CHANGED');
+    expect(items[1]).toHaveTextContent('Internal comment');
+    expect(items[1]).toHaveTextContent('Inspection is scheduled for this afternoon.');
+    expect(items[1]).toHaveTextContent('Mentioned: staff_admin_001');
+    expect(items[2]).toHaveTextContent('CATEGORY REVIEW');
+    expect(within(timeline).getAllByText('CATEGORY REVIEW')).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Operational timeline' })).not.toBeInTheDocument();
   });
 
-  it('reports partial history without blocking the rest of the ticket', async () => {
+  it('keeps comments visible and retryable when normalized activity fails', async () => {
+    vi.mocked(fetchTicketActivity).mockRejectedValue(new Error('Activity unavailable.'));
+    vi.mocked(fetchTicketComments).mockResolvedValue([
+      {
+        commentId: 'cmt_partial',
+        ticketId: ticket.ticketId,
+        authorStaffId: 'staff_admin_001',
+        authorDisplayName: 'Administrator',
+        text: 'This comment remains available.',
+        mentionedStaffIds: [],
+        createdAt: '2026-07-17T08:05:00Z',
+      },
+    ]);
     renderPage('/tickets/tkt_123?section=activity');
 
-    expect(
-      await screen.findByText(/Status history is unavailable for this ticket/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Report submitted by citizen')).toBeInTheDocument();
+    expect(await screen.findByText('This comment remains available.')).toBeInTheDocument();
+    expect(screen.getByText('Activity unavailable.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry activity' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+  });
+
+  it('keeps a posted comment when the activity refresh fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createTicketComment).mockResolvedValue({
+      commentId: 'cmt_1',
+      ticketId: ticket.ticketId,
+      authorStaffId: 'staff_admin_001',
+      authorDisplayName: 'Administrator',
+      text: 'Please inspect the road closure.',
+      mentionedStaffIds: [],
+      createdAt: '2026-07-17T08:05:00Z',
+    });
+    vi.mocked(fetchTicketActivity)
+      .mockResolvedValueOnce({ events: [], nextCursor: null })
+      .mockRejectedValueOnce(new Error('Activity refresh failed.'));
+    renderPage('/tickets/tkt_123?section=activity');
+
+    await user.type(
+      await screen.findByLabelText('Add internal comment'),
+      'Please inspect the road closure.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+
+    expect(await screen.findByText('Please inspect the road closure.')).toBeInTheDocument();
+    expect(await screen.findByText('Activity refresh failed.')).toBeInTheDocument();
+    expect(screen.queryByText('Unable to add comment.')).not.toBeInTheDocument();
+  });
+
+  it('ignores a comment post that completes after navigating to another ticket', async () => {
+    const user = userEvent.setup();
+    let resolveComment:
+      ((comment: Awaited<ReturnType<typeof createTicketComment>>) => void) | null = null;
+    vi.mocked(createTicketComment).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveComment = resolve;
+        }),
+    );
+    vi.mocked(fetchTicketById).mockImplementation(async (id) => ({
+      ...ticket,
+      ticketId: id,
+      ticketNumber: id === 'tkt_456' ? 'BG-2026-0002' : ticket.ticketNumber,
+    }));
+    renderWithProviders(<TicketNavigationHarness />, {
+      route: '/tickets/tkt_123?section=activity',
+    });
+
+    await user.type(
+      await screen.findByLabelText('Add internal comment'),
+      'Comment for the first ticket',
+    );
+    await user.click(screen.getByRole('button', { name: 'Post comment' }));
+    expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Open second ticket' }));
+    await waitFor(() => expect(fetchTicketById).toHaveBeenCalledWith('tkt_456'));
+    await waitFor(() => expect(screen.getByLabelText('Add internal comment')).toHaveValue(''));
+
+    await act(async () => {
+      resolveComment?.({
+        commentId: 'cmt_first_ticket',
+        ticketId: 'tkt_123',
+        authorStaffId: 'staff_admin_001',
+        authorDisplayName: 'Administrator',
+        text: 'Comment for the first ticket',
+        mentionedStaffIds: [],
+        createdAt: '2026-07-17T08:05:00Z',
+      });
+    });
+
+    expect(screen.queryByText('Comment for the first ticket')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
   });
 });

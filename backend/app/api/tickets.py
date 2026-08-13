@@ -10,6 +10,11 @@ from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
 from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
+from app.schemas.staff_comment import (
+    ActivityTimelineResponse,
+    CreateStaffCommentRequest,
+    StaffCommentResponse,
+)
 from app.schemas.staff_ticket_collection import (
     TicketAggregatesResponse,
     TicketListPageResponse,
@@ -52,6 +57,7 @@ from app.services.complaints.ticket_service import (
     ticket_service,
 )
 from app.services.staff.assistant import staff_assistant_service
+from app.services.staff.comments import StaffCommentError, staff_comment_service
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
@@ -65,6 +71,58 @@ def query_staff_assistant(
 ) -> StaffAssistantResponse:
     """Read-only deterministic assistant, grounded in the caller's visible tickets."""
     return staff_assistant_service.answer(payload.question, principal=principal)
+
+
+def _staff_comment_error(request: Request, exc: StaffCommentError) -> JSONResponse:
+    return build_error_response(
+        code=exc.code,
+        message=exc.message,
+        request_id=get_request_id(request),
+        status_code=exc.status_code,
+    )
+
+
+@router.post("/tickets/{ticket_id}/comments", response_model=StaffCommentResponse, status_code=201)
+def create_staff_comment(
+    ticket_id: str, payload: CreateStaffCommentRequest, request: Request, principal: StaffDep
+) -> StaffCommentResponse | JSONResponse:
+    try:
+        return staff_comment_service.create(ticket_id, payload, principal=principal)
+    except StaffCommentError as exc:
+        return _staff_comment_error(request, exc)
+
+
+@router.get("/tickets/{ticket_id}/comments", response_model=list[StaffCommentResponse])
+def list_staff_comments(
+    ticket_id: str, request: Request, principal: StaffDep
+) -> list[StaffCommentResponse] | JSONResponse:
+    try:
+        return staff_comment_service.list(ticket_id, principal=principal)
+    except StaffCommentError as exc:
+        return _staff_comment_error(request, exc)
+
+
+@router.get("/tickets/{ticket_id}/activity", response_model=ActivityTimelineResponse)
+def get_ticket_activity(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = Query(default=None),
+) -> ActivityTimelineResponse | JSONResponse:
+    try:
+        return staff_comment_service.timeline(
+            ticket_id, principal=principal, limit=limit, cursor=cursor
+        )
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The activity cursor is invalid.",
+            request_id=get_request_id(request),
+            status_code=400,
+        )
+    except StaffCommentError as exc:
+        return _staff_comment_error(request, exc)
 
 
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
