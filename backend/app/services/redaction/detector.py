@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
+from pathlib import Path
 from typing import Protocol
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+from PIL import Image
 
 from app.config import Settings, get_settings
 
@@ -49,28 +52,26 @@ class DisabledRedactionDetector:
 
 
 class AwsRekognitionDetector:
-    name = "aws-rekognition"
-    version = "detect-faces+custom-labels-v1"
+    name = "aws-rekognition+open-image-models"
 
-    def __init__(self, settings: Settings | None = None, *, client=None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        client=None,
+        plate_detector=None,
+    ) -> None:
         self._settings = settings or get_settings()
         self._client = client or boto3.client("rekognition", region_name=self._settings.aws_region)
+        self._plate_detector = plate_detector
+        model_name = Path(self._settings.plate_detection_model).name
+        self.version = f"detect-faces+open-image-models-0.6.0+{model_name}"
 
     def detect(self, image_bytes: bytes) -> list[Detection]:
-        model_arn = self._settings.rekognition_plate_model_arn
-        if not model_arn:
-            raise DetectionConfigurationError("PLATE_MODEL_NOT_CONFIGURED")
         try:
             faces = self._client.detect_faces(
                 Image={"Bytes": image_bytes}, Attributes=["DEFAULT"]
             ).get("FaceDetails", [])
-            labels = self._client.detect_custom_labels(
-                Image={"Bytes": image_bytes},
-                ProjectVersionArn=model_arn,
-                # Ask for every plate-label candidate so confidence policy is
-                # applied locally and low-confidence results cannot look like "none".
-                MinConfidence=0,
-            ).get("CustomLabels", [])
         except (BotoCoreError, ClientError) as exc:
             raise DetectionProviderError("DETECTION_PROVIDER_UNAVAILABLE") from exc
 
@@ -79,12 +80,66 @@ class AwsRekognitionDetector:
             for item in faces
             if item.get("BoundingBox")
         ]
-        for item in labels:
-            geometry = item.get("Geometry") or {}
-            box = geometry.get("BoundingBox")
-            if box and _is_plate_label(str(item.get("Name", ""))):
-                detections.append(Detection("plate", float(item.get("Confidence", 0)), _box(box)))
+        detections.extend(self._detect_plates(image_bytes))
         return detections
+
+    def _detect_plates(self, image_bytes: bytes) -> list[Detection]:
+        try:
+            with Image.open(BytesIO(image_bytes)) as image:
+                rgb = image.convert("RGB")
+                width, height = rgb.size
+                # OpenCV-based detectors expect BGR channel order.
+                import numpy as np
+
+                frame = np.asarray(rgb)[:, :, ::-1].copy()
+            if self._plate_detector is None:
+                self._plate_detector = self._build_plate_detector()
+            detector = self._plate_detector
+            results = detector.predict(frame)
+
+            detections: list[Detection] = []
+            for item in results:
+                box = item.bounding_box
+                if width <= 0 or height <= 0 or box.x2 <= box.x1 or box.y2 <= box.y1:
+                    continue
+                detections.append(
+                    Detection(
+                        "plate",
+                        float(item.confidence) * 100,
+                        BoundingBox(
+                            left=box.x1 / width,
+                            top=box.y1 / height,
+                            width=(box.x2 - box.x1) / width,
+                            height=(box.y2 - box.y1) / height,
+                        ),
+                    )
+                )
+        except DetectionConfigurationError:
+            raise
+        except Exception as exc:
+            raise DetectionProviderError("PLATE_DETECTOR_UNAVAILABLE") from exc
+        return detections
+
+    def _build_plate_detector(self):
+        try:
+            from open_image_models import create_detector
+        except ImportError as exc:
+            raise DetectionConfigurationError("PLATE_DETECTOR_NOT_INSTALLED") from exc
+
+        model = self._settings.plate_detection_model
+        if model.lower().endswith(".onnx"):
+            return create_detector(
+                model,
+                backend="yolo_v9",
+                class_labels=("License Plate",),
+                conf_thresh=0.01,
+                providers=["CPUExecutionProvider"],
+            )
+        return create_detector(
+            model,
+            conf_thresh=0.01,
+            providers=["CPUExecutionProvider"],
+        )
 
 
 def _box(value: dict) -> BoundingBox:
@@ -94,8 +149,3 @@ def _box(value: dict) -> BoundingBox:
         width=float(value.get("Width", 0)),
         height=float(value.get("Height", 0)),
     )
-
-
-def _is_plate_label(name: str) -> bool:
-    normalized = name.strip().lower().replace("_", " ").replace("-", " ")
-    return normalized in {"license plate", "licence plate", "number plate", "vehicle plate"}

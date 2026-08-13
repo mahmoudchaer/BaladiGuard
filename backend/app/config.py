@@ -72,8 +72,12 @@ class Settings:
             os.getenv("IMAGE_REDACTION_DETECTOR", "aws_rekognition").strip().lower()
             or "aws_rekognition"
         )
-        self.rekognition_plate_model_arn = (
-            os.getenv("REKOGNITION_PLATE_MODEL_ARN", "").strip() or None
+        self.plate_detection_model = (
+            os.getenv(
+                "PLATE_DETECTION_MODEL",
+                "yolo-v9-s-608-license-plate-end2end",
+            ).strip()
+            or "yolo-v9-s-608-license-plate-end2end"
         )
         self.image_redaction_auto_confidence = self._float_setting(
             "IMAGE_REDACTION_AUTO_CONFIDENCE", default=90.0, minimum=50.0, maximum=100.0

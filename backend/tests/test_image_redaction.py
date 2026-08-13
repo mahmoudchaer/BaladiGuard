@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -13,7 +14,6 @@ from app.services.redaction.detector import (
     AwsRekognitionDetector,
     BoundingBox,
     Detection,
-    DetectionConfigurationError,
     DetectionProviderError,
 )
 from app.services.redaction.processor import ImageRedactionProcessor, InvalidSourceImageError
@@ -171,45 +171,50 @@ class FakeRekognition:
             ]
         }
 
-    def detect_custom_labels(self, **kwargs):
-        assert kwargs["MinConfidence"] == 0
-        return {
-            "CustomLabels": [
-                {
-                    "Name": "License_Plate",
-                    "Confidence": 88,
-                    "Geometry": {
-                        "BoundingBox": {
-                            "Left": 0.5,
-                            "Top": 0.6,
-                            "Width": 0.2,
-                            "Height": 0.1,
-                        }
-                    },
-                },
-                {
-                    "Name": "Car",
-                    "Confidence": 99,
-                    "Geometry": {"BoundingBox": {"Left": 0, "Top": 0, "Width": 1, "Height": 1}},
-                },
-            ]
-        }
+
+class FakePlateDetector:
+    def predict(self, frame):
+        assert frame.shape == (80, 120, 3)
+        return [
+            SimpleNamespace(
+                confidence=0.88,
+                bounding_box=SimpleNamespace(x1=60, y1=48, x2=84, y2=56),
+            )
+        ]
 
 
-def test_aws_adapter_combines_faces_and_only_plate_custom_labels():
+def test_aws_adapter_combines_faces_and_pretrained_plate_detector():
     settings = _settings()
-    settings.rekognition_plate_model_arn = "arn:aws:rekognition:us-east-1:123:model/test"
-    detections = AwsRekognitionDetector(settings, client=FakeRekognition()).detect(b"image")
+    detections = AwsRekognitionDetector(
+        settings,
+        client=FakeRekognition(),
+        plate_detector=FakePlateDetector(),
+    ).detect(_jpeg())
     assert [item.kind for item in detections] == ["face", "plate"]
     assert [item.confidence for item in detections] == [98, 88]
+    assert detections[1].box == BoundingBox(left=0.5, top=0.6, width=0.2, height=0.1)
 
 
-def test_aws_adapter_fails_closed_without_plate_model():
+def test_aws_adapter_fails_closed_when_plate_detector_is_unavailable():
     settings = _settings()
-    settings.rekognition_plate_model_arn = None
-    detector = AwsRekognitionDetector(settings, client=FakeRekognition())
-    with pytest.raises(DetectionConfigurationError, match="PLATE_MODEL_NOT_CONFIGURED"):
-        detector.detect(b"image")
+    detector = AwsRekognitionDetector(
+        settings,
+        client=FakeRekognition(),
+        plate_detector=SimpleNamespace(predict=lambda _: (_ for _ in ()).throw(RuntimeError())),
+    )
+    with pytest.raises(DetectionProviderError, match="PLATE_DETECTOR_UNAVAILABLE"):
+        detector.detect(_jpeg())
+
+
+def test_aws_adapter_fails_closed_for_malformed_plate_detector_output():
+    settings = _settings()
+    detector = AwsRekognitionDetector(
+        settings,
+        client=FakeRekognition(),
+        plate_detector=SimpleNamespace(predict=lambda _: [SimpleNamespace()]),
+    )
+    with pytest.raises(DetectionProviderError, match="PLATE_DETECTOR_UNAVAILABLE"):
+        detector.detect(_jpeg())
 
 
 class ResultProcessor:
