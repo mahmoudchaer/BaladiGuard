@@ -53,7 +53,6 @@ import {
   ticketDetailTabId,
   type TicketDetailSection,
 } from './ticketDetail/sections';
-import { buildActivityTimeline } from './ticketDetail/activityTimeline';
 import {
   describeExcerpt,
   distanceMetersBetween,
@@ -722,7 +721,38 @@ export function TicketDetailPage() {
     [ticket],
   );
 
-  const activityEvents = useMemo(() => buildActivityTimeline(ticket), [ticket]);
+  const unifiedInternalActivity = useMemo(() => {
+    const commentsById = new Map(comments.map((comment) => [comment.commentId, comment]));
+    const linkedCommentIds = new Set<string>();
+    const items = internalActivity.map((event) => {
+      const commentId = event.eventType === 'STAFF_COMMENT' ? event.details.commentId : undefined;
+      const comment = commentId ? commentsById.get(commentId) : undefined;
+      if (commentId) linkedCommentIds.add(commentId);
+      return { event, comment };
+    });
+
+    // Keep comments available when activity fails, and show a new comment while
+    // its follow-up activity refresh is still pending.
+    for (const comment of comments) {
+      if (linkedCommentIds.has(comment.commentId)) continue;
+      items.push({
+        event: {
+          eventId: `comment:${comment.commentId}`,
+          eventType: 'STAFF_COMMENT',
+          occurredAt: comment.createdAt,
+          actorDisplayName: comment.authorDisplayName,
+          details: { commentId: comment.commentId },
+          sourceReference: `comment:${comment.commentId}`,
+        },
+        comment,
+      });
+    }
+
+    return items.sort((left, right) => {
+      const timestampDelta = Date.parse(left.event.occurredAt) - Date.parse(right.event.occurredAt);
+      return timestampDelta || left.event.eventId.localeCompare(right.event.eventId);
+    });
+  }, [comments, internalActivity]);
 
   const suggestionCount = ticket?.duplicateSuggestions?.length ?? 0;
   const effectiveCategory = ticket ? effectiveTicketCategory(ticket) : null;
@@ -1769,76 +1799,31 @@ export function TicketDetailPage() {
                 <h3 className="sr-only">Activity</h3>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Operational timeline</h4>
-                  <p className="ticket-detail__card-hint">
-                    Submission, status changes, and staff audit events, newest first.
-                  </p>
-
-                  {(ticket.statusHistory ?? []).length === 0 && (
-                    <p className="ticket-detail__review-notice" role="status">
-                      Status history is unavailable for this ticket; showing the activity that could
-                      be loaded.
-                    </p>
-                  )}
-
-                  {activityEvents.length === 0 ? (
-                    <p className="ticket-detail__merge-empty">
-                      No activity has been recorded for this ticket yet.
-                    </p>
-                  ) : (
-                    <ol className="ticket-detail__activity" aria-label="Ticket activity timeline">
-                      {activityEvents.map((event) => (
-                        <li
-                          key={event.id}
-                          className={`ticket-detail__activity-item ticket-detail__activity-item--${event.kind}`}
-                        >
-                          <span className="ticket-detail__activity-marker" aria-hidden="true" />
-                          <div className="ticket-detail__activity-body">
-                            <div className="ticket-detail__activity-heading">
-                              <span className="ticket-detail__activity-title">{event.title}</span>
-                              <time
-                                className="ticket-detail__activity-time"
-                                dateTime={event.occurredAt}
-                              >
-                                {formatCreatedDate(event.occurredAt)}
-                              </time>
-                            </div>
-                            {event.change && (
-                              <p className="ticket-detail__activity-change">{event.change}</p>
-                            )}
-                            {event.detail && (
-                              <p className="ticket-detail__activity-detail">{event.detail}</p>
-                            )}
-                            {event.actor && (
-                              <p className="ticket-detail__activity-actor">By {event.actor}</p>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-
-                <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Internal staff activity</h4>
+                  <h4 className="ticket-detail__card-title">Activity timeline</h4>
                   <p className="ticket-detail__card-hint">
                     Private comments and normalized operational events visible only to staff.
                   </p>
                   {activityLoading && internalActivity.length === 0 && (
                     <p role="status">Loading internal activity…</p>
                   )}
-                  {!activityLoading && !activityError && internalActivity.length === 0 && (
-                    <p className="ticket-detail__merge-empty">No internal activity yet.</p>
-                  )}
-                  {internalActivity.length > 0 && (
+                  {!activityLoading &&
+                    !commentsLoading &&
+                    !activityError &&
+                    !commentsError &&
+                    unifiedInternalActivity.length === 0 && (
+                      <p className="ticket-detail__merge-empty">No internal activity yet.</p>
+                    )}
+                  {unifiedInternalActivity.length > 0 && (
                     <ol className="ticket-detail__activity" aria-label="Internal ticket activity">
-                      {internalActivity.map((event) => (
+                      {unifiedInternalActivity.map(({ event, comment }) => (
                         <li key={event.eventId} className="ticket-detail__activity-item">
                           <span className="ticket-detail__activity-marker" aria-hidden="true" />
                           <div className="ticket-detail__activity-body">
                             <div className="ticket-detail__activity-heading">
                               <span className="ticket-detail__activity-title">
-                                {event.eventType.replaceAll('_', ' ')}
+                                {comment
+                                  ? 'Internal comment'
+                                  : event.eventType.replaceAll('_', ' ')}
                               </span>
                               <time
                                 className="ticket-detail__activity-time"
@@ -1847,6 +1832,20 @@ export function TicketDetailPage() {
                                 {formatCreatedDate(event.occurredAt)}
                               </time>
                             </div>
+                            {comment ? (
+                              <>
+                                <p className="ticket-detail__activity-detail">{comment.text}</p>
+                                {comment.mentionedStaffIds.length > 0 && (
+                                  <p>Mentioned: {comment.mentionedStaffIds.join(', ')}</p>
+                                )}
+                              </>
+                            ) : (
+                              event.details.summary && (
+                                <p className="ticket-detail__activity-detail">
+                                  {event.details.summary}
+                                </p>
+                              )
+                            )}
                             {event.actorDisplayName && (
                               <p className="ticket-detail__activity-actor">
                                 By {event.actorDisplayName}
@@ -1885,27 +1884,9 @@ export function TicketDetailPage() {
                     </button>
                   )}
 
-                  <h5>Internal comments</h5>
                   {commentsLoading && comments.length === 0 && (
                     <p role="status">Loading internal comments…</p>
                   )}
-                  {!commentsLoading && !commentsError && comments.length === 0 && (
-                    <p className="ticket-detail__merge-empty">No internal comments yet.</p>
-                  )}
-                  {comments.map((comment) => (
-                    <article key={comment.commentId}>
-                      <p>{comment.text}</p>
-                      <p className="ticket-detail__activity-actor">
-                        {comment.authorDisplayName} ·{' '}
-                        <time dateTime={comment.createdAt}>
-                          {formatCreatedDate(comment.createdAt)}
-                        </time>
-                      </p>
-                      {comment.mentionedStaffIds.length > 0 && (
-                        <p>Mentioned: {comment.mentionedStaffIds.join(', ')}</p>
-                      )}
-                    </article>
-                  ))}
                   {commentsError && (
                     <p className="ticket-detail__status-error" role="alert">
                       {commentsError}{' '}
