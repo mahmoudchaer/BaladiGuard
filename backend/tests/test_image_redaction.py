@@ -242,6 +242,33 @@ class ResultProcessor:
         )
 
 
+class LeaseExpiryProcessor:
+    def __init__(self, jobs, tickets):
+        self.jobs = jobs
+        self.tickets = tickets
+        self.replacement_token = None
+
+    def process(self, **kwargs):
+        expired = self.jobs.recover_stale(now=41)
+        assert len(expired) == 1 and expired[0].claim_token
+        assert self.tickets.requeue_image_redaction(
+            kwargs["ticket_id"], kwargs["generation"], expired[0].claim_token, _iso(41)
+        )
+        replacement = self.jobs.claim_next(now=41, claim_ttl_seconds=30)
+        assert replacement is not None and replacement.claim_token
+        assert self.tickets.claim_image_redaction(
+            kwargs["ticket_id"], kwargs["generation"], replacement.claim_token, _iso(41)
+        )
+        self.replacement_token = replacement.claim_token
+        raise DetectionProviderError("DETECTION_PROVIDER_UNAVAILABLE")
+
+
+def _iso(timestamp: int) -> str:
+    from datetime import UTC, datetime
+
+    return datetime.fromtimestamp(timestamp, tz=UTC).isoformat().replace("+00:00", "Z")
+
+
 def _ticket(ticket_id="tkt_queue") -> StoredTicket:
     return StoredTicket(
         ticketId=ticket_id,
@@ -286,6 +313,25 @@ def test_provider_failure_retries_then_fails_closed(monkeypatch):
     stored = tickets.get("tkt_failure")
     assert stored.image_redaction_status == "failed"
     assert stored.public_image_object_key is None
+
+
+def test_expired_worker_cannot_clear_replacement_ticket_claim(monkeypatch):
+    monkeypatch.setattr("app.services.redaction.queue.get_settings", _settings)
+    tickets = InMemoryTicketStore()
+    tickets.save(_ticket("tkt_lease_race"))
+    jobs = InMemoryRedactionJobStore()
+    processor = LeaseExpiryProcessor(jobs, tickets)
+    queue = ImageRedactionQueue(jobs, tickets, processor)
+    queue.enqueue("tkt_lease_race", now=10)
+
+    assert queue.run_once(now=10) == "claim_lost"
+
+    ticket = tickets.get("tkt_lease_race")
+    job = jobs.get("redaction:tkt_lease_race:g1")
+    assert ticket is not None and ticket.image_redaction_status == "processing"
+    assert ticket.image_redaction_claim_token == processor.replacement_token
+    assert job is not None and job.status == "running"
+    assert job.claim_token == processor.replacement_token
 
 
 def test_reprocessing_preserves_old_approval_until_new_generation_completes(monkeypatch):

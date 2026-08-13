@@ -118,9 +118,9 @@ class DynamoRedactionJobStore:
             if token and self.retry(
                 item["jobId"], token, available_at=now, now=now, reason="CLAIM_EXPIRED"
             ):
-                loaded = self.get(item["jobId"])
-                if loaded:
-                    recovered.append(loaded)
+                # Preserve the expired token for the ticket store's ownership
+                # condition; the persisted job itself is already queued.
+                recovered.append(StoredRedactionJob.model_validate(item))
         return recovered
 
     def list(self) -> list[StoredRedactionJob]:

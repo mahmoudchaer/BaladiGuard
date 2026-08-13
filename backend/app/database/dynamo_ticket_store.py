@@ -527,7 +527,7 @@ class DynamoTicketStore:
             raise
 
     def requeue_image_redaction(
-        self, ticket_id: str, generation: int, updated_at: str
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
     ) -> StoredTicket | None:
         try:
             response = self._tickets_table.update_item(
@@ -537,13 +537,15 @@ class DynamoTicketStore:
                     "REMOVE imageRedactionClaimToken"
                 ),
                 ConditionExpression=(
-                    "imageRedactionStatus=:processing AND imageRedactionGeneration=:generation"
+                    "imageRedactionStatus=:processing AND imageRedactionGeneration=:generation "
+                    "AND imageRedactionClaimToken=:token"
                 ),
                 ExpressionAttributeValues={
                     ":pending": "pending",
                     ":processing": "processing",
                     ":updated": updated_at,
                     ":generation": generation,
+                    ":token": claim_token,
                 },
                 ReturnValues="ALL_NEW",
             )

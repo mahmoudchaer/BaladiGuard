@@ -53,9 +53,13 @@ class ImageRedactionQueue:
         timestamp = now if now is not None else int(time.time())
         self.reconcile(now=timestamp)
         for recovered in self.jobs.recover_stale(now=timestamp):
-            self.tickets.requeue_image_redaction(
-                recovered.ticket_id, recovered.generation, _iso(timestamp)
-            )
+            if recovered.claim_token:
+                self.tickets.requeue_image_redaction(
+                    recovered.ticket_id,
+                    recovered.generation,
+                    recovered.claim_token,
+                    _iso(timestamp),
+                )
         settings = get_settings()
         job = self.jobs.claim_next(
             now=timestamp, claim_ttl_seconds=settings.image_redaction_job_timeout_seconds
@@ -66,20 +70,37 @@ class ImageRedactionQueue:
         assert token
         ticket = self.tickets.get(job.ticket_id)
         if ticket is None:
-            self.jobs.dead_letter(job.job_id, token, now=timestamp, reason="TICKET_MISSING")
-            return "dead_lettered"
+            transitioned = self.jobs.dead_letter(
+                job.job_id, token, now=timestamp, reason="TICKET_MISSING"
+            )
+            return "dead_lettered" if transitioned else "claim_lost"
         if ticket.image_redaction_generation != job.generation or ticket.image_redaction_status in {
             "completed",
             "review_required",
         }:
-            self.jobs.succeed(job.job_id, token, timestamp)
-            return "succeeded"
+            transitioned = self.jobs.succeed(job.job_id, token, timestamp)
+            return "succeeded" if transitioned else "claim_lost"
+        if ticket.image_redaction_status == "failed":
+            transitioned = self.jobs.dead_letter(
+                job.job_id,
+                token,
+                now=timestamp,
+                reason=ticket.image_redaction_reason_code or "TICKET_REDACTION_FAILED",
+            )
+            return "dead_lettered" if transitioned else "claim_lost"
         claimed = self.tickets.claim_image_redaction(
             job.ticket_id, job.generation, token, _iso(timestamp)
         )
         if claimed is None:
-            self.jobs.succeed(job.job_id, token, timestamp)
-            return "succeeded"
+            delay = settings.image_redaction_job_backoff_base_seconds
+            transitioned = self.jobs.retry(
+                job.job_id,
+                token,
+                available_at=timestamp + delay,
+                now=timestamp,
+                reason="TICKET_CLAIM_UNAVAILABLE",
+            )
+            return "retried" if transitioned else "claim_lost"
         try:
             result = self.processor.process(
                 ticket_id=job.ticket_id,
@@ -130,7 +151,8 @@ class ImageRedactionQueue:
             )
             if updated is None:
                 raise RuntimeError("REDACTION_CLAIM_LOST")
-            self.jobs.succeed(job.job_id, token, int(time.time()))
+            if not self.jobs.succeed(job.job_id, token, int(time.time())):
+                return "claim_lost"
             emit_metric("ImageRedactionJobsSucceeded", dimensions={"status": result.status})
             return "succeeded"
         except InvalidSourceImageError as exc:
@@ -145,12 +167,19 @@ class ImageRedactionQueue:
         settings = get_settings()
         if job.attempts >= settings.image_redaction_job_max_attempts:
             return self._terminal_failure(job, token, reason, now=now)
-        self.tickets.requeue_image_redaction(job.ticket_id, job.generation, _iso(now))
+        released = self.tickets.requeue_image_redaction(
+            job.ticket_id, job.generation, token, _iso(now)
+        )
+        if released is None:
+            return "claim_lost"
         delay = min(
             settings.image_redaction_job_backoff_max_seconds,
             settings.image_redaction_job_backoff_base_seconds * (2 ** max(0, job.attempts - 1)),
         )
-        self.jobs.retry(job.job_id, token, available_at=now + delay, now=now, reason=reason[:80])
+        if not self.jobs.retry(
+            job.job_id, token, available_at=now + delay, now=now, reason=reason[:80]
+        ):
+            return "claim_lost"
         emit_metric("ImageRedactionJobsRetried")
         return "retried"
 
@@ -171,7 +200,7 @@ class ImageRedactionQueue:
                     reasonCode=reason[:80],
                 )
             )
-        self.tickets.finalize_image_redaction(
+        finalized = self.tickets.finalize_image_redaction(
             job.ticket_id,
             job.generation,
             token,
@@ -185,7 +214,10 @@ class ImageRedactionQueue:
                 "updated_at": _iso(now),
             },
         )
-        self.jobs.dead_letter(job.job_id, token, now=now, reason=reason[:80])
+        if finalized is None:
+            return "claim_lost"
+        if not self.jobs.dead_letter(job.job_id, token, now=now, reason=reason[:80]):
+            return "claim_lost"
         emit_metric("ImageRedactionJobsDeadLettered")
         return "dead_lettered"
 

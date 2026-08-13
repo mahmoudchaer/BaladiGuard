@@ -103,7 +103,9 @@ class InMemoryRedactionJobStore:
                     }
                 )
                 self._jobs[job_id] = queued
-                recovered.append(queued.model_copy(deep=True))
+                # Return the expired ownership snapshot so the queue can
+                # conditionally release the matching ticket claim.
+                recovered.append(job.model_copy(deep=True))
         return recovered
 
     def list(self) -> list[StoredRedactionJob]:

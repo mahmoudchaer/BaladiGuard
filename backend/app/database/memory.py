@@ -332,7 +332,7 @@ class InMemoryTicketStore:
             return updated
 
     def requeue_image_redaction(
-        self, ticket_id: str, generation: int, updated_at: str
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
     ) -> StoredTicket | None:
         with self._lock:
             ticket = self._tickets.get(ticket_id)
@@ -340,6 +340,7 @@ class InMemoryTicketStore:
                 ticket is None
                 or ticket.image_redaction_generation != generation
                 or ticket.image_redaction_status != "processing"
+                or ticket.image_redaction_claim_token != claim_token
             ):
                 return None
             updated = ticket.model_copy(
