@@ -5,9 +5,12 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.database.dynamo_ticket_store import DynamoTicketStore
 from app.database.dynamo_workforce_store import DynamoWorkforceStore
 from app.database.dynamodb_tables import TABLE_DEFINITIONS
 from app.database.memory import ticket_store
+from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
+from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.workforce import StoredTeam, StoredWorker
 from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
@@ -413,8 +416,10 @@ def test_assignment_conflict_when_claim_never_succeeds(client: TestClient) -> No
     worker = _create_worker(client)
     from app.database.memory_workforce import workforce_store
 
-    original = workforce_store.claim_worker
-    workforce_store.claim_worker = lambda *_args, **_kwargs: False  # type: ignore[method-assign]
+    original = workforce_store.commit_ticket_assignment
+    workforce_store.commit_ticket_assignment = (  # type: ignore[method-assign]
+        lambda **_kwargs: None
+    )
     try:
         conflict = client.post(
             f"/v1/tickets/{ticket_id}/workforce-assignment",
@@ -423,7 +428,7 @@ def test_assignment_conflict_when_claim_never_succeeds(client: TestClient) -> No
         )
         assert conflict.status_code == 409
     finally:
-        workforce_store.claim_worker = original  # type: ignore[method-assign]
+        workforce_store.commit_ticket_assignment = original  # type: ignore[method-assign]
 
 
 def test_workload_follows_staff_page_cursors(client: TestClient, monkeypatch) -> None:
@@ -461,3 +466,117 @@ def test_workload_follows_staff_page_cursors(client: TestClient, monkeypatch) ->
     unassigned_ids = {item["ticketId"] for item in workload.json()["unassignedTickets"]}
     assert "tkt_page1_0" in unassigned_ids
     assert "tkt_beyond_sample" in unassigned_ids
+
+
+def test_patch_rejects_blank_and_overlong_display_names(client: TestClient) -> None:
+    admin = _admin(client)
+    worker = _create_worker(client, name="Valid worker")
+    team = _create_team(client, name="Valid team")
+    blank_worker = client.patch(
+        f"/v1/workforce/workers/{worker['workerId']}",
+        json={"displayName": "   "},
+        headers=admin,
+    )
+    assert blank_worker.status_code in {400, 422}
+    long_team = client.patch(
+        f"/v1/workforce/teams/{team['teamId']}",
+        json={"displayName": "x" * 121},
+        headers=admin,
+    )
+    assert long_team.status_code in {400, 422}
+    workers = client.get("/v1/workforce/workers", headers=admin)
+    match = next(item for item in workers.json() if item["workerId"] == worker["workerId"])
+    assert match["displayName"] == "Valid worker"
+    teams = client.get("/v1/workforce/teams", headers=admin)
+    team_match = next(item for item in teams.json() if item["teamId"] == team["teamId"])
+    assert team_match["displayName"] == "Valid team"
+
+
+def test_assignment_rejects_deactivation_after_claim_before_ticket_write(
+    client: TestClient,
+) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id)
+    worker = _create_worker(client)
+    from app.database.memory_workforce import workforce_store
+
+    original = workforce_store.commit_ticket_assignment
+
+    def deactivate_then_commit(**kwargs):
+        stored = workforce_store.get_worker(worker["workerId"])
+        assert stored is not None
+        workforce_store.save_worker(stored.model_copy(update={"active": False}))
+        return original(**kwargs)
+
+    workforce_store.commit_ticket_assignment = deactivate_then_commit  # type: ignore[method-assign]
+    try:
+        blocked = client.post(
+            f"/v1/tickets/{ticket_id}/workforce-assignment",
+            json={"workerId": worker["workerId"]},
+            headers=_staff(client),
+        )
+        assert blocked.status_code in {400, 409}
+        detail = client.get(f"/v1/tickets/{ticket_id}", headers=_staff(client))
+        assert detail.json()["assignedWorkerId"] is None
+    finally:
+        workforce_store.commit_ticket_assignment = original  # type: ignore[method-assign]
+
+
+def test_dynamo_commit_assignment_fails_if_deactivated_after_claim(
+    dynamodb_settings: Settings,
+) -> None:
+    workforce = DynamoWorkforceStore(dynamodb_settings)
+    tickets = DynamoTicketStore(dynamodb_settings)
+    worker = StoredWorker(
+        workerId="wrk_race",
+        municipalityId=BEIRUT,
+        displayName="Race worker",
+        departmentIds=[ROAD],
+        teamIds=[],
+        active=True,
+        createdAt="2026-08-14T12:00:00Z",
+        updatedAt="2026-08-14T12:00:00Z",
+    )
+    workforce.save_worker(worker)
+    ticket = StoredTicket(
+        ticketId="tkt_race",
+        ticketNumber="BG-2026-8801",
+        trackingCode="RACE01",
+        description="Pothole.",
+        contact=ReportContact(name="Test User", phone="+96170000000"),
+        location=ReportLocation(
+            latitude=33.89,
+            longitude=35.50,
+            addressText="Hamra, Beirut",
+            source="MANUAL",
+        ),
+        imageObjectKey="reports/mock/test.jpg",
+        status="SUBMITTED",
+        category=PENDING_CLASSIFICATION,
+        departmentId=ROAD,
+        municipalityId=BEIRUT,
+        createdAt="2026-08-14T12:00:00Z",
+        updatedAt="2026-08-14T12:00:00Z",
+    )
+    tickets.save(ticket)
+    assert workforce.claim_worker("wrk_race", worker.updated_at, ROAD) is True
+    claimed = workforce.get_worker("wrk_race")
+    assert claimed is not None
+    workforce.save_worker(claimed.model_copy(update={"active": False, "updated_at": "later"}))
+    assigned = workforce.commit_ticket_assignment(
+        ticket_id="tkt_race",
+        ticket_fields={
+            "assigned_worker_id": "wrk_race",
+            "assigned_team_id": None,
+            "updated_at": "2026-08-14T12:01:00Z",
+        },
+        worker_id="wrk_race",
+        team_id=None,
+        department_id=ROAD,
+        expected_updated_at=claimed.updated_at,
+        apply_ticket_patch=lambda: None,
+    )
+    assert assigned is None
+    stored = tickets.get("tkt_race")
+    assert stored is not None
+    assert stored.assigned_worker_id is None

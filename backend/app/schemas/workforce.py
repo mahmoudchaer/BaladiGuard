@@ -93,6 +93,16 @@ class UpsertWorkerRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
+    @field_validator("display_name")
+    @classmethod
+    def validate_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed or len(trimmed) > 120:
+            raise ValueError("displayName must be 1–120 characters.")
+        return trimmed
+
 
 class UpsertTeamRequest(BaseModel):
     municipality_id: str | None = Field(default=None, alias="municipalityId")
@@ -101,6 +111,16 @@ class UpsertTeamRequest(BaseModel):
     worker_ids: list[str] | None = Field(default=None, alias="workerIds")
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("display_name")
+    @classmethod
+    def validate_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed or len(trimmed) > 120:
+            raise ValueError("displayName must be 1–120 characters.")
+        return trimmed
 
 
 class AssignWorkforceRequest(BaseModel):

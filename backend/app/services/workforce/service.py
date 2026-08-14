@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from app.core.staff_auth import StaffPrincipal, staff_can_assign_department
 from app.database.store_factory import get_workforce_store
 from app.database.workforce_store import WorkforceStore
@@ -169,7 +171,7 @@ class WorkforceService:
             and payload.municipality_id != worker.municipality_id
         ):
             raise WorkforceError("municipalityId cannot be changed.")
-        updated = worker.model_copy(update=updates)
+        updated = _revalidate_worker(worker, updates)
         self._assert_teams_compatible(updated)
         saved = self.store().save_worker(updated)
         self._sync_worker_teams(saved, previous_team_ids=previous_teams)
@@ -222,7 +224,7 @@ class WorkforceService:
             updates["worker_ids"] = _unique(payload.worker_ids)
         if payload.municipality_id is not None and payload.municipality_id != team.municipality_id:
             raise WorkforceError("municipalityId cannot be changed.")
-        updated = team.model_copy(update=updates)
+        updated = _revalidate_team(team, updates)
         self._assert_workers_compatible(updated)
         saved = self.store().save_team(updated)
         self._sync_team_workers(saved, previous_worker_ids=previous_workers)
@@ -501,6 +503,28 @@ def _ticket_refs(tickets: list[StoredTicket]) -> list[WorkloadTicketRef]:
             )
         )
     return refs
+
+
+def _revalidate_worker(worker: StoredWorker, updates: dict[str, object]) -> StoredWorker:
+    try:
+        return StoredWorker.model_validate({**worker.model_dump(), **updates})
+    except ValidationError as exc:
+        raise WorkforceError(_validation_message(exc)) from exc
+
+
+def _revalidate_team(team: StoredTeam, updates: dict[str, object]) -> StoredTeam:
+    try:
+        return StoredTeam.model_validate({**team.model_dump(), **updates})
+    except ValidationError as exc:
+        raise WorkforceError(_validation_message(exc)) from exc
+
+
+def _validation_message(exc: ValidationError) -> str:
+    for error in exc.errors():
+        message = error.get("msg")
+        if isinstance(message, str) and message.strip():
+            return message.removeprefix("Value error, ")
+    return "Invalid workforce update."
 
 
 workforce_service = WorkforceService()

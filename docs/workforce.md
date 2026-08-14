@@ -36,7 +36,11 @@ Ticket attributes:
 
 Assignment changes append ticket audit action `WORKFORCE_ASSIGN` with the authenticated `actorId` / `actorRole`.
 
-Validate-then-write uses the assignee `updatedAt` as a version: the store claims the worker or team only when it is still active, still matches the ticket department, and the version is unchanged. Memory assignments hold an exclusive lock across claim and ticket patch; Dynamo uses a conditional `update_item`. Stale reads retry; deactivation or a department change during assignment is rejected. Persistent version conflicts return `409`.
+Validate-then-write couples assignee eligibility with the ticket patch: memory
+re-checks the worker/team under the same lock before writing the ticket; Dynamo
+uses a `TransactWriteItems` that conditions on `active` (and department) while
+updating the ticket assignment. Deactivation between those steps cannot create a
+new assignment. Stale reads retry; persistent conflicts return `409`.
 
 ## Workload counts
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol, TypeVar
 
+from app.schemas.stored_ticket import StoredTicket
 from app.schemas.workforce import StoredTeam, StoredWorker
 
 T = TypeVar("T")
@@ -36,5 +37,17 @@ class WorkforceStore(Protocol):
     def claim_team(
         self, team_id: str, expected_updated_at: str, department_id: str | None
     ) -> bool: ...
+
+    def commit_ticket_assignment(
+        self,
+        *,
+        ticket_id: str,
+        ticket_fields: dict[str, object],
+        worker_id: str | None,
+        team_id: str | None,
+        department_id: str | None,
+        expected_updated_at: str,
+        apply_ticket_patch: Callable[[], StoredTicket | None],
+    ) -> StoredTicket | None: ...
 
     def clear(self) -> None: ...

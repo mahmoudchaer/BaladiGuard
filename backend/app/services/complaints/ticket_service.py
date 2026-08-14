@@ -1499,37 +1499,118 @@ class TicketService:
             )
 
         def _assign() -> TicketResponse:
-            worker_id, team_id = workforce_service.claim_ticket_assignment(
-                staff_principal, ticket, payload
-            )
-            actor_id, actor_role = self._verified_actor(staff_principal, staff_principal.staff_id)
-            updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-            updated_ticket = self._store.patch_fields(
-                ticket_id,
-                {
+            if payload.clear:
+                worker_id, team_id = workforce_service.resolve_ticket_assignment(
+                    staff_principal, ticket, payload
+                )
+                actor_id, actor_role = self._verified_actor(
+                    staff_principal, staff_principal.staff_id
+                )
+                updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+                updated_ticket = self._store.patch_fields(
+                    ticket_id,
+                    {
+                        "assigned_worker_id": worker_id,
+                        "assigned_team_id": team_id,
+                        "updated_at": updated_at,
+                        "updated_by": actor_id,
+                    },
+                )
+                if updated_ticket is None:
+                    raise TicketNotFoundError(ticket_id)
+                return self._complete_workforce_assignment(
+                    ticket,
+                    updated_ticket,
+                    worker_id=worker_id,
+                    team_id=team_id,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    updated_at=updated_at,
+                )
+
+            store = workforce_service.store()
+            for _ in range(5):
+                worker_id, team_id = workforce_service.resolve_ticket_assignment(
+                    staff_principal, ticket, payload
+                )
+                expected_updated_at = ""
+                if worker_id:
+                    worker = store.get_worker(worker_id)
+                    if worker is None:
+                        raise WorkforceError(
+                            "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
+                        )
+                    expected_updated_at = worker.updated_at
+                elif team_id:
+                    team = store.get_team(team_id)
+                    if team is None:
+                        raise WorkforceError(
+                            "Team was not found.", status_code=404, code="TEAM_NOT_FOUND"
+                        )
+                    expected_updated_at = team.updated_at
+                actor_id, actor_role = self._verified_actor(
+                    staff_principal, staff_principal.staff_id
+                )
+                updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+                ticket_fields = {
                     "assigned_worker_id": worker_id,
                     "assigned_team_id": team_id,
                     "updated_at": updated_at,
                     "updated_by": actor_id,
-                },
+                }
+                updated_ticket = store.commit_ticket_assignment(
+                    ticket_id=ticket_id,
+                    ticket_fields=ticket_fields,
+                    worker_id=worker_id,
+                    team_id=team_id,
+                    department_id=ticket.department_id,
+                    expected_updated_at=expected_updated_at,
+                    apply_ticket_patch=lambda fields=ticket_fields: self._store.patch_fields(
+                        ticket_id, fields
+                    ),
+                )
+                if updated_ticket is not None:
+                    return self._complete_workforce_assignment(
+                        ticket,
+                        updated_ticket,
+                        worker_id=worker_id,
+                        team_id=team_id,
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        updated_at=updated_at,
+                    )
+            raise WorkforceError(
+                "Assignment could not be completed because the assignee changed. Retry.",
+                status_code=409,
+                code="CONFLICT",
             )
-            if updated_ticket is None:
-                raise TicketNotFoundError(ticket_id)
-            previous_value = _workforce_label(ticket.assigned_worker_id, ticket.assigned_team_id)
-            new_value = _workforce_label(worker_id, team_id)
-            self._record_audit_history(
-                ticket_id=ticket_id,
-                action_type="WORKFORCE_ASSIGN",
-                actor_id=actor_id,
-                actor_role=actor_role,
-                summary=f"Workforce assignment changed from {previous_value} to {new_value}.",
-                previous_value=previous_value,
-                new_value=new_value,
-                created_at=updated_at,
-            )
-            return self._map_ticket(updated_ticket)
 
         return workforce_service.store().run_exclusive(_assign)
+
+    def _complete_workforce_assignment(
+        self,
+        previous: StoredTicket,
+        updated_ticket: StoredTicket,
+        *,
+        worker_id: str | None,
+        team_id: str | None,
+        actor_id: str,
+        actor_role: StaffRole | None,
+        updated_at: str,
+    ) -> TicketResponse:
+        previous_value = _workforce_label(previous.assigned_worker_id, previous.assigned_team_id)
+        new_value = _workforce_label(worker_id, team_id)
+        self._record_audit_history(
+            ticket_id=previous.ticket_id,
+            action_type="WORKFORCE_ASSIGN",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=f"Workforce assignment changed from {previous_value} to {new_value}.",
+            previous_value=previous_value,
+            new_value=new_value,
+            created_at=updated_at,
+        )
+        return self._map_ticket(updated_ticket)
 
     def merge_duplicate_tickets(
         self,
