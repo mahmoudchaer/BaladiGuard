@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 
 import { TactilePressable } from '@/components/TactilePressable';
-import { colors, radii, spacing, typography } from '@/theme';
+import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel, formatStatusLabel } from '@/theme/labels';
 import type { TicketStatus } from '@/types/ticket';
 import type { PublicBrowseFilters } from '@/utils/publicMapClustering';
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing[5],
   },
   chip: {
-    minHeight: 38,
+    minHeight: touchTargetMin,
     paddingHorizontal: spacing[3],
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
