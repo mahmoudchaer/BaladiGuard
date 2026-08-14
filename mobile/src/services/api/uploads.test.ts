@@ -30,6 +30,9 @@ describe('uploadReportPhoto', () => {
     );
 
     await expect(uploadReportPhoto(photo)).resolves.toBe('reports/photos/test.jpg');
+    const request = vi.mocked(fetch).mock.calls[0];
+    expect(request?.[1]?.body).toBeInstanceOf(FormData);
+    expect((request?.[1]?.body as FormData).get('file')).toBeInstanceOf(Blob);
   });
 
   it('throws when the upload request fails', async () => {

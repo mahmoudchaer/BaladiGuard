@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { createElement, useState } from 'react';
 
 type HrefValue = string | { pathname?: string; params?: Record<string, unknown> };
 
@@ -7,6 +7,7 @@ const routerState = {
   replaceCalls: [] as HrefValue[],
   pushCalls: [] as HrefValue[],
   searchParams: {} as Record<string, string | string[] | undefined>,
+  canGoBack: true,
 };
 
 export function __resetExpoRouterMock() {
@@ -27,6 +28,22 @@ export function Link({ children }: { children: ReactNode }) {
   return children;
 }
 
+export function Tabs({ children, ...props }: { children: ReactNode; [key: string]: unknown }) {
+  return createElement('Tabs', props, children);
+}
+
+Tabs.Screen = function TabsScreen(props: Record<string, unknown>) {
+  return createElement('TabsScreen', props);
+};
+
+export function Stack({ children, ...props }: { children: ReactNode; [key: string]: unknown }) {
+  return createElement('Stack', props, children);
+}
+
+Stack.Screen = function StackScreen(props: Record<string, unknown>) {
+  return createElement('StackScreen', props);
+};
+
 export function Redirect({ href }: { href: HrefValue }) {
   routerState.replaceCalls.push(href);
   return null;
@@ -41,6 +58,7 @@ export function useRouter() {
       routerState.pushCalls.push(href);
     },
     back: () => undefined,
+    canGoBack: () => routerState.canGoBack,
   };
 }
 

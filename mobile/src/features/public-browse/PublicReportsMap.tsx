@@ -218,20 +218,19 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
 
 const styles = StyleSheet.create({
   mapWrap: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radii.lg,
     overflow: 'hidden',
     backgroundColor: colors.surface,
     gap: spacing[2],
   },
   map: {
-    height: 220,
+    height: 260,
   },
   mapHint: {
     color: colors.textMuted,
-    paddingHorizontal: spacing[3],
-    paddingBottom: spacing[2],
+    paddingHorizontal: spacing[4],
+    paddingBottom: spacing[3],
+    lineHeight: 17,
   },
   emptyMap: {
     padding: spacing[4],
