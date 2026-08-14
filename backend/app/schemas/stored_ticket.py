@@ -3,7 +3,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
-from app.schemas.image_redaction import ImageRedactionStatus, RedactionProvenance
+from app.schemas.image_redaction import (
+    ImageRedactionStatus,
+    RedactionProvenance,
+    StoredRedactionRegion,
+)
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
@@ -56,6 +60,15 @@ class StoredTicket(BaseModel):
     image_redaction_reason_code: str | None = Field(default=None, alias="imageRedactionReasonCode")
     image_redaction_history: list[RedactionProvenance] = Field(
         default_factory=list, alias="imageRedactionHistory"
+    )
+    image_redaction_candidate_object_key: str | None = Field(
+        default=None, alias="imageRedactionCandidateObjectKey"
+    )
+    image_redaction_candidate_revision: int = Field(
+        default=0, alias="imageRedactionCandidateRevision", ge=0
+    )
+    image_redaction_regions: list[StoredRedactionRegion] = Field(
+        default_factory=list, alias="imageRedactionRegions"
     )
 
     ai_processing_status: AiProcessingStatus = Field(

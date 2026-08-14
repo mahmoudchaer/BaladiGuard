@@ -150,6 +150,29 @@ def test_low_confidence_derivative_is_review_required_and_not_approved():
     assert "approval-state=review-required" in s3.put_calls[0]["Tagging"]
 
 
+def test_manual_regions_blur_original_and_write_new_derivative():
+    detector = FakeDetector([Detection("plate", 70, BoundingBox(0.2, 0.3, 0.4, 0.2))])
+    processor, s3 = _processor("tkt_manual", detector)
+    auto = processor.process(
+        ticket_id="tkt_manual", source_key="reports/photos/v2/owner/photo.jpg", generation=1
+    )
+    assert auto.status == "review_required"
+    result = processor.apply_manual_regions(
+        ticket_id="tkt_manual",
+        source_key="reports/photos/v2/owner/photo.jpg",
+        generation=1,
+        regions=[
+            Detection("plate", 70, BoundingBox(0.2, 0.3, 0.4, 0.2)),
+            Detection("manual", 100, BoundingBox(0.05, 0.05, 0.1, 0.1)),
+        ],
+    )
+    assert result.status == "review_required"
+    assert result.reason_code == "MANUAL_CORRECTION"
+    assert len(s3.put_calls) == 2
+    assert s3.put_calls[1]["Key"] != s3.put_calls[0]["Key"]
+    assert "approval-state=review-required" in s3.put_calls[1]["Tagging"]
+
+
 @pytest.mark.parametrize(
     "detection",
     [

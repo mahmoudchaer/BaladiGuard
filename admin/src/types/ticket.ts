@@ -74,6 +74,10 @@ export type TicketAuditActionType =
   | 'DUPLICATE_MERGE'
   | 'PUBLIC_CONTENT_UPDATE'
   | 'STAFF_COMMENT'
+  | 'IMAGE_REDACTION_APPROVE'
+  | 'IMAGE_REDACTION_REJECT'
+  | 'IMAGE_REDACTION_REPROCESS'
+  | 'IMAGE_REDACTION_MANUAL_BLUR'
   | 'WORKFORCE_ASSIGN';
 
 export type TicketStaffRole = 'municipal_staff' | 'administrator';
@@ -202,7 +206,37 @@ export type TicketPublicFields = {
 };
 
 export type ImageRedactionStatus =
-  'pending' | 'processing' | 'completed' | 'failed' | 'review_required';
+  'pending' | 'processing' | 'completed' | 'failed' | 'review_required' | 'private_only';
+
+export type ImageRedactionRegion = {
+  kind: 'face' | 'plate' | 'manual';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  confidence?: number | null;
+};
+
+export type ImageRedactionReview = {
+  ticketId: string;
+  generation: number;
+  candidateRevision: number;
+  status: ImageRedactionStatus;
+  originalImageUrl?: string | null;
+  candidateImageUrl?: string | null;
+  publicImageReady: boolean;
+  detector?: string | null;
+  detectorVersion?: string | null;
+  faceCount: number;
+  plateCount: number;
+  completedAt?: string | null;
+  reasonCode?: string | null;
+  regions: ImageRedactionRegion[];
+  canApprove: boolean;
+  canReject: boolean;
+  canReprocess: boolean;
+  canAddManualRegions: boolean;
+};
 
 export type TicketImageRedaction = {
   status: ImageRedactionStatus;

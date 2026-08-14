@@ -24,6 +24,7 @@ import type {
   TicketListPage,
   TicketMapViewport,
 } from '@/types/ticketCollection';
+import type { ImageRedactionReview } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
 import { clearStoredStaffSession, getStaffAuthHeaders } from '@/services/auth';
@@ -865,6 +866,11 @@ const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
   'DEPARTMENT_ASSIGN',
   'DUPLICATE_MERGE',
   'PUBLIC_CONTENT_UPDATE',
+  'STAFF_COMMENT',
+  'IMAGE_REDACTION_APPROVE',
+  'IMAGE_REDACTION_REJECT',
+  'IMAGE_REDACTION_REPROCESS',
+  'IMAGE_REDACTION_MANUAL_BLUR',
 ];
 
 function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {
@@ -1119,7 +1125,9 @@ function normalizeImageRedaction(data: unknown): Ticket['imageRedaction'] {
   if (!isRecord(data)) return undefined;
   const status = data.status;
   if (
-    !['pending', 'processing', 'completed', 'failed', 'review_required'].includes(String(status))
+    !['pending', 'processing', 'completed', 'failed', 'review_required', 'private_only'].includes(
+      String(status),
+    )
   ) {
     return undefined;
   }
@@ -2014,4 +2022,153 @@ export async function updateTicketPublicContent(
   }
 
   return updateTicketPublicContentFromApi(ticketId, input);
+}
+
+export type ImageRedactionManualRegion = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+function normalizeImageRedactionReview(data: unknown): ImageRedactionReview | null {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    return null;
+  }
+  const redaction = normalizeImageRedaction(data);
+  if (!redaction) {
+    return null;
+  }
+  return {
+    ticketId: data.ticketId,
+    generation: redaction.generation,
+    candidateRevision: typeof data.candidateRevision === 'number' ? data.candidateRevision : 0,
+    status: redaction.status,
+    originalImageUrl: typeof data.originalImageUrl === 'string' ? data.originalImageUrl : null,
+    candidateImageUrl: typeof data.candidateImageUrl === 'string' ? data.candidateImageUrl : null,
+    publicImageReady: data.publicImageReady === true,
+    detector: redaction.detector,
+    detectorVersion: redaction.detectorVersion,
+    faceCount: redaction.faceCount,
+    plateCount: redaction.plateCount,
+    completedAt: redaction.completedAt,
+    reasonCode: redaction.reasonCode,
+    regions: Array.isArray(data.regions)
+      ? data.regions.flatMap((item) => {
+          if (!isRecord(item)) return [];
+          if (item.kind !== 'face' && item.kind !== 'plate' && item.kind !== 'manual') return [];
+          return [
+            {
+              kind: item.kind,
+              left: typeof item.left === 'number' ? item.left : 0,
+              top: typeof item.top === 'number' ? item.top : 0,
+              width: typeof item.width === 'number' ? item.width : 0,
+              height: typeof item.height === 'number' ? item.height : 0,
+              confidence: typeof item.confidence === 'number' ? item.confidence : null,
+            },
+          ];
+        })
+      : [],
+    canApprove: data.canApprove === true,
+    canReject: data.canReject === true,
+    canReprocess: data.canReprocess === true,
+    canAddManualRegions: data.canAddManualRegions === true,
+  };
+}
+
+async function postImageRedactionDecision(
+  ticketId: string,
+  action: 'approve' | 'reject' | 'manual-regions' | 'reprocess',
+  body?: {
+    expectedGeneration: number;
+    expectedCandidateRevision: number;
+    regions?: ImageRedactionManualRegion[];
+  },
+): Promise<ImageRedactionReview> {
+  const path =
+    action === 'reprocess'
+      ? `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/image-redaction/reprocess`
+      : `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/image-redaction/${action}`;
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      ...getStaffAuthHeaders(),
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to update image redaction.');
+  }
+  if (action === 'reprocess') {
+    const review = await fetchImageRedactionReview(ticketId);
+    if (!review) {
+      throw new Error('Unable to reload image redaction review.');
+    }
+    return review;
+  }
+  const data: unknown = await response.json();
+  const review = normalizeImageRedactionReview(data);
+  if (!review) {
+    throw new Error('Image redaction review response was invalid.');
+  }
+  return review;
+}
+
+export async function fetchImageRedactionReview(
+  ticketId: string,
+): Promise<ImageRedactionReview | null> {
+  if (config.useMockData) {
+    return null;
+  }
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/image-redaction/review`,
+    { headers: getStaffAuthHeaders() },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load image redaction review.');
+  }
+  return normalizeImageRedactionReview(await response.json());
+}
+
+export async function approveImageRedaction(
+  ticketId: string,
+  expectedGeneration: number,
+  expectedCandidateRevision: number,
+): Promise<ImageRedactionReview> {
+  return postImageRedactionDecision(ticketId, 'approve', {
+    expectedGeneration,
+    expectedCandidateRevision,
+  });
+}
+
+export async function rejectImageRedaction(
+  ticketId: string,
+  expectedGeneration: number,
+  expectedCandidateRevision: number,
+): Promise<ImageRedactionReview> {
+  return postImageRedactionDecision(ticketId, 'reject', {
+    expectedGeneration,
+    expectedCandidateRevision,
+  });
+}
+
+export async function reprocessImageRedaction(ticketId: string): Promise<ImageRedactionReview> {
+  return postImageRedactionDecision(ticketId, 'reprocess');
+}
+
+export async function applyManualImageRedaction(
+  ticketId: string,
+  expectedGeneration: number,
+  expectedCandidateRevision: number,
+  regions: ImageRedactionManualRegion[],
+): Promise<ImageRedactionReview> {
+  return postImageRedactionDecision(ticketId, 'manual-regions', {
+    expectedGeneration,
+    expectedCandidateRevision,
+    regions,
+  });
 }

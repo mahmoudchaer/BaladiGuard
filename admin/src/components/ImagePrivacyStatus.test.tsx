@@ -27,14 +27,12 @@ describe('ImagePrivacyStatus', () => {
     expect(status).not.toHaveTextContent('reports/');
   });
 
-  it('states that failures keep the original private', () => {
+  it('states that private-only keeps the original unpublished', () => {
     renderWithProviders(
       <ImagePrivacyStatus
-        redaction={{ status: 'failed', generation: 1, faceCount: 0, plateCount: 0 }}
+        redaction={{ status: 'private_only', generation: 1, faceCount: 0, plateCount: 0 }}
       />,
     );
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Processing failed — original remains private',
-    );
+    expect(screen.getByRole('status')).toHaveTextContent('Private only — no public derivative');
   });
 });

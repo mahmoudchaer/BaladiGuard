@@ -12,6 +12,7 @@ const LABELS: Record<TicketImageRedaction['status'], string> = {
   completed: 'Public derivative is privacy-safe',
   failed: 'Processing failed — original remains private',
   review_required: 'Review required — original remains private',
+  private_only: 'Private only — no public derivative',
 };
 
 export function ImagePrivacyStatus({ redaction }: Props) {

@@ -69,6 +69,10 @@ class TicketAuditHistoryEntry(BaseModel):
         "DUPLICATE_MERGE",
         "PUBLIC_CONTENT_UPDATE",
         "STAFF_COMMENT",
+        "IMAGE_REDACTION_APPROVE",
+        "IMAGE_REDACTION_REJECT",
+        "IMAGE_REDACTION_REPROCESS",
+        "IMAGE_REDACTION_MANUAL_BLUR",
         "WORKFORCE_ASSIGN",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")

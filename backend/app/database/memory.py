@@ -394,10 +394,19 @@ class InMemoryTicketStore:
             self._tickets[ticket_id] = updated
             return updated
 
-    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+    def start_image_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+    ) -> StoredTicket | None:
         with self._lock:
             ticket = self._tickets.get(ticket_id)
-            if ticket is None:
+            if ticket is None or not _ticket_matches_access_scope(
+                ticket, expected_municipality_id, expected_department_id
+            ):
                 return None
             updated = ticket.model_copy(
                 update={
@@ -406,9 +415,45 @@ class InMemoryTicketStore:
                     "image_redaction_claim_token": None,
                     "image_redaction_completed_at": None,
                     "image_redaction_reason_code": None,
+                    "image_redaction_candidate_object_key": None,
+                    "image_redaction_candidate_revision": 0,
+                    "image_redaction_regions": [],
                     "updated_at": updated_at,
                 }
             )
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_candidate_revision: int,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        for field_name in fields:
+            resolve_ticket_attr_name(field_name)
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.image_redaction_generation != expected_generation
+                or ticket.image_redaction_status != expected_status
+                or ticket.image_redaction_candidate_revision != expected_candidate_revision
+                or not _ticket_matches_access_scope(
+                    ticket, expected_municipality_id, expected_department_id
+                )
+            ):
+                return None
+            updates = dict(fields)
+            if copy_candidate_to_public:
+                updates["public_image_object_key"] = ticket.image_redaction_candidate_object_key
+            updated = ticket.model_copy(update=updates)
             self._tickets[ticket_id] = updated
             return updated
 
@@ -503,6 +548,17 @@ def _decode_public_cursor(cursor: str | None) -> tuple[str, str] | None:
 
 def _staff_sort_tuple(ticket: StoredTicket) -> tuple[str, str]:
     return (ticket.created_at, ticket.ticket_id)
+
+
+def _ticket_matches_access_scope(
+    ticket: StoredTicket,
+    expected_municipality_id: str | None,
+    expected_department_id: str | None,
+) -> bool:
+    return (
+        ticket.municipality_id == expected_municipality_id
+        and ticket.department_id == expected_department_id
+    )
 
 
 def _municipal_staff_can_access(

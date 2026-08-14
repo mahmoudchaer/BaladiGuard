@@ -112,11 +112,137 @@ def test_dynamo_ticket_redaction_claim_finalization_and_generation_are_condition
     )
     assert finalized is not None and finalized.image_redaction_status == "completed"
 
-    second = store.start_image_reprocessing("tkt_redaction_dynamo", "2026-08-13T00:00:03Z")
-    third = store.start_image_reprocessing("tkt_redaction_dynamo", "2026-08-13T00:00:04Z")
+    second = store.start_image_reprocessing(
+        "tkt_redaction_dynamo",
+        "2026-08-13T00:00:03Z",
+        expected_municipality_id=None,
+        expected_department_id=None,
+    )
+    third = store.start_image_reprocessing(
+        "tkt_redaction_dynamo",
+        "2026-08-13T00:00:04Z",
+        expected_municipality_id=None,
+        expected_department_id=None,
+    )
     assert second is not None and second.image_redaction_generation == 2
     assert third is not None and third.image_redaction_generation == 3
     assert third.public_image_object_key == "reports/redacted/v1/scope/g1/approved.jpg"
+
+
+def _review_ready_ticket(**overrides) -> StoredTicket:
+    return _ticket().model_copy(
+        update={
+            "image_redaction_status": "review_required",
+            "image_redaction_generation": 1,
+            "image_redaction_candidate_object_key": "reports/redacted/v1/scope/g1/candidate.jpg",
+            "image_redaction_candidate_revision": 0,
+            **overrides,
+        }
+    )
+
+
+def _drop_candidate_revision(store: DynamoTicketStore, ticket_id: str) -> None:
+    item = store._tickets_table.get_item(Key={"ticketId": ticket_id}, ConsistentRead=True)["Item"]
+    item.pop("imageRedactionCandidateRevision", None)
+    store._tickets_table.put_item(Item=item)
+
+
+def test_dynamo_missing_candidate_revision_is_treated_as_zero(
+    dynamodb_settings: Settings,
+) -> None:
+    store = DynamoTicketStore(dynamodb_settings)
+    ticket = _review_ready_ticket()
+    store.save(ticket)
+    _drop_candidate_revision(store, ticket.ticket_id)
+
+    approved = store.apply_image_redaction_review(
+        ticket.ticket_id,
+        expected_generation=1,
+        expected_status="review_required",
+        expected_candidate_revision=0,
+        expected_municipality_id=None,
+        expected_department_id=None,
+        copy_candidate_to_public=True,
+        fields={"image_redaction_status": "completed", "image_redaction_candidate_revision": 0},
+    )
+    assert approved is not None
+    assert approved.image_redaction_status == "completed"
+    assert approved.public_image_object_key == ticket.image_redaction_candidate_object_key
+    assert approved.image_redaction_candidate_revision == 0
+
+
+def test_dynamo_missing_candidate_revision_rejects_nonzero_expected(
+    dynamodb_settings: Settings,
+) -> None:
+    store = DynamoTicketStore(dynamodb_settings)
+    ticket = _review_ready_ticket()
+    store.save(ticket)
+    _drop_candidate_revision(store, ticket.ticket_id)
+
+    result = store.apply_image_redaction_review(
+        ticket.ticket_id,
+        expected_generation=1,
+        expected_status="review_required",
+        expected_candidate_revision=1,
+        expected_municipality_id=None,
+        expected_department_id=None,
+        copy_candidate_to_public=True,
+        fields={"image_redaction_status": "completed"},
+    )
+    assert result is None
+    current = store.get(ticket.ticket_id)
+    assert current is not None
+    assert current.image_redaction_status == "review_required"
+    assert current.public_image_object_key is None
+
+
+def test_dynamo_review_write_requires_authorized_scope(dynamodb_settings: Settings) -> None:
+    store = DynamoTicketStore(dynamodb_settings)
+    ticket = _review_ready_ticket(
+        municipality_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        department_id="d1111111-1111-1111-1111-111111111111",
+        image_redaction_candidate_revision=1,
+    )
+    store.save(ticket)
+    store.save(
+        ticket.model_copy(update={"municipality_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"})
+    )
+
+    result = store.apply_image_redaction_review(
+        ticket.ticket_id,
+        expected_generation=1,
+        expected_status="review_required",
+        expected_candidate_revision=1,
+        expected_municipality_id=ticket.municipality_id,
+        expected_department_id=ticket.department_id,
+        copy_candidate_to_public=True,
+        fields={"image_redaction_status": "completed"},
+    )
+    assert result is None
+    current = store.get(ticket.ticket_id)
+    assert current is not None
+    assert current.image_redaction_status == "review_required"
+    assert current.public_image_object_key is None
+
+
+def test_dynamo_reprocess_requires_authorized_scope(dynamodb_settings: Settings) -> None:
+    store = DynamoTicketStore(dynamodb_settings)
+    ticket = _review_ready_ticket(
+        municipality_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        department_id="d1111111-1111-1111-1111-111111111111",
+    )
+    store.save(ticket)
+    result = store.start_image_reprocessing(
+        ticket.ticket_id,
+        "2026-08-13T00:00:03Z",
+        expected_municipality_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        expected_department_id=ticket.department_id,
+    )
+    assert result is None
+    current = store.get(ticket.ticket_id)
+    assert current is not None
+    assert current.image_redaction_generation == 1
+    assert current.image_redaction_status == "review_required"
 
 
 def test_dynamo_expired_worker_cannot_clear_replacement_ticket_claim(
