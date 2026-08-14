@@ -4,7 +4,7 @@ import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
 import { getStaffRoleLabel } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
-import { IconMap, IconSearch, IconTickets } from '@/components/icons';
+import { IconMap, IconPeople, IconSearch, IconTickets } from '@/components/icons';
 import './BrandMark.css';
 import './DashboardLayout.css';
 
@@ -33,6 +33,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'tickets', label: 'Tickets', Icon: IconTickets, to: '/' },
   { id: 'map', label: 'Map View', Icon: IconMap, to: '/map' },
+  { id: 'workforce', label: 'Workforce', Icon: IconPeople, to: '/workforce' },
 ];
 
 function isNavActive(pathname: string, to: string): boolean {

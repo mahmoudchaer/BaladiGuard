@@ -271,6 +271,8 @@ function listItemToTicket(item: TicketListItem): Ticket {
     createdBy: null,
     municipalityId: item.municipalityId,
     departmentId,
+    assignedWorkerId: item.assignedWorkerId ?? null,
+    assignedTeamId: item.assignedTeamId ?? null,
     departmentName,
     department:
       departmentId || departmentName
@@ -383,6 +385,8 @@ function ticketToListItem(ticket: Ticket): TicketListItem {
     updatedAt: ticket.updatedAt,
     municipalityId: ticket.municipalityId,
     assignmentState: ticket.departmentId ? 'assigned' : 'unassigned',
+    assignedWorkerId: ticket.assignedWorkerId ?? null,
+    assignedTeamId: ticket.assignedTeamId ?? null,
     location: {
       latitude: ticket.location.latitude,
       longitude: ticket.location.longitude,
@@ -1091,6 +1095,8 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     createdBy: typeof data.createdBy === 'string' ? data.createdBy : null,
     municipalityId: typeof data.municipalityId === 'string' ? data.municipalityId : null,
     departmentId: resolvedDepartmentId,
+    assignedWorkerId: typeof data.assignedWorkerId === 'string' ? data.assignedWorkerId : null,
+    assignedTeamId: typeof data.assignedTeamId === 'string' ? data.assignedTeamId : null,
     departmentName: resolvedDepartmentName,
     department:
       department && (department.departmentId || department.name)
@@ -1885,6 +1891,53 @@ export async function assignTicketDepartment(
   }
 
   return assignTicketDepartmentFromApi(ticketId, input);
+}
+
+export type AssignWorkforceInput = {
+  workerId?: string | null;
+  teamId?: string | null;
+  clear?: boolean;
+};
+
+export async function assignTicketWorkforce(
+  ticketId: string,
+  input: AssignWorkforceInput,
+): Promise<Ticket | null> {
+  if (config.useMockData) {
+    const ticket = await fetchTicketById(ticketId);
+    if (!ticket) {
+      return null;
+    }
+    const updated: Ticket = {
+      ...ticket,
+      assignedWorkerId: input.clear ? null : (input.workerId ?? null),
+      assignedTeamId: input.clear ? null : (input.teamId ?? null),
+    };
+    invalidateCachesForTicket(ticketId);
+    return updated;
+  }
+
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/workforce-assignment`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getStaffAuthHeaders(),
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to assign workforce.');
+  }
+  const data: unknown = await response.json();
+  const ticket = normalizeTicketFromApi(data);
+  invalidateCachesForTicket(ticketId);
+  return ticket;
 }
 
 export type UpdateTicketPublicContentInput = {

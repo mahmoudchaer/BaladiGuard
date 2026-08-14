@@ -77,7 +77,8 @@ export type TicketAuditActionType =
   | 'IMAGE_REDACTION_APPROVE'
   | 'IMAGE_REDACTION_REJECT'
   | 'IMAGE_REDACTION_REPROCESS'
-  | 'IMAGE_REDACTION_MANUAL_BLUR';
+  | 'IMAGE_REDACTION_MANUAL_BLUR'
+  | 'WORKFORCE_ASSIGN';
 
 export type TicketStaffRole = 'municipal_staff' | 'administrator';
 
@@ -274,6 +275,8 @@ export type Ticket = {
   createdBy: string | null;
   municipalityId: string | null;
   departmentId: string | null;
+  assignedWorkerId?: string | null;
+  assignedTeamId?: string | null;
   departmentName?: string;
   department?: TicketDepartment | null;
   duplicateGroupId: string | null;

@@ -423,7 +423,7 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 ## Staff audit boundaries (issues #143 / #181)
 
 **Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department, public content,
-and duplicate-merge mutations only. Entries store action type, target ticket, timestamp, summary,
+duplicate-merge, staff comments, and workforce assignment mutations. Entries store action type, target ticket, timestamp, summary,
 previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal.
 
 **Account audit** is a separate store (`account-audit`) for Sprint 6 staff-account events:
@@ -438,6 +438,13 @@ deactivate/reactivate operations. Responses exclude password hashes, reset-token
 data, session epochs, and all credential values. The existing public staff
 password-reset request/confirm endpoints remain the supported credential-reset
 flow; administrators never receive reset codes or password material.
+
+Municipality **field workers and teams** are a separate directory from staff
+logins. See [workforce.md](./workforce.md). Administrators manage
+`/v1/workforce/workers` and `/v1/workforce/teams`. Staff assign a worker XOR a
+team on `POST /v1/tickets/{ticketId}/workforce-assignment` and compare load on
+`GET /v1/workforce/workload`. Directory and workload payloads omit citizen
+contact and private evidence.
 
 ## Endpoints
 

@@ -10,6 +10,7 @@ import type {
 } from '@/types/ticket';
 import {
   assignTicketDepartment,
+  assignTicketWorkforce,
   fetchDuplicateCandidates,
   fetchDuplicateComparison,
   createTicketComment,
@@ -45,6 +46,8 @@ import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getTicketImageUrl } from '@/utils/ticketImage';
+import { listTeams, listWorkers } from '@/services/workforce';
+import type { WorkforceTeam, WorkforceWorker } from '@/types/workforce';
 import { IconImage, IconLocation, IconSparkles, IconWorkflow } from '@/components/icons';
 import {
   parseTicketDetailSection,
@@ -185,6 +188,12 @@ export function TicketDetailPage() {
   const [departmentUpdateError, setDepartmentUpdateError] = useState<string | null>(null);
   const [departmentUpdateSuccess, setDepartmentUpdateSuccess] = useState<string | null>(null);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
+  const [workers, setWorkers] = useState<WorkforceWorker[]>([]);
+  const [teams, setTeams] = useState<WorkforceTeam[]>([]);
+  const [selectedWorkforceValue, setSelectedWorkforceValue] = useState('');
+  const [workforceError, setWorkforceError] = useState<string | null>(null);
+  const [workforceSuccess, setWorkforceSuccess] = useState<string | null>(null);
+  const [isSavingWorkforce, setIsSavingWorkforce] = useState(false);
 
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([]);
   const [candidateLoadState, setCandidateLoadState] = useState<CandidateLoadState>('idle');
@@ -267,6 +276,13 @@ export function TicketDetailPage() {
         setPendingStatus(data.status);
         setSelectedCategory(data.ai?.finalCategory ?? data.ai?.aiSuggestedCategory ?? '');
         setSelectedDepartmentId(data.departmentId ?? '');
+        setSelectedWorkforceValue(
+          data.assignedWorkerId
+            ? `worker:${data.assignedWorkerId}`
+            : data.assignedTeamId
+              ? `team:${data.assignedTeamId}`
+              : '',
+        );
         setDepartmentUpdateError(null);
         setDepartmentUpdateSuccess(null);
         setSelectedDuplicateIds([]);
@@ -306,6 +322,32 @@ export function TicketDetailPage() {
     setCommentError(null);
     setIsSubmittingComment(false);
   }, [ticketId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDirectory() {
+      try {
+        const municipalityId = ticket?.municipalityId ?? session?.municipalityId ?? undefined;
+        const [nextWorkers, nextTeams] = await Promise.all([
+          listWorkers(municipalityId),
+          listTeams(municipalityId),
+        ]);
+        if (!cancelled) {
+          setWorkers(nextWorkers);
+          setTeams(nextTeams);
+        }
+      } catch {
+        if (!cancelled) {
+          setWorkers([]);
+          setTeams([]);
+        }
+      }
+    }
+    void loadDirectory();
+    return () => {
+      cancelled = true;
+    };
+  }, [ticketId, ticket?.municipalityId, session?.municipalityId]);
 
   useEffect(() => {
     if (!ticketId) return;
@@ -583,6 +625,48 @@ export function TicketDetailPage() {
       setDepartmentUpdateSuccess(null);
     } finally {
       setIsSavingDepartment(false);
+    }
+  };
+
+  const handleWorkforceAssignment = async () => {
+    if (!ticket) {
+      return;
+    }
+    const previous = selectedWorkforceValue;
+    setIsSavingWorkforce(true);
+    setWorkforceError(null);
+    setWorkforceSuccess(null);
+    try {
+      const payload =
+        selectedWorkforceValue === ''
+          ? { clear: true }
+          : selectedWorkforceValue.startsWith('team:')
+            ? { teamId: selectedWorkforceValue.slice('team:'.length) }
+            : { workerId: selectedWorkforceValue.slice('worker:'.length) };
+      const updatedTicket = await assignTicketWorkforce(ticket.ticketId, payload);
+      if (!updatedTicket) {
+        loadedTicketRef.current = null;
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+      loadedTicketRef.current = updatedTicket;
+      setTicket(updatedTicket);
+      setSelectedWorkforceValue(
+        updatedTicket.assignedWorkerId
+          ? `worker:${updatedTicket.assignedWorkerId}`
+          : updatedTicket.assignedTeamId
+            ? `team:${updatedTicket.assignedTeamId}`
+            : '',
+      );
+      setWorkforceSuccess('Workforce assignment updated.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to update the workforce assignment.';
+      setWorkforceError(message);
+      setSelectedWorkforceValue(previous);
+    } finally {
+      setIsSavingWorkforce(false);
     }
   };
 
@@ -1302,6 +1386,74 @@ export function TicketDetailPage() {
                             </>
                           ) : null}
                         </small>
+                      )}
+                    </div>
+
+                    <div className="ticket-detail__action-group">
+                      <p className="ticket-detail__eyebrow">Field assignment</p>
+                      <div className="ticket-detail__control-row">
+                        <label htmlFor="workforce-assign-select">Assigned worker or team</label>
+                        <select
+                          id="workforce-assign-select"
+                          className="ticket-detail__control-select"
+                          value={selectedWorkforceValue}
+                          onChange={(event) => {
+                            setSelectedWorkforceValue(event.target.value);
+                            setWorkforceError(null);
+                            setWorkforceSuccess(null);
+                          }}
+                          disabled={isSavingWorkforce}
+                        >
+                          <option value="">Unassigned</option>
+                          {workers
+                            .filter(
+                              (worker) =>
+                                worker.workerId === ticket.assignedWorkerId ||
+                                (worker.active &&
+                                  (!ticket.departmentId ||
+                                    worker.departmentIds.includes(ticket.departmentId))),
+                            )
+                            .map((worker) => (
+                              <option key={worker.workerId} value={`worker:${worker.workerId}`}>
+                                Worker: {worker.displayName}
+                                {worker.active ? '' : ' (inactive)'}
+                              </option>
+                            ))}
+                          {teams
+                            .filter(
+                              (team) =>
+                                team.teamId === ticket.assignedTeamId ||
+                                (team.active &&
+                                  (!ticket.departmentId ||
+                                    team.departmentIds.includes(ticket.departmentId))),
+                            )
+                            .map((team) => (
+                              <option key={team.teamId} value={`team:${team.teamId}`}>
+                                Team: {team.displayName}
+                                {team.active ? '' : ' (inactive)'}
+                              </option>
+                            ))}
+                        </select>
+                        <div className="ticket-detail__control-buttons">
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button"
+                            onClick={() => void handleWorkforceAssignment()}
+                            disabled={isSavingWorkforce}
+                          >
+                            {isSavingWorkforce ? 'Saving assignment...' : 'Save assignment'}
+                          </button>
+                        </div>
+                      </div>
+                      {workforceSuccess && (
+                        <p className="ticket-detail__status-message" role="status">
+                          {workforceSuccess}
+                        </p>
+                      )}
+                      {workforceError && (
+                        <p className="ticket-detail__status-error" role="alert">
+                          {workforceError}
+                        </p>
                       )}
                     </div>
                   </div>

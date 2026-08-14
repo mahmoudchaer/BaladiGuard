@@ -117,7 +117,7 @@ python scripts/db/seed.py
 
 Expected tables (prefix `baladiguard-` by default):
 
-- `tickets`, `users`, `municipalities`, `departments`
+- `tickets`, `users`, `municipalities`, `departments`, `workforce-workers`, `workforce-teams`
 - `ticket-status-history`, `ai-outputs`, `duplicate-groups`
 - `categories`, `counters`
 

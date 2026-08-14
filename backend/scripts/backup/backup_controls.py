@@ -40,6 +40,8 @@ DEFAULT_TABLE_SUFFIXES = (
     "duplicate-groups",
     "municipalities",
     "departments",
+    "workforce-workers",
+    "workforce-teams",
     "categories",
     "counters",
     "rate-limit-buckets",

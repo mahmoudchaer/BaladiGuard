@@ -18,6 +18,8 @@ export type TicketListItem = {
   updatedAt: string | null;
   municipalityId: string | null;
   assignmentState: 'assigned' | 'unassigned';
+  assignedWorkerId?: string | null;
+  assignedTeamId?: string | null;
   location: {
     latitude: number;
     longitude: number;

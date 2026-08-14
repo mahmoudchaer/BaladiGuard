@@ -24,6 +24,7 @@ from app.database.staff_comment_store import StaffCommentStore
 from app.database.staff_store import StaffStore
 from app.database.status_history_store import StatusHistoryStore
 from app.database.ticket_store import TicketStore
+from app.database.workforce_store import WorkforceStore
 
 
 def build_ticket_store(settings: Settings | None = None) -> TicketStore:
@@ -149,6 +150,17 @@ def build_staff_comment_store(settings: Settings | None = None) -> StaffCommentS
     return staff_comment_store
 
 
+def build_workforce_store(settings: Settings | None = None) -> WorkforceStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_workforce_store import DynamoWorkforceStore
+
+        return DynamoWorkforceStore(settings)
+    from app.database.memory_workforce import workforce_store
+
+    return workforce_store
+
+
 def build_staff_password_reset_store(settings: Settings | None = None):
     settings = settings or get_settings()
     if settings.use_dynamodb:
@@ -212,3 +224,7 @@ def get_staff_comment_store() -> StaffCommentStore:
 
 def get_staff_password_reset_store():
     return build_staff_password_reset_store(get_settings())
+
+
+def get_workforce_store() -> WorkforceStore:
+    return build_workforce_store(get_settings())

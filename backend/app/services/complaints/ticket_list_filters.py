@@ -30,6 +30,9 @@ class TicketListFilters:
     department_id: str | None = None
     sla_state: str | None = None
     assignment_state: Literal["assigned", "unassigned"] | None = None
+    worker_id: str | None = None
+    team_id: str | None = None
+    workforce_unassigned: bool = False
     q: str | None = None
     open_only: bool = False
 
@@ -48,6 +51,9 @@ def parse_ticket_list_filters(
     department_id: str | None = None,
     sla_state: str | None = None,
     assignment_state: str | None = None,
+    worker_id: str | None = None,
+    team_id: str | None = None,
+    workforce_unassigned: bool = False,
     q: str | None = None,
     open_only: bool = False,
 ) -> tuple[TicketListFilters | None, list[TicketListFilterValidationError]]:
@@ -64,6 +70,8 @@ def parse_ticket_list_filters(
     parsed_department_id: str | None = None
     parsed_sla_state: str | None = None
     parsed_assignment_state: Literal["assigned", "unassigned"] | None = None
+    parsed_worker_id: str | None = None
+    parsed_team_id: str | None = None
     parsed_q: str | None = None
 
     if status is not None:
@@ -170,6 +178,39 @@ def parse_ticket_list_filters(
         else:
             parsed_assignment_state = cast(Literal["assigned", "unassigned"], normalized_assignment)
 
+    if worker_id is not None:
+        parsed_worker_id = worker_id.strip()
+        if not parsed_worker_id:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="workerId",
+                    message="Worker filter must not be empty.",
+                )
+            )
+    if team_id is not None:
+        parsed_team_id = team_id.strip()
+        if not parsed_team_id:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="teamId",
+                    message="Team filter must not be empty.",
+                )
+            )
+    if parsed_worker_id and parsed_team_id:
+        errors.append(
+            TicketListFilterValidationError(
+                field="workerId",
+                message="Filter by workerId or teamId, not both.",
+            )
+        )
+    if workforce_unassigned and (parsed_worker_id or parsed_team_id):
+        errors.append(
+            TicketListFilterValidationError(
+                field="workforceUnassigned",
+                message="workforceUnassigned cannot be combined with workerId or teamId.",
+            )
+        )
+
     if q is not None:
         normalized_q = q.strip()
         if not normalized_q:
@@ -200,6 +241,9 @@ def parse_ticket_list_filters(
             department_id=parsed_department_id,
             sla_state=parsed_sla_state,
             assignment_state=parsed_assignment_state,
+            worker_id=parsed_worker_id,
+            team_id=parsed_team_id,
+            workforce_unassigned=workforce_unassigned,
             q=parsed_q,
             open_only=open_only,
         ),
@@ -225,6 +269,12 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
     if filters.assignment_state == "unassigned" and ticket.department_id is not None:
         return False
     if filters.assignment_state == "assigned" and ticket.department_id is None:
+        return False
+    if filters.worker_id is not None and ticket.assigned_worker_id != filters.worker_id:
+        return False
+    if filters.team_id is not None and ticket.assigned_team_id != filters.team_id:
+        return False
+    if filters.workforce_unassigned and (ticket.assigned_worker_id or ticket.assigned_team_id):
         return False
     if filters.q is not None:
         needle = filters.q.casefold()

@@ -213,6 +213,10 @@ class InMemoryTicketStore:
         self,
         ticket_id: str,
         fields: dict[str, Any],
+        expected_updated_at: str | None = None,
+        expected_municipality_id: str | None = None,
+        expected_department_id: str | None = None,
+        require_assignment_scope: bool = False,
     ) -> StoredTicket | None:
         if not fields:
             raise ValueError("At least one field is required for a ticket patch.")
@@ -223,6 +227,15 @@ class InMemoryTicketStore:
         with self._lock:
             ticket = self._tickets.get(ticket_id)
             if ticket is None:
+                return None
+            if require_assignment_scope:
+                if (
+                    ticket.updated_at != expected_updated_at
+                    or ticket.municipality_id != expected_municipality_id
+                    or ticket.department_id != expected_department_id
+                ):
+                    return None
+            elif expected_updated_at is not None and ticket.updated_at != expected_updated_at:
                 return None
             updated_ticket = ticket.model_copy(update=fields)
             self._tickets[ticket_id] = updated_ticket

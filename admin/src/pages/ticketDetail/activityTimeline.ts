@@ -26,6 +26,7 @@ const AUDIT_ACTION_LABELS: Record<TicketAuditActionType, string> = {
   IMAGE_REDACTION_REJECT: 'Image kept private-only',
   IMAGE_REDACTION_REPROCESS: 'Image reprocessing requested',
   IMAGE_REDACTION_MANUAL_BLUR: 'Manual blur regions added',
+  WORKFORCE_ASSIGN: 'Workforce assignment',
 };
 
 export function formatAuditAction(actionType: TicketAuditActionType): string {
