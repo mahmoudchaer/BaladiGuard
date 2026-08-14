@@ -64,6 +64,9 @@ class StoredTicket(BaseModel):
     image_redaction_candidate_object_key: str | None = Field(
         default=None, alias="imageRedactionCandidateObjectKey"
     )
+    image_redaction_candidate_revision: int = Field(
+        default=0, alias="imageRedactionCandidateRevision", ge=0
+    )
     image_redaction_regions: list[StoredRedactionRegion] = Field(
         default_factory=list, alias="imageRedactionRegions"
     )

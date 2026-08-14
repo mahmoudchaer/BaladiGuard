@@ -46,6 +46,7 @@ def _stamp_review_required(ticket_id: str, *, municipality_id: str | None = None
         "image_redaction_status": "review_required",
         "image_redaction_generation": 1,
         "image_redaction_candidate_object_key": candidate,
+        "image_redaction_candidate_revision": 1,
         "image_redaction_reason_code": "LOW_CONFIDENCE",
         "image_redaction_detector": "fake",
         "image_redaction_detector_version": "v1",
@@ -96,6 +97,7 @@ def test_review_payload_is_staff_only_and_omits_storage_keys(anonymous_client, m
     assert body["canApprove"] is True
     assert body["canReject"] is True
     assert body["canAddManualRegions"] is True
+    assert body["candidateRevision"] == 1
     serialized = response.text
     assert "imageObjectKey" not in serialized
     assert "reports/" not in serialized.replace(body["originalImageUrl"], "").replace(
@@ -116,7 +118,11 @@ def test_out_of_scope_staff_cannot_view_or_decide(anonymous_client):
     ):
         kwargs = {"headers": headers}
         if method == "post":
-            kwargs["json"] = {"expectedGeneration": 1, "regions": []}
+            kwargs["json"] = {
+                "expectedGeneration": 1,
+                "expectedCandidateRevision": 1,
+                "regions": [],
+            }
         response = getattr(anonymous_client, method)(path, **kwargs)
         assert response.status_code == 404, path
         assert "originalImageUrl" not in response.text
@@ -133,7 +139,7 @@ def test_approve_exposes_derivative_and_records_audit(anonymous_client, monkeypa
     headers = _auth(anonymous_client)
     approved = anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
-        json={"expectedGeneration": 1},
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
         headers=headers,
     )
     assert approved.status_code == 200, approved.text
@@ -157,6 +163,7 @@ def test_approve_exposes_derivative_and_records_audit(anonymous_client, monkeypa
     ]
     assert actors[0]["actorId"]
     assert actors[0]["actorRole"] == "administrator"
+    assert actors[0]["newValue"] == "completed:g1:fake:v1"
 
 
 def test_reject_keeps_image_private_only(anonymous_client):
@@ -165,7 +172,7 @@ def test_reject_keeps_image_private_only(anonymous_client):
     headers = _auth(anonymous_client)
     rejected = anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/reject",
-        json={"expectedGeneration": 1},
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
         headers=headers,
     )
     assert rejected.status_code == 200, rejected.text
@@ -198,7 +205,7 @@ def test_public_clients_stay_fail_closed_until_approval(anonymous_client, monkey
 
     anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
-        json={"expectedGeneration": 1},
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
         headers=_auth(anonymous_client),
     )
     monkeypatch.setattr(
@@ -215,12 +222,12 @@ def test_concurrent_decisions_do_not_silently_overwrite(anonymous_client):
     headers = _auth(anonymous_client)
     first = anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
-        json={"expectedGeneration": 1},
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
         headers=headers,
     )
     second = anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/reject",
-        json={"expectedGeneration": 1},
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
         headers=headers,
     )
     assert first.status_code == 200
@@ -236,7 +243,7 @@ def test_stale_generation_is_rejected(anonymous_client):
     _stamp_review_required(created["ticketId"])
     response = anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
-        json={"expectedGeneration": 9},
+        json={"expectedGeneration": 9, "expectedCandidateRevision": 1},
         headers=_auth(anonymous_client),
     )
     assert response.status_code == 409
@@ -292,6 +299,7 @@ def test_manual_regions_generate_new_candidate_without_editing_original(
         f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
         json={
             "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
             "regions": [{"left": 0.05, "top": 0.05, "width": 0.1, "height": 0.1}],
         },
         headers=_auth(anonymous_client),
@@ -317,6 +325,7 @@ def test_invalid_manual_region_is_rejected(anonymous_client):
         f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
         json={
             "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
             "regions": [{"left": 0.1, "top": 0.1, "width": 0, "height": 0.2}],
         },
         headers=_auth(anonymous_client),
@@ -327,6 +336,122 @@ def test_invalid_manual_region_is_rejected(anonymous_client):
     assert stored.image_redaction_candidate_object_key == _candidate_key(created["ticketId"])
 
 
+def test_overflowing_manual_region_is_rejected(anonymous_client):
+    created = _submit_report(anonymous_client, phone="+96170925511")
+    _stamp_review_required(created["ticketId"])
+    response = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
+        json={
+            "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
+            "regions": [{"left": 0.9, "top": 0.1, "width": 0.5, "height": 0.2}],
+        },
+        headers=_auth(anonymous_client),
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_manual_correction_then_stale_approve_keeps_new_candidate(anonymous_client, monkeypatch):
+    created = _submit_report(anonymous_client, phone="+96170925512")
+    original_candidate = _stamp_review_required(created["ticketId"])
+    new_key = original_candidate + ".manual"
+
+    class ManualProcessor:
+        def apply_manual_regions(self, **_kwargs):
+            return ProcessingResult(
+                status="review_required",
+                derivative_key=new_key,
+                source_fingerprint="abc",
+                detector="staff-manual",
+                detector_version="v1",
+                face_count=0,
+                plate_count=1,
+                minimum_confidence=70,
+                reason_code="MANUAL_CORRECTION",
+                regions=(),
+            )
+
+    monkeypatch.setattr(
+        "app.services.redaction.queue.image_redaction_queue.processor",
+        ManualProcessor(),
+    )
+    headers = _auth(anonymous_client)
+    manual = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
+        json={
+            "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
+            "regions": [{"left": 0.1, "top": 0.1, "width": 0.2, "height": 0.2}],
+        },
+        headers=headers,
+    )
+    assert manual.status_code == 200, manual.text
+    stale_approve = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
+        headers=headers,
+    )
+    assert stale_approve.status_code == 409
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.image_redaction_candidate_object_key == new_key
+    assert stored.public_image_object_key is None
+    assert stored.image_redaction_candidate_revision == 2
+
+
+def test_second_manual_correction_loses_to_newer_revision(anonymous_client, monkeypatch):
+    created = _submit_report(anonymous_client, phone="+96170925513")
+    original_candidate = _stamp_review_required(created["ticketId"])
+    keys = {"n": 0}
+
+    class ManualProcessor:
+        def apply_manual_regions(self, **_kwargs):
+            keys["n"] += 1
+            return ProcessingResult(
+                status="review_required",
+                derivative_key=f"{original_candidate}.manual{keys['n']}",
+                source_fingerprint="abc",
+                detector="staff-manual",
+                detector_version="v1",
+                face_count=0,
+                plate_count=1,
+                minimum_confidence=70,
+                reason_code="MANUAL_CORRECTION",
+                regions=(),
+            )
+
+    monkeypatch.setattr(
+        "app.services.redaction.queue.image_redaction_queue.processor",
+        ManualProcessor(),
+    )
+    headers = _auth(anonymous_client)
+    first = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
+        json={
+            "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
+            "regions": [{"left": 0.1, "top": 0.1, "width": 0.2, "height": 0.2}],
+        },
+        headers=headers,
+    )
+    second = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
+        json={
+            "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
+            "regions": [{"left": 0.2, "top": 0.2, "width": 0.2, "height": 0.2}],
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 409
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.image_redaction_candidate_object_key == f"{original_candidate}.manual1"
+    assert stored.image_redaction_candidate_revision == 2
+
+
 def test_failed_status_cannot_be_approved(anonymous_client):
     created = _submit_report(anonymous_client, phone="+96170925510")
     ticket_store.patch_fields(
@@ -335,8 +460,28 @@ def test_failed_status_cannot_be_approved(anonymous_client):
     )
     response = anonymous_client.post(
         f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
-        json={"expectedGeneration": 1},
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
         headers=_auth(anonymous_client),
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "REDACTION_NOT_READY"
+
+
+def test_reprocess_audit_records_processor_version(anonymous_client):
+    created = _submit_report(anonymous_client, phone="+96170925514")
+    _stamp_review_required(created["ticketId"])
+    headers = _auth(anonymous_client)
+    response = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/reprocess",
+        headers=headers,
+    )
+    assert response.status_code == 202, response.text
+    ticket = anonymous_client.get(f"/v1/tickets/{created['ticketId']}", headers=headers)
+    entries = [
+        entry
+        for entry in ticket.json()["auditHistory"]
+        if entry["actionType"] == "IMAGE_REDACTION_REPROCESS"
+    ]
+    assert entries
+    assert "fake:v1" in entries[0]["previousValue"]
+    assert "g2" in entries[0]["newValue"]

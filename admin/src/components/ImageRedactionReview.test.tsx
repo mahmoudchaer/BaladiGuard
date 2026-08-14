@@ -11,6 +11,7 @@ vi.mock('@/services/tickets', async () => {
     fetchImageRedactionReview: vi.fn(async () => ({
       ticketId: 'tkt_1',
       generation: 1,
+      candidateRevision: 1,
       status: 'review_required' as const,
       originalImageUrl: 'https://example.test/original.jpg',
       candidateImageUrl: 'https://example.test/candidate.jpg',

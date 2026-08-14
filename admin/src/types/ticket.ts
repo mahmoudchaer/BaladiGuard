@@ -219,6 +219,7 @@ export type ImageRedactionRegion = {
 export type ImageRedactionReview = {
   ticketId: string;
   generation: number;
+  candidateRevision: number;
   status: ImageRedactionStatus;
   originalImageUrl?: string | null;
   candidateImageUrl?: string | null;

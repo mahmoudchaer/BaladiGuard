@@ -178,7 +178,9 @@ class TicketStore(Protocol):
         *,
         expected_generation: int,
         expected_status: str,
+        expected_candidate_revision: int,
         fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
     ) -> StoredTicket | None: ...
 
     def has_ticket_id(self, ticket_id: str) -> bool: ...

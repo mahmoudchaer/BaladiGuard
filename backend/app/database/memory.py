@@ -394,6 +394,7 @@ class InMemoryTicketStore:
                     "image_redaction_completed_at": None,
                     "image_redaction_reason_code": None,
                     "image_redaction_candidate_object_key": None,
+                    "image_redaction_candidate_revision": 0,
                     "image_redaction_regions": [],
                     "updated_at": updated_at,
                 }
@@ -407,7 +408,9 @@ class InMemoryTicketStore:
         *,
         expected_generation: int,
         expected_status: str,
+        expected_candidate_revision: int,
         fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
     ) -> StoredTicket | None:
         for field_name in fields:
             resolve_ticket_attr_name(field_name)
@@ -417,9 +420,13 @@ class InMemoryTicketStore:
                 ticket is None
                 or ticket.image_redaction_generation != expected_generation
                 or ticket.image_redaction_status != expected_status
+                or ticket.image_redaction_candidate_revision != expected_candidate_revision
             ):
                 return None
-            updated = ticket.model_copy(update=fields)
+            updates = dict(fields)
+            if copy_candidate_to_public:
+                updates["public_image_object_key"] = ticket.image_redaction_candidate_object_key
+            updated = ticket.model_copy(update=updates)
             self._tickets[ticket_id] = updated
             return updated
 

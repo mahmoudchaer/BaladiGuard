@@ -1989,6 +1989,7 @@ function normalizeImageRedactionReview(data: unknown): ImageRedactionReview | nu
   return {
     ticketId: data.ticketId,
     generation: redaction.generation,
+    candidateRevision: typeof data.candidateRevision === 'number' ? data.candidateRevision : 0,
     status: redaction.status,
     originalImageUrl: typeof data.originalImageUrl === 'string' ? data.originalImageUrl : null,
     candidateImageUrl: typeof data.candidateImageUrl === 'string' ? data.candidateImageUrl : null,
@@ -2025,7 +2026,11 @@ function normalizeImageRedactionReview(data: unknown): ImageRedactionReview | nu
 async function postImageRedactionDecision(
   ticketId: string,
   action: 'approve' | 'reject' | 'manual-regions' | 'reprocess',
-  body?: { expectedGeneration: number; regions?: ImageRedactionManualRegion[] },
+  body?: {
+    expectedGeneration: number;
+    expectedCandidateRevision: number;
+    regions?: ImageRedactionManualRegion[];
+  },
 ): Promise<ImageRedactionReview> {
   const path =
     action === 'reprocess'
@@ -2079,15 +2084,23 @@ export async function fetchImageRedactionReview(
 export async function approveImageRedaction(
   ticketId: string,
   expectedGeneration: number,
+  expectedCandidateRevision: number,
 ): Promise<ImageRedactionReview> {
-  return postImageRedactionDecision(ticketId, 'approve', { expectedGeneration });
+  return postImageRedactionDecision(ticketId, 'approve', {
+    expectedGeneration,
+    expectedCandidateRevision,
+  });
 }
 
 export async function rejectImageRedaction(
   ticketId: string,
   expectedGeneration: number,
+  expectedCandidateRevision: number,
 ): Promise<ImageRedactionReview> {
-  return postImageRedactionDecision(ticketId, 'reject', { expectedGeneration });
+  return postImageRedactionDecision(ticketId, 'reject', {
+    expectedGeneration,
+    expectedCandidateRevision,
+  });
 }
 
 export async function reprocessImageRedaction(ticketId: string): Promise<ImageRedactionReview> {
@@ -2097,7 +2110,12 @@ export async function reprocessImageRedaction(ticketId: string): Promise<ImageRe
 export async function applyManualImageRedaction(
   ticketId: string,
   expectedGeneration: number,
+  expectedCandidateRevision: number,
   regions: ImageRedactionManualRegion[],
 ): Promise<ImageRedactionReview> {
-  return postImageRedactionDecision(ticketId, 'manual-regions', { expectedGeneration, regions });
+  return postImageRedactionDecision(ticketId, 'manual-regions', {
+    expectedGeneration,
+    expectedCandidateRevision,
+    regions,
+  });
 }

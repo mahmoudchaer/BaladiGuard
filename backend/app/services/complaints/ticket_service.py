@@ -1416,8 +1416,8 @@ class TicketService:
             actor_id=actor_id,
             actor_role=actor_role,
             summary="Requested automatic image reprocessing.",
-            previous_value=str(ticket.image_redaction_generation),
-            new_value=str(updated.image_redaction_generation),
+            previous_value=_redaction_audit_value(ticket.image_redaction_status, ticket),
+            new_value=_redaction_audit_value(updated.image_redaction_status, updated),
             created_at=updated_at,
         )
         return updated.image_redaction_generation
@@ -1437,6 +1437,7 @@ class TicketService:
         return ImageRedactionReviewResponse(
             ticketId=ticket.ticket_id,
             generation=ticket.image_redaction_generation,
+            candidateRevision=ticket.image_redaction_candidate_revision,
             status=status,
             originalImageUrl=build_image_url(ticket.image_object_key),
             candidateImageUrl=build_image_url(candidate_key) if candidate_key else None,
@@ -1480,10 +1481,11 @@ class TicketService:
             ticket_id,
             expected_generation=payload.expected_generation,
             expected_status="review_required",
+            expected_candidate_revision=payload.expected_candidate_revision,
+            copy_candidate_to_public=True,
             fields={
                 "image_redaction_status": "completed",
                 "image_redaction_reason_code": None,
-                "public_image_object_key": ticket.image_redaction_candidate_object_key,
                 "updated_at": updated_at,
                 "updated_by": actor_id,
             },
@@ -1497,7 +1499,7 @@ class TicketService:
             actor_role=actor_role,
             summary="Approved redacted public image derivative.",
             previous_value="review_required",
-            new_value=f"completed:g{updated.image_redaction_generation}",
+            new_value=_redaction_audit_value("completed", updated),
             created_at=updated_at,
         )
         return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
@@ -1523,6 +1525,7 @@ class TicketService:
             ticket_id,
             expected_generation=payload.expected_generation,
             expected_status="review_required",
+            expected_candidate_revision=payload.expected_candidate_revision,
             fields={
                 "image_redaction_status": "private_only",
                 "image_redaction_reason_code": "STAFF_PRIVATE_ONLY",
@@ -1539,7 +1542,7 @@ class TicketService:
             actor_role=actor_role,
             summary="Rejected redacted candidate as private-only.",
             previous_value="review_required",
-            new_value=f"private_only:g{updated.image_redaction_generation}",
+            new_value=_redaction_audit_value("private_only", updated),
             created_at=updated_at,
         )
         return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
@@ -1588,8 +1591,12 @@ class TicketService:
             ticket_id,
             expected_generation=payload.expected_generation,
             expected_status="review_required",
+            expected_candidate_revision=payload.expected_candidate_revision,
             fields={
                 "image_redaction_candidate_object_key": result.derivative_key,
+                "image_redaction_candidate_revision": ticket.image_redaction_candidate_revision + 1,
+                "image_redaction_detector": result.detector,
+                "image_redaction_detector_version": result.detector_version,
                 "image_redaction_regions": [
                     region.model_dump(by_alias=True, mode="json") for region in regions
                 ],
@@ -1607,8 +1614,8 @@ class TicketService:
             actor_id=actor_id,
             actor_role=actor_role,
             summary=f"Added {len(manual)} manual blur region(s) and generated a new derivative.",
-            previous_value="review_required",
-            new_value=f"review_required:g{updated.image_redaction_generation}:manual",
+            previous_value=_redaction_audit_value("review_required", ticket),
+            new_value=_redaction_audit_value("review_required", updated, extra="manual"),
             created_at=updated_at,
         )
         return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
@@ -2137,6 +2144,15 @@ def _grid_clusters(
             )
         )
     return clusters
+
+
+def _redaction_audit_value(status: str, ticket: StoredTicket, extra: str | None = None) -> str:
+    detector = ticket.image_redaction_detector or "unknown"
+    version = ticket.image_redaction_detector_version or "unknown"
+    parts = [status, f"g{ticket.image_redaction_generation}", detector, version]
+    if extra:
+        parts.append(extra)
+    return ":".join(parts)
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

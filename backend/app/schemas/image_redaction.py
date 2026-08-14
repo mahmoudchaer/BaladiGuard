@@ -71,6 +71,7 @@ class ManualRedactionRegion(BaseModel):
 
 class ImageRedactionDecisionRequest(BaseModel):
     expected_generation: int = Field(alias="expectedGeneration", ge=1)
+    expected_candidate_revision: int = Field(alias="expectedCandidateRevision", ge=0)
     regions: list[ManualRedactionRegion] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
@@ -79,6 +80,7 @@ class ImageRedactionDecisionRequest(BaseModel):
 class ImageRedactionReviewResponse(BaseModel):
     ticket_id: str = Field(alias="ticketId")
     generation: int
+    candidate_revision: int = Field(alias="candidateRevision", ge=0)
     status: ImageRedactionStatus
     original_image_url: str | None = Field(default=None, alias="originalImageUrl")
     candidate_image_url: str | None = Field(default=None, alias="candidateImageUrl")

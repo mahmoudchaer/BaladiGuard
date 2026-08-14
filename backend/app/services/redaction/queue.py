@@ -138,6 +138,8 @@ class ImageRedactionQueue:
                 "image_redaction_completed_at": completed_at,
                 "image_redaction_reason_code": result.reason_code,
                 "image_redaction_candidate_object_key": result.derivative_key,
+                "image_redaction_candidate_revision": claimed.image_redaction_candidate_revision
+                + 1,
                 "image_redaction_regions": list(result.regions),
                 "image_redaction_history": [
                     entry.model_dump(by_alias=True, mode="json") for entry in history

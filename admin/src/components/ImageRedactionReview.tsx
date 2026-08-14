@@ -72,7 +72,11 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
       width: Number(width),
       height: Number(height),
     };
-    void runAction(() => applyManualImageRedaction(review.ticketId, review.generation, [region]));
+    void runAction(() =>
+      applyManualImageRedaction(review.ticketId, review.generation, review.candidateRevision, [
+        region,
+      ]),
+    );
   }
 
   if (loadError) {
@@ -125,7 +129,11 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
           type="button"
           className="ticket-detail__review-button"
           disabled={busy || !review.canApprove}
-          onClick={() => void runAction(() => approveImageRedaction(ticketId, review.generation))}
+          onClick={() =>
+            void runAction(() =>
+              approveImageRedaction(ticketId, review.generation, review.candidateRevision),
+            )
+          }
         >
           Approve public derivative
         </button>
@@ -133,7 +141,11 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
           type="button"
           className="ticket-detail__ghost-button"
           disabled={busy || !review.canReject}
-          onClick={() => void runAction(() => rejectImageRedaction(ticketId, review.generation))}
+          onClick={() =>
+            void runAction(() =>
+              rejectImageRedaction(ticketId, review.generation, review.candidateRevision),
+            )
+          }
         >
           Keep private only
         </button>

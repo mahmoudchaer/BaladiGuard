@@ -13,6 +13,7 @@ import {
   fetchDuplicateComparison,
   fetchTicketById,
   mergeDuplicateTickets,
+  fetchImageRedactionReview,
 } from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
 import type {
@@ -34,6 +35,7 @@ vi.mock('@/services/tickets', () => ({
   createTicketComment: vi.fn(),
   fetchTicketActivity: vi.fn(),
   fetchTicketComments: vi.fn(),
+  fetchImageRedactionReview: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -165,6 +167,7 @@ beforeEach(() => {
   vi.mocked(fetchDuplicateComparison).mockResolvedValue(buildComparison());
   vi.mocked(fetchTicketActivity).mockResolvedValue({ events: [], nextCursor: null });
   vi.mocked(fetchTicketComments).mockResolvedValue([]);
+  vi.mocked(fetchImageRedactionReview).mockResolvedValue(null);
 });
 
 describe('TicketDetailPage states', () => {

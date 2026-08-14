@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import math
+
 from app.schemas.image_redaction import MAX_MANUAL_REDACTION_REGIONS, ManualRedactionRegion
 from app.services.redaction.detector import BoundingBox, Detection
-from app.services.redaction.processor import _valid_detection
 
 
 class ImageRedactionReviewError(ValueError):
@@ -68,10 +69,24 @@ def parse_manual_regions(regions: list[ManualRedactionRegion]) -> list[Detection
             100,
             BoundingBox(region.left, region.top, region.width, region.height),
         )
-        if not _valid_detection(detection):
+        if not _fully_inside_image(detection):
             raise ImageRedactionReviewError(
                 "VALIDATION_ERROR",
-                "Manual blur regions must lie within the image (normalized 0–1 boxes).",
+                "Manual blur regions must lie fully within the image (normalized 0–1 boxes).",
             )
         detections.append(detection)
     return detections
+
+
+def _fully_inside_image(detection: Detection) -> bool:
+    box = detection.box
+    values = (box.left, box.top, box.width, box.height)
+    return (
+        all(math.isfinite(value) for value in values)
+        and box.left >= 0
+        and box.top >= 0
+        and box.width > 0
+        and box.height > 0
+        and box.left + box.width <= 1
+        and box.top + box.height <= 1
+    )

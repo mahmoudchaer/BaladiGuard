@@ -595,7 +595,8 @@ class DynamoTicketStore:
                 Key={"ticketId": ticket_id},
                 UpdateExpression=(
                     "SET imageRedactionStatus=:pending, updatedAt=:updated, "
-                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one "
+                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one, "
+                    "imageRedactionCandidateRevision=:zero "
                     "REMOVE imageRedactionClaimToken, imageRedactionCompletedAt, "
                     "imageRedactionReasonCode, imageRedactionCandidateObjectKey, "
                     "imageRedactionRegions"
@@ -605,6 +606,7 @@ class DynamoTicketStore:
                     ":pending": "pending",
                     ":updated": updated_at,
                     ":one": 1,
+                    ":zero": 0,
                 },
                 ReturnValues="ALL_NEW",
             )
@@ -620,16 +622,42 @@ class DynamoTicketStore:
         *,
         expected_generation: int,
         expected_status: str,
+        expected_candidate_revision: int,
         fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
     ) -> StoredTicket | None:
-        expression, names, values = build_update_expression(fields)
-        names.update({"#rs": "imageRedactionStatus", "#rg": "imageRedactionGeneration"})
-        values.update({":expectedStatus": expected_status, ":generation": expected_generation})
+        patch_fields = dict(fields)
+        if copy_candidate_to_public:
+            patch_fields.pop("public_image_object_key", None)
+        expression, names, values = build_update_expression(patch_fields)
+        names.update(
+            {
+                "#rs": "imageRedactionStatus",
+                "#rg": "imageRedactionGeneration",
+                "#rev": "imageRedactionCandidateRevision",
+            }
+        )
+        values.update(
+            {
+                ":expectedStatus": expected_status,
+                ":generation": expected_generation,
+                ":revision": expected_candidate_revision,
+            }
+        )
+        if copy_candidate_to_public:
+            names["#pub"] = "publicImageObjectKey"
+            names["#cand"] = "imageRedactionCandidateObjectKey"
+            if expression.startswith("SET "):
+                expression = "SET #pub = #cand, " + expression[4:]
+            elif expression:
+                expression = "SET #pub = #cand " + expression
+            else:
+                expression = "SET #pub = #cand"
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=expression,
-                ConditionExpression="#rs=:expectedStatus AND #rg=:generation",
+                ConditionExpression=("#rs=:expectedStatus AND #rg=:generation AND #rev=:revision"),
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",

@@ -170,18 +170,22 @@ Authorized staff who can already access the ticket may:
 - `GET /v1/tickets/{ticketId}/image-redaction/review` — original + candidate
   URLs, status, and decision flags. Out-of-scope staff receive `404`.
 - `POST /v1/tickets/{ticketId}/image-redaction/approve` — promote the current
-  candidate to `publicImageObjectKey` when `expectedGeneration` matches.
+  candidate to `publicImageObjectKey` when `expectedGeneration` and
+  `expectedCandidateRevision` match. The public key is copied from the stored
+  candidate in the same conditional write.
 - `POST /v1/tickets/{ticketId}/image-redaction/reject` — mark `private_only`
   without publishing the candidate.
 - `POST /v1/tickets/{ticketId}/image-redaction/manual-regions` — validate
-  normalized 0–1 boxes against the image, blur the original plus prior regions,
-  and write a **new** derivative. Status stays `review_required` until approve.
+  boxes that lie fully inside the image (`0 <= left/top`, positive size,
+  `left+width <= 1`, `top+height <= 1`), blur the original plus prior regions,
+  and write a **new** derivative with an incremented candidate revision.
+  Status stays `review_required` until approve.
 - Existing `POST /v1/tickets/{ticketId}/image-redaction/reprocess`.
 
 All four decisions record the authenticated actor, role, timestamp, processor
 version, and action in ticket audit history. Concurrent decisions for a stale
-generation return `409 REDACTION_REVIEW_CONFLICT`. Public clients still receive
-a photo only after an approved derivative key is recorded.
+generation or candidate revision return `409 REDACTION_REVIEW_CONFLICT`. Public
+clients still receive a photo only after an approved derivative key is recorded.
 
 Do not log images, image bytes, citizen data, presigned URLs, credentials, or
 provider payloads while diagnosing. Logs use opaque ticket/job ids and bounded
