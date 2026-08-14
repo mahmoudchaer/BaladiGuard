@@ -221,6 +221,8 @@ def reprocess_ticket_image(
             request_id=get_request_id(request),
             status_code=404,
         )
+    except ImageRedactionReviewConflictError as exc:
+        return _redaction_review_error(request, exc)
     image_redaction_queue.enqueue(ticket_id, generation)
     return ReprocessImageResponse(ticketId=ticket_id, generation=generation)
 

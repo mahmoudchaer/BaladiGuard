@@ -485,3 +485,136 @@ def test_reprocess_audit_records_processor_version(anonymous_client):
     assert entries
     assert "fake:v1" in entries[0]["previousValue"]
     assert "g2" in entries[0]["newValue"]
+
+
+def _manual_processor(new_key: str, counter: dict[str, int] | None = None):
+    class ManualProcessor:
+        def apply_manual_regions(self, **_kwargs):
+            if counter is not None:
+                counter["n"] += 1
+            return ProcessingResult(
+                status="review_required",
+                derivative_key=new_key,
+                source_fingerprint="abc",
+                detector="staff-manual",
+                detector_version="v1",
+                face_count=0,
+                plate_count=1,
+                minimum_confidence=70,
+                reason_code="MANUAL_CORRECTION",
+                regions=(),
+            )
+
+    return ManualProcessor()
+
+
+def test_stale_read_with_current_revision_does_not_overwrite_newer_candidate(
+    anonymous_client, monkeypatch
+):
+    created = _submit_report(anonymous_client, phone="+96170925515")
+    original_candidate = _stamp_review_required(created["ticketId"])
+    stale = ticket_store.get(created["ticketId"])
+    assert stale is not None and stale.image_redaction_candidate_revision == 1
+    calls = {"n": 0}
+    monkeypatch.setattr(
+        "app.services.redaction.queue.image_redaction_queue.processor",
+        _manual_processor(original_candidate + ".manual1", calls),
+    )
+    headers = _auth(anonymous_client)
+    first = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
+        json={
+            "expectedGeneration": 1,
+            "expectedCandidateRevision": 1,
+            "regions": [{"left": 0.1, "top": 0.1, "width": 0.2, "height": 0.2}],
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+    monkeypatch.setattr(
+        "app.services.redaction.queue.image_redaction_queue.processor",
+        _manual_processor(original_candidate + ".manual2", calls),
+    )
+    real_get = ticket_store.get
+
+    def stale_get(ticket_id: str):
+        if ticket_id == created["ticketId"]:
+            return stale
+        return real_get(ticket_id)
+
+    monkeypatch.setattr(ticket_store, "get", stale_get)
+    second = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/manual-regions",
+        json={
+            "expectedGeneration": 1,
+            "expectedCandidateRevision": 2,
+            "regions": [{"left": 0.3, "top": 0.3, "width": 0.2, "height": 0.2}],
+        },
+        headers=headers,
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "REDACTION_REVIEW_CONFLICT"
+    assert calls["n"] == 1
+    stored = real_get(created["ticketId"])
+    assert stored is not None
+    assert stored.image_redaction_candidate_object_key == f"{original_candidate}.manual1"
+    assert stored.image_redaction_candidate_revision == 2
+
+
+def test_scope_change_during_approval_does_not_publish_for_municipal_staff(
+    anonymous_client, monkeypatch
+):
+    created = _submit_report(anonymous_client, phone="+96170925516")
+    candidate = _stamp_review_required(created["ticketId"], municipality_id=BEIRUT_MUNICIPALITY)
+    real_get = ticket_store.get
+    reads = {"n": 0}
+
+    def authorize_then_reassign(ticket_id: str):
+        ticket = real_get(ticket_id)
+        reads["n"] += 1
+        if reads["n"] == 1 and ticket_id == created["ticketId"] and ticket is not None:
+            snapshot = ticket.model_copy()
+            ticket_store.save(ticket.model_copy(update={"municipality_id": OTHER_MUNICIPALITY}))
+            return snapshot
+        return ticket
+
+    monkeypatch.setattr(ticket_store, "get", authorize_then_reassign)
+    response = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/approve",
+        json={"expectedGeneration": 1, "expectedCandidateRevision": 1},
+        headers=_auth(anonymous_client, username="staff"),
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "TICKET_NOT_FOUND"
+    stored = real_get(created["ticketId"])
+    assert stored is not None
+    assert stored.image_redaction_status == "review_required"
+    assert stored.public_image_object_key is None
+    assert stored.image_redaction_candidate_object_key == candidate
+
+
+def test_scope_change_during_reprocess_does_not_advance_generation(anonymous_client, monkeypatch):
+    created = _submit_report(anonymous_client, phone="+96170925517")
+    _stamp_review_required(created["ticketId"], municipality_id=BEIRUT_MUNICIPALITY)
+    real_get = ticket_store.get
+    reads = {"n": 0}
+
+    def authorize_then_reassign(ticket_id: str):
+        ticket = real_get(ticket_id)
+        reads["n"] += 1
+        if reads["n"] == 1 and ticket_id == created["ticketId"] and ticket is not None:
+            snapshot = ticket.model_copy()
+            ticket_store.save(ticket.model_copy(update={"municipality_id": OTHER_MUNICIPALITY}))
+            return snapshot
+        return ticket
+
+    monkeypatch.setattr(ticket_store, "get", authorize_then_reassign)
+    response = anonymous_client.post(
+        f"/v1/tickets/{created['ticketId']}/image-redaction/reprocess",
+        headers=_auth(anonymous_client, username="staff"),
+    )
+    assert response.status_code == 404
+    stored = real_get(created["ticketId"])
+    assert stored is not None
+    assert stored.image_redaction_generation == 1
+    assert stored.image_redaction_status == "review_required"

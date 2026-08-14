@@ -28,6 +28,8 @@ from app.database.serialization import (
     ticket_to_item,
 )
 from app.database.ticket_patch import (
+    append_redaction_review_condition,
+    append_ticket_access_scope_condition,
     append_ticket_assignment_scope_condition,
     build_update_expression,
 )
@@ -74,7 +76,10 @@ class DynamoTicketStore:
         self._tickets_table.put_item(Item=ticket_to_item(ticket))
 
     def get(self, ticket_id: str) -> StoredTicket | None:
-        response = self._tickets_table.get_item(Key={"ticketId": ticket_id})
+        response = self._tickets_table.get_item(
+            Key={"ticketId": ticket_id},
+            ConsistentRead=True,
+        )
         item = response.get("Item")
         if not item:
             return None
@@ -609,7 +614,27 @@ class DynamoTicketStore:
                 return None
             raise
 
-    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+    def start_image_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+    ) -> StoredTicket | None:
+        names: dict[str, str] = {}
+        values: dict[str, Any] = {
+            ":pending": "pending",
+            ":updated": updated_at,
+            ":one": 1,
+            ":zero": 0,
+        }
+        scope = append_ticket_access_scope_condition(
+            names,
+            values,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
@@ -621,13 +646,9 @@ class DynamoTicketStore:
                     "imageRedactionReasonCode, imageRedactionCandidateObjectKey, "
                     "imageRedactionRegions"
                 ),
-                ConditionExpression="attribute_exists(ticketId)",
-                ExpressionAttributeValues={
-                    ":pending": "pending",
-                    ":updated": updated_at,
-                    ":one": 1,
-                    ":zero": 0,
-                },
+                ConditionExpression=f"attribute_exists(ticketId) AND {scope}",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
             return item_to_ticket(response["Attributes"])
@@ -643,6 +664,8 @@ class DynamoTicketStore:
         expected_generation: int,
         expected_status: str,
         expected_candidate_revision: int,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
         fields: dict[str, Any],
         copy_candidate_to_public: bool = False,
     ) -> StoredTicket | None:
@@ -650,19 +673,14 @@ class DynamoTicketStore:
         if copy_candidate_to_public:
             patch_fields.pop("public_image_object_key", None)
         expression, names, values = build_update_expression(patch_fields)
-        names.update(
-            {
-                "#rs": "imageRedactionStatus",
-                "#rg": "imageRedactionGeneration",
-                "#rev": "imageRedactionCandidateRevision",
-            }
-        )
-        values.update(
-            {
-                ":expectedStatus": expected_status,
-                ":generation": expected_generation,
-                ":revision": expected_candidate_revision,
-            }
+        condition = append_redaction_review_condition(
+            names,
+            values,
+            expected_status=expected_status,
+            expected_generation=expected_generation,
+            expected_candidate_revision=expected_candidate_revision,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
         )
         if copy_candidate_to_public:
             names["#pub"] = "publicImageObjectKey"
@@ -677,7 +695,7 @@ class DynamoTicketStore:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=expression,
-                ConditionExpression=("#rs=:expectedStatus AND #rg=:generation AND #rev=:revision"),
+                ConditionExpression=condition,
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",

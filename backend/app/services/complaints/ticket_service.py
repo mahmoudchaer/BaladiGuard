@@ -3,7 +3,7 @@ import math
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from app.config import get_settings
@@ -1437,9 +1437,16 @@ class TicketService:
             raise TicketNotFoundError(ticket_id)
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        updated = self._store.start_image_reprocessing(ticket_id, updated_at)
-        if updated is None:
-            raise TicketNotFoundError(ticket_id)
+        updated = self._committed_review_ticket(
+            ticket_id,
+            self._store.start_image_reprocessing(
+                ticket_id,
+                updated_at,
+                expected_municipality_id=ticket.municipality_id,
+                expected_department_id=ticket.department_id,
+            ),
+            staff_principal=staff_principal,
+        )
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="IMAGE_REDACTION_REPROCESS",
@@ -1505,23 +1512,25 @@ class TicketService:
                 "REDACTION_NOT_READY",
                 "No redacted candidate is available to approve.",
             )
+        self._require_matching_review_snapshot(ticket, payload)
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        updated = self._store.apply_image_redaction_review(
+        updated = self._committed_review_ticket(
             ticket_id,
-            expected_generation=payload.expected_generation,
-            expected_status="review_required",
-            expected_candidate_revision=payload.expected_candidate_revision,
-            copy_candidate_to_public=True,
-            fields={
-                "image_redaction_status": "completed",
-                "image_redaction_reason_code": None,
-                "updated_at": updated_at,
-                "updated_by": actor_id,
-            },
+            self._apply_authorized_review(
+                ticket,
+                payload,
+                copy_candidate_to_public=True,
+                fields={
+                    "image_redaction_status": "completed",
+                    "image_redaction_reason_code": None,
+                    "image_redaction_candidate_revision": payload.expected_candidate_revision,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                },
+            ),
+            staff_principal=staff_principal,
         )
-        if updated is None:
-            raise ImageRedactionReviewConflictError()
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="IMAGE_REDACTION_APPROVE",
@@ -1549,22 +1558,24 @@ class TicketService:
                 "REDACTION_NOT_READY",
                 "Only a review-required candidate can be rejected as private-only.",
             )
+        self._require_matching_review_snapshot(ticket, payload)
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        updated = self._store.apply_image_redaction_review(
+        updated = self._committed_review_ticket(
             ticket_id,
-            expected_generation=payload.expected_generation,
-            expected_status="review_required",
-            expected_candidate_revision=payload.expected_candidate_revision,
-            fields={
-                "image_redaction_status": "private_only",
-                "image_redaction_reason_code": "STAFF_PRIVATE_ONLY",
-                "updated_at": updated_at,
-                "updated_by": actor_id,
-            },
+            self._apply_authorized_review(
+                ticket,
+                payload,
+                fields={
+                    "image_redaction_status": "private_only",
+                    "image_redaction_reason_code": "STAFF_PRIVATE_ONLY",
+                    "image_redaction_candidate_revision": payload.expected_candidate_revision,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                },
+            ),
+            staff_principal=staff_principal,
         )
-        if updated is None:
-            raise ImageRedactionReviewConflictError()
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="IMAGE_REDACTION_REJECT",
@@ -1595,6 +1606,7 @@ class TicketService:
                 "REDACTION_NOT_READY",
                 "Manual blur regions can only be added while a candidate is in review.",
             )
+        self._require_matching_review_snapshot(ticket, payload)
         manual = parse_manual_regions(payload.regions)
         combined = [*detections_from_stored(ticket.image_redaction_regions), *manual]
         try:
@@ -1617,27 +1629,27 @@ class TicketService:
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         regions = [StoredRedactionRegion.model_validate(item) for item in result.regions]
-        updated = self._store.apply_image_redaction_review(
+        updated = self._committed_review_ticket(
             ticket_id,
-            expected_generation=payload.expected_generation,
-            expected_status="review_required",
-            expected_candidate_revision=payload.expected_candidate_revision,
-            fields={
-                "image_redaction_candidate_object_key": result.derivative_key,
-                "image_redaction_candidate_revision": ticket.image_redaction_candidate_revision + 1,
-                "image_redaction_detector": result.detector,
-                "image_redaction_detector_version": result.detector_version,
-                "image_redaction_regions": [
-                    region.model_dump(by_alias=True, mode="json") for region in regions
-                ],
-                "image_redaction_reason_code": result.reason_code,
-                "image_redaction_completed_at": updated_at,
-                "updated_at": updated_at,
-                "updated_by": actor_id,
-            },
+            self._apply_authorized_review(
+                ticket,
+                payload,
+                fields={
+                    "image_redaction_candidate_object_key": result.derivative_key,
+                    "image_redaction_candidate_revision": payload.expected_candidate_revision + 1,
+                    "image_redaction_detector": result.detector,
+                    "image_redaction_detector_version": result.detector_version,
+                    "image_redaction_regions": [
+                        region.model_dump(by_alias=True, mode="json") for region in regions
+                    ],
+                    "image_redaction_reason_code": result.reason_code,
+                    "image_redaction_completed_at": updated_at,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                },
+            ),
+            staff_principal=staff_principal,
         )
-        if updated is None:
-            raise ImageRedactionReviewConflictError()
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="IMAGE_REDACTION_MANUAL_BLUR",
@@ -1657,6 +1669,50 @@ class TicketService:
         if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
             raise TicketNotFoundError(ticket_id)
         return ticket
+
+    def _require_matching_review_snapshot(
+        self, ticket: StoredTicket, payload: ImageRedactionDecisionRequest
+    ) -> None:
+        if (
+            payload.expected_generation != ticket.image_redaction_generation
+            or payload.expected_candidate_revision != ticket.image_redaction_candidate_revision
+        ):
+            raise ImageRedactionReviewConflictError()
+
+    def _apply_authorized_review(
+        self,
+        ticket: StoredTicket,
+        payload: ImageRedactionDecisionRequest,
+        *,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        return self._store.apply_image_redaction_review(
+            ticket.ticket_id,
+            expected_generation=payload.expected_generation,
+            expected_status="review_required",
+            expected_candidate_revision=payload.expected_candidate_revision,
+            expected_municipality_id=ticket.municipality_id,
+            expected_department_id=ticket.department_id,
+            copy_candidate_to_public=copy_candidate_to_public,
+            fields=fields,
+        )
+
+    def _committed_review_ticket(
+        self,
+        ticket_id: str,
+        updated: StoredTicket | None,
+        *,
+        staff_principal: StaffPrincipal | None,
+    ) -> StoredTicket:
+        if updated is not None:
+            return updated
+        if staff_principal is None:
+            raise TicketNotFoundError(ticket_id)
+        current = self._store.get(ticket_id)
+        if current is None or not staff_can_access_ticket(staff_principal, current):
+            raise TicketNotFoundError(ticket_id)
+        raise ImageRedactionReviewConflictError()
 
     def assign_ticket_department(
         self,
