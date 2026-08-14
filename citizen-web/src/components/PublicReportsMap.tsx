@@ -1,32 +1,34 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import type { PublicTicketResponse } from '@/types/ticket';
-import {
-  DEFAULT_PUBLIC_MAP_REGION,
-  clusterPublicReports,
-  initialRegionForPlottable,
-  partitionPlottableReports,
-  type PublicMapFeature,
-} from '@/utils/publicMapClustering';
+import type { PublicMapViewport } from '@/services/tickets';
+import type { PublicTicketMapViewportResponse } from '@/types/ticket';
+import { DEFAULT_PUBLIC_MAP_REGION } from '@/utils/publicMapClustering';
 
 type PublicReportsMapProps = {
-  reports: PublicTicketResponse[];
+  data: PublicTicketMapViewportResponse | null;
+  onViewportChange: (viewport: PublicMapViewport) => void;
 };
 
-function FitBounds({ features }: { features: PublicMapFeature[] }) {
+function ViewportReporter({ onChange }: { onChange: (viewport: PublicMapViewport) => void }) {
   const map = useMap();
+  const report = () => {
+    const bounds = map.getBounds();
+    onChange({
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+      zoom: map.getZoom(),
+    });
+  };
+  useMapEvents({ moveend: report, zoomend: report });
   useEffect(() => {
-    if (features.length === 0) {
-      map.setView([DEFAULT_PUBLIC_MAP_REGION.latitude, DEFAULT_PUBLIC_MAP_REGION.longitude], 12);
-      return;
-    }
-    const bounds = L.latLngBounds(
-      features.map((feature) => [feature.latitude, feature.longitude] as [number, number]),
-    );
-    map.fitBounds(bounds.pad(0.2));
-  }, [features, map]);
+    report();
+    // The initial map instance is stable; onChange updates are handled by the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
   return null;
 }
 
@@ -46,16 +48,12 @@ function clusterIcon(count: number) {
   });
 }
 
-export function PublicReportsMap({ reports }: PublicReportsMapProps) {
-  const { plottable } = useMemo(() => partitionPlottableReports(reports), [reports]);
-  const region = useMemo(() => initialRegionForPlottable(plottable), [plottable]);
-  const features = useMemo(() => clusterPublicReports(plottable, region), [plottable, region]);
-
+export function PublicReportsMap({ data, onViewportChange }: PublicReportsMapProps) {
   return (
     <div className="map-frame" data-testid="public-map">
       <MapContainer
-        center={[region.latitude, region.longitude]}
-        zoom={13}
+        center={[DEFAULT_PUBLIC_MAP_REGION.latitude, DEFAULT_PUBLIC_MAP_REGION.longitude]}
+        zoom={12}
         scrollWheelZoom
         style={{ height: '100%', width: '100%' }}
       >
@@ -63,41 +61,44 @@ export function PublicReportsMap({ reports }: PublicReportsMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds features={features} />
-        {features.map((feature) =>
-          feature.kind === 'single' ? (
-            <Marker
-              key={feature.id}
-              position={[feature.latitude, feature.longitude]}
-              icon={singleIcon}
-            >
-              <Popup>
-                <Link to={`/public/${feature.report.ticketNumber}`}>
-                  {feature.report.ticketNumber}
-                </Link>
-                <div>{feature.report.location.addressText}</div>
-              </Popup>
-            </Marker>
-          ) : (
-            <Marker
-              key={feature.id}
-              position={[feature.latitude, feature.longitude]}
-              icon={clusterIcon(feature.count)}
-            >
-              <Popup>
-                <strong>{feature.count} reports nearby</strong>
-                <ul>
-                  {feature.reports.slice(0, 8).map((report) => (
-                    <li key={report.ticketNumber}>
-                      <Link to={`/public/${report.ticketNumber}`}>{report.ticketNumber}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </Popup>
-            </Marker>
-          ),
-        )}
+        <ViewportReporter onChange={onViewportChange} />
+        <MapFeatures data={data} />
       </MapContainer>
     </div>
+  );
+}
+
+function MapFeatures({ data }: { data: PublicTicketMapViewportResponse | null }) {
+  const map = useMap();
+  return (
+    <>
+      {data?.markers.map((marker) => (
+        <Marker
+          key={marker.ticketNumber}
+          position={[marker.latitude, marker.longitude]}
+          icon={singleIcon}
+        >
+          <Popup>
+            <Link to={`/public/${marker.ticketNumber}`}>{marker.ticketNumber}</Link>
+            <div>{marker.addressText}</div>
+          </Popup>
+        </Marker>
+      ))}
+      {data?.clusters.map((cluster) => (
+        <Marker
+          key={cluster.id}
+          position={[cluster.latitude, cluster.longitude]}
+          icon={clusterIcon(cluster.count)}
+          eventHandlers={{
+            click: () => map.setView([cluster.latitude, cluster.longitude], map.getZoom() + 2),
+          }}
+        >
+          <Popup>
+            <strong>{cluster.count} reports nearby</strong>
+            <div>Zoom in to see individual reports.</div>
+          </Popup>
+        </Marker>
+      ))}
+    </>
   );
 }
