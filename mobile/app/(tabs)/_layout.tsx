@@ -1,9 +1,9 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 import { Tabs, useRouter, type Href } from 'expo-router';
 
 import { useCitizenAuth } from '@/auth';
-import { colors, spacing, touchTargetMin } from '@/theme';
+import { colors } from '@/theme';
 
 export default function CitizenTabsLayout() {
   const router = useRouter();
@@ -17,6 +17,8 @@ export default function CitizenTabsLayout() {
         tabBarActiveTintColor: colors.brandDark,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.label,
+        tabBarItemStyle: styles.item,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: showTabs ? styles.bar : styles.hiddenBar,
       }}
     >
@@ -34,7 +36,7 @@ export default function CitizenTabsLayout() {
           title: 'My Reports',
           tabBarAccessibilityLabel: 'My Reports',
           tabBarIcon: ({ color }) => (
-            <Icon source="clipboard-text-clock-outline" size={23} color={String(color)} />
+            <Icon source="text-box-outline" size={23} color={String(color)} />
           ),
         }}
       />
@@ -49,10 +51,10 @@ export default function CitizenTabsLayout() {
               accessibilityLabel="Report"
               accessibilityHint="Opens the new report form"
               onPress={() => router.push('/report' as Href)}
-              style={styles.reportButton}
+              style={({ pressed }) => [styles.reportButton, pressed && styles.reportPressed]}
             >
               <View style={styles.reportIcon}>
-                <Icon source="plus" size={25} color={colors.textInverse} />
+                <Icon source="plus" size={18} color={colors.textInverse} />
               </View>
               <Text style={styles.reportLabel}>Report</Text>
             </Pressable>
@@ -64,9 +66,7 @@ export default function CitizenTabsLayout() {
         options={{
           title: 'Explore',
           tabBarAccessibilityLabel: 'Explore',
-          tabBarIcon: ({ color }) => (
-            <Icon source="map-search-outline" size={23} color={String(color)} />
-          ),
+          tabBarIcon: ({ color }) => <Icon source="map-outline" size={23} color={String(color)} />,
         }}
       />
       <Tabs.Screen
@@ -85,30 +85,29 @@ export default function CitizenTabsLayout() {
 
 const styles = StyleSheet.create({
   bar: {
-    minHeight: 66,
-    paddingTop: spacing[1],
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
+    height: Platform.OS === 'ios' ? 84 : 68,
+    paddingTop: 7,
+    backgroundColor: 'rgba(250,250,252,0.96)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(60,60,67,0.16)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
   },
   hiddenBar: { display: 'none' },
-  label: { fontSize: 10, fontWeight: '600' },
-  reportButton: {
-    flex: 1,
-    minHeight: 62,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
+  item: { paddingVertical: 1 },
+  label: { fontSize: 10, fontWeight: '600', letterSpacing: -0.1 },
+  reportButton: { flex: 1, alignItems: 'center', paddingTop: 5, gap: 3 },
+  reportPressed: { opacity: 0.62 },
   reportIcon: {
-    width: touchTargetMin,
-    height: touchTargetMin,
-    marginTop: -18,
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: touchTargetMin / 2,
     backgroundColor: colors.brand,
-    borderWidth: 4,
-    borderColor: colors.surface,
   },
-  reportLabel: { fontSize: 10, fontWeight: '700', color: colors.brandDark },
+  reportLabel: { fontSize: 10, fontWeight: '600', color: colors.brandDark },
 });

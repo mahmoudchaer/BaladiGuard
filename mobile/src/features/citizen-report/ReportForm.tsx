@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
+import { ActivityIndicator, Banner, Button, Icon, Text } from 'react-native-paper';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -321,6 +321,14 @@ export function ReportForm() {
     }
   };
 
+  const invalidateUploadedPhoto = () => {
+    setSubmission((current) =>
+      current ? { clientSubmissionId: current.clientSubmissionId } : current,
+    );
+    setDraftBanner(null);
+    setSubmitError(null);
+  };
+
   const onSubmit = async (values: ReportFormValues) => {
     setSubmitError(null);
     setSubmitPhase(appConfig.enableMockApi ? null : 'uploading-photo');
@@ -412,29 +420,38 @@ export function ReportForm() {
       ) : null}
 
       {pendingDraft ? (
-        <Banner
-          visible
-          icon="content-save-outline"
-          style={styles.draftBanner}
-          testID="draft-restore-banner"
-        >
-          <Text variant="bodyMedium" style={styles.draftBannerText}>
-            You have an unfinished report on this device. Restore it to continue, or discard and
-            start fresh.
-          </Text>
+        <View style={styles.draftCard} testID="draft-restore-banner">
+          <View style={styles.draftHeading}>
+            <View style={styles.draftIcon}>
+              <Icon source="content-save-outline" size={23} color={colors.brandDark} />
+            </View>
+            <View style={styles.draftCopy}>
+              <Text style={styles.draftTitle}>Continue your report?</Text>
+              <Text style={styles.draftBannerText}>
+                An unfinished report is saved on this device.
+              </Text>
+            </View>
+          </View>
           <View style={styles.draftActions}>
-            <Button mode="contained" onPress={restorePendingDraft} testID="draft-restore-button">
+            <Button
+              mode="contained"
+              onPress={restorePendingDraft}
+              style={styles.draftPrimaryAction}
+              contentStyle={styles.draftActionContent}
+              testID="draft-restore-button"
+            >
               Restore draft
             </Button>
             <Button
-              mode="outlined"
+              mode="text"
               onPress={() => void discardPendingDraft()}
+              contentStyle={styles.draftActionContent}
               testID="draft-discard-offer-button"
             >
-              Discard
+              Start over
             </Button>
           </View>
-        </Banner>
+        </View>
       ) : null}
 
       {draftBanner ? (
@@ -455,10 +472,9 @@ export function ReportForm() {
         </Banner>
       ) : null}
 
-      {submission?.imageObjectKey && !successResult ? (
+      {submission?.imageObjectKey && !successResult && !isSubmitting ? (
         <Banner visible icon="cloud-check-outline" testID="partial-upload-banner">
-          Photo already uploaded for this attempt. Retry uses the same server photo and will not
-          create a duplicate ticket.
+          Your photo is saved for this draft. Submit again to finish sending the report.
         </Banner>
       ) : null}
 
@@ -466,7 +482,12 @@ export function ReportForm() {
         {step === 'details' ? <DetailsStep control={control} errors={errors} /> : null}
 
         {step === 'photo' ? (
-          <PhotoPickerField control={control} errors={errors} setValue={setValue} />
+          <PhotoPickerField
+            control={control}
+            errors={errors}
+            setValue={setValue}
+            onPhotoChanged={invalidateUploadedPhoto}
+          />
         ) : null}
 
         {step === 'location' ? (
@@ -618,18 +639,32 @@ const styles = StyleSheet.create({
   errorBanner: {
     backgroundColor: colors.dangerSoft,
   },
-  draftBanner: {
-    backgroundColor: colors.brandSoft,
-    gap: spacing[2],
+  draftCard: {
+    padding: spacing[4],
+    gap: spacing[4],
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
   },
+  draftHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  draftIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brandSoft,
+  },
+  draftCopy: { flex: 1, gap: 2 },
+  draftTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
   draftBannerText: {
-    color: colors.text,
-    marginBottom: spacing[2],
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
   draftActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing[2],
-    marginTop: spacing[2],
   },
+  draftPrimaryAction: { flex: 1 },
+  draftActionContent: { minHeight: touchTargetMin },
 });

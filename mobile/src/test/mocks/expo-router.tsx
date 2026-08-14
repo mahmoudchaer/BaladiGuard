@@ -7,6 +7,7 @@ const routerState = {
   replaceCalls: [] as HrefValue[],
   pushCalls: [] as HrefValue[],
   searchParams: {} as Record<string, string | string[] | undefined>,
+  canGoBack: true,
 };
 
 export function __resetExpoRouterMock() {
@@ -57,6 +58,7 @@ export function useRouter() {
       routerState.pushCalls.push(href);
     },
     back: () => undefined,
+    canGoBack: () => routerState.canGoBack,
   };
 }
 

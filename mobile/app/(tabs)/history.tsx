@@ -90,7 +90,7 @@ export default function CitizenTicketHistoryScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.centered} testID="history-auth-loading">
           <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
@@ -106,7 +106,7 @@ export default function CitizenTicketHistoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={

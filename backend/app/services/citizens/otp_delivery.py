@@ -101,6 +101,7 @@ def deliver_citizen_otp(
     try:
         client.publish(PhoneNumber=canonical, Message=message, MessageAttributes=attributes)
         logger.info("Citizen OTP SMS published phone=%s", _mask_phone(canonical))
+        _emit_dev_plaintext(canonical, code, reason="sns_published", cfg=cfg)
     except (BotoCoreError, ClientError):
         logger.exception("Citizen OTP SMS publish failed phone=%s", _mask_phone(canonical))
         # Local-friendly fallback so verify can still be completed while debugging SNS.

@@ -5,7 +5,6 @@ import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
-import { BrandMark } from '@/components/BrandMark';
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
 import { PublicReportFilters } from '@/features/public-browse/PublicReportFilters';
@@ -82,14 +81,12 @@ export default function ExploreScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <BrandMark size={30} />
-            <Text style={styles.title} accessibilityRole="header">
-              Explore
-            </Text>
-          </View>
+          <Text style={styles.overline}>COMMUNITY</Text>
+          <Text style={styles.title} accessibilityRole="header">
+            Explore
+          </Text>
           <Text style={styles.subtitle}>
-            Privacy-safe community reports published with coarse locations and approved photos.
+            See what your community has reported and how the municipality is responding.
           </Text>
         </View>
         {!isAuthenticated ? (
@@ -215,11 +212,28 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing[5], paddingBottom: spacing[8], gap: spacing[5] },
-  header: { gap: spacing[2] },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  title: { fontSize: 28, fontWeight: '800', color: colors.text },
-  subtitle: { fontSize: 15, lineHeight: 22, color: colors.textSecondary },
+  scroll: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[3],
+    paddingBottom: 110,
+    gap: spacing[5],
+  },
+  header: { gap: 2 },
+  overline: { fontSize: 11, fontWeight: '700', letterSpacing: 1.05, color: colors.textMuted },
+  title: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '800',
+    letterSpacing: -1.1,
+    color: colors.text,
+  },
+  subtitle: {
+    maxWidth: 340,
+    marginTop: spacing[2],
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textSecondary,
+  },
   guestBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   error: { gap: spacing[3] },
   loading: { alignItems: 'center', paddingVertical: spacing[8], gap: spacing[3] },
@@ -242,10 +256,8 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     borderRadius: radii.lg,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  cardPressed: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  cardPressed: { backgroundColor: colors.brandSoft },
   cardBody: { flex: 1, gap: spacing[1] },
   cardTop: {
     flexDirection: 'row',

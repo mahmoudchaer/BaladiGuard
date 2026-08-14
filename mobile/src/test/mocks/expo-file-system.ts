@@ -7,20 +7,38 @@ type ExistsResolver = (fileUri: string) => boolean;
 
 const defaultResolver: ExistsResolver = () => false;
 let existsResolver: ExistsResolver = defaultResolver;
+const fileContents = new Map<string, string>();
+
+export const Paths = { document: 'file:///documents' };
 
 /**
  * Minimal File mock matching the SDK 54 public shape used by photoReference.
  */
-export class File {
+export class File extends Blob {
   readonly uri: string;
+  readonly name: string;
 
   constructor(...uris: (string | File)[]) {
+    super([], { type: 'image/jpeg' });
     const parts = uris.map((part) => (typeof part === 'string' ? part : part.uri));
     this.uri = parts.length === 1 ? parts[0]! : parts.join('/');
+    this.name = this.uri.split('/').pop() || 'file';
   }
 
   get exists(): boolean {
-    return existsResolver(this.uri);
+    return fileContents.has(this.uri) || existsResolver(this.uri);
+  }
+
+  async text(): Promise<string> {
+    return fileContents.get(this.uri) ?? '';
+  }
+
+  write(value: string): void {
+    fileContents.set(this.uri, value);
+  }
+
+  delete(): void {
+    fileContents.delete(this.uri);
   }
 }
 
@@ -41,4 +59,5 @@ export function __setFileExistsThrows(error: Error | null): void {
 
 export function __resetFileSystemMock(): void {
   existsResolver = defaultResolver;
+  fileContents.clear();
 }
