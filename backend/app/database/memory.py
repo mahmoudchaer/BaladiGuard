@@ -9,7 +9,11 @@ from app.database.serialization import (
     is_public_ticket_publishable,
 )
 from app.database.ticket_patch import resolve_ticket_attr_name
-from app.database.ticket_store import StaffTicketPage, TicketHistoryPage
+from app.database.ticket_store import (
+    StaffTicketPage,
+    TicketHistoryPage,
+    public_ticket_matches_query,
+)
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
@@ -161,6 +165,13 @@ class InMemoryTicketStore:
         *,
         limit: int,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
+        north: float | None = None,
+        south: float | None = None,
+        east: float | None = None,
+        west: float | None = None,
     ) -> TicketHistoryPage:
         cursor_key = _decode_public_cursor(cursor)
         with self._lock:
@@ -172,6 +183,20 @@ class InMemoryTicketStore:
             publishable = [
                 ticket for ticket in publishable if _public_sort_key(ticket) < cursor_key
             ]
+        publishable = [
+            ticket
+            for ticket in publishable
+            if public_ticket_matches_query(
+                ticket,
+                q=q,
+                status=status,
+                category=category,
+                north=north,
+                south=south,
+                east=east,
+                west=west,
+            )
+        ]
 
         page = publishable[:limit]
         next_cursor = (

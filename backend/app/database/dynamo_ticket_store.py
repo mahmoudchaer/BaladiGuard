@@ -28,7 +28,11 @@ from app.database.serialization import (
     ticket_to_item,
 )
 from app.database.ticket_patch import build_update_expression
-from app.database.ticket_store import StaffTicketPage, TicketHistoryPage
+from app.database.ticket_store import (
+    StaffTicketPage,
+    TicketHistoryPage,
+    public_ticket_matches_query,
+)
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.utils.ticket_ids import normalize_tracking_code
@@ -265,6 +269,13 @@ class DynamoTicketStore:
         *,
         limit: int,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
+        north: float | None = None,
+        south: float | None = None,
+        east: float | None = None,
+        west: float | None = None,
     ) -> TicketHistoryPage:
         query_kwargs: dict[str, object] = {
             "IndexName": PUBLIC_TICKETS_INDEX,
@@ -275,24 +286,35 @@ class DynamoTicketStore:
         if cursor:
             query_kwargs["ExclusiveStartKey"] = _decode_public_cursor(cursor)
 
-        items: list[dict[str, Any]] = []
+        tickets: list[StoredTicket] = []
         last_key: dict[str, Any] | None = None
-        while len(items) < limit:
+        while len(tickets) <= limit:
             response = self._tickets_table.query(**query_kwargs)
             last_key = response.get("LastEvaluatedKey")
             for item in response.get("Items", []):
                 ticket = item_to_ticket(item)
-                if is_public_ticket_publishable(ticket):
-                    items.append(item)
-                    if len(items) == limit:
+                if is_public_ticket_publishable(ticket) and public_ticket_matches_query(
+                    ticket,
+                    q=q,
+                    status=status,
+                    category=category,
+                    north=north,
+                    south=south,
+                    east=east,
+                    west=west,
+                ):
+                    tickets.append(ticket)
+                    if len(tickets) > limit:
                         break
-            if not last_key or len(items) == limit:
+            if not last_key or len(tickets) > limit:
                 break
             query_kwargs["ExclusiveStartKey"] = last_key
 
+        page = tickets[:limit]
+        next_cursor = self.public_continuation_cursor(page[-1]) if len(tickets) > limit else None
         return TicketHistoryPage(
-            [item_to_ticket(item) for item in items],
-            _encode_public_cursor(last_key),
+            page,
+            next_cursor,
         )
 
     def public_continuation_cursor(self, ticket: StoredTicket) -> str:

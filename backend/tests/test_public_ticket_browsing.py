@@ -84,6 +84,33 @@ def _publish_report(
     assert patched is not None
 
 
+def _seed_newer_public_reports(
+    template_ticket_id: str,
+    *,
+    count: int = 500,
+    latitude: float = 40.0,
+    longitude: float = 40.0,
+) -> None:
+    template = ticket_store.get(template_ticket_id)
+    assert template is not None
+    for index in range(count):
+        ticket_store.save(
+            template.model_copy(
+                update={
+                    "ticket_id": f"tkt_newer_public_{index}",
+                    "ticket_number": f"BG-2026-{10_000 + index}",
+                    "tracking_code": f"NEW{index:05d}",
+                    "public_description": f"Newer unrelated public report {index}.",
+                    "public_location_label": f"Outside viewport {index}",
+                    "public_published_at": "2026-08-06T12:00:00Z",
+                    "location": template.location.model_copy(
+                        update={"latitude": latitude, "longitude": longitude}
+                    ),
+                }
+            )
+        )
+
+
 def test_public_ticket_feed_is_guest_readable_and_privacy_safe(anonymous_client):
     created = _submit_public_report(
         anonymous_client,
@@ -210,6 +237,54 @@ def test_public_feed_search_and_filters_apply_before_pagination(anonymous_client
     assert filtered.status_code == 200
     assert [item["ticketNumber"] for item in filtered.json()["items"]] == [road["ticketNumber"]]
     assert filtered.json()["nextCursor"] is None
+
+
+def test_public_feed_search_finds_match_beyond_500_newer_reports(anonymous_client):
+    older_match = _submit_public_report(
+        anonymous_client,
+        phone="+96170111115",
+        full_name="Older Reporter",
+        description="Exact older report that must remain discoverable.",
+    )
+    _publish_report(older_match, published_at="2026-08-05T12:00:00Z")
+    _seed_newer_public_reports(older_match["ticketId"])
+
+    response = anonymous_client.get(
+        "/v1/tickets/public",
+        params={"q": older_match["ticketNumber"], "limit": 6},
+    )
+
+    assert response.status_code == 200
+    assert [item["ticketNumber"] for item in response.json()["items"]] == [
+        older_match["ticketNumber"]
+    ]
+    assert response.json()["nextCursor"] is None
+
+
+def test_public_map_finds_in_viewport_report_beyond_500_newer_reports(anonymous_client):
+    older_in_view = _submit_public_report(
+        anonymous_client,
+        phone="+96170111116",
+        full_name="Map Reporter",
+    )
+    _publish_report(older_in_view, published_at="2026-08-05T12:00:00Z")
+    _seed_newer_public_reports(older_in_view["ticketId"])
+
+    response = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 34,
+            "south": 33,
+            "east": 36,
+            "west": 35,
+            "zoom": 15,
+        },
+    )
+
+    assert response.status_code == 200
+    assert [marker["ticketNumber"] for marker in response.json()["markers"]] == [
+        older_in_view["ticketNumber"]
+    ]
 
 
 def test_public_ticket_detail_uses_ticket_number_and_name_opt_in(anonymous_client):
