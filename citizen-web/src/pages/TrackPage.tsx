@@ -6,7 +6,7 @@ import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode
 
 export function TrackPage() {
   const [params] = useSearchParams();
-  const initial = normalizeTrackingCode(params.get('code') ?? '');
+  const initial = normalizeTrackingCode(params.get('trackingCode') ?? params.get('code') ?? '');
   const [code, setCode] = useState(initial);
   const [result, setResult] = useState<CitizenTicketResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

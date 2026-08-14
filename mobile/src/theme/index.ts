@@ -12,15 +12,15 @@ export const colors = {
   accentDark: '#A50E1F',
   accentSoft: '#FDE8EB',
 
-  background: '#F4F6F8',
+  background: '#F2F2F7',
   surface: '#FFFFFF',
-  surfaceSubtle: '#EEF1F4',
-  border: '#D5DDE6',
-  borderStrong: '#B8C2CE',
+  surfaceSubtle: '#F7F7FA',
+  border: '#E5E5EA',
+  borderStrong: '#C7C7CC',
 
-  text: '#1A2332',
-  textSecondary: '#4F5D6F',
-  textMuted: '#667085',
+  text: '#111827',
+  textSecondary: '#596273',
+  textMuted: '#7C8492',
   textInverse: '#FFFFFF',
 
   success: '#007A3D',
@@ -60,10 +60,35 @@ export const spacing = {
 } as const;
 
 export const radii = {
-  sm: 6,
-  md: 8,
-  lg: 10,
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 28,
   pill: 999,
+} as const;
+
+export const shadows = {
+  small: {
+    shadowColor: '#0A1F16',
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  medium: {
+    shadowColor: '#0A1F16',
+    shadowOpacity: 0.11,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
+  },
+  large: {
+    shadowColor: '#003D20',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 7,
+  },
 } as const;
 
 export const typography = {
@@ -95,5 +120,5 @@ export const theme = {
     onBackground: colors.text,
     outline: colors.border,
   },
-  roundness: radii.md,
+  roundness: radii.lg,
 };

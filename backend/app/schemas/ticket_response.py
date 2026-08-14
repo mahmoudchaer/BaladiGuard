@@ -163,6 +163,36 @@ class PublicTicketListResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class PublicTicketMapMarkerResponse(BaseModel):
+    """Minimal privacy-safe marker projection for public map browsing."""
+
+    ticket_number: str = Field(alias="ticketNumber")
+    status: TicketStatus
+    category: str | None = None
+    address_text: str = Field(alias="addressText")
+    latitude: float
+    longitude: float
+
+    model_config = {"populate_by_name": True}
+
+
+class PublicTicketMapClusterResponse(BaseModel):
+    id: str
+    latitude: float
+    longitude: float
+    count: int = Field(ge=1)
+
+
+class PublicTicketMapViewportResponse(BaseModel):
+    markers: list[PublicTicketMapMarkerResponse]
+    clusters: list[PublicTicketMapClusterResponse]
+    limit: int = Field(ge=1, le=500)
+    truncated: bool
+    zoom: float
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketDuplicateReference(BaseModel):
     duplicate_group_id: str = Field(alias="duplicateGroupId")
     ticket_ids: list[str] | None = Field(default=None, alias="ticketIds")

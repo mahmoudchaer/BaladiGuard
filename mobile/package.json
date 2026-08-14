@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@hookform/resolvers": "^5.7.1",
     "babel-preset-expo": "~57.0.6",
     "expo": "^57.0.11",

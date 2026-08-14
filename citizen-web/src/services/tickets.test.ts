@@ -3,6 +3,7 @@ import {
   TRACK_LOOKUP_INVALID_MESSAGE,
   TRACK_LOOKUP_NOT_FOUND_MESSAGE,
   getPublicTicketByNumber,
+  getPublicMapViewport,
   getPublicTickets,
   getTicketByTrackingCode,
   sanitizePublicTicket,
@@ -120,6 +121,44 @@ describe('tickets API', () => {
       expect.objectContaining({ method: 'GET' }),
     );
     expect(detail.ticketNumber).toBe('BG-9');
+  });
+
+  it('loads only the requested public map viewport', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        markers: [
+          {
+            ticketNumber: 'BG-9',
+            status: 'SUBMITTED',
+            category: 'road_damage',
+            addressText: 'Hamra',
+            latitude: 33.9,
+            longitude: 35.5,
+          },
+        ],
+        clusters: [],
+        limit: 200,
+        truncated: false,
+        zoom: 15,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await getPublicMapViewport({
+      north: 34,
+      south: 33,
+      east: 36,
+      west: 35,
+      zoom: 15,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/tickets/public/map?'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result.markers[0]?.ticketNumber).toBe('BG-9');
+    expect(result.truncated).toBe(false);
   });
 
   it('uses fixed tracking validation and not-found copy', async () => {
