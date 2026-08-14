@@ -181,6 +181,9 @@ class InMemoryTicketStore:
         )
         return TicketHistoryPage(page, next_cursor)
 
+    def public_continuation_cursor(self, ticket: StoredTicket) -> str:
+        return _encode_public_cursor(_public_sort_key(ticket))
+
     def patch_fields(
         self,
         ticket_id: str,

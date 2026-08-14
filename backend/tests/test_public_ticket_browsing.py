@@ -122,6 +122,96 @@ def test_public_ticket_feed_is_guest_readable_and_privacy_safe(anonymous_client)
     assert VALID_PAYLOAD["location"]["addressText"] not in str(item)
 
 
+def test_public_map_is_viewport_bounded_and_privacy_safe(anonymous_client):
+    created = _submit_public_report(
+        anonymous_client,
+        phone="+96170111112",
+        full_name="Map Reporter",
+    )
+    _publish_report(created)
+
+    clustered = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 34.1,
+            "south": 33.7,
+            "east": 35.7,
+            "west": 35.3,
+            "zoom": 10,
+        },
+    )
+    assert clustered.status_code == 200, clustered.text
+    cluster_body = clustered.json()
+    assert cluster_body["markers"] == []
+    assert cluster_body["clusters"][0]["count"] == 1
+
+    markers = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 34.1,
+            "south": 33.7,
+            "east": 35.7,
+            "west": 35.3,
+            "zoom": 15,
+        },
+    )
+    assert markers.status_code == 200, markers.text
+    marker = markers.json()["markers"][0]
+    assert marker == {
+        "ticketNumber": created["ticketNumber"],
+        "status": "SUBMITTED",
+        "category": "road_damage",
+        "addressText": "Hamra, Beirut",
+        "latitude": 33.896,
+        "longitude": 35.478,
+    }
+    assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(marker)
+    assert "Map Reporter" not in str(marker)
+
+    outside = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 10,
+            "south": 9,
+            "east": 10,
+            "west": 9,
+            "zoom": 15,
+        },
+    )
+    assert outside.status_code == 200
+    assert outside.json()["markers"] == []
+
+
+def test_public_feed_search_and_filters_apply_before_pagination(anonymous_client):
+    road = _submit_public_report(
+        anonymous_client,
+        phone="+96170111113",
+        full_name="Road Reporter",
+        description="Pothole beside the university library.",
+    )
+    _publish_report(road, category="road_damage", location_label="Ras Beirut")
+    waste = _submit_public_report(
+        anonymous_client,
+        phone="+96170111114",
+        full_name="Waste Reporter",
+        description="Overflowing bins beside the market.",
+    )
+    _publish_report(waste, category="waste", location_label="Hamra Market")
+    ticket_store.patch_fields(waste["ticketId"], {"status": "RESOLVED"})
+
+    searched = anonymous_client.get("/v1/tickets/public", params={"q": "market"})
+    assert searched.status_code == 200
+    assert [item["ticketNumber"] for item in searched.json()["items"]] == [waste["ticketNumber"]]
+
+    filtered = anonymous_client.get(
+        "/v1/tickets/public",
+        params={"category": "road_damage", "status": "SUBMITTED", "limit": 1},
+    )
+    assert filtered.status_code == 200
+    assert [item["ticketNumber"] for item in filtered.json()["items"]] == [road["ticketNumber"]]
+    assert filtered.json()["nextCursor"] is None
+
+
 def test_public_ticket_detail_uses_ticket_number_and_name_opt_in(anonymous_client):
     created = _submit_public_report(
         anonymous_client,

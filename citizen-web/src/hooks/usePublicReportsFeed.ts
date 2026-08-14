@@ -25,9 +25,11 @@ export function usePublicReportsFeed({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pagesLoadedRef = useRef(0);
+  const loadGenerationRef = useRef(0);
 
   const load = useCallback(
     async (cursor?: string | null) => {
+      const generation = ++loadGenerationRef.current;
       const appending = Boolean(cursor);
       if (appending) {
         setLoadingMore(true);
@@ -46,8 +48,12 @@ export function usePublicReportsFeed({
             limit: 20,
             cursor: pageCursor ?? null,
           });
+          if (generation !== loadGenerationRef.current) return;
           pagesLoadedRef.current += 1;
-          setItems((prev) => (appending || !firstBatch ? [...prev, ...page.items] : page.items));
+          setItems((previous) => {
+            const candidates = appending || !firstBatch ? [...previous, ...page.items] : page.items;
+            return [...new Map(candidates.map((item) => [item.ticketNumber, item])).values()];
+          });
           setNextCursor(page.nextCursor);
           firstBatch = false;
 
@@ -61,8 +67,10 @@ export function usePublicReportsFeed({
       } catch (err) {
         setError(err instanceof Error ? err.message : PUBLIC_TICKETS_NETWORK_MESSAGE);
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (generation === loadGenerationRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [autoLoadAll, maxAutoPages],

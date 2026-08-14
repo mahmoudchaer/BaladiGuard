@@ -295,6 +295,18 @@ class DynamoTicketStore:
             _encode_public_cursor(last_key),
         )
 
+    def public_continuation_cursor(self, ticket: StoredTicket) -> str:
+        cursor = _encode_public_cursor(
+            {
+                "publicStatus": PUBLIC_TICKET_STATUS_PUBLISHED,
+                PUBLIC_SORT_KEY: build_public_sort_key(ticket),
+                "ticketId": ticket.ticket_id,
+            }
+        )
+        if cursor is None:  # pragma: no cover - all fields above are present
+            raise ValueError("Unable to create public ticket cursor.")
+        return cursor
+
     def patch_fields(
         self,
         ticket_id: str,

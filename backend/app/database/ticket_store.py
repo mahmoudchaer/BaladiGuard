@@ -66,6 +66,8 @@ class TicketStore(Protocol):
         cursor: str | None = None,
     ) -> TicketHistoryPage: ...
 
+    def public_continuation_cursor(self, ticket: StoredTicket) -> str: ...
+
     def list_by_owner(
         self,
         owner_user_id: str,

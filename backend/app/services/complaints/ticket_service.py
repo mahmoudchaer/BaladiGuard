@@ -51,6 +51,9 @@ from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
     PublicTicketListResponse,
+    PublicTicketMapClusterResponse,
+    PublicTicketMapMarkerResponse,
+    PublicTicketMapViewportResponse,
     PublicTicketResponse,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
@@ -100,6 +103,11 @@ Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
 PUBLIC_TICKET_DEFAULT_LIMIT = 20
 PUBLIC_TICKET_MAX_LIMIT = 50
+PUBLIC_TICKET_FILTER_SCAN_BUDGET = 500
+PUBLIC_MAP_DEFAULT_LIMIT = 200
+PUBLIC_MAP_MAX_LIMIT = 500
+PUBLIC_MAP_MARKER_ZOOM = 14
+PUBLIC_MAP_CANDIDATE_BUDGET = 500
 STAFF_TICKET_DEFAULT_LIMIT = 25
 STAFF_TICKET_MAX_LIMIT = 100
 STAFF_SLA_FILTER_MAX_ROUNDS = 20
@@ -892,17 +900,157 @@ class TicketService:
         *,
         limit: int = PUBLIC_TICKET_DEFAULT_LIMIT,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
     ) -> PublicTicketListResponse:
         page_size = min(max(limit, 1), PUBLIC_TICKET_MAX_LIMIT)
-        page = self._store.list_public(limit=page_size, cursor=cursor)
-        owners = self._public_owner_cache(page.items)
+        normalized_query = q.strip().casefold() if q else None
+        normalized_category = category.strip().casefold() if category else None
+        if not normalized_query and status is None and not normalized_category:
+            page = self._store.list_public(limit=page_size, cursor=cursor)
+            owners = self._public_owner_cache(page.items)
+            return PublicTicketListResponse(
+                items=[
+                    map_ticket_to_public_response(ticket, owner=owners.get(ticket.owner_user_id))
+                    for ticket in page.items
+                ],
+                nextCursor=page.next_cursor,
+                limit=page_size,
+            )
+
+        matches: list[StoredTicket] = []
+        scanned = 0
+        current_cursor = cursor
+        exhausted = False
+        last_scanned: StoredTicket | None = None
+        while scanned < PUBLIC_TICKET_FILTER_SCAN_BUDGET and len(matches) <= page_size:
+            chunk = self._store.list_public(
+                limit=min(PUBLIC_TICKET_MAX_LIMIT, PUBLIC_TICKET_FILTER_SCAN_BUDGET - scanned),
+                cursor=current_cursor,
+            )
+            if not chunk.items:
+                exhausted = True
+                break
+            scanned += len(chunk.items)
+            for ticket in chunk.items:
+                last_scanned = ticket
+                effective_category = (ticket.final_category or ticket.category or "").casefold()
+                searchable = " ".join(
+                    (
+                        ticket.ticket_number,
+                        ticket.public_description or "",
+                        ticket.public_location_label or "",
+                        effective_category.replace("_", " "),
+                    )
+                ).casefold()
+                if status is not None and ticket.status != status:
+                    continue
+                if normalized_category and effective_category != normalized_category:
+                    continue
+                if normalized_query and normalized_query not in searchable:
+                    continue
+                matches.append(ticket)
+                if len(matches) > page_size:
+                    break
+            if len(matches) > page_size:
+                break
+            if not chunk.next_cursor:
+                exhausted = True
+                break
+            current_cursor = chunk.next_cursor
+
+        page_items = matches[:page_size]
+        if len(matches) > page_size:
+            next_cursor = self._store.public_continuation_cursor(page_items[-1])
+        elif not exhausted and last_scanned is not None:
+            next_cursor = self._store.public_continuation_cursor(last_scanned)
+        else:
+            next_cursor = None
+        owners = self._public_owner_cache(page_items)
         return PublicTicketListResponse(
             items=[
                 map_ticket_to_public_response(ticket, owner=owners.get(ticket.owner_user_id))
-                for ticket in page.items
+                for ticket in page_items
             ],
-            nextCursor=page.next_cursor,
+            nextCursor=next_cursor,
             limit=page_size,
+        )
+
+    def public_map_viewport(
+        self,
+        *,
+        north: float,
+        south: float,
+        east: float,
+        west: float,
+        zoom: float,
+        limit: int = PUBLIC_MAP_DEFAULT_LIMIT,
+    ) -> PublicTicketMapViewportResponse:
+        """Return a bounded, privacy-safe projection for the visible public map."""
+        result_limit = min(max(limit, 1), PUBLIC_MAP_MAX_LIMIT)
+        candidates: list[StoredTicket] = []
+        cursor: str | None = None
+        has_more = False
+        while len(candidates) < PUBLIC_MAP_CANDIDATE_BUDGET:
+            page = self._store.list_public(
+                limit=min(PUBLIC_TICKET_MAX_LIMIT, PUBLIC_MAP_CANDIDATE_BUDGET - len(candidates)),
+                cursor=cursor,
+            )
+            candidates.extend(page.items)
+            if not page.next_cursor:
+                break
+            cursor = page.next_cursor
+        else:
+            has_more = True
+
+        in_bounds = [
+            ticket
+            for ticket in candidates
+            if _location_in_bounds(
+                ticket.location.latitude,
+                ticket.location.longitude,
+                north=north,
+                south=south,
+                east=east,
+                west=west,
+            )
+        ]
+        use_clusters = zoom < PUBLIC_MAP_MARKER_ZOOM or len(in_bounds) > result_limit
+        if use_clusters:
+            staff_clusters = _grid_clusters(in_bounds, zoom=zoom, limit=result_limit)
+            return PublicTicketMapViewportResponse(
+                markers=[],
+                clusters=[
+                    PublicTicketMapClusterResponse(
+                        id=cluster.id,
+                        latitude=round(cluster.latitude, 3),
+                        longitude=round(cluster.longitude, 3),
+                        count=cluster.count,
+                    )
+                    for cluster in staff_clusters
+                ],
+                limit=result_limit,
+                truncated=has_more or len(in_bounds) > result_limit,
+                zoom=zoom,
+            )
+
+        return PublicTicketMapViewportResponse(
+            markers=[
+                PublicTicketMapMarkerResponse(
+                    ticketNumber=ticket.ticket_number,
+                    status=ticket.status,
+                    category=ticket.final_category or ticket.category,
+                    addressText=ticket.public_location_label or ticket.location.address_text,
+                    latitude=round(ticket.location.latitude, 3),
+                    longitude=round(ticket.location.longitude, 3),
+                )
+                for ticket in in_bounds[:result_limit]
+            ],
+            clusters=[],
+            limit=result_limit,
+            truncated=has_more or len(in_bounds) > result_limit,
+            zoom=zoom,
         )
 
     def get_public_ticket(self, ticket_number: str) -> PublicTicketResponse | None:
