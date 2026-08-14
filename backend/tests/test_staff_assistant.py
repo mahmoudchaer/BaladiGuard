@@ -619,9 +619,7 @@ def test_priority_applied_filters_round_trip_list_api_when_count_exceeds_referen
     ]
     template = counted[0]
     for index in range(MAX_TICKET_REFERENCES + 1):
-        counted.append(
-            _clone_ticket(template, priority="high" if index % 2 == 0 else "critical")
-        )
+        counted.append(_clone_ticket(template, priority="high" if index % 2 == 0 else "critical"))
     _clone_ticket(template, priority="medium")
     _clone_ticket(template, priority="high", status="RESOLVED")
     response = anonymous_client.post(
