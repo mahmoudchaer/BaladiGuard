@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.config  # noqa: F401 - load .env before other app modules
+from app.api.admin_staff_accounts import router as admin_staff_accounts_router
 from app.api.citizen import router as citizen_router
 from app.api.health import router as health_router
 from app.api.locations import router as locations_router
@@ -15,6 +16,7 @@ from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
 from app.core.config_validation import validate_configuration
+from app.core.cors import resolve_cors_origins
 from app.core.errors import (
     build_error_response,
     create_request_id,
@@ -29,21 +31,6 @@ from app.core.request_context import reset_request_id, set_request_id
 from app.core.upload_abuse import reject_upload_abuse_early
 
 logger = logging.getLogger(__name__)
-
-LOCAL_CORS_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:5175",
-    "http://127.0.0.1:5175",
-    "http://localhost:8081",
-    "http://127.0.0.1:8081",
-    "http://localhost:8082",
-    "http://127.0.0.1:8082",
-    "http://localhost:19006",
-    "http://127.0.0.1:19006",
-]
 
 
 def _with_request_id_header(response: JSONResponse, request_id: str) -> JSONResponse:
@@ -194,6 +181,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 def create_app() -> FastAPI:
     configure_logging()
+    from app.config import get_settings
+
+    settings = get_settings()
+    cors_origins = resolve_cors_origins(
+        app_env=settings.app_env,
+        cors_allowed_origins=settings.cors_allowed_origins,
+    )
     app = FastAPI(
         title="BaladiGuard API",
         version="0.1.0",
@@ -203,7 +197,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=LOCAL_CORS_ORIGINS,
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -279,6 +273,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health_router)
     app.include_router(staff_auth_router)
+    app.include_router(admin_staff_accounts_router)
     app.include_router(citizen_router)
     app.include_router(tickets_router)
     app.include_router(locations_router)

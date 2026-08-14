@@ -116,7 +116,8 @@ def test_otp_verify_logs_into_existing_account(anonymous_client: TestClient) -> 
     assert body["fullName"] == "Ada"
 
 
-def test_otp_verify_allows_incomplete_profile(anonymous_client: TestClient) -> None:
+def test_otp_verify_phone_only_is_contribution_ready(anonymous_client: TestClient) -> None:
+    """OTP without a full name issues a contribution-ready session (#270)."""
     status, request_body = _request_otp(anonymous_client, phone="+96170123456")
     code = citizen_service.peek_dev_otp_code(request_body["challengeId"])
     assert code is not None
@@ -127,7 +128,7 @@ def test_otp_verify_allows_incomplete_profile(anonymous_client: TestClient) -> N
     )
     assert status == 200, body
     assert body["fullName"] is None
-    assert body["contributionReady"] is False
+    assert body["contributionReady"] is True
 
 
 def test_otp_verify_inactive_account_returns_403_without_session(

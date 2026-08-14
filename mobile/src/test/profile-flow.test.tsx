@@ -2,7 +2,7 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HomeScreen from '../../app/index';
+import HomeScreen from '../../app/(tabs)';
 import ProfileScreen from '../../app/profile/index';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
 import { __getRouterMockState, __resetExpoRouterMock } from '@/test/mocks/expo-router';

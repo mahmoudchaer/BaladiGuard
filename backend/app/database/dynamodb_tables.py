@@ -26,6 +26,10 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
             {"AttributeName": "ownerHistorySortKey", "AttributeType": "S"},
             {"AttributeName": "publicStatus", "AttributeType": "S"},
             {"AttributeName": "publicSortKey", "AttributeType": "S"},
+            {"AttributeName": "staffScopeKey", "AttributeType": "S"},
+            {"AttributeName": "staffSortKey", "AttributeType": "S"},
+            {"AttributeName": "adminBrowseKey", "AttributeType": "S"},
+            {"AttributeName": "departmentId", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
@@ -51,6 +55,30 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
                 "KeySchema": [
                     {"AttributeName": "publicStatus", "KeyType": "HASH"},
                     {"AttributeName": "publicSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "staffScopeKey-staffSortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "staffScopeKey", "KeyType": "HASH"},
+                    {"AttributeName": "staffSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "adminBrowseKey-staffSortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "adminBrowseKey", "KeyType": "HASH"},
+                    {"AttributeName": "staffSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "departmentId-staffSortKey-index",
+                "KeySchema": [
+                    {"AttributeName": "departmentId", "KeyType": "HASH"},
+                    {"AttributeName": "staffSortKey", "KeyType": "RANGE"},
                 ],
                 "Projection": {"ProjectionType": "ALL"},
             },
@@ -189,6 +217,21 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "staff-comments",
+        "key_schema": [{"AttributeName": "commentId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "commentId", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "account-audit",
         "key_schema": [{"AttributeName": "auditId", "KeyType": "HASH"}],
         "attribute_definitions": [
@@ -228,6 +271,15 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        # Ticket create Idempotency-Key claims + replay payload (issue #258).
+        "suffix": "ticket-submission-claims",
+        "key_schema": [{"AttributeName": "idempotencyKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "idempotencyKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "ai-outputs",
         "key_schema": [{"AttributeName": "aiOutputId", "KeyType": "HASH"}],
         "attribute_definitions": [
@@ -249,6 +301,13 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "jobId", "AttributeType": "S"},
         ],
+        "global_secondary_indexes": [],
+    },
+    {
+        # Privacy-critical image work is isolated from the classification queue.
+        "suffix": "image-redaction-jobs",
+        "key_schema": [{"AttributeName": "jobId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "jobId", "AttributeType": "S"}],
         "global_secondary_indexes": [],
     },
     {

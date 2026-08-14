@@ -6,6 +6,7 @@ BaladiGuard API contracts and verification notes are maintained under `docs/`. T
 | --- | --- |
 | [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md) | **Authoritative HTTP contract** — citizen/staff auth, tickets, locations, uploads, error envelope, enums |
 | [privacy-lifecycle.md](./privacy-lifecycle.md) | Citizen export/delete and session revocation |
+| [image-redaction.md](./image-redaction.md) | Private-original/public-derivative image redaction contract and runbook |
 | [database.md](./database.md) | Persistence model aligned with the contract (memory + DynamoDB) |
 | [notifications.md](./notifications.md) | Ticket lifecycle notify path (no public notification HTTP API) |
 | [sprint6-mvp-acceptance.md](./sprint6-mvp-acceptance.md) | Sprint 6 full-flow acceptance checklist and demo path (#49) |

@@ -1,20 +1,26 @@
+from __future__ import annotations
+
 import base64
 import binascii
 import json
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
 from app.database.serialization import (
+    ADMIN_BROWSE_ALL,
+    ADMIN_BROWSE_KEY,
     OWNER_HISTORY_SORT_KEY,
     PUBLIC_INDEX_FIELDS,
     PUBLIC_SORT_KEY,
     PUBLIC_TICKET_STATUS_PUBLISHED,
+    STAFF_SCOPE_KEY,
+    STAFF_SORT_KEY,
     build_public_sort_key,
     is_public_ticket_publishable,
     item_to_ticket,
@@ -22,7 +28,7 @@ from app.database.serialization import (
     ticket_to_item,
 )
 from app.database.ticket_patch import build_update_expression
-from app.database.ticket_store import TicketHistoryPage
+from app.database.ticket_store import StaffTicketPage, TicketHistoryPage
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.utils.ticket_ids import normalize_tracking_code
@@ -30,6 +36,10 @@ from app.utils.ticket_ids import normalize_tracking_code
 TICKET_NUMBER_COUNTER_ID = "ticketNumberSequence"
 OWNER_HISTORY_INDEX = "ownerUserId-ownerHistorySortKey-index"
 PUBLIC_TICKETS_INDEX = "publicStatus-publicSortKey-index"
+STAFF_SCOPE_INDEX = "staffScopeKey-staffSortKey-index"
+ADMIN_BROWSE_INDEX = "adminBrowseKey-staffSortKey-index"
+DEPARTMENT_STAFF_INDEX = "departmentId-staffSortKey-index"
+STAFF_QUERY_MAX_ROUNDS = 5
 
 
 class DynamoTicketStore:
@@ -99,6 +109,131 @@ class DynamoTicketStore:
             scan_kwargs["ExclusiveStartKey"] = last_key
 
         return tickets
+
+    def list_staff_page(
+        self,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_ids: list[str] | None,
+        limit: int,
+        cursor: str | None,
+        status: str | None = None,
+        category: str | None = None,
+        urgency: str | None = None,
+        department_id: str | None = None,
+        assignment_state: Literal["assigned", "unassigned"] | None = None,
+        q: str | None = None,
+        open_only: bool = False,
+    ) -> StaffTicketPage:
+        """Indexed staff collection page.
+
+        ``sla_state`` is intentionally omitted: callers apply it in the service
+        layer after fetch (Dynamo cannot derive SLA from stored attributes alone).
+        Unsupported combinations must not fall back to an unbounded table scan.
+        """
+        index_name, hash_name, hash_value = _staff_query_target(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_id=department_id,
+        )
+        filter_expression = _staff_filter_expression(
+            status=status,
+            category=category,
+            urgency=urgency,
+            department_id=department_id if index_name != DEPARTMENT_STAFF_INDEX else None,
+            department_ids=(
+                department_ids if browse_mode == "municipality" and department_id is None else None
+            ),
+            assignment_state=assignment_state,
+            q=q,
+            open_only=open_only,
+        )
+
+        query_kwargs: dict[str, object] = {
+            "IndexName": index_name,
+            "KeyConditionExpression": Key(hash_name).eq(hash_value),
+            "ScanIndexForward": False,
+            "Limit": limit,
+        }
+        if filter_expression is not None:
+            query_kwargs["FilterExpression"] = filter_expression
+        if cursor:
+            query_kwargs["ExclusiveStartKey"] = _decode_staff_cursor(
+                cursor,
+                index_name=index_name,
+                hash_name=hash_name,
+                hash_value=hash_value,
+            )
+
+        items: list[StoredTicket] = []
+        scanned_count = 0
+        last_key: dict[str, Any] | None = None
+        for _ in range(STAFF_QUERY_MAX_ROUNDS):
+            response = self._tickets_table.query(**query_kwargs)
+            scanned_count += int(response.get("ScannedCount") or len(response.get("Items", [])))
+            last_key = response.get("LastEvaluatedKey")
+            for item in response.get("Items", []):
+                ticket = item_to_ticket(item)
+                if browse_mode == "municipality" and not _municipal_post_filter(
+                    ticket,
+                    municipality_id=municipality_id,
+                    department_ids=department_ids,
+                    department_id=department_id,
+                ):
+                    continue
+                items.append(ticket)
+                if len(items) == limit:
+                    break
+            if not last_key or len(items) == limit:
+                break
+            query_kwargs["ExclusiveStartKey"] = last_key
+
+        next_cursor = None
+        if last_key:
+            # Always continue when Dynamo still has unread keys — sparse
+            # FilterExpression pages can end a bounded round with items < limit
+            # while later matches remain (issue #267 review).
+            next_cursor = _encode_staff_cursor(last_key, index_name=index_name)
+        elif len(items) == limit and items:
+            # Cap reached mid-page without Dynamo LEK; synthesize from last item.
+            next_cursor = _encode_staff_cursor(
+                _synthetic_staff_start_key(
+                    items[-1],
+                    index_name=index_name,
+                    hash_name=hash_name,
+                    hash_value=hash_value,
+                ),
+                index_name=index_name,
+            )
+
+        return StaffTicketPage(items, next_cursor, scanned_count)
+
+    def staff_continuation_cursor(
+        self,
+        ticket: StoredTicket,
+        *,
+        browse_mode: Literal["admin", "municipality"],
+        municipality_id: str | None,
+        department_id: str | None = None,
+    ) -> str:
+        index_name, hash_name, hash_value = _staff_query_target(
+            browse_mode=browse_mode,
+            municipality_id=municipality_id,
+            department_id=department_id,
+        )
+        encoded = _encode_staff_cursor(
+            _synthetic_staff_start_key(
+                ticket,
+                index_name=index_name,
+                hash_name=hash_name,
+                hash_value=hash_value,
+            ),
+            index_name=index_name,
+        )
+        if encoded is None:
+            raise ValueError("Unable to encode staff continuation cursor.")
+        return encoded
 
     def list_by_owner(
         self,
@@ -332,6 +467,118 @@ class DynamoTicketStore:
             raise
         return item_to_ticket(response["Attributes"])
 
+    def claim_image_redaction(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=(
+                    "SET imageRedactionStatus=:processing, "
+                    "imageRedactionClaimToken=:token, updatedAt=:updated"
+                ),
+                ConditionExpression=(
+                    "imageRedactionStatus=:pending AND imageRedactionGeneration=:generation"
+                ),
+                ExpressionAttributeValues={
+                    ":processing": "processing",
+                    ":pending": "pending",
+                    ":token": claim_token,
+                    ":updated": updated_at,
+                    ":generation": generation,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def finalize_image_redaction(
+        self, ticket_id: str, generation: int, claim_token: str, fields: dict[str, object]
+    ) -> StoredTicket | None:
+        expression, names, values = build_update_expression(
+            {**fields, "image_redaction_claim_token": None}
+        )
+        names.update(
+            {
+                "#rs": "imageRedactionStatus",
+                "#rg": "imageRedactionGeneration",
+                "#rt": "imageRedactionClaimToken",
+            }
+        )
+        values.update(
+            {":processing": "processing", ":generation": generation, ":token": claim_token}
+        )
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression="#rs=:processing AND #rg=:generation AND #rt=:token",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def requeue_image_redaction(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=(
+                    "SET imageRedactionStatus=:pending, updatedAt=:updated "
+                    "REMOVE imageRedactionClaimToken"
+                ),
+                ConditionExpression=(
+                    "imageRedactionStatus=:processing AND imageRedactionGeneration=:generation "
+                    "AND imageRedactionClaimToken=:token"
+                ),
+                ExpressionAttributeValues={
+                    ":pending": "pending",
+                    ":processing": "processing",
+                    ":updated": updated_at,
+                    ":generation": generation,
+                    ":token": claim_token,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=(
+                    "SET imageRedactionStatus=:pending, updatedAt=:updated, "
+                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one "
+                    "REMOVE imageRedactionClaimToken, imageRedactionCompletedAt, "
+                    "imageRedactionReasonCode"
+                ),
+                ConditionExpression="attribute_exists(ticketId)",
+                ExpressionAttributeValues={
+                    ":pending": "pending",
+                    ":updated": updated_at,
+                    ":one": 1,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
     def has_ticket_id(self, ticket_id: str) -> bool:
         response = self._tickets_table.get_item(
             Key={"ticketId": ticket_id},
@@ -457,3 +704,160 @@ def _decode_public_cursor(cursor: str) -> dict[str, str]:
         PUBLIC_SORT_KEY: sort_key,
         "ticketId": ticket_id,
     }
+
+
+def _staff_query_target(
+    *,
+    browse_mode: Literal["admin", "municipality"],
+    municipality_id: str | None,
+    department_id: str | None,
+) -> tuple[str, str, str]:
+    if department_id and browse_mode == "municipality":
+        return DEPARTMENT_STAFF_INDEX, "departmentId", department_id
+    if browse_mode == "admin":
+        return ADMIN_BROWSE_INDEX, ADMIN_BROWSE_KEY, ADMIN_BROWSE_ALL
+    if not municipality_id:
+        raise ValueError("municipality_id is required for municipality browse mode.")
+    return STAFF_SCOPE_INDEX, STAFF_SCOPE_KEY, municipality_id
+
+
+def _staff_filter_expression(
+    *,
+    status: str | None,
+    category: str | None,
+    urgency: str | None,
+    department_id: str | None,
+    department_ids: list[str] | None,
+    assignment_state: Literal["assigned", "unassigned"] | None = None,
+    q: str | None = None,
+    open_only: bool = False,
+):
+    expression = None
+    if status is not None:
+        expression = Attr("status").eq(status)
+    elif open_only:
+        expression = Attr("status").is_in(["SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS"])
+    if category is not None:
+        clause = Attr("category").eq(category)
+        expression = clause if expression is None else expression & clause
+    if urgency is not None:
+        clause = Attr("priority").eq(urgency)
+        expression = clause if expression is None else expression & clause
+    if assignment_state == "unassigned":
+        clause = Attr("departmentId").not_exists()
+        expression = clause if expression is None else expression & clause
+    elif assignment_state == "assigned":
+        clause = Attr("departmentId").exists()
+        expression = clause if expression is None else expression & clause
+    if department_id is not None:
+        clause = Attr("departmentId").eq(department_id)
+        expression = clause if expression is None else expression & clause
+    elif department_ids is not None and assignment_state is None:
+        # Unassigned tickets are visible to municipal staff; keep them when dept-scoped.
+        allowed = list(department_ids)
+        if allowed:
+            clause = Attr("departmentId").is_in(allowed) | Attr("departmentId").not_exists()
+        else:
+            clause = Attr("departmentId").not_exists()
+        expression = clause if expression is None else expression & clause
+    if q is not None:
+        # Bounded contains match — keeps search on the indexed collection path.
+        search = (
+            Attr("ticketNumber").contains(q)
+            | Attr("ticketId").contains(q)
+            | Attr("description").contains(q)
+            | Attr("location.addressText").contains(q)
+        )
+        expression = search if expression is None else expression & search
+    return expression
+
+
+def _municipal_post_filter(
+    ticket: StoredTicket,
+    *,
+    municipality_id: str | None,
+    department_ids: list[str] | None,
+    department_id: str | None,
+) -> bool:
+    if ticket.municipality_id is not None and ticket.municipality_id != municipality_id:
+        return False
+    if department_id is not None:
+        return ticket.department_id == department_id
+    if ticket.department_id is None:
+        return True
+    return ticket.department_id in set(department_ids or [])
+
+
+def _synthetic_staff_start_key(
+    ticket: StoredTicket,
+    *,
+    index_name: str,
+    hash_name: str,
+    hash_value: str,
+) -> dict[str, str]:
+    sort_key = f"{ticket.created_at}#{ticket.ticket_id}"
+    key = {
+        hash_name: hash_value,
+        STAFF_SORT_KEY: sort_key,
+        "ticketId": ticket.ticket_id,
+    }
+    if index_name == DEPARTMENT_STAFF_INDEX and ticket.department_id:
+        key["departmentId"] = ticket.department_id
+    return key
+
+
+def _encode_staff_cursor(last_key: dict[str, Any] | None, *, index_name: str) -> str | None:
+    if not last_key:
+        return None
+    payload = {
+        "indexName": index_name,
+        "ticketId": last_key.get("ticketId"),
+        "staffSortKey": last_key.get(STAFF_SORT_KEY),
+        "staffScopeKey": last_key.get(STAFF_SCOPE_KEY),
+        "adminBrowseKey": last_key.get(ADMIN_BROWSE_KEY),
+        "departmentId": last_key.get("departmentId"),
+    }
+    if not isinstance(payload["ticketId"], str) or not isinstance(payload["staffSortKey"], str):
+        raise ValueError("Invalid staff ticket cursor.")
+    raw = json.dumps(
+        {key: value for key, value in payload.items() if value is not None},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_staff_cursor(
+    cursor: str,
+    *,
+    index_name: str,
+    hash_name: str,
+    hash_value: str,
+) -> dict[str, str]:
+    try:
+        decoded = base64.urlsafe_b64decode(cursor.encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Invalid staff ticket cursor.") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid staff ticket cursor.")
+    if payload.get("indexName") not in {None, index_name}:
+        raise ValueError("Invalid staff ticket cursor.")
+    ticket_id = payload.get("ticketId")
+    sort_key = payload.get("staffSortKey")
+    if not isinstance(ticket_id, str) or not isinstance(sort_key, str):
+        raise ValueError("Invalid staff ticket cursor.")
+
+    start_key = {
+        hash_name: hash_value,
+        STAFF_SORT_KEY: sort_key,
+        "ticketId": ticket_id,
+    }
+    # ExclusiveStartKey for GSIs must include the index hash attribute value.
+    if hash_name == STAFF_SCOPE_KEY:
+        start_key[STAFF_SCOPE_KEY] = hash_value
+    elif hash_name == ADMIN_BROWSE_KEY:
+        start_key[ADMIN_BROWSE_KEY] = hash_value
+    elif hash_name == "departmentId":
+        start_key["departmentId"] = hash_value
+    return start_key

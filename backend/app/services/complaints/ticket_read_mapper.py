@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -6,9 +7,19 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.database.store_factory import get_citizen_store
 from app.schemas.citizen import StoredCitizenUser
+from app.schemas.image_redaction import TicketImageRedaction
+from app.schemas.staff_ticket_collection import (
+    TicketListDepartment,
+    TicketListItemResponse,
+    TicketListLocation,
+)
 from app.schemas.stored_audit_history import StoredAuditHistory
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.schemas.stored_ticket import StoredTicket
+from app.schemas.ticket_duplicates import (
+    DuplicateCandidateResponse,
+    DuplicateComparisonResponse,
+)
 from app.schemas.ticket_response import (
     CitizenTicketDepartment,
     CitizenTicketLocation,
@@ -25,11 +36,16 @@ from app.schemas.ticket_response import (
     TicketImageReference,
     TicketPublicFields,
     TicketResponse,
+    TicketSlaFields,
     TicketStatusHistoryEntry,
 )
+from app.services.complaints.sla import derive_ticket_sla
+from app.services.duplicates import effective_ticket_category
 from app.services.routing import department_name
+from app.services.uploads.photo_upload_service import PhotoUploadService
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
+LIST_SUMMARY_MAX_CHARS = 240
 
 
 @lru_cache
@@ -74,6 +90,114 @@ def build_ticket_ai_fields(ticket: StoredTicket) -> TicketAiFields:
         urgencyScore=ticket.urgency_score,
         urgencyReason=ticket.urgency_reason,
         suggestedDepartmentId=ticket.suggested_department_id,
+    )
+
+
+def map_ticket_to_list_item(ticket: StoredTicket) -> TicketListItemResponse:
+    """Lightweight staff queue projection — no history store or S3 presign calls."""
+    department = (
+        TicketListDepartment(
+            departmentId=ticket.department_id,
+            name=department_name(ticket.department_id) or ticket.department_id,
+        )
+        if ticket.department_id
+        else None
+    )
+    return TicketListItemResponse(
+        ticketId=ticket.ticket_id,
+        ticketNumber=ticket.ticket_number,
+        status=ticket.status,
+        category=_actionable_category(ticket),
+        priority=ticket.priority,
+        departmentId=ticket.department_id,
+        department=department,
+        summary=_bounded_list_summary(ticket),
+        createdAt=ticket.created_at,
+        updatedAt=ticket.updated_at,
+        municipalityId=ticket.municipality_id,
+        assignmentState="assigned" if ticket.department_id else "unassigned",
+        location=TicketListLocation(
+            latitude=ticket.location.latitude,
+            longitude=ticket.location.longitude,
+            addressText=ticket.location.address_text,
+        ),
+    )
+
+
+def _actionable_category(ticket: StoredTicket) -> str:
+    return ticket.final_category or ticket.category
+
+
+def _bounded_list_summary(ticket: StoredTicket) -> str:
+    for candidate in (
+        ticket.cleaned_description,
+        ticket.original_description,
+        ticket.description,
+    ):
+        if candidate and candidate.strip():
+            text = candidate.strip()
+            if len(text) <= LIST_SUMMARY_MAX_CHARS:
+                return text
+            return text[: LIST_SUMMARY_MAX_CHARS - 1].rstrip() + "…"
+    return ""
+
+
+def map_ticket_to_duplicate_candidate(
+    ticket: StoredTicket,
+    *,
+    distance_meters: float | None = None,
+    suggested: bool = False,
+    score: float | None = None,
+    category_match: Literal["same", "similar"] | None = None,
+) -> DuplicateCandidateResponse:
+    """Bounded merge-candidate projection — no contact, tracking code, or object key."""
+    return DuplicateCandidateResponse(
+        ticketId=ticket.ticket_id,
+        ticketNumber=ticket.ticket_number,
+        status=ticket.status,
+        category=effective_ticket_category(ticket),
+        priority=ticket.priority,
+        summary=_bounded_list_summary(ticket),
+        createdAt=ticket.created_at,
+        location=_duplicate_location(ticket),
+        distanceMeters=distance_meters,
+        imageUrl=build_image_url(ticket.image_object_key),
+        suggested=suggested,
+        score=score,
+        categoryMatch=category_match,
+        mergeable=True,
+    )
+
+
+def map_ticket_to_duplicate_comparison(
+    ticket: StoredTicket,
+    *,
+    distance_meters: float | None = None,
+) -> DuplicateComparisonResponse:
+    """Bounded side-by-side comparison projection.
+
+    Deliberately omits contact, tracking code, raw ``imageObjectKey``, audit and
+    status history, AI fields, public drafts, and owner identity.
+    """
+    return DuplicateComparisonResponse(
+        ticketId=ticket.ticket_id,
+        ticketNumber=ticket.ticket_number,
+        description=ticket.description,
+        status=ticket.status,
+        category=effective_ticket_category(ticket),
+        priority=ticket.priority,
+        createdAt=ticket.created_at,
+        location=_duplicate_location(ticket),
+        imageUrl=build_image_url(ticket.image_object_key),
+        distanceMeters=distance_meters,
+    )
+
+
+def _duplicate_location(ticket: StoredTicket) -> TicketListLocation:
+    return TicketListLocation(
+        latitude=ticket.location.latitude,
+        longitude=ticket.location.longitude,
+        addressText=ticket.location.address_text,
     )
 
 
@@ -126,7 +250,7 @@ def map_ticket_to_public_response(
     # Only staff-approved public photos are projected. Raw upload keys stay private.
     # Presigned URLs may include the approved key in the path; that is expected for
     # time-limited GET access and is not the same as exposing imageObjectKey in JSON.
-    approved_photo_key = (ticket.public_image_object_key or "").strip()
+    approved_photo_key = _approved_redacted_key(ticket)
     photo_url = build_image_url(approved_photo_key) if approved_photo_key else None
 
     return PublicTicketResponse(
@@ -146,6 +270,12 @@ def map_ticket_to_public_response(
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
     )
+
+
+def _approved_redacted_key(ticket: StoredTicket) -> str:
+    key = (ticket.public_image_object_key or "").strip()
+    expected = f"reports/redacted/v1/{PhotoUploadService.ticket_scope(ticket.ticket_id)}/"
+    return key if key.startswith(expected) and key != ticket.image_object_key else ""
 
 
 def _citizen_visible_category(ticket: StoredTicket) -> str | None:
@@ -214,12 +344,23 @@ def map_ticket_to_response(
         updatedAt=ticket.updated_at,
         updatedBy=ticket.updated_by,
         ai=build_ticket_ai_fields(ticket),
+        sla=TicketSlaFields.model_validate(derive_ticket_sla(ticket).model_dump(by_alias=True)),
         public=TicketPublicFields(
             status=ticket.public_status,
             description=ticket.public_description,
             locationLabel=ticket.public_location_label,
             imageObjectKey=ticket.public_image_object_key,
             publishedAt=ticket.public_published_at,
+        ),
+        imageRedaction=TicketImageRedaction(
+            status=ticket.image_redaction_status,
+            generation=ticket.image_redaction_generation,
+            detector=ticket.image_redaction_detector,
+            detectorVersion=ticket.image_redaction_detector_version,
+            faceCount=ticket.image_redaction_face_count,
+            plateCount=ticket.image_redaction_plate_count,
+            completedAt=ticket.image_redaction_completed_at,
+            reasonCode=ticket.image_redaction_reason_code,
         ),
         statusHistory=[
             TicketStatusHistoryEntry(

@@ -1,24 +1,32 @@
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
+# MIT-licensed source/model: https://github.com/ankandrew/open-image-models
+ARG PLATE_MODEL_URL=https://github.com/ankandrew/open-image-models/releases/download/assets/yolo-v9-s-608-license-plates-end2end.onnx
+ARG PLATE_MODEL_SHA256=2b878b38d9aa07b6ddc3ea75c4ffcb39869bc5c218e0a14002f60ab2f7b0be9a
+
 COPY requirements.lock ./
 RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.lock
+RUN mkdir -p /models \
+    && python -c "import hashlib, pathlib, urllib.request; p=pathlib.Path('/models/license-plate.onnx'); urllib.request.urlretrieve('${PLATE_MODEL_URL}', p); actual=hashlib.sha256(p.read_bytes()).hexdigest(); expected='${PLATE_MODEL_SHA256}'; assert actual == expected, f'plate model checksum mismatch: {actual}'"
 
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PLATE_DETECTION_MODEL=/opt/models/license-plate.onnx
 
 WORKDIR /app
 
-RUN find /usr/local/lib/python3.11/site-packages -maxdepth 1 \
+RUN find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
         \( -name 'pip*' -o -name 'setuptools*' -o -name 'wheel*' \) \
         -exec rm -rf {} + \
     && addgroup --system app \
     && adduser --system --ingroup app app
 
 COPY --from=builder /install /usr/local
+COPY --from=builder /models /opt/models
 COPY app ./app
 COPY scripts ./scripts
 

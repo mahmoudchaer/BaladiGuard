@@ -64,6 +64,16 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `duplicateGroupId` | string | No | Set by duplicate detection. |
 | `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
 
+### Staff collection index attributes (issue #267)
+
+Derived on write for indexed staff list/map/aggregates. See [staff-ticket-collection.md](./staff-ticket-collection.md).
+
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `staffScopeKey` | string | `municipalityId` or `UNSCOPED`. |
+| `staffSortKey` | string | `{createdAt}#{ticketId}` for newest-first pagination. |
+| `adminBrowseKey` | string | Always `ALL` for administrator browse queries. |
+
 ### Not persisted
 
 These API request fields are accepted at submission time but are not stored on the ticket record in MVP:
@@ -103,19 +113,19 @@ contract and persistence model.
 | `userId` | string | Yes | Stable primary/ownership key, format `usr_<hex>`. Never changes with profile fields. |
 | `phone` | string | Yes | Canonical verified E.164 phone and login/reconciliation key. |
 | `phoneVerifiedAt` | string | Yes | ISO 8601 time at which the current `phone` was verified. Replaced atomically on phone change. |
-| `fullName` | string | Yes for contribution | Trimmed 1–120 character name. May be temporarily absent only during first verified-phone onboarding. |
+| `fullName` | string | No | Optional trimmed 1–120 character name. Not required for contribution (#270). Blank/null clears the name and forces `publicNameVisible=false`. |
 | `email` | string, nullable | No | Optional secondary notification/receipt address. Not unique and never used for identity, login, ownership, or automatic recovery. |
 | `notificationPreferences` | object | Yes | Opt-in channel/event preferences; defaults to no optional communications. SMS service messages required for authentication are not marketing preferences. |
 | `notificationPreferences.ticketUpdates` | enum | Yes | `SMS`, `EMAIL`, `BOTH`, or `NONE`; `EMAIL`/`BOTH` requires non-null email. |
 | `notificationPreferences.announcements` | boolean | Yes | Explicit announcement opt-in; default `false`. |
-| `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. |
+| `publicNameVisible` | boolean | Yes | Default `false`. Public attribution resolves this and current `fullName` dynamically. Empty names cannot be published. |
 | `active` | boolean | Yes | Default `true`. OTP verification for an inactive account returns `403 ACCOUNT_INACTIVE` without issuing a session; deactivation immediately revokes existing sessions. |
 | `sessionEpoch` | number | Yes | Monotonic account-wide session generation. Phone change and other security revocations increment it; authentication rejects any session whose stored epoch does not match. This is the strongly consistent revocation authority (GSI session scans are best-effort cleanup only). Auth must read the citizen row with DynamoDB `ConsistentRead=True`. Not returned from profile APIs. |
 | `createdAt` | string | Yes | ISO 8601 creation time. |
 | `updatedAt` | string | Yes | ISO 8601 last profile update time. |
 
-`contributionReady` is derived, not stored: `active = true`, `phoneVerifiedAt` is non-null for the
-current phone, and trimmed `fullName` is 1–120 characters. `email` and `publicNameVisible` do not
+`contributionReady` is derived, not stored: `active = true` and `phoneVerifiedAt` is non-null for the
+current phone. `fullName`, `email`, and `publicNameVisible` do not
 affect contribution eligibility.
 
 At ticket creation, `notificationPreferences.ticketUpdates` maps into the immutable singular
@@ -179,7 +189,7 @@ password fields or staff credentials.
 
 `ownerUserId` is immutable ownership; `contact` is the immutable private submission snapshot. Public
 name attribution never reads the snapshot: it dynamically resolves the active owner's current
-`publicNameVisible` and `fullName`, otherwise returns `Anonymous`. Profile changes do not rewrite
+`publicNameVisible` and `fullName`, otherwise returns `Community member`. Profile changes do not rewrite
 contact snapshots.
 
 Citizen account deletion (issue #190) anonymizes the `users` row (`active=false`, PII cleared, phone
@@ -441,7 +451,7 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 
 | Table suffix | Partition key | Notes |
 |---|---|---|
-| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode`, `ownerUserId` + `ownerHistorySortKey` |
+| `tickets` | `ticketId` | GSIs on `ticketNumber`, `trackingCode`, `ownerUserId` + `ownerHistorySortKey`, `publicStatus` + `publicSortKey`, `staffScopeKey` + `staffSortKey`, `adminBrowseKey` + `staffSortKey`, `departmentId` + `staffSortKey` (staff collection, issue #267) |
 | `users` | `userId` | Optional `phone-index` read optimization only; no email index |
 | `phone-claims` | `phoneKey` | Atomic canonical-phone uniqueness authority; no GSI required |
 | `citizen-otp-challenges` | `challengeId` | TTL on expiry; optional abuse-control indexes must not expose code material |
@@ -457,3 +467,4 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `categories` | `categoryId` | Reference taxonomy for AI/admin |
 | `counters` | `counterId` | Ticket number sequence counter |
 | `rate-limit-buckets` | `bucketKey` | Shared fixed-window rate-limit counters (issue #186); TTL on `expiresAt` |
+| `ticket-submission-claims` | `idempotencyKey` | Citizen ticket submit ledger (#258); TTL on `ttl` (~14d completed; shorter for abandoned claims). Covered by backup PITR suffix list. |

@@ -6,13 +6,28 @@ import { IconImage } from '@/components/icons';
 import './TicketPhoto.css';
 
 type TicketPhotoProps = {
-  imageObjectKey: string;
+  /**
+   * Absent on bounded projections (duplicate comparison) that only receive a
+   * presigned URL. Mock mode still uses it for a deterministic placeholder.
+   */
+  imageObjectKey?: string;
   category: string;
   alt: string;
   imageUrl?: string;
+  /**
+   * Raw storage keys are technical metadata, so they stay hidden unless a
+   * surface explicitly needs them (e.g. a technical-details disclosure).
+   */
+  showObjectKey?: boolean;
 };
 
-export function TicketPhoto({ imageObjectKey, category, alt, imageUrl }: TicketPhotoProps) {
+export function TicketPhoto({
+  imageObjectKey,
+  category,
+  alt,
+  imageUrl,
+  showObjectKey = false,
+}: TicketPhotoProps) {
   const [hasError, setHasError] = useState(false);
   const categorySlug = category.replace(/_/g, '-');
 
@@ -25,32 +40,22 @@ export function TicketPhoto({ imageObjectKey, category, alt, imageUrl }: TicketP
           <span className="ticket-photo__mock-category">{formatCategory(category)}</span>
           <span className="ticket-photo__mock-hint">Citizen report photograph</span>
         </div>
-        <figcaption className="ticket-photo__caption">{imageObjectKey}</figcaption>
+        {showObjectKey && (
+          <figcaption className="ticket-photo__caption">{imageObjectKey}</figcaption>
+        )}
       </figure>
     );
   }
 
   const resolvedImageUrl = getTicketImageUrl(imageObjectKey, category, imageUrl);
 
-  if (!resolvedImageUrl) {
+  if (!resolvedImageUrl || hasError) {
     return (
       <figure className="ticket-photo ticket-photo--fallback">
         <div className="ticket-photo__fallback" role="img" aria-label={alt}>
           <IconImage className="ticket-photo__fallback-icon" />
           <p className="ticket-photo__fallback-title">Report photo unavailable</p>
-          <p className="ticket-photo__fallback-key">{imageObjectKey}</p>
-        </div>
-      </figure>
-    );
-  }
-
-  if (hasError) {
-    return (
-      <figure className="ticket-photo ticket-photo--fallback">
-        <div className="ticket-photo__fallback" role="img" aria-label={alt}>
-          <IconImage className="ticket-photo__fallback-icon" />
-          <p className="ticket-photo__fallback-title">Report photo unavailable</p>
-          <p className="ticket-photo__fallback-key">{imageObjectKey}</p>
+          {showObjectKey && <p className="ticket-photo__fallback-key">{imageObjectKey}</p>}
         </div>
       </figure>
     );
@@ -64,7 +69,7 @@ export function TicketPhoto({ imageObjectKey, category, alt, imageUrl }: TicketP
         alt={alt}
         onError={() => setHasError(true)}
       />
-      <figcaption className="ticket-photo__caption">{imageObjectKey}</figcaption>
+      {showObjectKey && <figcaption className="ticket-photo__caption">{imageObjectKey}</figcaption>}
     </figure>
   );
 }

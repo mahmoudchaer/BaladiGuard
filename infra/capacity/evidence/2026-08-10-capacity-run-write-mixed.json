@@ -1,0 +1,287 @@
+{
+  "generatedAt": "2026-08-10T07:59:32.288247Z",
+  "scenario": "write-mixed",
+  "baseUrl": "http://127.0.0.1:61874",
+  "concurrency": 8,
+  "durationSeconds": 25.0,
+  "totals": {
+    "requests": 1967,
+    "ok2xx": 1477,
+    "client4xx": 490,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 60.275499999988824,
+    "p95": 289.9546299999199,
+    "p99": 472.9836079999757,
+    "mean": 102.06805943060495,
+    "max": 1917.1414000002187
+  },
+  "byName": {
+    "health_live": {
+      "count": 250,
+      "status_counts": {
+        "200": 250
+      },
+      "latency_ms": {
+        "p50": 35.74619999994866,
+        "p95": 185.51530500008084,
+        "p99": 273.8134440000431,
+        "mean": 62.2420911999925
+      }
+    },
+    "track_miss": {
+      "count": 250,
+      "status_counts": {
+        "404": 250
+      },
+      "latency_ms": {
+        "p50": 37.366000000019994,
+        "p95": 230.86751499974974,
+        "p99": 293.3207229998831,
+        "mean": 68.94635920001201
+      }
+    },
+    "staff_list": {
+      "count": 249,
+      "status_counts": {
+        "200": 249
+      },
+      "latency_ms": {
+        "p50": 178.21219999996174,
+        "p95": 509.30403999982445,
+        "p99": 1899.5730079999341,
+        "mean": 252.49185341365052
+      }
+    },
+    "ticket_submit": {
+      "count": 246,
+      "status_counts": {
+        "201": 246
+      },
+      "latency_ms": {
+        "p50": 99.7157500000867,
+        "p95": 304.39490000026126,
+        "p99": 429.4206350000427,
+        "mean": 128.06702195121403
+      }
+    },
+    "photo_upload": {
+      "count": 244,
+      "status_counts": {
+        "200": 244
+      },
+      "latency_ms": {
+        "p50": 43.99229999989984,
+        "p95": 233.75681000013628,
+        "p99": 384.9738559998058,
+        "mean": 76.48360573770161
+      }
+    },
+    "staff_status": {
+      "count": 243,
+      "status_counts": {
+        "200": 3,
+        "400": 240
+      },
+      "latency_ms": {
+        "p50": 53.68060000000696,
+        "p95": 199.77650999976493,
+        "p99": 320.496949999887,
+        "mean": 76.73576790124825
+      }
+    },
+    "otp_request": {
+      "count": 243,
+      "status_counts": {
+        "202": 243
+      },
+      "latency_ms": {
+        "p50": 65.20369999998366,
+        "p95": 231.8619600002871,
+        "p99": 391.38610200005036,
+        "mean": 89.98474238682387
+      }
+    },
+    "health_ready_ai": {
+      "count": 242,
+      "status_counts": {
+        "200": 242
+      },
+      "latency_ms": {
+        "p50": 41.18260000018381,
+        "p95": 171.00204500029565,
+        "p99": 262.76984600002385,
+        "mean": 59.58974214876216
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": 304.39490000026126,
+      "pass": true
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": 509.30403999982445,
+      "pass": true
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "count": 242,
+      "last": {
+        "at": "2026-08-10T07:59:32.278688Z",
+        "pending": 0,
+        "processing": 0,
+        "failed": 0,
+        "status": "ok",
+        "source": "memory_store"
+      },
+      "maxPending": 4
+    }
+  },
+  "createdTicketIdsSample": [
+    "tkt_ebf98afd35334d2191e5e5331737c741",
+    "tkt_b3a72984c45a4d2bad51c5fe2e6e559d",
+    "tkt_0ddbf46fee49490e9eb1560a3294864e",
+    "tkt_3c7037f55def48178b525309e428df55",
+    "tkt_54cb9e779d12407981d17621c6ab8754",
+    "tkt_cb70e66eb9964e64852ba141a44b9aef",
+    "tkt_9eb7ffd0663e43bdbf952c5464b1716c",
+    "tkt_bd2db9c04bd84a0eaa86a0ddc61a518e",
+    "tkt_6a12db0d170f44eda385abc69aeb7425",
+    "tkt_ed66752c4b2d422a9e3bbb424338c42a",
+    "tkt_d836a9dabc0445db837cb28c535148f9",
+    "tkt_1deefd5a16ef44d8897b875b55b55738",
+    "tkt_07e49a64c80b4898aa8b811d632eb011",
+    "tkt_5cc423e9b1ad47acb081504752f81fcb",
+    "tkt_1645d6195e084fe1a30c826b7376e63c",
+    "tkt_e96ec8a8725343c3a912c17e8933edf2",
+    "tkt_540af022ec0e437db199f65e593bc149",
+    "tkt_10a6114ac74f44a78f30678259401ff9",
+    "tkt_a1af5ef0478d4549b097f01a90f6d9ee",
+    "tkt_4df306f2b76c4e01b1b846141b882819"
+  ],
+  "uploadedObjectKeysSample": [
+    "reports/photos/8cdf7cc3-3eb6-4e11-b08c-fae24241040b.jpg",
+    "reports/photos/f4d2b73d-df9c-48a6-9a69-2757ce09aabd.jpg",
+    "reports/photos/72e739d6-7a64-43f5-8b20-e7258d34d13d.jpg",
+    "reports/photos/eb6f0bdd-1caa-4ffa-9e4a-2a62604609fc.jpg",
+    "reports/photos/006f600c-afb4-463e-8e5d-99569e1749e3.jpg",
+    "reports/photos/32dbbb39-0f44-4edd-950c-d6b1e785504c.jpg",
+    "reports/photos/8d020add-7dc9-4c1e-a230-b28b7203ea5a.jpg",
+    "reports/photos/e6b7f8e1-0655-44e8-96e4-3b71ec6034e9.jpg",
+    "reports/photos/734087a8-05c2-48cb-a25a-ca1ae450213d.jpg",
+    "reports/photos/4ac0b818-39c2-43d5-8ae3-977f2c27e90b.jpg",
+    "reports/photos/475f08ea-170c-4fcb-96d7-0ff3d8a450b1.jpg",
+    "reports/photos/15d24f39-f7f4-4ea7-92fa-c594b7fb0162.jpg",
+    "reports/photos/2d76cbd3-8ae4-4fe9-9ebd-852d8c7a1c12.jpg",
+    "reports/photos/ceac0529-66d9-4066-b79e-9ec3a4fa5c86.jpg",
+    "reports/photos/f6bb4692-62f9-4dbc-86e4-510a51a59a01.jpg",
+    "reports/photos/cef9531c-a11c-46fe-9144-178944db0c87.jpg",
+    "reports/photos/8df90518-2115-41a8-8c96-a594b4b9891f.jpg",
+    "reports/photos/6bf14afc-1876-4a1f-aa33-40a1875dc908.jpg",
+    "reports/photos/553cded9-77d4-4b69-bd43-3df89e72e124.jpg",
+    "reports/photos/21a8ad41-516e-48d1-8cea-fb9eeeae03ed.jpg"
+  ],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-10T07:59:32.248627Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.248627Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.248627Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.258032Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.258032Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.268072Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.268072Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.268072Z",
+      "pending": 1,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.278688Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    },
+    {
+      "at": "2026-08-10T07:59:32.278688Z",
+      "pending": 0,
+      "processing": 0,
+      "failed": 0,
+      "status": "ok",
+      "source": "memory_store"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

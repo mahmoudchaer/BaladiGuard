@@ -9,8 +9,26 @@ from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
+from app.schemas.image_redaction import ReprocessImageResponse
+from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
+from app.schemas.staff_comment import (
+    ActivityTimelineResponse,
+    CreateStaffCommentRequest,
+    StaffCommentResponse,
+)
+from app.schemas.staff_ticket_collection import (
+    TicketAggregatesResponse,
+    TicketListPageResponse,
+    TicketMapViewportResponse,
+)
 from app.schemas.ticket import SubmitTicketRequest, SubmitTicketResponse
 from app.schemas.ticket_ai_update import AssignTicketDepartmentRequest, ReviewTicketCategoryRequest
+from app.schemas.ticket_duplicates import (
+    DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+    DUPLICATE_CANDIDATE_MAX_LIMIT,
+    DuplicateCandidatePageResponse,
+    DuplicateComparisonResponse,
+)
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
@@ -28,16 +46,85 @@ from app.services.complaints.status_workflow import (
 )
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
+    STAFF_MAP_DEFAULT_LIMIT,
+    STAFF_MAP_MAX_LIMIT,
+    STAFF_TICKET_DEFAULT_LIMIT,
+    STAFF_TICKET_MAX_LIMIT,
     DuplicateMergeError,
     PublicContentUpdateError,
     StaffScopeForbiddenError,
     TicketNotFoundError,
+    TicketSubmissionInProgressError,
     ticket_service,
 )
+from app.services.redaction.queue import image_redaction_queue
+from app.services.staff.assistant import staff_assistant_service
+from app.services.staff.comments import StaffCommentError, staff_comment_service
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
 logger = logging.getLogger(__name__)
+
+
+@router.post("/staff-assistant/query", response_model=StaffAssistantResponse)
+def query_staff_assistant(
+    payload: StaffAssistantQuery,
+    principal: StaffDep,
+) -> StaffAssistantResponse:
+    """Read-only deterministic assistant, grounded in the caller's visible tickets."""
+    return staff_assistant_service.answer(payload.question, principal=principal)
+
+
+def _staff_comment_error(request: Request, exc: StaffCommentError) -> JSONResponse:
+    return build_error_response(
+        code=exc.code,
+        message=exc.message,
+        request_id=get_request_id(request),
+        status_code=exc.status_code,
+    )
+
+
+@router.post("/tickets/{ticket_id}/comments", response_model=StaffCommentResponse, status_code=201)
+def create_staff_comment(
+    ticket_id: str, payload: CreateStaffCommentRequest, request: Request, principal: StaffDep
+) -> StaffCommentResponse | JSONResponse:
+    try:
+        return staff_comment_service.create(ticket_id, payload, principal=principal)
+    except StaffCommentError as exc:
+        return _staff_comment_error(request, exc)
+
+
+@router.get("/tickets/{ticket_id}/comments", response_model=list[StaffCommentResponse])
+def list_staff_comments(
+    ticket_id: str, request: Request, principal: StaffDep
+) -> list[StaffCommentResponse] | JSONResponse:
+    try:
+        return staff_comment_service.list(ticket_id, principal=principal)
+    except StaffCommentError as exc:
+        return _staff_comment_error(request, exc)
+
+
+@router.get("/tickets/{ticket_id}/activity", response_model=ActivityTimelineResponse)
+def get_ticket_activity(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str | None = Query(default=None),
+) -> ActivityTimelineResponse | JSONResponse:
+    try:
+        return staff_comment_service.timeline(
+            ticket_id, principal=principal, limit=limit, cursor=cursor
+        )
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The activity cursor is invalid.",
+            request_id=get_request_id(request),
+            status_code=400,
+        )
+    except StaffCommentError as exc:
+        return _staff_comment_error(request, exc)
 
 
 @router.post("/tickets", response_model=SubmitTicketResponse, status_code=201)
@@ -59,11 +146,26 @@ def submit_ticket(
     if user is None:
         raise unauthorized(request)
 
-    response = ticket_service.submit_ticket(
-        payload,
-        owner_user_id=principal.user_id,
-        contact=snapshot_contact_for_ticket(user),
-    )
+    # Prefer Idempotency-Key header; body clientSubmissionId is a fallback (issue #258).
+    header_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    client_submission_key = header_key or payload.client_submission_id
+
+    try:
+        response = ticket_service.submit_ticket(
+            payload,
+            owner_user_id=principal.user_id,
+            contact=snapshot_contact_for_ticket(user),
+            client_submission_key=client_submission_key,
+        )
+    except TicketSubmissionInProgressError as exc:
+        return build_error_response(
+            code="SUBMISSION_IN_PROGRESS",
+            message=str(exc),
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="Idempotency-Key", message=str(exc))],
+            status_code=409,
+        )
+
     try:
         ai_job_queue.enqueue(response.ticket_id)
     except Exception as exc:
@@ -75,10 +177,41 @@ def submit_ticket(
             response.ticket_id,
             type(exc).__name__,
         )
+    try:
+        image_redaction_queue.enqueue(response.ticket_id)
+    except Exception as exc:
+        logger.warning(
+            "Image redaction queue write deferred ticket_id=%s error=%s",
+            response.ticket_id,
+            type(exc).__name__,
+        )
     return response
 
 
-@router.get("/tickets", response_model=list[TicketResponse])
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/reprocess",
+    response_model=ReprocessImageResponse,
+    status_code=202,
+)
+def reprocess_ticket_image(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ReprocessImageResponse | JSONResponse:
+    try:
+        generation = ticket_service.request_image_reprocessing(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    image_redaction_queue.enqueue(ticket_id, generation)
+    return ReprocessImageResponse(ticketId=ticket_id, generation=generation)
+
+
+@router.get("/tickets", response_model=TicketListPageResponse)
 def list_tickets(
     principal: StaffDep,
     request: Request,
@@ -86,13 +219,23 @@ def list_tickets(
     category: str | None = Query(default=None),
     urgency: str | None = Query(default=None),
     department_id: str | None = Query(default=None, alias="departmentId"),
-) -> list[TicketResponse] | JSONResponse:
-    """Staff dashboard ticket list with optional persisted-field filters (issue #142)."""
+    sla_state: str | None = Query(default=None, alias="slaState"),
+    assignment_state: str | None = Query(default=None, alias="assignmentState"),
+    q: str | None = Query(default=None),
+    open_only: bool = Query(default=False, alias="openOnly"),
+    limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
+    cursor: str | None = Query(default=None),
+) -> TicketListPageResponse | JSONResponse:
+    """Staff dashboard ticket list with cursor pagination (issue #267)."""
     filters, errors = parse_ticket_list_filters(
         status=status,
         category=category,
         urgency=urgency,
         department_id=department_id,
+        sla_state=sla_state,
+        assignment_state=assignment_state,
+        q=q,
+        open_only=open_only,
     )
     if errors:
         return build_error_response(
@@ -102,7 +245,81 @@ def list_tickets(
             details=[ErrorDetail(field=error.field, message=error.message) for error in errors],
             status_code=400,
         )
-    return ticket_service.list_tickets(filters, staff_principal=principal)
+    try:
+        return ticket_service.list_tickets_page(
+            filters,
+            staff_principal=principal,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The ticket list cursor is invalid.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
+            status_code=400,
+        )
+
+
+@router.get("/tickets/map", response_model=TicketMapViewportResponse)
+def map_tickets_viewport(
+    principal: StaffDep,
+    request: Request,
+    north: float = Query(...),
+    south: float = Query(...),
+    east: float = Query(...),
+    west: float = Query(...),
+    zoom: float = Query(...),
+    status: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    urgency: str | None = Query(default=None),
+    department_id: str | None = Query(default=None, alias="departmentId"),
+    sla_state: str | None = Query(default=None, alias="slaState"),
+    limit: int = Query(default=STAFF_MAP_DEFAULT_LIMIT, ge=1, le=STAFF_MAP_MAX_LIMIT),
+) -> TicketMapViewportResponse | JSONResponse:
+    """Staff map viewport with markers or grid clusters (issue #267)."""
+    if south > north:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="south", message="south must be <= north.")],
+            status_code=400,
+        )
+    filters, errors = parse_ticket_list_filters(
+        status=status,
+        category=category,
+        urgency=urgency,
+        department_id=department_id,
+        sla_state=sla_state,
+    )
+    if errors:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field=error.field, message=error.message) for error in errors],
+            status_code=400,
+        )
+    return ticket_service.map_viewport(
+        staff_principal=principal,
+        north=north,
+        south=south,
+        east=east,
+        west=west,
+        zoom=zoom,
+        filters=filters,
+        limit=limit,
+    )
+
+
+@router.get("/tickets/aggregates", response_model=TicketAggregatesResponse)
+def ticket_aggregates(
+    principal: StaffDep,
+) -> TicketAggregatesResponse:
+    """Staff dashboard attention counts (issue #267)."""
+    return ticket_service.ticket_aggregates(principal)
 
 
 @router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)
@@ -217,6 +434,74 @@ def get_ticket(
             status_code=404,
         )
     return ticket
+
+
+@router.get(
+    "/tickets/{ticket_id}/duplicate-candidates",
+    response_model=DuplicateCandidatePageResponse,
+)
+def list_duplicate_candidates(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+    q: str | None = Query(default=None),
+    limit: int = Query(
+        default=DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
+        ge=1,
+        le=DUPLICATE_CANDIDATE_MAX_LIMIT,
+    ),
+    cursor: str | None = Query(default=None),
+) -> DuplicateCandidatePageResponse | JSONResponse:
+    """Mergeable duplicate candidates for one ticket, cursor-paginated (issue #269)."""
+    try:
+        return ticket_service.list_duplicate_candidates(
+            ticket_id,
+            staff_principal=principal,
+            q=q,
+            limit=limit,
+            cursor=cursor,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ValueError:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The duplicate candidate cursor is invalid.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
+            status_code=400,
+        )
+
+
+@router.get(
+    "/tickets/{ticket_id}/duplicate-comparison/{candidate_ticket_id}",
+    response_model=DuplicateComparisonResponse,
+)
+def get_duplicate_comparison(
+    ticket_id: str,
+    candidate_ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> DuplicateComparisonResponse | JSONResponse:
+    """Bounded side-by-side comparison projection for the merge review (issue #269)."""
+    try:
+        return ticket_service.get_duplicate_comparison(
+            ticket_id,
+            candidate_ticket_id,
+            staff_principal=principal,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
 
 
 @router.patch("/tickets/{ticket_id}/status", response_model=TicketResponse)

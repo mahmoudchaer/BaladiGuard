@@ -222,7 +222,7 @@ function buildProfilePatchBody(patch: CitizenProfileUpdatePayload): Record<strin
   const body: Record<string, unknown> = {};
 
   if (patch.fullName !== undefined) {
-    body.fullName = patch.fullName.trim();
+    body.fullName = patch.fullName === null ? null : patch.fullName.trim();
   }
   if (patch.email !== undefined) {
     body.email = patch.email === null ? null : patch.email.trim() || null;

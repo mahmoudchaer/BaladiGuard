@@ -2,11 +2,11 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HomeScreen from '../../app/index';
-import ExploreScreen from '../../app/explore';
+import HomeScreen from '../../app/(tabs)';
+import ExploreScreen from '../../app/(tabs)/explore';
 import { getPublicTickets } from '@/services/api/tickets';
 import { __getRouterMockState, __resetExpoRouterMock } from './mocks/expo-router';
-import { renderWithProvidersAsync } from './render';
+import { renderWithProviders, renderWithProvidersAsync } from './render';
 
 const publicTickets = {
   items: [
@@ -32,6 +32,13 @@ vi.mock('@/services/api/tickets', () => ({
   getCitizenTicketHistory: vi.fn(),
 }));
 
+vi.mock('react-native-maps', () => ({
+  default: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('MapView', props, children),
+  Marker: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('Marker', props, children),
+}));
+
 describe('mobile entry and Explore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,9 +56,20 @@ describe('mobile entry and Explore', () => {
     expect(getPublicTickets).not.toHaveBeenCalled();
   });
 
+  it('shows the branded splash while the stored session is being restored', () => {
+    const screen = renderWithProviders(<HomeScreen />);
+    expect(screen.root.findByProps({ testID: 'session-loading-splash' })).toBeTruthy();
+    screen.unmount();
+  });
+
   it('loads privacy-safe reports in Explore instead of welcome', async () => {
     const screen = await renderWithProvidersAsync(<ExploreScreen />);
-    expect(getPublicTickets).toHaveBeenCalledWith({ limit: 20 });
+    expect(getPublicTickets).toHaveBeenCalledWith({
+      limit: 50,
+      signal: expect.any(AbortSignal),
+    });
+    expect(screen.root.findByProps({ testID: 'public-reports-map' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'public-report-filters' })).toBeTruthy();
     expect(screen.root.findByProps({ testID: 'public-report-feed' })).toBeTruthy();
     expect(
       screen.root.findByProps({ children: 'Large pothole near the university gate.' }),
@@ -70,5 +88,17 @@ describe('mobile entry and Explore', () => {
       pathname: '/public/[ticketNumber]',
       params: { ticketNumber: 'BG-2026-0001' },
     });
+  });
+
+  it('shows honest empty and retryable error states in Explore', async () => {
+    vi.mocked(getPublicTickets).mockResolvedValueOnce({ items: [], nextCursor: null, limit: 50 });
+    const emptyScreen = await renderWithProvidersAsync(<ExploreScreen />);
+    expect(emptyScreen.root.findByProps({ testID: 'explore-empty' })).toBeTruthy();
+    emptyScreen.unmount();
+
+    vi.mocked(getPublicTickets).mockRejectedValueOnce(new Error('Network unavailable'));
+    const errorScreen = await renderWithProvidersAsync(<ExploreScreen />);
+    expect(errorScreen.root.findByProps({ children: 'Network unavailable' })).toBeTruthy();
+    expect(errorScreen.root.findByProps({ children: 'Try again' })).toBeTruthy();
   });
 });

@@ -110,7 +110,7 @@ def test_list_tickets_succeeds_with_staff_token(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    tickets = response.json()
+    tickets = response.json()["items"]
     assert any(ticket["ticketId"] == created["ticketId"] for ticket in tickets)
 
 
@@ -240,7 +240,7 @@ def test_municipal_staff_list_is_scoped_by_municipality_and_departments(
     )
 
     assert response.status_code == 200
-    visible_ids = {ticket["ticketId"] for ticket in response.json()}
+    visible_ids = {ticket["ticketId"] for ticket in response.json()["items"]}
     assert in_department["ticketId"] in visible_ids
     assert unassigned["ticketId"] in visible_ids
     assert other_department["ticketId"] not in visible_ids
@@ -261,6 +261,26 @@ def test_municipal_staff_out_of_scope_detail_matches_missing_ticket(
     assert out_of_scope.status_code == 404
     assert missing.status_code == 404
     assert out_of_scope.json()["error"]["code"] == missing.json()["error"]["code"]
+
+
+def test_out_of_scope_ticket_returns_404_to_municipal_staff_and_200_to_admin(
+    anonymous_client,
+    client,
+):
+    created = _create_ticket(client)
+    _stamp_ticket_scope(created["ticketId"], department_id=WASTE_MANAGEMENT, category="waste")
+
+    municipal = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}", headers=_staff_headers(anonymous_client, "staff")
+    )
+    administrator = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}", headers=_staff_headers(anonymous_client, "admin")
+    )
+
+    assert municipal.status_code == 404
+    assert municipal.json()["error"]["code"] == "TICKET_NOT_FOUND"
+    assert administrator.status_code == 200
+    assert administrator.json()["ticketId"] == created["ticketId"]
 
 
 def test_municipal_staff_cannot_assign_unscoped_department(anonymous_client, client):

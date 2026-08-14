@@ -28,12 +28,25 @@
   background: var(--color-surface-subtle);
 }
 
-.ticket-map__empty-message {
-  margin: 0;
-  padding: 0 1.5rem;
+.ticket-map__truncated {
+  margin: 0.65rem 0 0;
+  font-size: 0.75rem;
   color: var(--color-text-muted);
-  font-size: var(--text-body-compact);
-  text-align: center;
+}
+
+.ticket-map__empty-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  box-shadow: var(--shadow-sm);
+  z-index: 500;
 }
 
 .ticket-map__canvas {

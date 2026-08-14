@@ -17,7 +17,9 @@ from app.config import Settings, get_settings
 
 AllowedSeverity = Literal["error", "warning"]
 
-ALLOWED_ENVIRONMENTS = frozenset({"local", "development", "production", "test"})
+ALLOWED_ENVIRONMENTS = frozenset({"local", "development", "staging", "production", "test"})
+# Deployed envs: no silent localhost citizen deep-link defaults (issue #257).
+_DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "production"})
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
@@ -67,16 +69,17 @@ class ConfigValidationResult:
 
     @property
     def should_abort_startup(self) -> bool:
-        """Fail closed for production misconfig and unknown environments.
+        """Fail closed for deployed misconfig and unknown environments.
 
-        Invalid ``APP_ENV`` values (for example ``staging``) must abort so a
-        deploy typo cannot bypass production fail-closed checks. Local /
+        Invalid ``APP_ENV`` values must abort so a deploy typo cannot bypass
+        fail-closed checks. ``production`` and ``staging`` abort on any error
+        severity issue (including missing citizen deep-link base URL). Local /
         development / test keep starting with soft defaults when formats are
         otherwise valid.
         """
         if any(issue.code == "INVALID_APP_ENV" for issue in self.issues):
             return True
-        return self.env == "production" and not self.ok
+        return self.env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE and not self.ok
 
     def to_health_dict(self) -> dict[str, Any]:
         return {
@@ -414,5 +417,89 @@ def validate_configuration(
                     message="Production must set SEED_SAMPLE_TICKETS=false.",
                 )
             )
+
+    # Citizen app deep links for SMS/email (issue #257). Fail closed for every
+    # deployed environment: staging and production require an explicit
+    # non-localhost https base (no silent localhost default). Local /
+    # development / test may omit CITIZEN_APP_BASE_URL and use localhost.
+    if app_env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE:
+        from app.services.notifications.deep_links import (
+            is_localhost_base_url,
+            is_valid_citizen_app_base_url,
+            normalize_citizen_app_base_url,
+        )
+
+        env_label = "Production" if app_env == "production" else "Staging"
+        citizen_base = normalize_citizen_app_base_url(cfg.citizen_app_base_url)
+        if not citizen_base:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CITIZEN_APP_BASE_URL",
+                    message=(
+                        f"{env_label} requires CITIZEN_APP_BASE_URL "
+                        "(HTTPS base for citizen notification deep links)."
+                    ),
+                )
+            )
+        elif is_localhost_base_url(citizen_base):
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_CITIZEN_APP_BASE_URL",
+                    message=(f"{env_label} must not use a localhost CITIZEN_APP_BASE_URL."),
+                )
+            )
+        elif not is_valid_citizen_app_base_url(citizen_base, require_https=True):
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_CITIZEN_APP_BASE_URL",
+                    message=(
+                        "CITIZEN_APP_BASE_URL must be a valid https URL "
+                        "(no trailing path required; e.g. https://app.example.com)."
+                    ),
+                )
+            )
+
+    # Browser CORS allowlist for admin + citizen-web (issue #263).
+    # Staging/production must set CORS_ALLOWED_ORIGINS to explicit non-localhost
+    # https origins — never silently keep local Vite/Expo defaults.
+    if app_env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE:
+        from app.core.cors import is_localhost_origin, parse_cors_allowed_origins
+
+        env_label = "Production" if app_env == "production" else "Staging"
+        origins = parse_cors_allowed_origins(cfg.cors_allowed_origins)
+        if not origins:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CORS_ALLOWED_ORIGINS",
+                    message=(
+                        f"{env_label} requires CORS_ALLOWED_ORIGINS "
+                        "(comma-separated https origins for admin and citizen-web)."
+                    ),
+                )
+            )
+        else:
+            for origin in origins:
+                if is_localhost_origin(origin):
+                    result.issues.append(
+                        ConfigIssue(
+                            code="UNSAFE_CORS_ALLOWED_ORIGINS",
+                            message=(
+                                f"{env_label} must not include localhost origins "
+                                "in CORS_ALLOWED_ORIGINS."
+                            ),
+                        )
+                    )
+                    break
+                if not origin.lower().startswith("https://"):
+                    result.issues.append(
+                        ConfigIssue(
+                            code="INVALID_CORS_ALLOWED_ORIGINS",
+                            message=(
+                                "CORS_ALLOWED_ORIGINS entries must use https "
+                                f"in {app_env} (e.g. https://citizen.example.com)."
+                            ),
+                        )
+                    )
+                    break
 
     return result

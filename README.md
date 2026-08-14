@@ -30,6 +30,9 @@ BaladiGuard provides a centralized platform where citizens can submit reports us
 
 - View submitted complaints
 - Filter by category, urgency, department, and status
+- Staff-only SLA indicators and overdue queue filtering (see `docs/sla-policy.md`)
+- Secure public-image face and license-plate redaction (see `docs/image-redaction.md`)
+- Internal staff comments and normalized activity timeline (see `docs/staff-comments-and-activity.md`)
 - Assign and update tickets
 - Monitor complaint locations on a map
 
@@ -40,6 +43,7 @@ BaladiGuard/
 ├── mobile/
 ├── backend/
 ├── admin/
+├── citizen-web/
 ├── docs/
 ├── scripts/
 └── .github/
@@ -82,6 +86,28 @@ npm run format:check
 npm run typecheck
 npm test
 ```
+
+### Citizen Web
+
+Install dependencies once:
+
+```bash
+cd citizen-web
+npm ci
+```
+
+Then run:
+
+```bash
+cd citizen-web
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+```
+
+Dev server defaults to http://localhost:5174 (see `citizen-web/README.md`).
 
 ### Mobile
 
@@ -221,6 +247,8 @@ Project documentation is located in the `docs/` directory.
 - [Notification Message Templates](docs/notification-templates.md)
 - [Sprint 6 testing / role-permission matrix](docs/sprint6-testing.md)
 - [Sprint 6 full MVP acceptance & demo path](docs/sprint6-mvp-acceptance.md)
+- [Release readiness index](docs/release-readiness.md)
+- [Capacity validation (#191)](docs/capacity-validation.md)
 - [Local Database Setup](docs/local-database-setup.md)
 - [Cloud Setup (AWS DynamoDB + S3)](docs/cloud-setup.md)
 - Design Decisions

@@ -40,6 +40,7 @@ from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E
 from app.database.memory_notification_delivery import notification_delivery_store  # noqa: E402
 from app.database.memory_photo_claim import photo_claim_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
+from app.database.memory_staff_comments import staff_comment_store  # noqa: E402
 from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
@@ -140,6 +141,7 @@ def reset_ticket_store() -> None:
     ticket_store.clear()
     status_history_store.clear()
     audit_history_store.clear()
+    staff_comment_store.clear()
     account_audit_store.clear()
     ai_job_store.clear()
     duplicate_group_store.clear()
@@ -160,6 +162,11 @@ def reset_ticket_store() -> None:
     from app.services.notifications import reset_delivery_ledger
 
     reset_delivery_ledger()
+    from app.services.complaints.ticket_submission_idempotency import (
+        reset_ticket_submission_idempotency_store,
+    )
+
+    reset_ticket_submission_idempotency_store()
 
 
 @pytest.fixture(autouse=True)

@@ -65,10 +65,72 @@ def test_invalid_database_backend_is_reported():
 
 
 def test_invalid_app_env_is_reported_and_aborts_startup():
-    environ = {"APP_ENV": "staging", "AWS_REGION": "us-east-1"}
+    environ = {"APP_ENV": "not-a-real-env", "AWS_REGION": "us-east-1"}
     result = validate_configuration(_settings_from_env(), environ=environ)
     assert any(issue.code == "INVALID_APP_ENV" for issue in result.issues)
     assert result.should_abort_startup is True
+
+
+def test_staging_requires_https_non_localhost_citizen_app_base_url():
+    environ = {
+        "APP_ENV": "staging",
+        "DATABASE_BACKEND": "memory",
+        "NOTIFICATION_ADAPTER": "mock",
+        "AWS_REGION": "us-east-1",
+    }
+    original = dict(os.environ)
+    try:
+        os.environ.clear()
+        os.environ.update(environ)
+        result = validate_configuration(_settings_from_env(), environ=environ)
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+        get_settings.cache_clear()
+
+    codes = {issue.code for issue in result.issues}
+    assert result.env == "staging"
+    assert result.ok is False
+    assert result.should_abort_startup is True
+    assert "MISSING_CITIZEN_APP_BASE_URL" in codes
+
+    environ_http = {
+        **environ,
+        "CITIZEN_APP_BASE_URL": "http://localhost:8081",
+    }
+    try:
+        os.environ.clear()
+        os.environ.update(environ_http)
+        result_http = validate_configuration(_settings_from_env(), environ=environ_http)
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+        get_settings.cache_clear()
+
+    codes_http = {issue.code for issue in result_http.issues}
+    assert result_http.should_abort_startup is True
+    assert "UNSAFE_CITIZEN_APP_BASE_URL" in codes_http
+
+    environ_ok = {
+        **environ,
+        "CITIZEN_APP_BASE_URL": "https://staging.baladiguard.example",
+        "CORS_ALLOWED_ORIGINS": (
+            "https://admin.staging.baladiguard.example,https://citizen.staging.baladiguard.example"
+        ),
+    }
+    try:
+        os.environ.clear()
+        os.environ.update(environ_ok)
+        result_ok = validate_configuration(_settings_from_env(), environ=environ_ok)
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+        get_settings.cache_clear()
+
+    assert result_ok.env == "staging"
+    assert result_ok.ok is True
+    assert result_ok.should_abort_startup is False
+    assert not any("CITIZEN_APP_BASE_URL" in issue.code for issue in result_ok.issues)
 
 
 def test_prod_alias_normalizes_to_production_and_applies_rules():
@@ -134,10 +196,42 @@ def test_production_rejects_development_defaults():
     assert "MISSING_AWS_S3_BUCKET" in codes
     assert "UNSAFE_DYNAMODB_ENDPOINT_URL" in codes
     assert "UNSAFE_SEED_SAMPLE_TICKETS" in codes
+    assert "MISSING_CITIZEN_APP_BASE_URL" in codes
+    assert "MISSING_CORS_ALLOWED_ORIGINS" in codes
     # Secret values must never appear in issue messages.
     serialized = " ".join(issue.message for issue in result.issues).lower()
     assert "changeme" not in serialized
     assert "staff-demo-password" not in serialized
+
+
+def test_production_requires_https_citizen_app_base_url():
+    environ = {
+        "APP_ENV": "production",
+        "DATABASE_BACKEND": "dynamodb",
+        "NOTIFICATION_ADAPTER": "real",
+        "SES_FROM_EMAIL": "noreply@baladiguard.example",
+        "SECRET_KEY": "prod-rotation-key-not-a-placeholder",
+        "SEED_DEMO_STAFF": "false",
+        "AWS_REGION": "us-east-1",
+        "AWS_S3_BUCKET": "baladiguard-prod-uploads",
+        "LOCATION_PLACE_INDEX_NAME": "baladiguard-places",
+        "SEED_SAMPLE_TICKETS": "false",
+        "CITIZEN_APP_BASE_URL": "http://localhost:8081",
+    }
+    original = dict(os.environ)
+    try:
+        os.environ.clear()
+        os.environ.update(environ)
+        settings = _settings_from_env()
+        result = validate_configuration(settings, environ=environ)
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+        get_settings.cache_clear()
+
+    codes = {issue.code for issue in result.issues}
+    assert result.should_abort_startup is True
+    assert "UNSAFE_CITIZEN_APP_BASE_URL" in codes
 
 
 def test_production_valid_configuration_passes():
@@ -154,6 +248,10 @@ def test_production_valid_configuration_passes():
         "LOCATION_PLACE_INDEX_NAME": "baladiguard-places",
         "SEED_SAMPLE_TICKETS": "false",
         "DYNAMODB_ENDPOINT_URL": "",
+        "CITIZEN_APP_BASE_URL": "https://app.baladiguard.example",
+        "CORS_ALLOWED_ORIGINS": (
+            "https://admin.baladiguard.example,https://citizen.baladiguard.example"
+        ),
     }
     original = dict(os.environ)
     try:
@@ -223,9 +321,25 @@ def test_production_startup_aborts_on_unsafe_config(monkeypatch):
 
 
 def test_invalid_app_env_startup_aborts(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "not-a-real-env")
+    monkeypatch.setenv("DATABASE_BACKEND", "memory")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    get_settings.cache_clear()
+
+    app = create_app()
+    with pytest.raises(RuntimeError, match="Configuration validation failed"):
+        with TestClient(app):
+            pass
+
+    monkeypatch.setenv("APP_ENV", "test")
+    get_settings.cache_clear()
+
+
+def test_staging_startup_aborts_without_citizen_app_base_url(monkeypatch):
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("DATABASE_BACKEND", "memory")
     monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.delenv("CITIZEN_APP_BASE_URL", raising=False)
     get_settings.cache_clear()
 
     app = create_app()

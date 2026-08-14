@@ -22,7 +22,7 @@ export default defineConfig({
       },
       {
         find: /^react-native(\/.*)?$/,
-        replacement: path.resolve(__dirname, './src/test/mocks/react-native.tsx'),
+        replacement: path.resolve(__dirname, './src/test/mocks/react-native-host.tsx'),
       },
       {
         find: /^react-native-safe-area-context$/,
@@ -35,6 +35,10 @@ export default defineConfig({
       {
         find: /^expo-secure-store$/,
         replacement: path.resolve(__dirname, './src/test/mocks/expo-secure-store.ts'),
+      },
+      {
+        find: /^expo-file-system$/,
+        replacement: path.resolve(__dirname, './src/test/mocks/expo-file-system.ts'),
       },
       {
         find: /^expo-constants$/,

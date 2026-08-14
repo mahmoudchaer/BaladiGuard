@@ -25,7 +25,9 @@ export function sanitizeReturnTo(returnTo: string | string[] | undefined | null)
     pathOnly.startsWith('/report') ||
     pathOnly.startsWith('/track') ||
     pathOnly.startsWith('/profile') ||
-    pathOnly.startsWith('/history')
+    pathOnly.startsWith('/history') ||
+    // Notification deep links (issue #257): `/t/{trackingCode}` only.
+    /^\/t\/[A-Za-z0-9]+$/.test(pathOnly)
   ) {
     return pathOnly;
   }

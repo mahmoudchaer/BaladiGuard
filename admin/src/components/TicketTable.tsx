@@ -129,6 +129,11 @@ export function TicketTable({
                       <StatusBadge status={ticket.status} />
                       <PriorityBadge priority={ticket.priority} />
                       <CategoryBadge category={ticket.category} />
+                      {ticket.sla && ticket.sla.state !== 'unavailable' && (
+                        <span aria-label={`SLA ${ticket.sla.state.replace('_', ' ')}`}>
+                          SLA: {ticket.sla.state.replace('_', ' ')}
+                        </span>
+                      )}
                     </div>
 
                     <div className="ticket-queue__footer">
@@ -146,7 +151,9 @@ export function TicketTable({
                       </span>
                     </div>
 
-                    <span className="ticket-queue__tracking">{ticket.trackingCode}</span>
+                    {ticket.trackingCode ? (
+                      <span className="ticket-queue__tracking">{ticket.trackingCode}</span>
+                    ) : null}
                     {ticket.duplicateGroupId ? (
                       <span className="ticket-queue__grouped">Grouped</span>
                     ) : null}

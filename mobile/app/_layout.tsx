@@ -6,6 +6,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CitizenAuthProvider } from '@/auth';
 import { colors, theme, typography } from '@/theme';
 
+/**
+ * Notification deep links (#257): route `t/[code]` handles HTTPS Universal /
+ * App Links and `baladiguard://t/{code}` once the OS opens the app. Native host
+ * claiming is configured in `mobile/app.config.ts` (associatedDomains + intentFilters).
+ */
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -22,12 +27,10 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: colors.background },
             }}
           >
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="explore/index" options={{ headerShown: false }} />
-            <Stack.Screen name="more/index" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="report/index" options={{ title: 'New report' }} />
             <Stack.Screen name="track/index" options={{ title: 'Track a report' }} />
-            <Stack.Screen name="history/index" options={{ headerShown: false }} />
+            <Stack.Screen name="t/[code]" options={{ title: 'Report link' }} />
             <Stack.Screen name="login/index" options={{ title: 'Sign in' }} />
             <Stack.Screen name="profile/index" options={{ title: 'Profile' }} />
             <Stack.Screen name="privacy/index" options={{ title: 'Privacy notice' }} />

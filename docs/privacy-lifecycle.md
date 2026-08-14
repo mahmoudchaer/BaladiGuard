@@ -53,6 +53,7 @@ lives in this document.
 | OTP challenges | 5-minute TTL; consumed/superseded records purge via TTL | Only keyed hashes stored |
 | Password-reset records (staff) | Short-lived tokens per staff recovery design (#178) | Not citizen identity |
 | Notifications / delivery ledger | Operational retention up to 90 days for delivery audit | Prefer ticket id over raw PII in logs |
+| Ticket submission idempotency claims | Completed claim records ~14 days (DynamoDB TTL); unfinished reclaim window ~2 minutes | Retry safety only; not a municipal ledger |
 | Ticket audit history | Retain with the ticket | Actor provenance for staff mutations |
 | Application logs | 30–90 days in the log sink | No OTP codes; avoid logging full phone/email where possible |
 | Analytics (admin dashboard) | Aggregates only | No citizen-identifying dimensions in MVP cards |

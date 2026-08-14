@@ -2,8 +2,8 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HistoryScreen from '../../app/history';
-import HomeScreen from '../../app/index';
+import HistoryScreen from '../../app/(tabs)/history';
+import HomeScreen from '../../app/(tabs)';
 import {
   buildCitizenSession,
   loadCitizenSession,
@@ -128,8 +128,8 @@ describe('HistoryScreen', () => {
 
     const screen = await renderWithProvidersAsync(<HomeScreen />);
 
-    expect(screen.root.findByProps({ accessibilityLabel: 'My Reports' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'Your reports' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'View all' })).toBeTruthy();
   });
 
   it('redirects guests to login with returnTo=/history', async () => {
