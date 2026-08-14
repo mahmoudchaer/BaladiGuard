@@ -304,6 +304,13 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        # Privacy-critical image work is isolated from the classification queue.
+        "suffix": "image-redaction-jobs",
+        "key_schema": [{"AttributeName": "jobId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "jobId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "duplicate-groups",
         "key_schema": [{"AttributeName": "duplicateGroupId", "KeyType": "HASH"}],
         "attribute_definitions": [

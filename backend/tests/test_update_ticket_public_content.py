@@ -35,15 +35,10 @@ def _review_category(client, ticket_id: str, token: str) -> None:
     assert response.status_code == 200, response.text
 
 
-def test_staff_can_publish_with_approved_original_photo(client, monkeypatch):
-    monkeypatch.setattr(
-        "app.services.complaints.ticket_read_mapper.build_image_url",
-        lambda key: f"https://example.test/{key}",
-    )
+def test_staff_cannot_publish_private_original_photo(client):
     created = _submit_report(client)
     stored = ticket_store.get(created["ticketId"])
     assert stored is not None
-    raw_key = stored.image_object_key
     token = issue_test_staff_token(client)
     _review_category(client, created["ticketId"], token)
 
@@ -57,19 +52,8 @@ def test_staff_can_publish_with_approved_original_photo(client, monkeypatch):
         },
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["public"]["status"] == "PUBLISHED"
-    assert body["public"]["imageObjectKey"] == raw_key
-    assert any(
-        entry["actionType"] == "PUBLIC_CONTENT_UPDATE" for entry in body.get("auditHistory", [])
-    )
-
-    public = client.get(f"/v1/tickets/public/{created['ticketNumber']}")
-    assert public.status_code == 200
-    public_body = public.json()
-    assert public_body["photoUrl"] == f"https://example.test/{raw_key}"
-    assert "imageObjectKey" not in public_body
+    assert response.status_code == 400
+    assert ticket_store.get(created["ticketId"]).public_image_object_key is None
 
 
 def test_staff_publish_without_photo_keeps_photo_null(client):
@@ -103,17 +87,8 @@ def test_staff_can_clear_public_photo(client, monkeypatch):
     token = issue_test_staff_token(client)
     _review_category(client, created["ticketId"], token)
 
-    approved = client.patch(
-        f"/v1/tickets/{created['ticketId']}/public",
-        json={
-            "publicStatus": "PUBLISHED",
-            "publicDescription": "Hazard with temporary public photo.",
-            "publicLocationLabel": "Hamra",
-            "approveOriginalPhoto": True,
-        },
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert approved.status_code == 200
+    derivative = "reports/redacted/v1/ticket/g1/approved.jpg"
+    ticket_store.patch_fields(created["ticketId"], {"public_image_object_key": derivative})
 
     cleared = client.patch(
         f"/v1/tickets/{created['ticketId']}/public",
@@ -213,7 +188,6 @@ def test_unpublish_removes_ticket_from_public_feed(client):
             "publicStatus": "PUBLISHED",
             "publicDescription": "Published briefly.",
             "publicLocationLabel": "Hamra",
-            "approveOriginalPhoto": True,
         },
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -232,3 +206,22 @@ def test_unpublish_removes_ticket_from_public_feed(client):
     assert unpublished.status_code == 200
     assert client.get("/v1/tickets/public").json()["items"] == []
     assert client.get(f"/v1/tickets/public/{created['ticketNumber']}").status_code == 404
+
+
+def test_scoped_staff_can_reprocess_but_anonymous_cannot(anonymous_client):
+    created = _submit_report(anonymous_client, phone="+96170888895")
+    endpoint = f"/v1/tickets/{created['ticketId']}/image-redaction/reprocess"
+    assert anonymous_client.post(endpoint).status_code == 401
+
+    token = issue_test_staff_token(anonymous_client)
+    response = anonymous_client.post(endpoint, headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 202, response.text
+    assert response.json() == {
+        "ticketId": created["ticketId"],
+        "status": "pending",
+        "generation": 2,
+    }
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.image_redaction_generation == 2
+    assert stored.image_redaction_status == "pending"

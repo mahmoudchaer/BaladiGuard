@@ -1105,6 +1105,27 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     ai: normalizeTicketAiFields(data.ai),
     sla: normalizeTicketSla(data.sla),
     public: normalizeTicketPublicFields(data.public),
+    imageRedaction: normalizeImageRedaction(data.imageRedaction),
+  };
+}
+
+function normalizeImageRedaction(data: unknown): Ticket['imageRedaction'] {
+  if (!isRecord(data)) return undefined;
+  const status = data.status;
+  if (
+    !['pending', 'processing', 'completed', 'failed', 'review_required'].includes(String(status))
+  ) {
+    return undefined;
+  }
+  return {
+    status: status as NonNullable<Ticket['imageRedaction']>['status'],
+    generation: typeof data.generation === 'number' ? data.generation : 1,
+    detector: typeof data.detector === 'string' ? data.detector : null,
+    detectorVersion: typeof data.detectorVersion === 'string' ? data.detectorVersion : null,
+    faceCount: typeof data.faceCount === 'number' ? data.faceCount : 0,
+    plateCount: typeof data.plateCount === 'number' ? data.plateCount : 0,
+    completedAt: typeof data.completedAt === 'string' ? data.completedAt : null,
+    reasonCode: typeof data.reasonCode === 'string' ? data.reasonCode : null,
   };
 }
 
@@ -1862,7 +1883,6 @@ export type UpdateTicketPublicContentInput = {
   publicStatus: PublicTicketStatus;
   publicDescription: string;
   publicLocationLabel: string;
-  approveOriginalPhoto?: boolean;
   clearPublicPhoto?: boolean;
 };
 
@@ -1883,8 +1903,6 @@ async function updateMockTicketPublicContent(
   let imageObjectKey = ticket.public?.imageObjectKey ?? null;
   if (input.clearPublicPhoto) {
     imageObjectKey = null;
-  } else if (input.approveOriginalPhoto) {
-    imageObjectKey = ticket.imageObjectKey;
   }
 
   return {

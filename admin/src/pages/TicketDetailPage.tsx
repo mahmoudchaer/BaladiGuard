@@ -25,6 +25,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { TicketPhoto } from '@/components/TicketPhoto';
+import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
@@ -1065,6 +1066,7 @@ export function TicketDetailPage() {
                         category={effectiveCategory ?? ticket.category}
                         alt={`Report photo for ${ticket.ticketNumber}`}
                       />
+                      <ImagePrivacyStatus redaction={ticket.imageRedaction} />
                     </div>
                   </div>
 

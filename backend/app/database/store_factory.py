@@ -1,4 +1,5 @@
 from app.config import Settings, get_settings
+from app.database import redaction_job_store as redaction_job_store_module
 from app.database.account_audit_store import AccountAuditStore
 from app.database.ai_job_store import AiJobStore
 from app.database.audit_history_store import AuditHistoryStore
@@ -13,6 +14,7 @@ from app.database.memory_citizen_otp import citizen_otp_store
 from app.database.memory_citizen_session import citizen_session_store
 from app.database.memory_duplicate_group import duplicate_group_store
 from app.database.memory_notification_delivery import notification_delivery_store
+from app.database.memory_redaction_job import redaction_job_store
 from app.database.memory_staff import staff_store
 from app.database.memory_staff_comments import staff_comment_store
 from app.database.memory_staff_password_reset import staff_password_reset_store
@@ -40,6 +42,17 @@ def build_ai_job_store(settings: Settings | None = None) -> AiJobStore:
 
         return DynamoAiJobStore(settings)
     return ai_job_store
+
+
+def build_redaction_job_store(
+    settings: Settings | None = None,
+) -> redaction_job_store_module.RedactionJobStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_redaction_job_store import DynamoRedactionJobStore
+
+        return DynamoRedactionJobStore(settings)
+    return redaction_job_store
 
 
 def build_status_history_store(settings: Settings | None = None) -> StatusHistoryStore:
@@ -151,6 +164,10 @@ def get_ticket_store() -> TicketStore:
 
 def get_ai_job_store() -> AiJobStore:
     return build_ai_job_store(get_settings())
+
+
+def get_redaction_job_store() -> redaction_job_store_module.RedactionJobStore:
+    return build_redaction_job_store(get_settings())
 
 
 def get_status_history_store() -> StatusHistoryStore:

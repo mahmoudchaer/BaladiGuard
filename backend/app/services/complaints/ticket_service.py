@@ -1274,13 +1274,10 @@ class TicketService:
             "updated_by": actor_id,
         }
 
-        # Only approve this ticket's bound upload, or clear. Never accept a caller-supplied key.
+        # Public image keys are processor-owned. Staff may hide a derivative but
+        # can never publish the private original or submit an arbitrary object key.
         if payload.clear_public_photo:
             update_fields["public_image_object_key"] = None
-        elif payload.approve_original_photo:
-            if not ticket.image_object_key:
-                raise PublicContentUpdateError("This ticket has no original upload to approve.")
-            update_fields["public_image_object_key"] = ticket.image_object_key
 
         if payload.public_status == "PUBLISHED":
             update_fields["public_published_at"] = ticket.public_published_at or updated_at
@@ -1295,8 +1292,6 @@ class TicketService:
         photo_note = "photo unchanged"
         if payload.clear_public_photo:
             photo_note = "public photo cleared"
-        elif payload.approve_original_photo:
-            photo_note = "original photo approved"
 
         self._record_audit_history(
             ticket_id=ticket_id,
@@ -1309,6 +1304,24 @@ class TicketService:
             created_at=updated_at,
         )
         return self._map_ticket(updated_ticket)
+
+    def request_image_reprocessing(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> int:
+        """Start a new server-owned generation while retaining the approved derivative."""
+        ticket = self._store.get(ticket_id)
+        if ticket is None or (
+            staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket)
+        ):
+            raise TicketNotFoundError(ticket_id)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated = self._store.start_image_reprocessing(ticket_id, updated_at)
+        if updated is None:
+            raise TicketNotFoundError(ticket_id)
+        return updated.image_redaction_generation
 
     def assign_ticket_department(
         self,

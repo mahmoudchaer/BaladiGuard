@@ -65,6 +65,44 @@ class Settings:
         self.ai_job_poll_seconds = self._float_setting(
             "AI_JOB_POLL_SECONDS", default=1.0, minimum=0.05
         )
+        self.image_redaction_enabled = (
+            os.getenv("IMAGE_REDACTION_ENABLED", "true").strip().lower() == "true"
+        )
+        self.image_redaction_detector = (
+            os.getenv("IMAGE_REDACTION_DETECTOR", "aws_rekognition").strip().lower()
+            or "aws_rekognition"
+        )
+        self.plate_detection_model = (
+            os.getenv(
+                "PLATE_DETECTION_MODEL",
+                "yolo-v9-s-608-license-plate-end2end",
+            ).strip()
+            or "yolo-v9-s-608-license-plate-end2end"
+        )
+        self.image_redaction_auto_confidence = self._float_setting(
+            "IMAGE_REDACTION_AUTO_CONFIDENCE", default=90.0, minimum=50.0, maximum=100.0
+        )
+        self.image_redaction_review_confidence = self._float_setting(
+            "IMAGE_REDACTION_REVIEW_CONFIDENCE", default=60.0, minimum=0.0, maximum=100.0
+        )
+        self.image_redaction_blur_radius = self._float_setting(
+            "IMAGE_REDACTION_BLUR_RADIUS", default=18.0, minimum=2.0, maximum=100.0
+        )
+        self.image_redaction_box_padding = self._float_setting(
+            "IMAGE_REDACTION_BOX_PADDING", default=0.08, minimum=0.0, maximum=0.5
+        )
+        self.image_redaction_job_max_attempts = self._int_setting(
+            "IMAGE_REDACTION_JOB_MAX_ATTEMPTS", default=5, minimum=1
+        )
+        self.image_redaction_job_timeout_seconds = self._int_setting(
+            "IMAGE_REDACTION_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.image_redaction_job_backoff_base_seconds = self._int_setting(
+            "IMAGE_REDACTION_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.image_redaction_job_backoff_max_seconds = self._int_setting(
+            "IMAGE_REDACTION_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",

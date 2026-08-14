@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.image_redaction import ImageRedactionStatus, RedactionProvenance
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
@@ -38,6 +39,24 @@ class StoredTicket(BaseModel):
     public_published_at: str | None = Field(default=None, alias="publicPublishedAt")
     # Optional staff-approved public photo key. Unapproved uploads stay private.
     public_image_object_key: str | None = Field(default=None, alias="publicImageObjectKey")
+    image_redaction_status: ImageRedactionStatus = Field(
+        default="pending", alias="imageRedactionStatus"
+    )
+    image_redaction_generation: int = Field(default=1, alias="imageRedactionGeneration", ge=1)
+    image_redaction_claim_token: str | None = Field(default=None, alias="imageRedactionClaimToken")
+    image_redaction_detector: str | None = Field(default=None, alias="imageRedactionDetector")
+    image_redaction_detector_version: str | None = Field(
+        default=None, alias="imageRedactionDetectorVersion"
+    )
+    image_redaction_face_count: int = Field(default=0, alias="imageRedactionFaceCount", ge=0)
+    image_redaction_plate_count: int = Field(default=0, alias="imageRedactionPlateCount", ge=0)
+    image_redaction_completed_at: str | None = Field(
+        default=None, alias="imageRedactionCompletedAt"
+    )
+    image_redaction_reason_code: str | None = Field(default=None, alias="imageRedactionReasonCode")
+    image_redaction_history: list[RedactionProvenance] = Field(
+        default_factory=list, alias="imageRedactionHistory"
+    )
 
     ai_processing_status: AiProcessingStatus = Field(
         default="pending",

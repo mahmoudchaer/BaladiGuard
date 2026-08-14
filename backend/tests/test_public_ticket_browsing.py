@@ -331,15 +331,21 @@ def test_public_ticket_photo_requires_staff_approved_public_image_key(
         "app.services.complaints.ticket_read_mapper.build_image_url",
         lambda key: f"https://example.test/signed/{key}",
     )
+    from app.services.uploads.photo_upload_service import PhotoUploadService
+
+    approved_key = (
+        f"reports/redacted/v1/{PhotoUploadService.ticket_scope(created['ticketId'])}/"
+        "g1/approved.jpg"
+    )
     patched = ticket_store.patch_fields(
         created["ticketId"],
-        {"public_image_object_key": "reports/public/approved.jpg"},
+        {"public_image_object_key": approved_key},
     )
     assert patched is not None
 
     with_approval = anonymous_client.get(f"/v1/tickets/public/{created['ticketNumber']}")
     assert with_approval.status_code == 200
     body = with_approval.json()
-    assert body["photoUrl"] == "https://example.test/signed/reports/public/approved.jpg"
+    assert body["photoUrl"] == f"https://example.test/signed/{approved_key}"
     assert "imageObjectKey" not in body
     assert raw_upload_key not in with_approval.text
