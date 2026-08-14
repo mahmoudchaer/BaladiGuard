@@ -194,7 +194,7 @@ class StaffAssistantService:
             tickets=[_reference(ticket) for ticket in ordered[:MAX_TICKET_REFERENCES]],
             incompleteCount=incomplete,
             appliedFilters={
-                "priority": "high,critical",
+                "urgency": "high,critical",
                 "openOnly": "true",
             },
         )

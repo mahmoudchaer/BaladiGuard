@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -132,7 +133,7 @@ class DynamoTicketStore:
         cursor: str | None,
         status: str | None = None,
         category: str | None = None,
-        urgency: str | None = None,
+        urgency: str | Sequence[str] | None = None,
         department_id: str | None = None,
         assignment_state: Literal["assigned", "unassigned"] | None = None,
         q: str | None = None,
@@ -848,11 +849,19 @@ def _staff_query_target(
     return STAFF_SCOPE_INDEX, STAFF_SCOPE_KEY, municipality_id
 
 
+def _priority_filter_values(urgency: str | Sequence[str] | None) -> list[str]:
+    if urgency is None:
+        return []
+    if isinstance(urgency, str):
+        return [urgency]
+    return list(urgency)
+
+
 def _staff_filter_expression(
     *,
     status: str | None,
     category: str | None,
-    urgency: str | None,
+    urgency: str | Sequence[str] | None,
     department_id: str | None,
     department_ids: list[str] | None,
     assignment_state: Literal["assigned", "unassigned"] | None = None,
@@ -867,8 +876,11 @@ def _staff_filter_expression(
     if category is not None:
         clause = Attr("category").eq(category)
         expression = clause if expression is None else expression & clause
-    if urgency is not None:
-        clause = Attr("priority").eq(urgency)
+    levels = _priority_filter_values(urgency)
+    if levels:
+        clause = (
+            Attr("priority").is_in(levels) if len(levels) > 1 else Attr("priority").eq(levels[0])
+        )
         expression = clause if expression is None else expression & clause
     if assignment_state == "unassigned":
         clause = Attr("departmentId").not_exists()

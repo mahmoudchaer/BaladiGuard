@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket import ReportContact, ReportLocation
+from app.services.complaints.sla import derive_ticket_sla
+from app.services.staff.assistant import MAX_TICKET_REFERENCES
 from app.services.staff.assistant_areas import (
     MAX_AREA_CLUSTERS,
     MAX_CLUSTER_TICKET_IDS,
     build_area_clusters,
     cell_id_for,
+    cell_index,
     cell_origin,
     choose_safe_label,
     has_usable_coordinates,
 )
+from app.utils.ticket_ids import generate_ticket_id, generate_tracking_code
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -75,10 +81,34 @@ def _ticket(
     return created.json()["ticketId"]
 
 
+def _clone_ticket(source_id: str, **updates: object) -> str:
+    source = ticket_store.get(source_id)
+    assert source is not None
+    ticket_id = generate_ticket_id()
+    ticket_store.save(
+        source.model_copy(
+            update={
+                "ticket_id": ticket_id,
+                "ticket_number": f"BG-{ticket_id[-4:]}",
+                "tracking_code": generate_tracking_code(),
+                **updates,
+            }
+        )
+    )
+    return ticket_id
+
+
 def test_cell_origin_is_closed_on_the_south_west_edge() -> None:
     assert cell_origin(33.896) == 33.896
     assert cell_origin(33.897999) == 33.896
     assert cell_origin(33.898) == 33.898
+
+
+def test_cell_index_keeps_unlucky_ieee754_neighbors_in_the_same_cell() -> None:
+    assert cell_index(33.7300) == cell_index(33.7301)
+    assert cell_index(35.4100) == cell_index(35.4101)
+    assert cell_origin(33.7300) == cell_origin(33.7301) == 33.730
+    assert cell_origin(35.4100) == cell_origin(35.4101) == 35.410
 
 
 def test_grounded_high_priority_summary_is_safe_and_multilingual(anonymous_client):
@@ -93,6 +123,7 @@ def test_grounded_high_priority_summary_is_safe_and_multilingual(anonymous_clien
     assert body["intent"] == "high_priority_summary"
     assert body["count"] == 1
     assert body["tickets"][0]["ticketId"] == visible
+    assert body["appliedFilters"] == {"urgency": "high,critical", "openOnly": "true"}
     assert body["tickets"][0]["status"] == "SUBMITTED"
     assert body["asOf"].endswith("Z")
     assert body["categories"] == {"road_damage": 1}
@@ -122,6 +153,77 @@ def test_scope_prevents_cross_department_and_cross_municipality_inference(anonym
     assert response.status_code == 200
     assert response.json()["count"] == 1
     assert [item["ticketId"] for item in response.json()["tickets"]] == [visible]
+
+
+def test_repeated_area_scope_prevents_cross_department_and_cross_municipality_inference(
+    anonymous_client,
+):
+    visible_a = _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority=None,
+        department=ROADS,
+        latitude=33.8501,
+        longitude=35.5101,
+        public_location_label="Roads cell",
+    )
+    visible_b = _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority=None,
+        department=ROADS,
+        latitude=33.8502,
+        longitude=35.5102,
+        public_location_label="Roads cell",
+    )
+    _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority=None,
+        department=WASTE,
+        latitude=33.8501,
+        longitude=35.5101,
+        public_location_label="Waste cell",
+    )
+    _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority=None,
+        department=WASTE,
+        latitude=33.8502,
+        longitude=35.5102,
+        public_location_label="Waste cell",
+    )
+    _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority=None,
+        department=ROADS,
+        municipality=OTHER_MUNICIPALITY,
+        latitude=33.8501,
+        longitude=35.5101,
+        public_location_label="Other city",
+    )
+    _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority=None,
+        department=ROADS,
+        municipality=OTHER_MUNICIPALITY,
+        latitude=33.8502,
+        longitude=35.5102,
+        public_location_label="Other city",
+    )
+    response = anonymous_client.post(
+        "/v1/staff-assistant/query",
+        json={"question": "repeated issues in an area"},
+        headers=_headers(anonymous_client, "staff"),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 2
+    assert {item["ticketId"] for item in body["tickets"]} == {visible_a, visible_b}
+    assert body["areaClusters"][0]["label"] == "Roads cell"
 
 
 def test_empty_priority_queue_is_bounded(anonymous_client):
@@ -155,29 +257,60 @@ def test_resolved_high_priority_tickets_are_excluded_from_operational_queue(anon
 
 
 def test_priority_summary_orders_overdue_before_older_on_track(anonymous_client):
-    older = _ticket(
+    overdue = _ticket(
         anonymous_client,
         area="Hamra",
         priority="high",
         department=ROADS,
         created_at="2026-01-01T00:00:00Z",
     )
-    overdue = _ticket(
+    on_track = _ticket(
         anonymous_client,
         area="Hamra",
-        priority="critical",
+        priority="high",
         department=ROADS,
-        created_at="2026-08-01T00:00:00Z",
+        created_at=(datetime.now(UTC) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
+    overdue_stored = ticket_store.get(overdue)
+    on_track_stored = ticket_store.get(on_track)
+    assert overdue_stored is not None and on_track_stored is not None
+    assert derive_ticket_sla(overdue_stored).state == "overdue"
+    assert derive_ticket_sla(on_track_stored).state == "on_track"
     response = anonymous_client.post(
         "/v1/staff-assistant/query",
-        json={"question": "critical tickets"},
+        json={"question": "urgent tickets"},
         headers=_headers(anonymous_client),
     )
-    ids = [item["ticketId"] for item in response.json()["tickets"]]
-    assert ids[0] == overdue
-    assert older in ids
-    assert response.json()["tickets"][0]["slaState"] == "overdue"
+    tickets = response.json()["tickets"]
+    assert [item["ticketId"] for item in tickets] == [overdue, on_track]
+    assert [item["slaState"] for item in tickets] == ["overdue", "on_track"]
+
+
+def test_priority_summary_breaks_same_sla_created_at_ties_by_ticket_id(anonymous_client):
+    created_at = (datetime.now(UTC) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    first = _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority="high",
+        department=ROADS,
+        created_at=created_at,
+    )
+    second = _ticket(
+        anonymous_client,
+        area="Hamra",
+        priority="high",
+        department=ROADS,
+        created_at=created_at,
+    )
+    stored = [ticket_store.get(first), ticket_store.get(second)]
+    assert all(ticket is not None for ticket in stored)
+    assert {derive_ticket_sla(ticket).state for ticket in stored if ticket} == {"on_track"}
+    response = anonymous_client.post(
+        "/v1/staff-assistant/query",
+        json={"question": "urgent tickets"},
+        headers=_headers(anonymous_client),
+    )
+    assert [item["ticketId"] for item in response.json()["tickets"]] == sorted([first, second])
 
 
 def test_repeated_area_is_grounded_and_injection_text_is_not_executed(anonymous_client):
@@ -263,6 +396,40 @@ def test_grouping_boundary_excludes_the_next_cell(anonymous_client):
     body = response.json()
     assert body["count"] == 2
     assert {item["ticketId"] for item in body["tickets"]} == {inside_a, inside_b}
+    assert len(body["areaClusters"]) == 1
+
+
+def test_unlucky_grid_edge_neighbors_form_a_repeated_area(anonymous_client):
+    first = _ticket(
+        anonymous_client,
+        area="pin-unlucky-a",
+        priority=None,
+        department=ROADS,
+        latitude=33.7300,
+        longitude=35.4100,
+        public_location_label="Unlucky cell",
+    )
+    second = _ticket(
+        anonymous_client,
+        area="pin-unlucky-b",
+        priority=None,
+        department=ROADS,
+        latitude=33.7301,
+        longitude=35.4101,
+        public_location_label="Unlucky cell",
+    )
+    stored_first = ticket_store.get(first)
+    stored_second = ticket_store.get(second)
+    assert stored_first is not None and stored_second is not None
+    assert cell_id_for(stored_first) == cell_id_for(stored_second)
+    response = anonymous_client.post(
+        "/v1/staff-assistant/query",
+        json={"question": "repeated issues in an area"},
+        headers=_headers(anonymous_client),
+    )
+    body = response.json()
+    assert body["count"] == 2
+    assert {item["ticketId"] for item in body["tickets"]} == {first, second}
     assert len(body["areaClusters"]) == 1
 
 
@@ -440,6 +607,40 @@ def test_documented_generic_repeated_area_question_is_supported(anonymous_client
     )
     assert response.status_code == 200
     assert response.json()["intent"] == "repeated_area_summary"
+
+
+def test_priority_applied_filters_round_trip_list_api_when_count_exceeds_references(
+    anonymous_client,
+):
+    headers = _headers(anonymous_client)
+    counted = [
+        _ticket(anonymous_client, area="Hamra", priority="high", department=ROADS),
+        _ticket(anonymous_client, area="Hamra", priority="critical", department=ROADS),
+    ]
+    template = counted[0]
+    for index in range(MAX_TICKET_REFERENCES + 1):
+        counted.append(
+            _clone_ticket(template, priority="high" if index % 2 == 0 else "critical")
+        )
+    _clone_ticket(template, priority="medium")
+    _clone_ticket(template, priority="high", status="RESOLVED")
+    response = anonymous_client.post(
+        "/v1/staff-assistant/query",
+        json={"question": "urgent tickets"},
+        headers=headers,
+    )
+    body = response.json()
+    assert body["count"] == len(counted)
+    assert len(body["tickets"]) == MAX_TICKET_REFERENCES
+    listed = anonymous_client.get(
+        "/v1/tickets",
+        params={**body["appliedFilters"], "limit": 100},
+        headers=headers,
+    )
+    assert listed.status_code == 200, listed.text
+    listed_ids = {item["ticketId"] for item in listed.json()["items"]}
+    assert listed_ids == set(counted)
+    assert {item["ticketId"] for item in body["tickets"]}.issubset(listed_ids)
 
 
 def _stored(

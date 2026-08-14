@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from threading import Lock
 from typing import Any, Literal
 
@@ -82,7 +83,7 @@ class InMemoryTicketStore:
         cursor: str | None,
         status: str | None = None,
         category: str | None = None,
-        urgency: str | None = None,
+        urgency: str | Sequence[str] | None = None,
         department_id: str | None = None,
         assignment_state: Literal["assigned", "unassigned"] | None = None,
         q: str | None = None,
@@ -101,10 +102,16 @@ class InMemoryTicketStore:
                 if _municipal_staff_can_access(ticket, municipality_id, department_ids)
             ]
 
+        if isinstance(urgency, str):
+            urgency_filter: tuple[str, ...] | None = (urgency,)
+        elif urgency is None:
+            urgency_filter = None
+        else:
+            urgency_filter = tuple(urgency)
         filters = TicketListFilters(
             status=status,  # type: ignore[arg-type]
             category=category,
-            urgency=urgency,  # type: ignore[arg-type]
+            urgency=urgency_filter,  # type: ignore[arg-type]
             department_id=department_id,
             assignment_state=assignment_state,
             q=q,

@@ -11,10 +11,14 @@ from app.schemas.stored_ticket import StoredTicket
 # 0.002 degrees is about 220m of latitude and a similar east-west span in Lebanon.
 # Cells are closed on the south/west edges and open on the north/east edges.
 CELL_SIZE_DEGREES = 0.002
+CELLS_PER_DEGREE = 500  # 1 / 0.002; multiply first so we never divide by 0.002.
 UNLOCATED_CELL_ID = "unlocated"
 MINIMUM_DISTINCT_REPORTS = 2
 MAX_AREA_CLUSTERS = 20
 MAX_CLUSTER_TICKET_IDS = 20
+# Sub-millimeter snap on the integer index so values that are exactly on a 0.002°
+# boundary in decimal (33.7300) are not floored into the previous cell by IEEE-754.
+_INDEX_SNAP = 1e-9
 
 
 def has_usable_coordinates(ticket: StoredTicket) -> bool:
@@ -23,8 +27,12 @@ def has_usable_coordinates(ticket: StoredTicket) -> bool:
     return math.isfinite(ticket.location.latitude) and math.isfinite(ticket.location.longitude)
 
 
+def cell_index(value: float) -> int:
+    return math.floor(value * CELLS_PER_DEGREE + _INDEX_SNAP)
+
+
 def cell_origin(value: float) -> float:
-    return math.floor((value / CELL_SIZE_DEGREES) + 1e-12) * CELL_SIZE_DEGREES
+    return cell_index(value) / CELLS_PER_DEGREE
 
 
 def cell_id_for(ticket: StoredTicket) -> str:
@@ -39,9 +47,11 @@ def cell_bounds(cell_id: str) -> tuple[float, float, float, float] | None:
     if cell_id == UNLOCATED_CELL_ID:
         return None
     south_text, west_text = cell_id.split(",", maxsplit=1)
-    south = float(south_text)
-    west = float(west_text)
-    return south, west, south + CELL_SIZE_DEGREES, west + CELL_SIZE_DEGREES
+    south_index = cell_index(float(south_text))
+    west_index = cell_index(float(west_text))
+    south = south_index / CELLS_PER_DEGREE
+    west = west_index / CELLS_PER_DEGREE
+    return south, west, (south_index + 1) / CELLS_PER_DEGREE, (west_index + 1) / CELLS_PER_DEGREE
 
 
 def distinct_report_key(ticket: StoredTicket) -> str:

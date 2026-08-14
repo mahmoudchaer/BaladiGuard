@@ -26,16 +26,20 @@ and up to 20 ticket references ordered by actionability: overdue SLA, then
 due-soon, then critical before high, then oldest `createdAt`, then `ticketId`.
 `incompleteCount` covers tickets still at `PENDING_CLASSIFICATION`.
 
-Drill-down filters: `appliedFilters.priority=high,critical` and `openOnly=true`.
+Drill-down uses `appliedFilters` keys that `GET /v1/tickets` accepts:
+`urgency=high,critical` (comma-separated subset of `low|medium|high|critical`) and
+`openOnly=true`. Ticket references stay capped at 20; the list API is the
+complete drill-down when `count` is larger.
 
 ## Repeated-area summary
 
 Grouping uses persisted coordinates only, never citizen `addressText` and never
 invented neighborhood names.
 
-- Cell size: **0.002 degrees** (~200m). South/west edges are inclusive; north/east
-  are exclusive (`floor(coord / 0.002) * 0.002`).
-- Cell id: `{south:.3f},{west:.3f}` (for example `33.896,35.478`).
+- Cell size: **0.002 degrees** (~200m), implemented as `floor(coord * 500)` so the
+  code never divides by binary-inexact `0.002`. South/west edges are inclusive;
+  north/east are exclusive. Cell id: `{south:.3f},{west:.3f}` (for example
+  `33.896,35.478`).
 - `PLACEHOLDER` locations are **unlocated** and omitted from clusters
   (`unlocatedCount`).
 - A cell is a repeated area only when it contains **at least two distinct
