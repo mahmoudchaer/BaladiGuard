@@ -36,6 +36,8 @@ Ticket attributes:
 
 Assignment changes append ticket audit action `WORKFORCE_ASSIGN` with the authenticated `actorId` / `actorRole`.
 
+Validate-then-write uses the assignee `updatedAt` as a version: the store claims the worker or team only when it is still active, still matches the ticket department, and the version is unchanged. Memory assignments hold an exclusive lock across claim and ticket patch; Dynamo uses a conditional `update_item`. Stale reads retry; deactivation or a department change during assignment is rejected. Persistent version conflicts return `409`.
+
 ## Workload counts
 
 Active statuses: `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`. `RESOLVED` and `CLOSED` are excluded.
@@ -46,3 +48,5 @@ Active statuses: `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`. `RESOLV
 - dueSoon / overdue: derived SLA (`derive_ticket_sla`); these can overlap status buckets
 
 Unassigned is the open-ticket bucket with no worker and no team. Team tickets are counted on the team row only, not copied onto member workers unless the ticket is assigned to that worker.
+
+Workload paginates every ticket in the staff browse scope (page size 100). It does not use the dashboard aggregate sample cap, so drill-down lists match the counts.

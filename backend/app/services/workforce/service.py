@@ -30,6 +30,7 @@ from app.services.staff.bootstrap import BEIRUT_MUNICIPALITY_ID
 QUEUED_STATUSES = frozenset({"SUBMITTED", "UNDER_REVIEW"})
 ASSIGNED_STATUSES = frozenset({"ASSIGNED"})
 IN_PROGRESS_STATUSES = frozenset({"IN_PROGRESS"})
+ASSIGNMENT_CLAIM_ATTEMPTS = 5
 
 
 class WorkforceError(Exception):
@@ -278,26 +279,46 @@ class WorkforceService:
         )
         return None, team.team_id
 
+    def claim_ticket_assignment(
+        self,
+        principal: StaffPrincipal,
+        ticket: StoredTicket,
+        payload: AssignWorkforceRequest,
+    ) -> tuple[str | None, str | None]:
+        store = self.store()
+        for _ in range(ASSIGNMENT_CLAIM_ATTEMPTS):
+            worker_id, team_id = self.resolve_ticket_assignment(principal, ticket, payload)
+            if worker_id is None and team_id is None:
+                return None, None
+            if worker_id is not None:
+                worker = store.get_worker(worker_id)
+                if worker is None:
+                    raise WorkforceError(
+                        "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
+                    )
+                if store.claim_worker(worker_id, worker.updated_at, ticket.department_id):
+                    return worker_id, None
+                continue
+            team = store.get_team(team_id or "")
+            if team is None:
+                raise WorkforceError("Team was not found.", status_code=404, code="TEAM_NOT_FOUND")
+            if store.claim_team(team.team_id, team.updated_at, ticket.department_id):
+                return None, team.team_id
+        raise WorkforceError(
+            "Assignment could not be completed because the assignee changed. Retry.",
+            status_code=409,
+            code="CONFLICT",
+        )
+
     def workload(
         self, principal: StaffPrincipal, *, municipality_id: str | None
     ) -> WorkloadResponse:
         scoped = resolve_municipality_scope(principal, municipality_id)
         workers = self.store().list_workers(scoped)
         teams = self.store().list_teams(scoped)
-        from app.services.complaints.ticket_service import (
-            STAFF_AGGREGATE_SAMPLE_LIMIT,
-            _staff_browse_scope,
-            ticket_service,
-        )
+        from app.services.complaints.ticket_service import ticket_service
 
-        browse_mode, browse_municipality, browse_departments = _staff_browse_scope(principal)
-        collected, _approximate = ticket_service._collect_staff_candidates_with_approx(
-            browse_mode=browse_mode,
-            municipality_id=browse_municipality,
-            department_ids=browse_departments,
-            filters=None,
-            budget=STAFF_AGGREGATE_SAMPLE_LIMIT,
-        )
+        collected = ticket_service.collect_all_staff_tickets(principal)
         tickets = [ticket for ticket in collected if ticket.municipality_id in {None, scoped}]
 
         unassigned_open = [

@@ -331,3 +331,133 @@ def test_dynamo_workforce_store_round_trip(dynamodb_settings: Settings) -> None:
     )
     store.save_team(team)
     assert store.get_team("team_test1") is not None
+    assert store.claim_worker("wrk_test1", worker.updated_at, ROAD) is True
+    assert store.claim_worker("wrk_test1", worker.updated_at, ROAD) is False
+    refreshed = store.get_worker("wrk_test1")
+    assert refreshed is not None
+    assert store.claim_worker(refreshed.worker_id, refreshed.updated_at, WASTE) is False
+
+
+def test_assignment_rejects_stale_read_after_deactivation(client: TestClient) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id)
+    worker = _create_worker(client)
+    from app.database.memory_workforce import workforce_store
+
+    stale = workforce_store.get_worker(worker["workerId"])
+    assert stale is not None
+    deact = client.post(
+        f"/v1/workforce/workers/{worker['workerId']}/deactivate",
+        headers=_admin(client),
+    )
+    assert deact.status_code == 200
+    original = workforce_store.get_worker
+    calls = {"n": 0}
+
+    def stale_first(worker_id: str):
+        calls["n"] += 1
+        if worker_id == worker["workerId"] and calls["n"] == 1:
+            return stale
+        return original(worker_id)
+
+    workforce_store.get_worker = stale_first  # type: ignore[method-assign]
+    try:
+        blocked = client.post(
+            f"/v1/tickets/{ticket_id}/workforce-assignment",
+            json={"workerId": worker["workerId"]},
+            headers=_staff(client),
+        )
+        assert blocked.status_code == 400
+    finally:
+        workforce_store.get_worker = original  # type: ignore[method-assign]
+
+
+def test_assignment_rejects_stale_read_after_department_change(client: TestClient) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id, department_id=ROAD)
+    worker = _create_worker(client, departments=[ROAD])
+    from app.database.memory_workforce import workforce_store
+
+    stale = workforce_store.get_worker(worker["workerId"])
+    assert stale is not None
+    moved = client.patch(
+        f"/v1/workforce/workers/{worker['workerId']}",
+        json={"departmentIds": [WASTE]},
+        headers=_admin(client),
+    )
+    assert moved.status_code == 200
+    original = workforce_store.get_worker
+    calls = {"n": 0}
+
+    def stale_first(worker_id: str):
+        calls["n"] += 1
+        if worker_id == worker["workerId"] and calls["n"] == 1:
+            return stale
+        return original(worker_id)
+
+    workforce_store.get_worker = stale_first  # type: ignore[method-assign]
+    try:
+        blocked = client.post(
+            f"/v1/tickets/{ticket_id}/workforce-assignment",
+            json={"workerId": worker["workerId"]},
+            headers=_staff(client),
+        )
+        assert blocked.status_code == 400
+    finally:
+        workforce_store.get_worker = original  # type: ignore[method-assign]
+
+
+def test_assignment_conflict_when_claim_never_succeeds(client: TestClient) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id)
+    worker = _create_worker(client)
+    from app.database.memory_workforce import workforce_store
+
+    original = workforce_store.claim_worker
+    workforce_store.claim_worker = lambda *_args, **_kwargs: False  # type: ignore[method-assign]
+    try:
+        conflict = client.post(
+            f"/v1/tickets/{ticket_id}/workforce-assignment",
+            json={"workerId": worker["workerId"]},
+            headers=_staff(client),
+        )
+        assert conflict.status_code == 409
+    finally:
+        workforce_store.claim_worker = original  # type: ignore[method-assign]
+
+
+def test_workload_follows_staff_page_cursors(client: TestClient, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from app.services.complaints.ticket_service import ticket_service
+
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id, status="SUBMITTED")
+    stored = ticket_store.get(ticket_id)
+    assert stored is not None
+    page_one = [
+        stored.model_copy(
+            update={"ticket_id": f"tkt_page1_{index}", "ticket_number": f"BG-P1-{index:04d}"}
+        )
+        for index in range(100)
+    ]
+    extra = stored.model_copy(
+        update={"ticket_id": "tkt_beyond_sample", "ticket_number": "BG-BEYOND"}
+    )
+    pages = [
+        SimpleNamespace(items=page_one, next_cursor="page-2"),
+        SimpleNamespace(items=[extra], next_cursor=None),
+    ]
+    state = {"index": 0}
+
+    def fake_page(**_kwargs):
+        page = pages[state["index"]]
+        state["index"] += 1
+        return page
+
+    monkeypatch.setattr(ticket_service._store, "list_staff_page", fake_page)
+    workload = client.get("/v1/workforce/workload", headers=_staff(client))
+    assert workload.status_code == 200, workload.text
+    unassigned_ids = {item["ticketId"] for item in workload.json()["unassignedTickets"]}
+    assert "tkt_page1_0" in unassigned_ids
+    assert "tkt_beyond_sample" in unassigned_ids

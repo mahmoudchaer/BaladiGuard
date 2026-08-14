@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any, TypeVar
 
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
+from botocore.exceptions import ClientError
 
 from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
 from app.database.serialization import convert_decimals, prepare_dynamodb_value
 from app.schemas.workforce import StoredTeam, StoredWorker
+
+T = TypeVar("T")
+
+
+def _iso_now() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 class DynamoWorkforceStore:
@@ -21,6 +30,9 @@ class DynamoWorkforceStore:
         self._workers = resource.Table(build_table_name(prefix, "workforce-workers"))
         self._teams = resource.Table(build_table_name(prefix, "workforce-teams"))
 
+    def run_exclusive(self, callback: Callable[[], T]) -> T:
+        return callback()
+
     def save_worker(self, worker: StoredWorker) -> StoredWorker:
         self._workers.put_item(
             Item=prepare_dynamodb_value(worker.model_dump(by_alias=True, mode="json"))
@@ -28,7 +40,7 @@ class DynamoWorkforceStore:
         return worker
 
     def get_worker(self, worker_id: str) -> StoredWorker | None:
-        response = self._workers.get_item(Key={"workerId": worker_id})
+        response = self._workers.get_item(Key={"workerId": worker_id}, ConsistentRead=True)
         item = response.get("Item")
         return StoredWorker.model_validate(convert_decimals(item)) if item else None
 
@@ -44,7 +56,7 @@ class DynamoWorkforceStore:
         return team
 
     def get_team(self, team_id: str) -> StoredTeam | None:
-        response = self._teams.get_item(Key={"teamId": team_id})
+        response = self._teams.get_item(Key={"teamId": team_id}, ConsistentRead=True)
         item = response.get("Item")
         return StoredTeam.model_validate(convert_decimals(item)) if item else None
 
@@ -53,8 +65,50 @@ class DynamoWorkforceStore:
         teams = [StoredTeam.model_validate(convert_decimals(item)) for item in items]
         return sorted(teams, key=lambda item: (item.display_name.lower(), item.team_id))
 
+    def claim_worker(
+        self, worker_id: str, expected_updated_at: str, department_id: str | None
+    ) -> bool:
+        return _claim_assignee(
+            self._workers,
+            key={"workerId": worker_id},
+            expected_updated_at=expected_updated_at,
+            department_id=department_id,
+        )
+
+    def claim_team(self, team_id: str, expected_updated_at: str, department_id: str | None) -> bool:
+        return _claim_assignee(
+            self._teams,
+            key={"teamId": team_id},
+            expected_updated_at=expected_updated_at,
+            department_id=department_id,
+        )
+
     def clear(self) -> None:
         raise NotImplementedError("DynamoWorkforceStore does not support clear().")
+
+
+def _claim_assignee(
+    table,
+    *,
+    key: dict[str, str],
+    expected_updated_at: str,
+    department_id: str | None,
+) -> bool:
+    condition = Attr("updatedAt").eq(expected_updated_at) & Attr("active").eq(True)
+    if department_id:
+        condition = condition & Attr("departmentIds").contains(department_id)
+    try:
+        table.update_item(
+            Key=key,
+            UpdateExpression="SET updatedAt = :now",
+            ExpressionAttributeValues={":now": _iso_now()},
+            ConditionExpression=condition,
+        )
+        return True
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        return False
 
 
 def _query_or_scan(table, key_name: str, municipality_id: str | None) -> list[dict[str, Any]]:
