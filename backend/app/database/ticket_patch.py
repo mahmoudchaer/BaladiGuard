@@ -80,3 +80,28 @@ def build_update_expression(fields: dict[str, Any]) -> tuple[str, dict[str, str]
     if not clauses:
         raise ValueError("At least one field is required for a ticket patch.")
     return " ".join(clauses), names, values
+
+
+def append_ticket_assignment_scope_condition(
+    names: dict[str, str],
+    values: dict[str, Any],
+    *,
+    expected_updated_at: str | None,
+    expected_municipality_id: str | None,
+    expected_department_id: str | None,
+) -> str:
+    """AND-able Dynamo condition for municipality, department, and version."""
+    parts = ["attribute_exists(ticketId)"]
+    for alias, attr, expected in (
+        ("#tasu", "updatedAt", expected_updated_at),
+        ("#tasm", "municipalityId", expected_municipality_id),
+        ("#tasd", "departmentId", expected_department_id),
+    ):
+        names[alias] = attr
+        if expected is None:
+            parts.append(f"attribute_not_exists({alias})")
+            continue
+        value_key = f":{alias[1:]}"
+        values[value_key] = expected
+        parts.append(f"{alias} = {value_key}")
+    return " AND ".join(parts)

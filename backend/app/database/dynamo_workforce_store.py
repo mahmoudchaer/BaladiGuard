@@ -13,7 +13,10 @@ from app.config import Settings, get_settings
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
 from app.database.serialization import convert_decimals, item_to_ticket, prepare_dynamodb_value
-from app.database.ticket_patch import build_update_expression
+from app.database.ticket_patch import (
+    append_ticket_assignment_scope_condition,
+    build_update_expression,
+)
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.workforce import StoredTeam, StoredWorker
 
@@ -96,47 +99,56 @@ class DynamoWorkforceStore:
         team_id: str | None,
         department_id: str | None,
         expected_updated_at: str,
+        expected_ticket_updated_at: str | None,
+        expected_ticket_municipality_id: str | None,
+        expected_ticket_department_id: str | None,
         apply_ticket_patch: Callable[[], StoredTicket | None],
     ) -> StoredTicket | None:
         del apply_ticket_patch
-        if worker_id:
-            assignee_table = self._workers.name
-            assignee_key: dict[str, str] = {"workerId": worker_id}
-        elif team_id:
-            assignee_table = self._teams.name
-            assignee_key = {"teamId": team_id}
-        else:
-            return None
         expression, names, values = build_update_expression(ticket_fields)
-        assignee_values: dict[str, Any] = {":now": _iso_now(), ":expected": expected_updated_at}
-        condition = "updatedAt = :expected AND active = :true"
-        assignee_values[":true"] = True
-        if department_id:
-            condition += " AND contains(departmentIds, :dept)"
-            assignee_values[":dept"] = department_id
+        ticket_condition = append_ticket_assignment_scope_condition(
+            names,
+            values,
+            expected_updated_at=expected_ticket_updated_at,
+            expected_municipality_id=expected_ticket_municipality_id,
+            expected_department_id=expected_ticket_department_id,
+        )
         ticket_item: dict[str, Any] = {
             "Update": {
                 "TableName": self._tickets.name,
                 "Key": {"ticketId": ticket_id},
                 "UpdateExpression": expression,
-                "ConditionExpression": "attribute_exists(ticketId)",
+                "ConditionExpression": ticket_condition,
                 "ExpressionAttributeNames": names,
             }
         }
         if values:
             ticket_item["Update"]["ExpressionAttributeValues"] = values
-        items = [
-            {
-                "Update": {
-                    "TableName": assignee_table,
-                    "Key": assignee_key,
-                    "UpdateExpression": "SET updatedAt = :now",
-                    "ConditionExpression": condition,
-                    "ExpressionAttributeValues": assignee_values,
+        items: list[dict[str, Any]] = []
+        if worker_id or team_id:
+            assignee_table = self._workers.name if worker_id else self._teams.name
+            assignee_key = {"workerId": worker_id} if worker_id else {"teamId": team_id}
+            assignee_values: dict[str, Any] = {
+                ":now": _iso_now(),
+                ":expected": expected_updated_at,
+                ":true": True,
+            }
+            condition = "updatedAt = :expected AND active = :true"
+            if department_id:
+                condition += " AND contains(departmentIds, :dept)"
+                assignee_values[":dept"] = department_id
+            items.append(
+                {
+                    "Update": {
+                        "TableName": assignee_table,
+                        "Key": assignee_key,
+                        "UpdateExpression": "SET updatedAt = :now",
+                        "ConditionExpression": condition,
+                        "ExpressionAttributeValues": assignee_values,
+                    }
                 }
-            },
-            ticket_item,
-        ]
+            )
+        items.append(ticket_item)
         try:
             self._client.transact_write_items(TransactItems=items)
         except ClientError as exc:

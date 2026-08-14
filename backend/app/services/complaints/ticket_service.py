@@ -1486,11 +1486,6 @@ class TicketService:
         """Persist a worker XOR team assignment without rewriting history on deactivate."""
         from app.services.workforce.service import WorkforceError, workforce_service
 
-        ticket = self._store.get(ticket_id)
-        if ticket is None:
-            raise TicketNotFoundError(ticket_id)
-        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
-            raise TicketNotFoundError(ticket_id)
         if staff_principal is None:
             raise WorkforceError(
                 "Authenticated staff are required to assign workforce.",
@@ -1498,40 +1493,20 @@ class TicketService:
                 code="UNAUTHORIZED",
             )
 
-        def _assign() -> TicketResponse:
-            if payload.clear:
-                worker_id, team_id = workforce_service.resolve_ticket_assignment(
-                    staff_principal, ticket, payload
-                )
-                actor_id, actor_role = self._verified_actor(
-                    staff_principal, staff_principal.staff_id
-                )
-                updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-                updated_ticket = self._store.patch_fields(
-                    ticket_id,
-                    {
-                        "assigned_worker_id": worker_id,
-                        "assigned_team_id": team_id,
-                        "updated_at": updated_at,
-                        "updated_by": actor_id,
-                    },
-                )
-                if updated_ticket is None:
-                    raise TicketNotFoundError(ticket_id)
-                return self._complete_workforce_assignment(
-                    ticket,
-                    updated_ticket,
-                    worker_id=worker_id,
-                    team_id=team_id,
-                    actor_id=actor_id,
-                    actor_role=actor_role,
-                    updated_at=updated_at,
-                )
+        def _authorized_ticket() -> StoredTicket:
+            loaded = self._store.get(ticket_id)
+            if loaded is None:
+                raise TicketNotFoundError(ticket_id)
+            if not staff_can_access_ticket(staff_principal, loaded):
+                raise TicketNotFoundError(ticket_id)
+            return loaded
 
+        def _assign() -> TicketResponse:
+            current = _authorized_ticket()
             store = workforce_service.store()
             for _ in range(5):
                 worker_id, team_id = workforce_service.resolve_ticket_assignment(
-                    staff_principal, ticket, payload
+                    staff_principal, current, payload
                 )
                 expected_updated_at = ""
                 if worker_id:
@@ -1558,20 +1533,31 @@ class TicketService:
                     "updated_at": updated_at,
                     "updated_by": actor_id,
                 }
+                snapshot = current
                 updated_ticket = store.commit_ticket_assignment(
                     ticket_id=ticket_id,
                     ticket_fields=ticket_fields,
                     worker_id=worker_id,
                     team_id=team_id,
-                    department_id=ticket.department_id,
+                    department_id=current.department_id,
                     expected_updated_at=expected_updated_at,
-                    apply_ticket_patch=lambda fields=ticket_fields: self._store.patch_fields(
-                        ticket_id, fields
+                    expected_ticket_updated_at=current.updated_at,
+                    expected_ticket_municipality_id=current.municipality_id,
+                    expected_ticket_department_id=current.department_id,
+                    apply_ticket_patch=lambda fields=ticket_fields, ticket=snapshot: (
+                        self._store.patch_fields(
+                            ticket_id,
+                            fields,
+                            expected_updated_at=ticket.updated_at,
+                            expected_municipality_id=ticket.municipality_id,
+                            expected_department_id=ticket.department_id,
+                            require_assignment_scope=True,
+                        )
                     ),
                 )
                 if updated_ticket is not None:
                     return self._complete_workforce_assignment(
-                        ticket,
+                        current,
                         updated_ticket,
                         worker_id=worker_id,
                         team_id=team_id,
@@ -1579,8 +1565,9 @@ class TicketService:
                         actor_role=actor_role,
                         updated_at=updated_at,
                     )
+                current = _authorized_ticket()
             raise WorkforceError(
-                "Assignment could not be completed because the assignee changed. Retry.",
+                "Assignment could not be completed because the ticket or assignee changed. Retry.",
                 status_code=409,
                 code="CONFLICT",
             )

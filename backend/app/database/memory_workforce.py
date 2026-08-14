@@ -102,9 +102,14 @@ class InMemoryWorkforceStore:
         team_id: str | None,
         department_id: str | None,
         expected_updated_at: str,
+        expected_ticket_updated_at: str | None,
+        expected_ticket_municipality_id: str | None,
+        expected_ticket_department_id: str | None,
         apply_ticket_patch: Callable[[], StoredTicket | None],
     ) -> StoredTicket | None:
         del ticket_id, ticket_fields
+        del expected_ticket_updated_at, expected_ticket_municipality_id
+        del expected_ticket_department_id
         with self._lock:
             if worker_id:
                 worker = self._workers.get(worker_id)
@@ -122,8 +127,6 @@ class InMemoryWorkforceStore:
                     or not _eligible(team.active, team.department_ids, department_id)
                 ):
                     return None
-            else:
-                return None
             updated = apply_ticket_patch()
             if updated is None:
                 return None

@@ -38,9 +38,13 @@ Assignment changes append ticket audit action `WORKFORCE_ASSIGN` with the authen
 
 Validate-then-write couples assignee eligibility with the ticket patch: memory
 re-checks the worker/team under the same lock before writing the ticket; Dynamo
-uses a `TransactWriteItems` that conditions on `active` (and department) while
-updating the ticket assignment. Deactivation between those steps cannot create a
-new assignment. Stale reads retry; persistent conflicts return `409`.
+uses a `TransactWriteItems` that conditions the assignee on `active` (and
+department) and the ticket on the municipality, department, and `updatedAt`
+used for authorization. Clear uses the same ticket conditions. If the ticket
+scope changed, the write fails, the ticket is reloaded, staff access and
+assignment eligibility are re-run, then the commit retries. Deactivation or a
+department/municipality change between those steps cannot create a new
+assignment against a stale snapshot. Persistent conflicts return `409`.
 
 ## Workload counts
 

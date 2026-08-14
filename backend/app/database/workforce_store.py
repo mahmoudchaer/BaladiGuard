@@ -47,6 +47,9 @@ class WorkforceStore(Protocol):
         team_id: str | None,
         department_id: str | None,
         expected_updated_at: str,
+        expected_ticket_updated_at: str | None,
+        expected_ticket_municipality_id: str | None,
+        expected_ticket_department_id: str | None,
         apply_ticket_patch: Callable[[], StoredTicket | None],
     ) -> StoredTicket | None: ...
 

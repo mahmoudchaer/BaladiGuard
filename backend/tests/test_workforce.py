@@ -574,9 +574,206 @@ def test_dynamo_commit_assignment_fails_if_deactivated_after_claim(
         team_id=None,
         department_id=ROAD,
         expected_updated_at=claimed.updated_at,
+        expected_ticket_updated_at=ticket.updated_at,
+        expected_ticket_municipality_id=BEIRUT,
+        expected_ticket_department_id=ROAD,
         apply_ticket_patch=lambda: None,
     )
     assert assigned is None
     stored = tickets.get("tkt_race")
     assert stored is not None
     assert stored.assigned_worker_id is None
+
+
+def test_assignment_rejects_ticket_department_change_before_commit(client: TestClient) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id, department_id=ROAD)
+    worker = _create_worker(client, departments=[ROAD])
+    from app.database.memory_workforce import workforce_store
+
+    original = workforce_store.commit_ticket_assignment
+
+    def change_department_then_commit(**kwargs):
+        stored = ticket_store.get(ticket_id)
+        assert stored is not None
+        ticket_store.save(
+            stored.model_copy(
+                update={
+                    "department_id": WASTE,
+                    "updated_at": "2026-08-14T18:00:00Z",
+                }
+            )
+        )
+        return original(**kwargs)
+
+    workforce_store.commit_ticket_assignment = change_department_then_commit  # type: ignore[method-assign]
+    try:
+        blocked = client.post(
+            f"/v1/tickets/{ticket_id}/workforce-assignment",
+            json={"workerId": worker["workerId"]},
+            headers=_admin(client),
+        )
+        assert blocked.status_code == 400, blocked.text
+        detail = ticket_store.get(ticket_id)
+        assert detail is not None
+        assert detail.assigned_worker_id is None
+        assert detail.department_id == WASTE
+    finally:
+        workforce_store.commit_ticket_assignment = original  # type: ignore[method-assign]
+
+
+def test_clear_rejects_ticket_municipality_change_before_commit(client: TestClient) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id)
+    worker = _create_worker(client)
+    staff = _staff(client)
+    assigned = client.post(
+        f"/v1/tickets/{ticket_id}/workforce-assignment",
+        json={"workerId": worker["workerId"]},
+        headers=staff,
+    )
+    assert assigned.status_code == 200, assigned.text
+    from app.database.memory_workforce import workforce_store
+
+    original = workforce_store.commit_ticket_assignment
+
+    def change_municipality_then_commit(**kwargs):
+        stored = ticket_store.get(ticket_id)
+        assert stored is not None
+        ticket_store.save(
+            stored.model_copy(
+                update={
+                    "municipality_id": OTHER_MUNICIPALITY,
+                    "updated_at": "2026-08-14T18:30:00Z",
+                }
+            )
+        )
+        return original(**kwargs)
+
+    workforce_store.commit_ticket_assignment = change_municipality_then_commit  # type: ignore[method-assign]
+    try:
+        blocked = client.post(
+            f"/v1/tickets/{ticket_id}/workforce-assignment",
+            json={"clear": True},
+            headers=staff,
+        )
+        assert blocked.status_code == 404, blocked.text
+        detail = ticket_store.get(ticket_id)
+        assert detail is not None
+        assert detail.assigned_worker_id == worker["workerId"]
+        assert detail.municipality_id == OTHER_MUNICIPALITY
+    finally:
+        workforce_store.commit_ticket_assignment = original  # type: ignore[method-assign]
+
+
+def test_dynamo_commit_assignment_fails_if_ticket_department_changed(
+    dynamodb_settings: Settings,
+) -> None:
+    workforce = DynamoWorkforceStore(dynamodb_settings)
+    tickets = DynamoTicketStore(dynamodb_settings)
+    worker = StoredWorker(
+        workerId="wrk_scope",
+        municipalityId=BEIRUT,
+        displayName="Scope worker",
+        departmentIds=[ROAD],
+        teamIds=[],
+        active=True,
+        createdAt="2026-08-14T12:00:00Z",
+        updatedAt="2026-08-14T12:00:00Z",
+    )
+    workforce.save_worker(worker)
+    ticket = StoredTicket(
+        ticketId="tkt_scope",
+        ticketNumber="BG-2026-8802",
+        trackingCode="SCOPE1",
+        description="Pothole.",
+        contact=ReportContact(name="Test User", phone="+96170000000"),
+        location=ReportLocation(
+            latitude=33.89,
+            longitude=35.50,
+            addressText="Hamra, Beirut",
+            source="MANUAL",
+        ),
+        imageObjectKey="reports/mock/test.jpg",
+        status="SUBMITTED",
+        category=PENDING_CLASSIFICATION,
+        departmentId=ROAD,
+        municipalityId=BEIRUT,
+        createdAt="2026-08-14T12:00:00Z",
+        updatedAt="2026-08-14T12:00:00Z",
+    )
+    tickets.save(ticket)
+    tickets.save(
+        ticket.model_copy(update={"department_id": WASTE, "updated_at": "2026-08-14T12:05:00Z"})
+    )
+    assigned = workforce.commit_ticket_assignment(
+        ticket_id="tkt_scope",
+        ticket_fields={
+            "assigned_worker_id": "wrk_scope",
+            "assigned_team_id": None,
+            "updated_at": "2026-08-14T12:06:00Z",
+        },
+        worker_id="wrk_scope",
+        team_id=None,
+        department_id=ROAD,
+        expected_updated_at=worker.updated_at,
+        expected_ticket_updated_at=ticket.updated_at,
+        expected_ticket_municipality_id=BEIRUT,
+        expected_ticket_department_id=ROAD,
+        apply_ticket_patch=lambda: None,
+    )
+    assert assigned is None
+    stored = tickets.get("tkt_scope")
+    assert stored is not None
+    assert stored.assigned_worker_id is None
+    assert stored.department_id == WASTE
+
+
+def test_dynamo_clear_assignment_fails_if_ticket_version_changed(
+    dynamodb_settings: Settings,
+) -> None:
+    workforce = DynamoWorkforceStore(dynamodb_settings)
+    tickets = DynamoTicketStore(dynamodb_settings)
+    ticket = StoredTicket(
+        ticketId="tkt_clear_scope",
+        ticketNumber="BG-2026-8803",
+        trackingCode="CLEAR1",
+        description="Pothole.",
+        contact=ReportContact(name="Test User", phone="+96170000000"),
+        location=ReportLocation(
+            latitude=33.89,
+            longitude=35.50,
+            addressText="Hamra, Beirut",
+            source="MANUAL",
+        ),
+        imageObjectKey="reports/mock/test.jpg",
+        status="ASSIGNED",
+        category=PENDING_CLASSIFICATION,
+        departmentId=ROAD,
+        municipalityId=BEIRUT,
+        assignedWorkerId="wrk_keep",
+        createdAt="2026-08-14T12:00:00Z",
+        updatedAt="2026-08-14T12:00:00Z",
+    )
+    tickets.save(ticket)
+    tickets.save(ticket.model_copy(update={"updated_at": "2026-08-14T12:09:00Z"}))
+    cleared = workforce.commit_ticket_assignment(
+        ticket_id="tkt_clear_scope",
+        ticket_fields={
+            "assigned_worker_id": None,
+            "assigned_team_id": None,
+            "updated_at": "2026-08-14T12:10:00Z",
+        },
+        worker_id=None,
+        team_id=None,
+        department_id=ROAD,
+        expected_updated_at="",
+        expected_ticket_updated_at=ticket.updated_at,
+        expected_ticket_municipality_id=BEIRUT,
+        expected_ticket_department_id=ROAD,
+        apply_ticket_patch=lambda: None,
+    )
+    assert cleared is None
+    stored = tickets.get("tkt_clear_scope")
+    assert stored is not None
+    assert stored.assigned_worker_id == "wrk_keep"
