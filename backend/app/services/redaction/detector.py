@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -75,11 +76,13 @@ class AwsRekognitionDetector:
         except (BotoCoreError, ClientError) as exc:
             raise DetectionProviderError("DETECTION_PROVIDER_UNAVAILABLE") from exc
 
-        detections = [
-            Detection("face", float(item.get("Confidence", 0)), _box(item.get("BoundingBox")))
-            for item in faces
-            if item.get("BoundingBox")
-        ]
+        try:
+            detections = [
+                Detection("face", float(item["Confidence"]), _box(item["BoundingBox"]))
+                for item in faces
+            ]
+        except (KeyError, TypeError, ValueError, AttributeError, OverflowError) as exc:
+            raise DetectionProviderError("MALFORMED_DETECTION_OUTPUT") from exc
         detections.extend(self._detect_plates(image_bytes))
         return detections
 
@@ -100,21 +103,30 @@ class AwsRekognitionDetector:
             detections: list[Detection] = []
             for item in results:
                 box = item.bounding_box
-                if width <= 0 or height <= 0 or box.x2 <= box.x1 or box.y2 <= box.y1:
-                    continue
+                confidence = float(item.confidence)
+                x1, y1, x2, y2 = map(float, (box.x1, box.y1, box.x2, box.y2))
+                if (
+                    width <= 0
+                    or height <= 0
+                    or not all(math.isfinite(value) for value in (confidence, x1, y1, x2, y2))
+                    or not 0 <= confidence <= 1
+                    or x2 <= x1
+                    or y2 <= y1
+                ):
+                    raise DetectionProviderError("MALFORMED_DETECTION_OUTPUT")
                 detections.append(
                     Detection(
                         "plate",
-                        float(item.confidence) * 100,
+                        confidence * 100,
                         BoundingBox(
-                            left=box.x1 / width,
-                            top=box.y1 / height,
-                            width=(box.x2 - box.x1) / width,
-                            height=(box.y2 - box.y1) / height,
+                            left=x1 / width,
+                            top=y1 / height,
+                            width=(x2 - x1) / width,
+                            height=(y2 - y1) / height,
                         ),
                     )
                 )
-        except DetectionConfigurationError:
+        except (DetectionConfigurationError, DetectionProviderError):
             raise
         except Exception as exc:
             raise DetectionProviderError("PLATE_DETECTOR_UNAVAILABLE") from exc

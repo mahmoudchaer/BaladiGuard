@@ -150,6 +150,26 @@ def test_low_confidence_derivative_is_review_required_and_not_approved():
     assert "approval-state=review-required" in s3.put_calls[0]["Tagging"]
 
 
+@pytest.mark.parametrize(
+    "detection",
+    [
+        Detection("face", 98, BoundingBox(0.1, 0.1, 0, 0.2)),
+        Detection("plate", float("nan"), BoundingBox(0.1, 0.1, 0.2, 0.2)),
+        Detection("plate", 101, BoundingBox(0.1, 0.1, 0.2, 0.2)),
+        Detection("plate", 98, BoundingBox(0.1, 0.1, float("inf"), 0.2)),
+    ],
+)
+def test_any_malformed_detection_fails_closed_without_upload(detection):
+    processor, s3 = _processor("tkt_malformed", FakeDetector([detection]))
+    with pytest.raises(DetectionProviderError, match="MALFORMED_DETECTION_OUTPUT"):
+        processor.process(
+            ticket_id="tkt_malformed",
+            source_key="reports/photos/v2/owner/photo.jpg",
+            generation=1,
+        )
+    assert not s3.put_calls
+
+
 def test_foreign_or_unbound_original_key_is_rejected():
     processor, s3 = _processor("tkt_bound", FakeDetector())
     s3.bound = False
@@ -214,6 +234,52 @@ def test_aws_adapter_fails_closed_for_malformed_plate_detector_output():
         plate_detector=SimpleNamespace(predict=lambda _: [SimpleNamespace()]),
     )
     with pytest.raises(DetectionProviderError, match="PLATE_DETECTOR_UNAVAILABLE"):
+        detector.detect(_jpeg())
+
+
+def test_pipeline_fails_closed_for_malformed_rekognition_box():
+    rekognition = SimpleNamespace(
+        detect_faces=lambda **_: {
+            "FaceDetails": [
+                {
+                    "Confidence": 98,
+                    "BoundingBox": {"Left": 0.1, "Top": 0.2, "Width": 0, "Height": 0.4},
+                }
+            ]
+        }
+    )
+    detector = AwsRekognitionDetector(
+        _settings(),
+        client=rekognition,
+        plate_detector=SimpleNamespace(predict=lambda _: []),
+    )
+    processor, s3 = _processor("tkt_bad_face", detector)
+    with pytest.raises(DetectionProviderError, match="MALFORMED_DETECTION_OUTPUT"):
+        processor.process(
+            ticket_id="tkt_bad_face",
+            source_key="reports/photos/v2/owner/photo.jpg",
+            generation=1,
+        )
+    assert not s3.put_calls
+
+
+@pytest.mark.parametrize(
+    ("confidence", "x2"),
+    [(float("nan"), 84), (1.1, 84), (0.88, float("inf")), (0.88, 60)],
+)
+def test_aws_adapter_fails_closed_for_invalid_plate_values(confidence, x2):
+    plate_detector = SimpleNamespace(
+        predict=lambda _: [
+            SimpleNamespace(
+                confidence=confidence,
+                bounding_box=SimpleNamespace(x1=60, y1=48, x2=x2, y2=56),
+            )
+        ]
+    )
+    detector = AwsRekognitionDetector(
+        _settings(), client=FakeRekognition(), plate_detector=plate_detector
+    )
+    with pytest.raises(DetectionProviderError, match="MALFORMED_DETECTION_OUTPUT"):
         detector.detect(_jpeg())
 
 

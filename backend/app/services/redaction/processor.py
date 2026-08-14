@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from io import BytesIO
 from urllib.parse import urlencode
@@ -72,7 +73,14 @@ class ImageRedactionProcessor:
         except DetectionProviderError:
             raise
 
-        valid = [d for d in detections if _valid_detection(d)]
+        try:
+            valid = list(detections)
+        except TypeError as exc:
+            raise DetectionProviderError("MALFORMED_DETECTION_OUTPUT") from exc
+        if not all(_valid_detection(detection) for detection in valid):
+            # Detector output is a security boundary: silently discarding one
+            # malformed candidate could approve the image without blurring it.
+            raise DetectionProviderError("MALFORMED_DETECTION_OUTPUT")
         minimum = min((d.confidence for d in valid), default=None)
         low_confidence = any(
             d.confidence < self.settings.image_redaction_auto_confidence for d in valid
@@ -164,17 +172,22 @@ def _normalize(contents: bytes) -> tuple[Image.Image, bytes]:
 
 
 def _valid_detection(detection: Detection) -> bool:
-    box = detection.box
-    return (
-        detection.kind in {"face", "plate"}
-        and detection.confidence >= 0
-        and box.width > 0
-        and box.height > 0
-        and box.left < 1
-        and box.top < 1
-        and box.left + box.width > 0
-        and box.top + box.height > 0
-    )
+    try:
+        box = detection.box
+        values = (detection.confidence, box.left, box.top, box.width, box.height)
+        return (
+            detection.kind in {"face", "plate"}
+            and all(math.isfinite(value) for value in values)
+            and 0 <= detection.confidence <= 100
+            and box.width > 0
+            and box.height > 0
+            and box.left < 1
+            and box.top < 1
+            and box.left + box.width > 0
+            and box.top + box.height > 0
+        )
+    except (AttributeError, TypeError):
+        return False
 
 
 def _blur(image: Image.Image, detections: list[Detection], *, padding: float, radius: float):
