@@ -6,13 +6,7 @@
     "orientation": "portrait",
     "scheme": "baladiguard",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F4F6F8"
-    },
     "ios": {
       "bundleIdentifier": "com.baladiguard.citizen",
       "buildNumber": "1",
@@ -28,6 +22,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F4F6F8"
+        }
+      ],
       [
         "expo-image-picker",
         {

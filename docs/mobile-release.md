@@ -176,8 +176,10 @@ eas submit --platform ios --profile production --latest
 ```
 
 Complete Play Console / App Store Connect data-safety and privacy questionnaires
-using `docs/privacy-lifecycle.md` plus the hosted privacy URL. Icons/splash are
-the committed assets under `mobile/assets/`.
+using `docs/privacy-lifecycle.md` plus the hosted privacy URL. Icons live under
+`mobile/assets/`. Splash is set with the `expo-splash-screen` plugin in
+`mobile/app.json` (SDK 57 does not use a top-level `splash` key). The New
+Architecture is always enabled; do not set `newArchEnabled` in app config.
 
 ## Rollback and hotfix
 

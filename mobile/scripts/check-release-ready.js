@@ -137,6 +137,13 @@ try {
   if (!resolved.icon) {
     errors.push('Resolved Expo config is missing icon.');
   }
+  const splashPlugin = (resolved.plugins || []).find(
+    (entry) =>
+      entry === 'expo-splash-screen' || (Array.isArray(entry) && entry[0] === 'expo-splash-screen'),
+  );
+  if (!splashPlugin) {
+    errors.push('Resolved Expo config missing expo-splash-screen plugin.');
+  }
   const infoPlist = resolved.ios?.infoPlist || {};
   for (const key of [
     'NSCameraUsageDescription',

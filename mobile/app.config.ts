@@ -36,11 +36,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           ...options,
           microphonePermission: false,
         },
-      ];
+      ] as [string, Record<string, unknown>];
     }
     return plugin;
   });
 
+  // Splash is configured via the expo-splash-screen plugin in app.json (SDK 57).
   return {
     ...config,
     name: config.name ?? 'BaladiGuard',
@@ -48,11 +49,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version: config.version ?? '0.1.0',
     scheme: config.scheme ?? 'baladiguard',
     icon: config.icon ?? './assets/icon.png',
-    splash: config.splash ?? {
-      image: './assets/splash-icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#F4F6F8',
-    },
     plugins,
     ios: {
       ...config.ios,
