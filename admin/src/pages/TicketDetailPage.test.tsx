@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assignTicketDepartment,
+  assignTicketWorkforce,
   createTicketComment,
   fetchTicketActivity,
   fetchTicketComments,
@@ -22,6 +23,7 @@ import type {
   Ticket,
 } from '@/types/ticket';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
+import { listWorkers } from '@/services/workforce';
 
 vi.mock('@/services/tickets', () => ({
   fetchTicketById: vi.fn(),
@@ -31,9 +33,15 @@ vi.mock('@/services/tickets', () => ({
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
   assignTicketDepartment: vi.fn(),
+  assignTicketWorkforce: vi.fn(),
   createTicketComment: vi.fn(),
   fetchTicketActivity: vi.fn(),
   fetchTicketComments: vi.fn(),
+}));
+
+vi.mock('@/services/workforce', () => ({
+  listWorkers: vi.fn(async () => []),
+  listTeams: vi.fn(async () => []),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -1471,5 +1479,39 @@ describe('TicketDetailPage activity', () => {
 
     expect(screen.queryByText('Comment for the first ticket')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
+  });
+});
+
+describe('TicketDetailPage workforce assignment', () => {
+  it('assigns an eligible worker from the review workspace', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listWorkers).mockResolvedValue([
+      {
+        workerId: 'wrk_1',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        displayName: 'Karim Roads',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        teamIds: [],
+        active: true,
+        createdAt: '2026-07-17T08:00:00Z',
+        updatedAt: '2026-07-17T08:00:00Z',
+      },
+    ]);
+    vi.mocked(assignTicketWorkforce).mockResolvedValue({
+      ...ticket,
+      assignedWorkerId: 'wrk_1',
+      assignedTeamId: null,
+    });
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    const select = await screen.findByLabelText('Assigned worker or team');
+    await user.selectOptions(select, 'worker:wrk_1');
+    await user.click(screen.getByRole('button', { name: 'Save assignment' }));
+
+    await waitFor(() => {
+      expect(assignTicketWorkforce).toHaveBeenCalledWith('tkt_123', { workerId: 'wrk_1' });
+    });
+    expect(await screen.findByText('Workforce assignment updated.')).toBeInTheDocument();
   });
 });

@@ -116,6 +116,8 @@ def map_ticket_to_list_item(ticket: StoredTicket) -> TicketListItemResponse:
         updatedAt=ticket.updated_at,
         municipalityId=ticket.municipality_id,
         assignmentState="assigned" if ticket.department_id else "unassigned",
+        assignedWorkerId=ticket.assigned_worker_id,
+        assignedTeamId=ticket.assigned_team_id,
         location=TicketListLocation(
             latitude=ticket.location.latitude,
             longitude=ticket.location.longitude,
@@ -337,6 +339,8 @@ def map_ticket_to_response(
         imageObjectKey=ticket.image_object_key,
         department=department,
         departmentId=ticket.department_id,
+        assignedWorkerId=ticket.assigned_worker_id,
+        assignedTeamId=ticket.assigned_team_id,
         createdBy=ticket.created_by,
         municipalityId=ticket.municipality_id,
         duplicateGroupId=ticket.duplicate_group_id,

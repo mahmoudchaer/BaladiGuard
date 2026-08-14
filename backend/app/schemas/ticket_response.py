@@ -69,6 +69,7 @@ class TicketAuditHistoryEntry(BaseModel):
         "DUPLICATE_MERGE",
         "PUBLIC_CONTENT_UPDATE",
         "STAFF_COMMENT",
+        "WORKFORCE_ASSIGN",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
     actor_role: Literal["municipal_staff", "administrator"] | None = Field(
@@ -247,6 +248,8 @@ class TicketResponse(BaseModel):
     image_object_key: str | None = Field(default=None, alias="imageObjectKey")
     department: TicketDepartment | None
     department_id: str | None = Field(default=None, alias="departmentId")
+    assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
+    assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")

@@ -42,6 +42,8 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "urgency_reason": "urgencyReason",
     "department_id": "departmentId",
     "suggested_department_id": "suggestedDepartmentId",
+    "assigned_worker_id": "assignedWorkerId",
+    "assigned_team_id": "assignedTeamId",
 }
 
 

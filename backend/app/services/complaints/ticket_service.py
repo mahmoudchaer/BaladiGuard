@@ -59,6 +59,7 @@ from app.schemas.ticket_response import (
     UpdateTicketStatusRequest,
 )
 from app.schemas.ticket_status import TicketStatus
+from app.schemas.workforce import AssignWorkforceRequest
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
 from app.services.complaints.sla import derive_ticket_sla
@@ -635,15 +636,21 @@ class TicketService:
         page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
         store_filters = filters
-        sla_state = None if store_filters is None else store_filters.sla_state
+        needs_post_filter = bool(
+            store_filters is not None
+            and (
+                store_filters.sla_state
+                or store_filters.worker_id
+                or store_filters.team_id
+                or store_filters.workforce_unassigned
+            )
+        )
 
         collected: list[StoredTicket] = []
         scanned_count = 0
         current_cursor = cursor
         next_cursor: str | None = None
-        # Derived SLA filters need continuation across source pages so a page of
-        # non-matching tickets cannot hide later overdue/on-track matches.
-        max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS if sla_state is not None else 1
+        max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS if needs_post_filter else 1
 
         for _ in range(max_rounds):
             page = self._store.list_staff_page(
@@ -663,17 +670,15 @@ class TicketService:
             scanned_count += page.scanned_count
             page_items = page.items
 
-            if sla_state is None:
+            if not needs_post_filter:
                 collected.extend(page_items)
                 next_cursor = page.next_cursor
                 break
 
+            assert store_filters is not None
             page_filled = False
             for index, ticket in enumerate(page_items):
-                if not ticket_matches_filters(
-                    ticket,
-                    TicketListFilters(sla_state=sla_state),
-                ):
+                if not ticket_matches_filters(ticket, store_filters):
                     continue
                 collected.append(ticket)
                 if len(collected) < page_size:
@@ -1367,6 +1372,58 @@ class TicketService:
         )
         return self._map_ticket(updated_ticket)
 
+    def assign_ticket_workforce(
+        self,
+        ticket_id: str,
+        payload: AssignWorkforceRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> TicketResponse:
+        """Persist a worker XOR team assignment without rewriting history on deactivate."""
+        from app.services.workforce.service import WorkforceError, workforce_service
+
+        ticket = self._store.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        if staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket):
+            raise TicketNotFoundError(ticket_id)
+        if staff_principal is None:
+            raise WorkforceError(
+                "Authenticated staff are required to assign workforce.",
+                status_code=401,
+                code="UNAUTHORIZED",
+            )
+
+        worker_id, team_id = workforce_service.resolve_ticket_assignment(
+            staff_principal, ticket, payload
+        )
+        actor_id, actor_role = self._verified_actor(staff_principal, staff_principal.staff_id)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated_ticket = self._store.patch_fields(
+            ticket_id,
+            {
+                "assigned_worker_id": worker_id,
+                "assigned_team_id": team_id,
+                "updated_at": updated_at,
+                "updated_by": actor_id,
+            },
+        )
+        if updated_ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        previous_value = _workforce_label(ticket.assigned_worker_id, ticket.assigned_team_id)
+        new_value = _workforce_label(worker_id, team_id)
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="WORKFORCE_ASSIGN",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=f"Workforce assignment changed from {previous_value} to {new_value}.",
+            previous_value=previous_value,
+            new_value=new_value,
+            created_at=updated_at,
+        )
+        return self._map_ticket(updated_ticket)
+
     def merge_duplicate_tickets(
         self,
         payload: MergeDuplicateTicketsRequest,
@@ -1839,6 +1896,14 @@ def _grid_clusters(
             )
         )
     return clusters
+
+
+def _workforce_label(worker_id: str | None, team_id: str | None) -> str:
+    if worker_id:
+        return f"worker:{worker_id}"
+    if team_id:
+        return f"team:{team_id}"
+    return "unassigned"
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

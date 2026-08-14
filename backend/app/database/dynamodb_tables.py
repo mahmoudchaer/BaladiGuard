@@ -172,6 +172,36 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        "suffix": "workforce-workers",
+        "key_schema": [{"AttributeName": "workerId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "workerId", "AttributeType": "S"},
+            {"AttributeName": "municipalityId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "municipalityId-index",
+                "KeySchema": [{"AttributeName": "municipalityId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
+        "suffix": "workforce-teams",
+        "key_schema": [{"AttributeName": "teamId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "teamId", "AttributeType": "S"},
+            {"AttributeName": "municipalityId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "municipalityId-index",
+                "KeySchema": [{"AttributeName": "municipalityId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "departments",
         "key_schema": [{"AttributeName": "departmentId", "KeyType": "HASH"}],
         "attribute_definitions": [
