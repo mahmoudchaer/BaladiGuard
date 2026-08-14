@@ -7,7 +7,11 @@ import {
   loadCitizenSession,
   saveCitizenSession,
 } from '@/services/citizenSession';
-import { __getSecureStoreMock, __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
+import {
+  __getSecureStoreMock,
+  __resetSecureStoreMock,
+  __setSecureStoreError,
+} from '@/test/mocks/expo-secure-store';
 import type { CitizenProfile } from '@/types/citizen';
 
 const profile: CitizenProfile = {
@@ -37,6 +41,17 @@ describe('citizenSession', () => {
     expect(restored?.accessToken).toBe('tok_1');
     expect(restored?.profile.userId).toBe('usr_1');
     expect(__getSecureStoreMock().has(CITIZEN_SESSION_STORAGE_KEY)).toBe(true);
+  });
+
+  it('persists across unsigned development simulator restarts when Keychain is unavailable', async () => {
+    __setSecureStoreError(new Error('A required entitlement is not present.'));
+    const session = buildCitizenSession('tok_dev', 3600, profile);
+
+    await saveCitizenSession(session);
+    const restored = await loadCitizenSession();
+
+    expect(restored?.accessToken).toBe('tok_dev');
+    expect(restored?.profile.userId).toBe('usr_1');
   });
 
   it('clears expired and invalid sessions', async () => {

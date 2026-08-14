@@ -65,7 +65,8 @@ export default function LoginScreen() {
           ) : (
             <PhoneEntryForm
               onSuccess={setChallenge}
-              subtitle="Enter your mobile number to receive a one-time verification code. A verified phone is enough to submit reports — no password or full name required."
+              title="Continue with your phone"
+              subtitle="We’ll sign you back into the account linked to this number. If it’s your first time, an account is created automatically — no password required."
             />
           )}
         </View>

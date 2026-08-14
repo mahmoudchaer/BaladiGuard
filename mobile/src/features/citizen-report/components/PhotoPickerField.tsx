@@ -12,6 +12,7 @@ type PhotoPickerFieldProps = {
   control: Control<ReportFormValues>;
   errors: FieldErrors<ReportFormValues>;
   setValue: UseFormSetValue<ReportFormValues>;
+  onPhotoChanged?: () => void;
 };
 
 type PickerSource = 'camera' | 'library';
@@ -23,11 +24,17 @@ const LIBRARY_PERMISSION_MESSAGE =
 const PICKER_FAILURE_MESSAGE =
   'Something went wrong while opening the camera or gallery. Please try again.';
 
-export function PhotoPickerField({ control, errors, setValue }: PhotoPickerFieldProps) {
+export function PhotoPickerField({
+  control,
+  errors,
+  setValue,
+  onPhotoChanged,
+}: PhotoPickerFieldProps) {
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [activePicker, setActivePicker] = useState<PickerSource | null>(null);
 
   const applyAsset = (asset: ImagePicker.ImagePickerAsset, onChange: (uri: string) => void) => {
+    onPhotoChanged?.();
     onChange(asset.uri);
     setValue('photoFileName', asset.fileName ?? `photo-${Date.now()}.jpg`);
     setValue('photoContentType', asset.mimeType ?? 'image/jpeg');
@@ -53,7 +60,7 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
         source === 'camera'
           ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
           : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              mediaTypes: ['images'],
               allowsEditing: true,
               quality: 0.8,
             });
@@ -103,6 +110,7 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
                   style={styles.actionButton}
                   contentStyle={styles.actionButtonContent}
                   onPress={() => {
+                    onPhotoChanged?.();
                     onChange('');
                     setValue('photoFileName', '');
                     setValue('photoContentType', '');

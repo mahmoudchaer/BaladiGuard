@@ -56,6 +56,26 @@ export function Image({ children, ...props }: HostProps) {
 }
 export const ActivityIndicator = createHostComponent('ActivityIndicator');
 export const RefreshControl = createHostComponent('RefreshControl');
+export const Animated = {
+  Value: class {
+    value: number;
+    constructor(value: number) {
+      this.value = value;
+    }
+    setValue(value: number) {
+      this.value = value;
+    }
+    stopAnimation() {}
+  },
+  View: createHostComponent('AnimatedView'),
+  spring: (value: { setValue: (next: number) => void }, config: { toValue: number }) => ({
+    start: () => value.setValue(config.toValue),
+  }),
+};
+export const AccessibilityInfo = {
+  isReduceMotionEnabled: async () => false,
+  addEventListener: () => ({ remove: () => undefined }),
+};
 // Function component (same idea as Image) so we do not collide with any ambient Modal types.
 export function Modal({ children, visible = true, ...props }: HostProps & { visible?: boolean }) {
   if (!visible) {

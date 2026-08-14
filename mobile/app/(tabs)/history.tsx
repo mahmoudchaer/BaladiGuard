@@ -90,7 +90,7 @@ export default function CitizenTicketHistoryScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.centered} testID="history-auth-loading">
           <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
@@ -106,7 +106,7 @@ export default function CitizenTicketHistoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={
@@ -120,7 +120,7 @@ export default function CitizenTicketHistoryScreen() {
       >
         <View style={styles.header}>
           <Text variant="headlineMedium" style={styles.title} accessibilityRole="header">
-            Report history
+            My Reports
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             Reports submitted from your signed-in account. Tap any report to see its full status

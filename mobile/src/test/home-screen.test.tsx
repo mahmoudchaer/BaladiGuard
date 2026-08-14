@@ -2,77 +2,34 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HomeScreen from '../../app/index';
+import HomeScreen from '../../app/(tabs)';
+import ExploreScreen from '../../app/(tabs)/explore';
+import { getPublicTickets } from '@/services/api/tickets';
 import { __getRouterMockState, __resetExpoRouterMock } from './mocks/expo-router';
-import { renderWithProvidersAsync } from './render';
-import type { PublicTicketResponse } from '@/types/ticket';
+import { renderWithProviders, renderWithProvidersAsync } from './render';
 
-function makeReport(
-  overrides: Partial<PublicTicketResponse> & {
-    ticketNumber: string;
-    latitude?: number;
-    longitude?: number;
-  },
-): PublicTicketResponse {
-  const { latitude = 33.896, longitude = 35.478, ticketNumber, ...rest } = overrides;
-  return {
-    ticketNumber,
-    status: rest.status ?? 'IN_PROGRESS',
-    category: rest.category ?? 'road_damage',
-    description: rest.description ?? 'Large pothole near the university gate.',
-    location: rest.location ?? { addressText: 'Near AUB Main Gate, Hamra, Beirut' },
-    mapLocation: {
-      addressText: 'Near AUB Main Gate, Hamra, Beirut',
-      latitude,
-      longitude,
-    },
-    department: { name: 'Road Maintenance' },
-    attribution: { displayName: 'Community member', isNamed: false },
-    photoUrl: 'https://example.com/report-photo.jpg',
-    createdAt: '2026-07-07T00:00:00Z',
-    updatedAt: '2026-07-07T02:00:00Z',
-    ...rest,
-  };
-}
-
-const baseTickets = {
+const publicTickets = {
   items: [
-    makeReport({ ticketNumber: 'BG-2026-0001', latitude: 33.896, longitude: 35.478 }),
-    makeReport({
-      ticketNumber: 'BG-2026-0002',
-      status: 'RESOLVED',
-      category: 'waste',
-      latitude: 33.89601,
-      longitude: 35.47801,
-      description: 'Overflowing bins on Bliss Street.',
-    }),
-    makeReport({
-      ticketNumber: 'BG-2026-0003',
-      category: 'street_lighting',
-      latitude: Number.NaN,
-      longitude: 35.48,
-      description: 'Broken lamp without valid map pin.',
-    }),
+    {
+      ticketNumber: 'BG-2026-0001',
+      status: 'IN_PROGRESS' as const,
+      category: 'road_damage',
+      description: 'Large pothole near the university gate.',
+      location: { addressText: 'Hamra, Beirut' },
+      mapLocation: { addressText: 'Hamra, Beirut', latitude: 33.896, longitude: 35.478 },
+      attribution: { displayName: 'Community member', isNamed: false },
+      photoUrl: null,
+      createdAt: '2026-07-07T00:00:00Z',
+      updatedAt: '2026-07-07T02:00:00Z',
+    },
   ],
   nextCursor: null,
-  limit: 50,
-};
-
-const denseTickets = {
-  items: Array.from({ length: 24 }, (_, index) =>
-    makeReport({
-      ticketNumber: `BG-DENSE-${String(index).padStart(2, '0')}`,
-      latitude: 33.9 + (index % 3) * 0.00002,
-      longitude: 35.5 + Math.floor(index / 3) * 0.00002,
-      description: `Dense fixture report ${index}`,
-    }),
-  ),
-  nextCursor: null,
-  limit: 50,
+  limit: 20,
 };
 
 vi.mock('@/services/api/tickets', () => ({
-  getPublicTickets: vi.fn(async () => baseTickets),
+  getPublicTickets: vi.fn(async () => publicTickets),
+  getCitizenTicketHistory: vi.fn(),
 }));
 
 vi.mock('react-native-maps', () => ({
@@ -82,257 +39,66 @@ vi.mock('react-native-maps', () => ({
     React.createElement('Marker', props, children),
 }));
 
-import { getPublicTickets } from '@/services/api/tickets';
-
-function textContent(value: React.ReactNode): string {
-  if (Array.isArray(value)) {
-    return value.map(textContent).join('');
-  }
-  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
-}
-
-function hasTextContaining(
-  screen: Awaited<ReturnType<typeof renderWithProvidersAsync>>,
-  text: string,
-): boolean {
-  return screen.root.findAll((node) => textContent(node.props.children).includes(text)).length > 0;
-}
-
-async function flush() {
-  for (let i = 0; i < 5; i += 1) {
-    await act(async () => {
-      await Promise.resolve();
-    });
-  }
-}
-
-describe('HomeScreen public map clustering', () => {
+describe('mobile entry and Explore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetExpoRouterMock();
-    vi.mocked(getPublicTickets).mockResolvedValue(baseTickets);
+    vi.mocked(getPublicTickets).mockResolvedValue(publicTickets);
   });
 
-  it('renders entry points and the public list alternative', async () => {
+  it('renders the focused guest welcome and open-access choices', async () => {
     const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    expect(screen.root.findByProps({ children: 'BaladiGuard' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
-    expect(screen.root.findByProps({ testID: 'public-report-list' })).toBeTruthy();
-    expect(screen.root.findByProps({ testID: 'public-map-list-hint' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'welcome-screen' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Sign in or create an account' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Continue as guest' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Track with a code' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Privacy notice' })).toBeTruthy();
+    expect(getPublicTickets).not.toHaveBeenCalled();
   });
 
-  it('loads public tickets and shows list cards without auth', async () => {
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
+  it('shows the branded splash while the stored session is being restored', () => {
+    const screen = renderWithProviders(<HomeScreen />);
+    expect(screen.root.findByProps({ testID: 'session-loading-splash' })).toBeTruthy();
+    screen.unmount();
+  });
 
+  it('loads privacy-safe reports in Explore instead of welcome', async () => {
+    const screen = await renderWithProvidersAsync(<ExploreScreen />);
     expect(getPublicTickets).toHaveBeenCalledWith({
       limit: 50,
       signal: expect.any(AbortSignal),
     });
+    expect(screen.root.findByProps({ testID: 'public-reports-map' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'public-report-filters' })).toBeTruthy();
     expect(screen.root.findByProps({ testID: 'public-report-feed' })).toBeTruthy();
-    expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' })).toBeTruthy();
-    expect(hasTextContaining(screen, 'Reported by Community member')).toBe(true);
-  });
-
-  it('opens public report details from a card and a single map marker', async () => {
-    // Use spread-out singles at high zoom by default region; force isolated points
-    vi.mocked(getPublicTickets).mockResolvedValue({
-      items: [
-        makeReport({ ticketNumber: 'BG-2026-0001', latitude: 33.8, longitude: 35.4 }),
-        makeReport({
-          ticketNumber: 'BG-2026-0002',
-          latitude: 33.95,
-          longitude: 35.55,
-          status: 'RESOLVED',
-          category: 'waste',
-        }),
-      ],
-      nextCursor: null,
-      limit: 50,
-    });
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    await act(async () => {
-      screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' }).props.onPress();
-    });
-    expect(__getRouterMockState().pushCalls).toContainEqual({
-      pathname: '/public/[ticketNumber]',
-      params: { ticketNumber: 'BG-2026-0001' },
-    });
-
-    const marker = screen.root.findByProps({ testID: 'public-map-marker-BG-2026-0001' });
-    await act(async () => {
-      marker.props.onPress();
-    });
-    expect(__getRouterMockState().pushCalls).toContainEqual({
-      pathname: '/public/[ticketNumber]',
-      params: { ticketNumber: 'BG-2026-0001' },
-    });
-  });
-
-  it('shows clustering for dense fixtures and expands on cluster press', async () => {
-    vi.mocked(getPublicTickets).mockResolvedValue(denseTickets);
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    const map = screen.root.findByProps({ testID: 'public-map-view' });
-    // Zoomed-out region keeps dense points clustered.
-    await act(async () => {
-      map.props.onRegionChangeComplete?.({
-        latitude: 33.9,
-        longitude: 35.5,
-        latitudeDelta: 0.08,
-        longitudeDelta: 0.08,
-      });
-    });
-    await flush();
-
-    const clusters = screen.root.findAll(
-      (node) =>
-        typeof node.props?.testID === 'string' &&
-        node.props.testID.startsWith('public-map-cluster-') &&
-        !String(node.props.testID).includes('count'),
-    );
-    expect(clusters.length).toBeGreaterThan(0);
-
-    const firstCluster = clusters.find((node) => typeof node.props.onPress === 'function');
-    expect(firstCluster).toBeTruthy();
-    await act(async () => {
-      firstCluster?.props.onPress();
-    });
-    await flush();
-    // After expand, maps still render and list remains available.
-    expect(screen.root.findByProps({ testID: 'public-report-list' })).toBeTruthy();
-  });
-
-  it('opens a cluster report picker when all markers share the same coordinates', async () => {
-    vi.mocked(getPublicTickets).mockResolvedValue({
-      items: [
-        makeReport({ ticketNumber: 'BG-SAME-1', latitude: 33.9, longitude: 35.5 }),
-        makeReport({
-          ticketNumber: 'BG-SAME-2',
-          latitude: 33.9,
-          longitude: 35.5,
-          status: 'RESOLVED',
-          category: 'waste',
-        }),
-        makeReport({
-          ticketNumber: 'BG-SAME-3',
-          latitude: 33.9,
-          longitude: 35.5,
-          category: 'street_lighting',
-        }),
-      ],
-      nextCursor: null,
-      limit: 50,
-    });
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    const cluster = screen.root.findAll(
-      (node) =>
-        typeof node.props?.testID === 'string' &&
-        node.props.testID.startsWith('public-map-cluster-') &&
-        !String(node.props.testID).includes('count') &&
-        typeof node.props.onPress === 'function',
-    )[0];
-    expect(cluster).toBeTruthy();
-
-    await act(async () => {
-      cluster.props.onPress();
-    });
-    await flush();
-
-    expect(screen.root.findByProps({ testID: 'public-map-cluster-picker' }).props.visible).toBe(
-      true,
-    );
-    expect(screen.root.findByProps({ testID: 'public-map-cluster-pick-BG-SAME-1' })).toBeTruthy();
-    expect(screen.root.findByProps({ testID: 'public-map-cluster-pick-BG-SAME-2' })).toBeTruthy();
-
-    await act(async () => {
-      screen.root.findByProps({ testID: 'public-map-cluster-pick-BG-SAME-2' }).props.onPress();
-    });
-    expect(__getRouterMockState().pushCalls).toContainEqual({
-      pathname: '/public/[ticketNumber]',
-      params: { ticketNumber: 'BG-SAME-2' },
-    });
-  });
-
-  it('updates map and list consistently when status filter changes', async () => {
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' })).toBeTruthy();
-    expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0002' })).toBeTruthy();
-
-    await act(async () => {
-      screen.root.findByProps({ testID: 'public-filter-status-RESOLVED' }).props.onPress();
-    });
-    await flush();
-
-    expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0002' })).toBeTruthy();
-    expect(() => screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' })).toThrow();
-  });
-
-  it('reports incomplete coordinates through partial-data UX while keeping the list', async () => {
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    expect(screen.root.findByProps({ testID: 'public-map-partial-data' })).toBeTruthy();
-    expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0003' })).toBeTruthy();
     expect(
-      screen.root.findByProps({ testID: 'public-report-maps-BG-2026-0003' }).props.disabled,
-    ).toBe(true);
+      screen.root.findByProps({ children: 'Large pothole near the university gate.' }),
+    ).toBeTruthy();
+    expect(
+      screen.root.findByProps({ testID: 'public-report-attribution-BG-2026-0001' }),
+    ).toBeTruthy();
   });
 
-  it('disables Open in Maps for finite out-of-range coordinates', async () => {
-    vi.mocked(getPublicTickets).mockResolvedValue({
-      items: [
-        makeReport({
-          ticketNumber: 'BG-OOR-1',
-          latitude: 91,
-          longitude: 35.5,
-          description: 'Finite but invalid latitude for maps.',
-        }),
-        makeReport({
-          ticketNumber: 'BG-OOR-2',
-          latitude: 33.9,
-          longitude: 181,
-          description: 'Finite but invalid longitude for maps.',
-        }),
-      ],
-      nextCursor: null,
-      limit: 50,
+  it('opens a public report from Explore', async () => {
+    const screen = await renderWithProvidersAsync(<ExploreScreen />);
+    await act(async () =>
+      screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' }).props.onPress(),
+    );
+    expect(__getRouterMockState().pushCalls).toContainEqual({
+      pathname: '/public/[ticketNumber]',
+      params: { ticketNumber: 'BG-2026-0001' },
     });
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
-
-    expect(screen.root.findByProps({ testID: 'public-report-maps-BG-OOR-1' }).props.disabled).toBe(
-      true,
-    );
-    expect(screen.root.findByProps({ testID: 'public-report-maps-BG-OOR-2' }).props.disabled).toBe(
-      true,
-    );
-    expect(screen.root.findByProps({ testID: 'public-map-empty' })).toBeTruthy();
   });
 
-  it('shows an empty filter state when no public reports match', async () => {
-    const screen = await renderWithProvidersAsync(<HomeScreen />);
-    await flush();
+  it('shows honest empty and retryable error states in Explore', async () => {
+    vi.mocked(getPublicTickets).mockResolvedValueOnce({ items: [], nextCursor: null, limit: 50 });
+    const emptyScreen = await renderWithProvidersAsync(<ExploreScreen />);
+    expect(emptyScreen.root.findByProps({ testID: 'explore-empty' })).toBeTruthy();
+    emptyScreen.unmount();
 
-    await act(async () => {
-      screen.root.findByProps({ testID: 'public-filter-status-CLOSED' }).props.onPress();
-    });
-    await flush();
-
-    expect(screen.root.findByProps({ testID: 'public-filter-empty' })).toBeTruthy();
-    await act(async () => {
-      screen.root.findByProps({ testID: 'public-filter-clear' }).props.onPress();
-    });
-    await flush();
-    expect(screen.root.findByProps({ testID: 'public-report-card-BG-2026-0001' })).toBeTruthy();
+    vi.mocked(getPublicTickets).mockRejectedValueOnce(new Error('Network unavailable'));
+    const errorScreen = await renderWithProvidersAsync(<ExploreScreen />);
+    expect(errorScreen.root.findByProps({ children: 'Network unavailable' })).toBeTruthy();
+    expect(errorScreen.root.findByProps({ children: 'Try again' })).toBeTruthy();
   });
 });
