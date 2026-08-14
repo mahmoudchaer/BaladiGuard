@@ -16,6 +16,7 @@ function baseConfig(overrides: Partial<MobileRuntimeConfig> = {}): MobileRuntime
     appVersion: '0.1.0',
     privacyPolicyUrl: 'https://example.gov/privacy',
     isReleaseBinary: false,
+    citizenAppLinkHost: 'app.baladiguard.example',
     ...overrides,
   };
 }

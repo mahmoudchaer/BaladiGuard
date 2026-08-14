@@ -6,6 +6,11 @@ from app.schemas.stored_ticket import StoredTicket
 OWNER_HISTORY_SORT_KEY = "ownerHistorySortKey"
 PUBLIC_SORT_KEY = "publicSortKey"
 PUBLIC_TICKET_STATUS_PUBLISHED = "PUBLISHED"
+STAFF_SCOPE_KEY = "staffScopeKey"
+STAFF_SORT_KEY = "staffSortKey"
+ADMIN_BROWSE_KEY = "adminBrowseKey"
+ADMIN_BROWSE_ALL = "ALL"
+UNSCOPED_MUNICIPALITY_KEY = "UNSCOPED"
 PUBLIC_INDEX_FIELDS = frozenset(
     {
         "final_category",
@@ -18,6 +23,17 @@ PUBLIC_INDEX_FIELDS = frozenset(
 
 
 def build_owner_history_sort_key(ticket: StoredTicket) -> str:
+    return f"{ticket.created_at}#{ticket.ticket_id}"
+
+
+def build_staff_scope_key(ticket: StoredTicket) -> str:
+    """Municipality partition for staff collection GSIs; unscoped tickets use UNSCOPED."""
+    if ticket.municipality_id:
+        return ticket.municipality_id
+    return UNSCOPED_MUNICIPALITY_KEY
+
+
+def build_staff_sort_key(ticket: StoredTicket) -> str:
     return f"{ticket.created_at}#{ticket.ticket_id}"
 
 
@@ -64,6 +80,9 @@ def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
         item[OWNER_HISTORY_SORT_KEY] = build_owner_history_sort_key(ticket)
     if is_public_ticket_publishable(ticket):
         item[PUBLIC_SORT_KEY] = build_public_sort_key(ticket)
+    item[STAFF_SCOPE_KEY] = build_staff_scope_key(ticket)
+    item[STAFF_SORT_KEY] = build_staff_sort_key(ticket)
+    item[ADMIN_BROWSE_KEY] = ADMIN_BROWSE_ALL
     filtered = {key: value for key, value in item.items() if value is not None}
     return prepare_dynamodb_value(filtered)
 

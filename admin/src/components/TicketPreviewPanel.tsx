@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { TicketPhoto } from '@/components/TicketPhoto';
+import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
 import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
 import {
   formatCategory,
@@ -34,7 +35,6 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [publicDescription, setPublicDescription] = useState('');
   const [publicLocationLabel, setPublicLocationLabel] = useState('');
-  const [approveOriginalPhoto, setApproveOriginalPhoto] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
@@ -51,7 +51,6 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setSelectedDepartmentId(ticket.departmentId ?? '');
     setPublicDescription(ticket.public?.description ?? '');
     setPublicLocationLabel(ticket.public?.locationLabel ?? '');
-    setApproveOriginalPhoto(Boolean(ticket.public?.imageObjectKey));
     setActionError(null);
     setActionSuccess(null);
   }, [ticket]);
@@ -173,13 +172,11 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setActionError(null);
     setActionSuccess(null);
     try {
-      const hadPublicPhoto = Boolean(ticket.public?.imageObjectKey);
       const updated = await updateTicketPublicContent(ticket.ticketId, {
         publicStatus,
         publicDescription,
         publicLocationLabel,
-        approveOriginalPhoto: approveOriginalPhoto && !hadPublicPhoto ? true : undefined,
-        clearPublicPhoto: !approveOriginalPhoto && hadPublicPhoto ? true : undefined,
+        clearPublicPhoto: undefined,
       });
       if (!updated) {
         setActionError('Unable to update public content.');
@@ -386,15 +383,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               disabled={isSavingPublic}
             />
           </label>
-          <label className="ticket-preview__check">
-            <input
-              type="checkbox"
-              checked={approveOriginalPhoto}
-              onChange={(event) => setApproveOriginalPhoto(event.target.checked)}
-              disabled={isSavingPublic}
-            />
-            <span>Approve original photo for the public feed</span>
-          </label>
+          <ImagePrivacyStatus redaction={ticket.imageRedaction} />
           <p className="ticket-preview__meta">
             Status: {ticket.public?.status ?? 'DRAFT'}
             {ticket.public?.imageObjectKey ? ' · photo approved' : ' · no public photo'}

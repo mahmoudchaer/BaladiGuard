@@ -33,6 +33,9 @@ class Settings:
         self.database_backend = os.getenv("DATABASE_BACKEND", "memory").strip().lower()
         self.aws_region = os.getenv("AWS_REGION", "us-east-1").strip()
         self.aws_s3_bucket = os.getenv("AWS_S3_BUCKET", "").strip() or None
+        self.s3_presigned_url_ttl_seconds = self._int_setting(
+            "S3_PRESIGNED_URL_TTL_SECONDS", default=300, minimum=30
+        )
         endpoint = os.getenv("DYNAMODB_ENDPOINT_URL", "").strip()
         self.dynamodb_endpoint_url = endpoint or None
         self.dynamodb_table_prefix = os.getenv("DYNAMODB_TABLE_PREFIX", "baladiguard-").strip()
@@ -49,6 +52,57 @@ class Settings:
             self.ai_processing_claim_timeout_seconds = max(1, int(raw_claim_timeout))
         except ValueError:
             self.ai_processing_claim_timeout_seconds = 300
+        self.ai_job_max_attempts = self._int_setting("AI_JOB_MAX_ATTEMPTS", default=5, minimum=1)
+        self.ai_job_timeout_seconds = self._int_setting(
+            "AI_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.ai_job_backoff_base_seconds = self._int_setting(
+            "AI_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.ai_job_backoff_max_seconds = self._int_setting(
+            "AI_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
+        self.ai_job_poll_seconds = self._float_setting(
+            "AI_JOB_POLL_SECONDS", default=1.0, minimum=0.05
+        )
+        self.image_redaction_enabled = (
+            os.getenv("IMAGE_REDACTION_ENABLED", "true").strip().lower() == "true"
+        )
+        self.image_redaction_detector = (
+            os.getenv("IMAGE_REDACTION_DETECTOR", "aws_rekognition").strip().lower()
+            or "aws_rekognition"
+        )
+        self.plate_detection_model = (
+            os.getenv(
+                "PLATE_DETECTION_MODEL",
+                "yolo-v9-s-608-license-plate-end2end",
+            ).strip()
+            or "yolo-v9-s-608-license-plate-end2end"
+        )
+        self.image_redaction_auto_confidence = self._float_setting(
+            "IMAGE_REDACTION_AUTO_CONFIDENCE", default=90.0, minimum=50.0, maximum=100.0
+        )
+        self.image_redaction_review_confidence = self._float_setting(
+            "IMAGE_REDACTION_REVIEW_CONFIDENCE", default=60.0, minimum=0.0, maximum=100.0
+        )
+        self.image_redaction_blur_radius = self._float_setting(
+            "IMAGE_REDACTION_BLUR_RADIUS", default=18.0, minimum=2.0, maximum=100.0
+        )
+        self.image_redaction_box_padding = self._float_setting(
+            "IMAGE_REDACTION_BOX_PADDING", default=0.08, minimum=0.0, maximum=0.5
+        )
+        self.image_redaction_job_max_attempts = self._int_setting(
+            "IMAGE_REDACTION_JOB_MAX_ATTEMPTS", default=5, minimum=1
+        )
+        self.image_redaction_job_timeout_seconds = self._int_setting(
+            "IMAGE_REDACTION_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.image_redaction_job_backoff_base_seconds = self._int_setting(
+            "IMAGE_REDACTION_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.image_redaction_job_backoff_max_seconds = self._int_setting(
+            "IMAGE_REDACTION_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",
@@ -166,6 +220,14 @@ class Settings:
         self.otp_dev_plaintext_stdout = (
             os.getenv("OTP_DEV_PLAINTEXT_STDOUT", "false").strip().lower() == "true"
         )
+
+        # Citizen-facing HTTPS base for notification deep links (issue #257).
+        # Production must set an explicit non-localhost https URL.
+        self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None
+
+        # Browser CORS allowlist (issue #263). Comma-separated origins.
+        # Staging/production require an explicit non-localhost list.
+        self.cors_allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip() or None
 
         # Staff auth (issue #175). Individual staff accounts are persisted;
         # DEMO_STAFF_PASSWORD is only used when bootstrapping local/test seed

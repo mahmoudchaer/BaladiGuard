@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "BaladiGuard",
+    "slug": "baladiguard",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "baladiguard",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F6F8"
+    },
+    "ios": {
+      "bundleIdentifier": "com.baladiguard.citizen",
+      "buildNumber": "1",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.baladiguard.citizen",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#007A3D"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow BaladiGuard to access your photos so you can attach issue images.",
+          "cameraPermission": "Allow BaladiGuard to access your camera so you can take a photo of the issue.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow BaladiGuard to use your location to pin the issue where you are."
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    }
+  }
+}

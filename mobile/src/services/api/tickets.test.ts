@@ -10,6 +10,7 @@ import {
   getPublicTickets,
   getTicketByTrackingCode,
   submitReport,
+  SubmitReportError,
 } from '@/services/api/tickets';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
@@ -110,6 +111,12 @@ vi.mock('@/services/api/uploads', () => ({
   uploadReportPhoto: vi.fn(async () => 'reports/photos/uploaded.jpg'),
 }));
 
+vi.mock('@/services/photoReference', () => ({
+  checkLocalPhotoUri: vi.fn(async () => ({ ok: true })),
+  PHOTO_REFERENCE_EXPIRED_MESSAGE:
+    'Your saved photo is no longer available on this device. Choose a photo again, then continue.',
+}));
+
 import {
   getCitizenTicketHistoryMock,
   getPublicTicketByNumberMock,
@@ -118,6 +125,7 @@ import {
   submitTicketMock,
 } from '@/services/api/mockTickets';
 import { uploadReportPhoto } from '@/services/api/uploads';
+import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
 
 describe('submitReport', () => {
   beforeEach(() => {
@@ -139,6 +147,9 @@ describe('submitReport', () => {
 
   it('uploads the photo before submitting the ticket in the real API path', async () => {
     const progress: string[] = [];
+    const partialStates: Array<{ clientSubmissionId: string; imageObjectKey?: string }> = [];
+    // Stable low-entropy fixture id (not a secret); format matches server idempotency rules.
+    const clientSubmissionId = 'test-submission-id-01';
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: async () => mockTicketResponse,
@@ -146,10 +157,13 @@ describe('submitReport', () => {
 
     const response = await submitReport(formValues, {
       onProgress: (phase) => progress.push(phase),
+      clientSubmissionId,
+      onPartialState: (state) => partialStates.push(state),
     });
 
     expect(uploadReportPhoto).toHaveBeenCalledOnce();
     expect(progress).toEqual(['uploading-photo', 'submitting-report']);
+    expect(partialStates[0]?.imageObjectKey).toBe('reports/photos/uploaded.jpg');
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:8000/v1/tickets',
       expect.objectContaining({
@@ -157,10 +171,55 @@ describe('submitReport', () => {
         body: expect.stringContaining('"imageObjectKey":"reports/photos/uploaded.jpg"'),
       }),
     );
-    const submittedBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
+    const requestInit = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    const requestHeaders = requestInit.headers as Record<string, string>;
+    // Read header without a `*-Key: value` literal (avoids gitleaks generic-api-key FPs).
+    const idempotencyHeaderValue = Object.entries(requestHeaders).find(
+      ([name]) => name.toLowerCase() === 'idempotency-key',
+    )?.[1];
+    expect(idempotencyHeaderValue).toBe(clientSubmissionId);
+    const submittedBody = JSON.parse(requestInit.body as string);
     expect(submittedBody).not.toHaveProperty('contact');
     expect(submittedBody).not.toHaveProperty('ownerUserId');
+    expect(submittedBody.clientSubmissionId).toBe(clientSubmissionId);
     expect(response).toEqual(mockTicketResponse);
+  });
+
+  it('reuses a prior imageObjectKey and skips re-upload on retry', async () => {
+    const clientSubmissionId = 'test-submission-id-02';
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => mockTicketResponse,
+    } as Response);
+
+    await submitReport(formValues, {
+      clientSubmissionId,
+      imageObjectKey: 'reports/photos/already.jpg',
+    });
+
+    expect(uploadReportPhoto).not.toHaveBeenCalled();
+    const requestInit = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(requestInit.body as string);
+    expect(body.imageObjectKey).toBe('reports/photos/already.jpg');
+    const requestHeaders = requestInit.headers as Record<string, string>;
+    const idempotencyHeaderValue = Object.entries(requestHeaders).find(
+      ([name]) => name.toLowerCase() === 'idempotency-key',
+    )?.[1];
+    expect(idempotencyHeaderValue).toBe(clientSubmissionId);
+  });
+
+  it('rejects expired local photo references before upload', async () => {
+    vi.mocked(checkLocalPhotoUri).mockResolvedValueOnce({ ok: false, reason: 'missing' });
+
+    await expect(
+      submitReport(formValues, { clientSubmissionId: 'test-submission-id-photo' }),
+    ).rejects.toMatchObject({
+      name: 'SubmitReportError',
+      code: 'photo_missing',
+      message: PHOTO_REFERENCE_EXPIRED_MESSAGE,
+    });
+    expect(uploadReportPhoto).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('does not submit a ticket when photo upload fails', async () => {
@@ -176,9 +235,16 @@ describe('submitReport', () => {
       json: async () => ({ error: { message: 'Validation failed.' } }),
     } as Response);
 
-    await expect(submitReport(formValues)).rejects.toThrow(
-      'Your photo was uploaded, but the report could not be saved. Validation failed.',
-    );
+    await expect(
+      submitReport(formValues, { clientSubmissionId: 'test-submission-id-03' }),
+    ).rejects.toMatchObject({
+      name: 'SubmitReportError',
+      code: 'submit',
+      imageObjectKey: 'reports/photos/uploaded.jpg',
+      message: expect.stringContaining(
+        'Your photo was uploaded, but the report could not be saved.',
+      ),
+    });
   });
 });
 

@@ -10,6 +10,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.core.metrics import emit_metric
 from app.schemas.stored_notification_delivery import StoredNotificationDelivery
 from app.services.notifications.adapters import (
     NotificationAdapter,
@@ -135,6 +136,18 @@ def emit_ticket_notification(
                 ticket_id,
                 ",".join(f"{item.channel}:{item.status}" for item in results) or "none",
             )
+            failed_channels = [item for item in results if item.status.startswith("FAILED")]
+            if failed_channels:
+                emit_metric(
+                    "NotificationFailed",
+                    value=float(len(failed_channels)),
+                    dimensions={"event": str(event), "outcome": "channel_failed"},
+                )
+            else:
+                emit_metric(
+                    "NotificationSucceeded",
+                    dimensions={"event": str(event)},
+                )
             return True
         except NotificationDeliveryError as exc:
             if exc.channel_results:
@@ -158,6 +171,14 @@ def emit_ticket_notification(
                 exc.transient,
                 exc,
             )
+            emit_metric(
+                "NotificationFailed",
+                dimensions={
+                    "event": str(event),
+                    "outcome": "delivery_error",
+                    "category": exc.category,
+                },
+            )
             return False
         except Exception:
             ledger.release(key)
@@ -167,5 +188,9 @@ def emit_ticket_notification(
             "Notification emit failed for ticket %s (%s).",
             ticket_id,
             type(exc).__name__,
+        )
+        emit_metric(
+            "NotificationFailed",
+            dimensions={"event": str(event), "outcome": "emit_error"},
         )
         return False

@@ -54,6 +54,12 @@ class DynamoRateLimiter:
             )
         except ClientError:
             # Fail closed on storage errors so abuse cannot bypass limits.
+            from app.core.metrics import emit_metric
+
+            emit_metric(
+                "DynamoDbErrors",
+                dimensions={"operation": "rate_limit_check"},
+            )
             retry_after = max(1, policy.window_seconds)
             return RateLimitDecision(allowed=False, retry_after_seconds=retry_after)
 

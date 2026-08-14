@@ -1,6 +1,7 @@
 from app.database.memory import ticket_store
 from app.schemas.classification import ClassificationInputs, ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.services.ai_job_queue import ai_job_queue
 from app.services.complaints.ticket_service import ticket_service
 from tests.conftest import contribution_ready_auth_headers
 
@@ -66,6 +67,7 @@ def test_ticket_lifecycle_with_ai_processing_and_staff_review(client, monkeypatc
     )
 
     assert create_response.status_code == 201
+    assert ai_job_queue.run_once().outcome == "succeeded"
     created = create_response.json()
     ticket_id = created["ticketId"]
 

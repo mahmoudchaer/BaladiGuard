@@ -1,4 +1,5 @@
 from app.database.memory import ticket_store
+from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -11,6 +12,7 @@ def create_ticket(client, description: str = VALID_PAYLOAD["description"]) -> di
         headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
+    assert ai_job_queue.run_once().outcome == "succeeded"
     return response.json()
 
 
@@ -27,28 +29,26 @@ def test_list_tickets_returns_submitted_tickets(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["items"]
     assert [ticket["ticketId"] for ticket in body] == [second["ticketId"], first["ticketId"]]
     assert [ticket["createdAt"] for ticket in body] == sorted(
         [first["createdAt"], second["createdAt"]],
         reverse=True,
     )
     assert body[0]["ticketNumber"] == second["ticketNumber"]
-    assert body[0]["trackingCode"] == second["trackingCode"]
-    assert body[0]["imageReferences"][0]["objectKey"] == VALID_PAYLOAD["imageObjectKey"]
-    assert body[0]["imageReferences"][0]["contentType"] is None
-    assert body[0]["imageReferences"][0]["createdAt"] is None
-    assert body[0]["imageObjectKey"] == VALID_PAYLOAD["imageObjectKey"]
+    assert "trackingCode" not in body[0]
+    assert "imageReferences" not in body[0]
+    assert "imageObjectKey" not in body[0]
     assert body[0]["department"] == {
         "departmentId": "d1111111-1111-1111-1111-111111111111",
         "name": "Road Maintenance",
     }
     assert body[0]["departmentId"] == "d1111111-1111-1111-1111-111111111111"
-    assert body[0]["createdBy"] is None
     assert body[0]["municipalityId"] is None
-    assert body[0]["duplicateGroupId"] is None
-    assert body[0]["duplicateSuggestions"] == []
-    assert body[0]["location"] == VALID_PAYLOAD["location"]
+    assert set(body[0]["location"]) == {"latitude", "longitude", "addressText"}
+    assert body[0]["location"]["latitude"] == VALID_PAYLOAD["location"]["latitude"]
+    assert body[0]["location"]["longitude"] == VALID_PAYLOAD["location"]["longitude"]
+    assert body[0]["location"]["addressText"] == VALID_PAYLOAD["location"]["addressText"]
     assert body[1]["ticketNumber"] == first["ticketNumber"]
 
 
@@ -56,7 +56,7 @@ def test_list_tickets_returns_empty_list_when_no_tickets_exist(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json()["items"] == []
 
 
 def test_get_ticket_returns_ticket_by_id(client):

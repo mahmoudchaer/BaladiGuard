@@ -10,6 +10,10 @@ describe('returnTo helpers', () => {
     expect(sanitizeReturnTo('//evil.example')).toBe('/');
     expect(sanitizeReturnTo('/profile')).toBe('/profile');
     expect(sanitizeReturnTo('/history')).toBe('/history');
+    expect(sanitizeReturnTo('/t/AB23CD')).toBe('/t/AB23CD');
+    expect(sanitizeReturnTo('/t/ab23cd')).toBe('/t/ab23cd');
+    expect(sanitizeReturnTo('/t/../admin')).toBe('/');
+    expect(sanitizeReturnTo('/ticket/tkt_1')).toBe('/');
   });
 
   it('builds login hrefs with returnTo', () => {
@@ -17,5 +21,6 @@ describe('returnTo helpers', () => {
     expect(buildLoginHref('/report')).toBe('/login?returnTo=%2Freport');
     expect(buildLoginHref('/profile')).toBe('/login?returnTo=%2Fprofile');
     expect(buildLoginHref('/history')).toBe('/login?returnTo=%2Fhistory');
+    expect(buildLoginHref('/t/AB23CD')).toBe('/login?returnTo=%2Ft%2FAB23CD');
   });
 });

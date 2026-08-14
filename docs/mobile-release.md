@@ -12,6 +12,13 @@ device validation, and rollback/hotfix steps for the citizen mobile app under
 | Android (Play / internal APK+AAB) | **In scope** — signed production profile |
 | iOS (TestFlight / App Store) | **Prepared in config** (`ios.bundleIdentifier`, privacy strings, EAS submit stub). Build/submit only when Apple Developer enrollment is approved for the municipality. |
 
+Supported OS matrix for internal QA (Expo SDK 57 / React Native 0.86):
+
+| Platform | Oldest supported | Newest supported |
+| --- | --- | --- |
+| Android | 8.0 (API 26) | Current stable (test on a recent Pixel/Samsung) |
+| iOS | 15.1 (when Apple enrollment is approved) | Current stable |
+
 Application identifiers (stable; do not change after first store listing):
 
 - Android package: `com.baladiguard.citizen`

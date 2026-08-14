@@ -1,6 +1,7 @@
 iniconfig==2.3.0
 moto==5.2.2
 pluggy==1.6.0
-pytest==8.4.2
+pillow==12.3.0
+pytest==9.1.1
 responses==0.26.2
-ruff==0.15.20
+ruff==0.16.3

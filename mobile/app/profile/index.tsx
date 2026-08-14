@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, Text } from 'react-native-paper';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -70,14 +70,43 @@ export default function ProfileScreen() {
     void reload();
   }, [isAuthenticated, isLoading, reload]);
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await logout();
-      router.replace('/' as Href);
-    } finally {
-      setIsLoggingOut(false);
-    }
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign out?',
+      'Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Keep draft & sign out',
+          onPress: () => {
+            void (async () => {
+              setIsLoggingOut(true);
+              try {
+                await logout({ retainReportDraft: true });
+                router.replace('/' as Href);
+              } finally {
+                setIsLoggingOut(false);
+              }
+            })();
+          },
+        },
+        {
+          text: 'Clear draft & sign out',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setIsLoggingOut(true);
+              try {
+                await logout({ retainReportDraft: false });
+                router.replace('/' as Href);
+              } finally {
+                setIsLoggingOut(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
   };
 
   const handleSave = async (patch: CitizenProfileUpdatePayload) => {

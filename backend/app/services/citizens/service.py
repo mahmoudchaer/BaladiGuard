@@ -166,7 +166,8 @@ def _valid_full_name(full_name: str | None) -> bool:
 
 
 def is_contribution_ready(user: StoredCitizenUser) -> bool:
-    return bool(user.active and user.phone_verified_at and _valid_full_name(user.full_name))
+    """Verified-phone sessions may contribute; full name is optional (#270)."""
+    return bool(user.active and user.phone_verified_at)
 
 
 def anonymized_phone_for(user_id: str) -> str:
@@ -674,7 +675,7 @@ class CitizenService:
 
         if challenge.attempt_count >= OTP_MAX_ATTEMPTS:
             raise CitizenServiceError(
-                "RATE_LIMITED",
+                "RATE_LIMIT_EXCEEDED",
                 "Too many verification attempts. Request a new code.",
                 status_code=429,
             )
@@ -689,7 +690,7 @@ class CitizenService:
                 )
             if updated.attempt_count >= OTP_MAX_ATTEMPTS:
                 raise CitizenServiceError(
-                    "RATE_LIMITED",
+                    "RATE_LIMIT_EXCEEDED",
                     "Too many verification attempts. Request a new code.",
                     status_code=429,
                 )
@@ -916,6 +917,11 @@ class CitizenService:
 
         if "public_name_visible" in fields_set and payload.public_name_visible is not None:
             updates["public_name_visible"] = payload.public_name_visible
+
+        # Empty/missing names cannot be published (#270).
+        next_full_name = updates["full_name"] if "full_name" in updates else user.full_name
+        if not _valid_full_name(next_full_name):
+            updates["public_name_visible"] = False
 
         if (
             "notification_preferences" in fields_set

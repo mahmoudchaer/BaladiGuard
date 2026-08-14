@@ -233,7 +233,7 @@ def test_save_ticket_ai_output_raises_for_unknown_ticket():
         raise AssertionError("Expected TicketNotFoundError")
 
 
-def test_list_tickets_includes_ai_fields(client):
+def test_list_tickets_uses_lightweight_summary_not_ai_blob(client):
     created = create_ticket(client)
     ticket_service.save_ticket_ai_output(
         created["ticketId"],
@@ -248,9 +248,16 @@ def test_list_tickets_includes_ai_fields(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    ticket = next(item for item in response.json() if item["ticketId"] == created["ticketId"])
-    assert ticket["ai"]["aiProcessingStatus"] == "completed"
-    assert ticket["ai"]["cleanedDescription"] is not None
+    ticket = next(
+        item for item in response.json()["items"] if item["ticketId"] == created["ticketId"]
+    )
+    assert "ai" not in ticket
+    assert ticket["summary"] == "Large pothole on Bliss Street near AUB main gate."
+
+    detail = client.get(f"/v1/tickets/{created['ticketId']}")
+    assert detail.status_code == 200
+    assert detail.json()["ai"]["aiProcessingStatus"] == "completed"
+    assert detail.json()["ai"]["cleanedDescription"] is not None
 
 
 def test_ticket_ai_fields_persist_in_dynamodb(dynamodb_settings: Settings) -> None:

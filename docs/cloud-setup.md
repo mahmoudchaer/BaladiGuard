@@ -61,6 +61,7 @@ duplicate keys).
 ```env
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=baladiguard-report-photos-dev
+S3_PRESIGNED_URL_TTL_SECONDS=300
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
 ```

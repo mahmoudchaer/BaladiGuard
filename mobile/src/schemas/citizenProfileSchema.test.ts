@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMAIL_INVALID_MESSAGE,
+  PUBLIC_NAME_REQUIRES_NAME_MESSAGE,
   TICKET_UPDATES_EMAIL_REQUIRED_MESSAGE,
   profileEditSchema,
   profileToEditValues,
@@ -33,6 +34,25 @@ describe('citizenProfileSchema', () => {
     });
     expect(parsed.fullName).toBe('Ada Updated');
     expect(parsed.email).toBe('ada@example.com');
+  });
+
+  it('allows a blank optional full name', () => {
+    const parsed = profileEditSchema.parse({
+      ...profileToEditValues(baseProfile),
+      fullName: '   ',
+      publicNameVisible: false,
+    });
+    expect(parsed.fullName).toBe('');
+  });
+
+  it('rejects public name visibility without a full name', () => {
+    const result = profileEditSchema.safeParse({
+      ...profileToEditValues(baseProfile),
+      fullName: '',
+      publicNameVisible: true,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(PUBLIC_NAME_REQUIRES_NAME_MESSAGE);
   });
 
   it('allows nullable / blank email', () => {

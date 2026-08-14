@@ -21,9 +21,12 @@ import { setCitizenAccessTokenProvider, setCitizenUnauthorizedHandler } from '@/
 import {
   buildCitizenSession,
   clearCitizenSession,
+  isContributionReadyFromProfile,
   loadCitizenSession,
+  migrateCitizenSession,
   saveCitizenSession,
 } from '@/services/citizenSession';
+import { clearReportDraft } from '@/services/reportDraft';
 
 type CitizenAuthContextValue = {
   session: CitizenSession | null;
@@ -35,10 +38,10 @@ type CitizenAuthContextValue = {
   restoreSession: () => Promise<void>;
   refreshProfile: () => Promise<CitizenProfile | null>;
   applyVerifyResponse: (response: Awaited<ReturnType<typeof verifyCitizenOtp>>) => Promise<void>;
-  completeFullName: (fullName: string) => Promise<CitizenProfile>;
   updateProfile: (patch: CitizenProfileUpdatePayload) => Promise<CitizenProfile>;
-  logout: () => Promise<void>;
-  clearSessionLocally: () => Promise<void>;
+  /** Clears local session. By default also clears this user's report draft (#258). */
+  logout: (options?: { retainReportDraft?: boolean }) => Promise<void>;
+  clearSessionLocally: (options?: { retainReportDraft?: boolean }) => Promise<void>;
 };
 
 const CitizenAuthContext = createContext<CitizenAuthContextValue | null>(null);
@@ -47,10 +50,17 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<CitizenSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const clearSessionLocally = useCallback(async () => {
-    setSession(null);
-    await clearCitizenSession();
-  }, []);
+  const clearSessionLocally = useCallback(
+    async (options?: { retainReportDraft?: boolean }) => {
+      const userId = session?.profile?.userId;
+      setSession(null);
+      await clearCitizenSession();
+      if (userId && !options?.retainReportDraft) {
+        await clearReportDraft(userId);
+      }
+    },
+    [session?.profile?.userId],
+  );
 
   const restoreSession = useCallback(async () => {
     setIsLoading(true);
@@ -73,12 +83,19 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         const authError = error as CitizenAuthApiError;
         if (authError?.status === 401 || authError?.code === 'UNAUTHORIZED') {
+          // Session invalid — drop local identity; keep draft by user id only if token was still keyed.
+          // Without a known owner match we only clear session (draft stays under its prior key).
           await clearCitizenSession();
           setSession(null);
           return;
         }
-        // Offline / transient: keep cached session so contribution gates still work.
-        setSession(stored);
+        // Offline / transient: keep cached session (with #270 readiness migration)
+        // so contribution gates still work without a successful profile refresh.
+        const migrated = migrateCitizenSession(stored);
+        setSession(migrated);
+        if (migrated.profile.contributionReady !== stored.profile.contributionReady) {
+          await saveCitizenSession(migrated);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -103,6 +120,8 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
   const applyVerifyResponse = useCallback(
     async (response: Awaited<ReturnType<typeof verifyCitizenOtp>>) => {
       const profile = profileFromVerifyResponse(response);
+      // Different account on the same device must not inherit another user's in-memory draft UI;
+      // drafts are already isolated by SecureStore userId key.
       const next = buildCitizenSession(response.accessToken, response.expiresIn, profile);
       setSession(next);
       await saveCitizenSession(next);
@@ -124,17 +143,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       return profile;
     },
     [session],
-  );
-
-  const completeFullName = useCallback(
-    async (fullName: string) => {
-      if (!session?.accessToken) {
-        throw new Error('Sign in before updating your name.');
-      }
-      const profile = await updateCitizenProfile(session.accessToken, { fullName });
-      return applyProfileToSession(profile);
-    },
-    [session, applyProfileToSession],
   );
 
   const updateProfile = useCallback(
@@ -166,17 +174,20 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session, applyProfileToSession, clearSessionLocally]);
 
-  const logout = useCallback(async () => {
-    const token = session?.accessToken;
-    if (token) {
-      try {
-        await logoutCitizen(token);
-      } catch {
-        // Still clear local session on network / already-revoked failures.
+  const logout = useCallback(
+    async (options?: { retainReportDraft?: boolean }) => {
+      const token = session?.accessToken;
+      if (token) {
+        try {
+          await logoutCitizen(token);
+        } catch {
+          // Still clear local session on network / already-revoked failures.
+        }
       }
-    }
-    await clearSessionLocally();
-  }, [session?.accessToken, clearSessionLocally]);
+      await clearSessionLocally(options);
+    },
+    [session?.accessToken, clearSessionLocally],
+  );
 
   const value = useMemo<CitizenAuthContextValue>(
     () => ({
@@ -184,12 +195,11 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       profile: session?.profile ?? null,
       isLoading,
       isAuthenticated: Boolean(session?.accessToken),
-      contributionReady: Boolean(session?.profile?.contributionReady),
+      contributionReady: session ? isContributionReadyFromProfile(session.profile) : false,
       accessToken: session?.accessToken ?? null,
       restoreSession,
       refreshProfile,
       applyVerifyResponse,
-      completeFullName,
       updateProfile,
       logout,
       clearSessionLocally,
@@ -200,7 +210,6 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       restoreSession,
       refreshProfile,
       applyVerifyResponse,
-      completeFullName,
       updateProfile,
       logout,
       clearSessionLocally,

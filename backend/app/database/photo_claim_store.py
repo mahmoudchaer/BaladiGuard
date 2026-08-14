@@ -1,0 +1,9 @@
+from typing import Protocol
+
+
+class PhotoClaimStore(Protocol):
+    def claim(self, object_key: str, *, owner_scope: str, ticket_id: str) -> bool: ...
+
+    def release(self, object_key: str, *, ticket_id: str) -> bool: ...
+
+    def clear(self) -> None: ...

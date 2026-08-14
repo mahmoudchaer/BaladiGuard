@@ -81,6 +81,10 @@ jobs:
         working-directory: mobile
         run: npm run format:check
 
+      - name: Check mobile Expo config
+        working-directory: mobile
+        run: npm run check:config
+
       - name: Check mobile Expo Router files
         working-directory: mobile
         run: npm run check:routes
@@ -134,4 +138,43 @@ jobs:
 
       - name: Build admin dashboard
         working-directory: admin
+        run: npm run build
+
+  citizen-web:
+    name: Citizen web checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: citizen-web/package-lock.json
+
+      - name: Install citizen-web dependencies
+        working-directory: citizen-web
+        run: npm ci
+
+      - name: Run citizen-web lint
+        working-directory: citizen-web
+        run: npm run lint
+
+      - name: Check citizen-web formatting
+        working-directory: citizen-web
+        run: npm run format:check
+
+      - name: Run citizen-web typecheck
+        working-directory: citizen-web
+        run: npm run typecheck
+
+      - name: Run citizen-web tests
+        working-directory: citizen-web
+        run: npm test
+
+      - name: Build citizen-web
+        working-directory: citizen-web
         run: npm run build

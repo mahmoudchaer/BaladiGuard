@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
   EMAIL_NOT_LOGIN_MESSAGE,
+  FULL_NAME_OPTIONAL_HELP,
   PUBLIC_NAME_VISIBLE_HELP,
   TICKET_UPDATES_OPTIONS,
   profileEditSchema,
@@ -52,14 +53,15 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
 
     try {
       const trimmedEmail = values.email.trim();
+      const trimmedName = values.fullName.trim();
       await onSave({
-        fullName: values.fullName.trim(),
+        fullName: trimmedName ? trimmedName : null,
         email: trimmedEmail ? trimmedEmail : null,
         notificationPreferences: {
           ticketUpdates: values.ticketUpdates,
           announcements: values.announcements,
         },
-        publicNameVisible: values.publicNameVisible,
+        publicNameVisible: trimmedName ? values.publicNameVisible : false,
       });
       setSuccessMessage(PROFILE_UPDATE_SUCCESS_MESSAGE);
     } catch (error) {
@@ -81,7 +83,8 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         Edit profile
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        Update your name, optional email, notifications, and public-name visibility.
+        Update your optional name, optional email, notifications, and public-name visibility. A
+        verified phone is enough to submit reports.
       </Text>
 
       {successMessage ? (
@@ -102,7 +105,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
             mode="outlined"
-            label="Full name"
+            label="Full name (optional)"
             value={value}
             onChangeText={onChange}
             onBlur={onBlur}
@@ -117,7 +120,11 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         <HelperText type="error" visible testID="edit-full-name-error">
           {errors.fullName.message}
         </HelperText>
-      ) : null}
+      ) : (
+        <HelperText type="info" visible testID="edit-full-name-help">
+          {FULL_NAME_OPTIONAL_HELP}
+        </HelperText>
+      )}
 
       <Controller
         control={control}
@@ -210,9 +217,15 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
                 testID="edit-public-name-switch"
               />
             </View>
-            <HelperText type="info" visible testID="edit-public-name-help">
-              {PUBLIC_NAME_VISIBLE_HELP}
-            </HelperText>
+            {errors.publicNameVisible ? (
+              <HelperText type="error" visible testID="edit-public-name-error">
+                {errors.publicNameVisible.message}
+              </HelperText>
+            ) : (
+              <HelperText type="info" visible testID="edit-public-name-help">
+                {PUBLIC_NAME_VISIBLE_HELP}
+              </HelperText>
+            )}
           </View>
         )}
       />

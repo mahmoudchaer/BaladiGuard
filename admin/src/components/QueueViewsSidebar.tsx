@@ -8,6 +8,7 @@ type QueueViewsSidebarProps = {
   stats: QueueAttentionStats;
   totalCount: number;
   highCount: number;
+  approximate?: boolean;
   onViewChange: (view: QueueViewId) => void;
 };
 
@@ -23,6 +24,7 @@ export function QueueViewsSidebar({
   stats,
   totalCount,
   highCount,
+  approximate = false,
   onViewChange,
 }: QueueViewsSidebarProps) {
   const views: ViewItem[] = [
@@ -30,7 +32,7 @@ export function QueueViewsSidebar({
     { id: 'critical', label: 'Critical', count: stats.critical, tone: 'critical' },
     { id: 'high', label: 'High priority', count: highCount, tone: 'warn' },
     { id: 'unassigned', label: 'Unassigned', count: stats.unassigned },
-    { id: 'aging', label: 'Aging (3d+)', count: stats.aging },
+    { id: 'aging', label: 'Overdue', count: stats.aging },
   ];
 
   return (
@@ -38,6 +40,11 @@ export function QueueViewsSidebar({
       <div className="queue-views__header">
         <p className="queue-views__eyebrow">Ticket views</p>
         <h2 className="queue-views__title">Needs attention</h2>
+        {approximate ? (
+          <p className="queue-views__approx" aria-live="polite">
+            Counts are approximate
+          </p>
+        ) : null}
       </div>
 
       <div className="queue-views__list" role="group" aria-label="Ticket summary">

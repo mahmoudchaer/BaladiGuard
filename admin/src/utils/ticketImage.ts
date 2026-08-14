@@ -19,7 +19,7 @@ const CATEGORY_PLACEHOLDER_COLORS: Record<string, string> = {
  * returned by the ticket read endpoint (`imageReferences[].url`).
  */
 export function getTicketImageUrl(
-  imageObjectKey: string,
+  imageObjectKey: string | undefined,
   category: string,
   providedImageUrl?: string,
 ): string | null {
@@ -28,6 +28,6 @@ export function getTicketImageUrl(
   }
 
   const color = CATEGORY_PLACEHOLDER_COLORS[category] ?? '64748b';
-  const label = encodeURIComponent(imageObjectKey.split('/').pop() ?? 'report');
+  const label = encodeURIComponent(imageObjectKey?.split('/').pop() ?? 'report');
   return `https://placehold.co/800x500/${color}/ffffff?text=${label}`;
 }

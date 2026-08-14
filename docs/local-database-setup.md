@@ -67,6 +67,17 @@ Copy `backend/.env.example` to `backend/.env` and set `DATABASE_BACKEND=dynamodb
 | `make db-seed`    | Load municipalities, departments, and categories     |
 | `make db-reset`   | Delete project tables, recreate them, and seed again |
 
+Staff collection GSIs (#267) are created by `make db-migrate`, but existing ticket
+rows also need attribute backfill before indexed list/map/aggregates can see them:
+
+```bash
+cd backend
+python scripts/db/backfill_staff_ticket_keys.py --dry-run
+python scripts/db/backfill_staff_ticket_keys.py
+```
+
+See `docs/staff-ticket-collection.md` for deploy ordering and resume flags.
+
 ## Current tables (including Sprint 6 citizen persistence)
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
@@ -76,7 +87,7 @@ persistence foundation.
 
 | Table                                | Partition key      | GSIs                                                                                        |
 | ------------------------------------ | ------------------ | ------------------------------------------------------------------------------------------- |
-| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`         |
+| `baladiguard-tickets`                | `ticketId`         | `ticketNumber-index`, `trackingCode-index`, `ownerUserId-ownerHistorySortKey-index`, `publicStatus-publicSortKey-index`, `staffScopeKey-staffSortKey-index`, `adminBrowseKey-staffSortKey-index`, `departmentId-staffSortKey-index` |
 | `baladiguard-users`                  | `userId`           | `phone-index` (lookup/reconciliation aid only; not uniqueness authority). No `email-index`. |
 | `baladiguard-phone-claims`           | `phoneKey`         | No GSI; transactional phone-uniqueness authority.                                           |
 | `baladiguard-citizen-otp-challenges` | `challengeId`      | TTL on `ttl`; plain OTP codes are never stored.                                             |
@@ -93,6 +104,7 @@ persistence foundation.
 | `baladiguard-categories`             | `categoryId`       | —                                                                                           |
 | `baladiguard-counters`               | `counterId`        | — (ticket number sequence)                                                                  |
 | `baladiguard-rate-limit-buckets`     | `bucketKey`        | Shared rate-limit counters (#186); TTL on `expiresAt`.                                      |
+| `baladiguard-ticket-submission-claims` | `idempotencyKey` | Ticket create Idempotency-Key claims + replay (#258); TTL on `ttl` (14-day completed retention). |
 
 ### Legacy `users` table migration
 
@@ -176,25 +188,58 @@ So yes: for a real run (not just CI), you still need DynamoDB Local up, migratio
 
 Issue #9 DynamoDB persistence is covered in `tests/test_submit_ticket_dynamodb.py` with moto (no Docker). Seed data is optional for submit/get-by-ID; migrations create the ticket tables required for persistence.
 
+## Durable AI worker
+
+Ticket submission persists the ticket with `aiProcessingStatus=pending` before
+returning `201`; that pending state is the durable outbox. The API then makes a
+best-effort idempotent write to `ai-processing-jobs`. If that second write is
+temporarily unavailable, the accepted response is unchanged (so clients do not
+retry and duplicate the report), and the worker recreates the missing job from
+the pending ticket on its next poll. AI calls do not run inside the API process.
+Start a separate deterministic local worker in another terminal:
+
+```bash
+make ai-worker
+```
+
+`make ai-worker-once` processes at most one available job and
+`make ai-worker-drain` processes all jobs whose backoff delay has elapsed. After
+a crash, the worker reconciles pending tickets, recovers expired claims, and
+continues. Exhausted jobs remain `dead_lettered` with a safe operator reason.
+Replay one after fixing the cause with:
+
+```bash
+cd backend
+python -m app.workers.ai_worker --replay ai:tkt_<ticket-id> --once
+```
+
 ## Verify setup
 
 1. Run `make db-migrate` — all tables should report as created or already existing.
 2. Run `make db-seed` — should print counts for municipalities, departments, and categories. Optional for a basic submit/get check; required if your flow depends on seed reference data.
-3. Start the API with `DATABASE_BACKEND=dynamodb` and submit a ticket:
+3. Start the API with `DATABASE_BACKEND=dynamodb`.
+4. Obtain a **contribution-ready** citizen session (verify phone OTP — full name is optional; #270). Demo/local account setup is described in the root [README.md](../README.md) and [MVP_API_CONTRACT.md](./MVP_API_CONTRACT.md). Environment variables come from `scripts/sync_env.py` / [env-sync.md](./env-sync.md) and [configuration.md](./configuration.md) — do not invent a parallel env workflow.
+5. Submit a ticket with the citizen Bearer token (client does **not** send contact/owner fields):
 
 ```bash
 curl -X POST http://localhost:8000/v1/tickets ^
   -H "Content-Type: application/json" ^
-  -d "{\"description\":\"Large pothole near the university gate causing traffic disruption.\",\"contact\":{\"phone\":\"+96170123456\"},\"location\":{\"latitude\":33.896112,\"longitude\":35.478419,\"addressText\":\"Near AUB Main Gate, Hamra, Beirut\",\"source\":\"PLACEHOLDER\"},\"imageObjectKey\":\"reports/mock/photo.jpg\",\"clientMetadata\":{\"platform\":\"ios\",\"appVersion\":\"0.1.0\"}}"
+  -H "Authorization: Bearer <citizen_access_token>" ^
+  -d "{\"description\":\"Large pothole near the university gate causing traffic disruption.\",\"location\":{\"latitude\":33.896112,\"longitude\":35.478419,\"addressText\":\"Near AUB Main Gate, Hamra, Beirut\",\"source\":\"PLACEHOLDER\"},\"imageObjectKey\":\"reports/mock/photo.jpg\",\"clientMetadata\":{\"platform\":\"ios\",\"appVersion\":\"0.1.0\"}}"
 ```
 
-4. Confirm the saved ticket can be retrieved by ID (for dashboard use):
+Report photos use `POST /v1/uploads/report-photo` with the **same** contribution-ready Bearer token before submit when you need a real `imageObjectKey`.
+
+6. Confirm staff can load the ticket after login (public guest `GET /v1/tickets/{id}` is not the staff dashboard read path — use staff auth per the contract):
 
 ```bash
-curl http://localhost:8000/v1/tickets/<ticketId>
+curl http://localhost:8000/v1/tickets/<ticketId> ^
+  -H "Authorization: Bearer <staff_access_token>"
 ```
 
-5. Validate mock fixtures (optional):
+Tracking-code lookup remains available on the public track route documented in `MVP_API_CONTRACT.md`.
+
+7. Validate mock fixtures (optional):
 
 ```bash
 cd backend

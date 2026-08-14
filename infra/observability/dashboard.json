@@ -1,0 +1,65 @@
+{
+  "dashboardName": "BaladiGuard-Production",
+  "widgets": [
+    {
+      "type": "metric",
+      "title": "HTTP requests and 5xx",
+      "metrics": ["HttpRequests", "Http5xx"],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "HTTP latency (p50/p90 via avg of duration samples)",
+      "metrics": ["HttpRequestDuration"],
+      "stat": "Average",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Readiness probe success",
+      "metrics": ["ReadyProbeSuccess"],
+      "stat": "Minimum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Auth failures and rate limits",
+      "metrics": ["AuthFailures", "RateLimitExceeded"],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "AI queue and processing",
+      "metrics": [
+        "AiQueuePending",
+        "AiQueueProcessing",
+        "AiQueueFailed",
+        "AiProcessingSucceeded",
+        "AiProcessingFailed"
+      ],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Storage / provider errors",
+      "metrics": ["S3Errors", "DynamoDbErrors"],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Notification outcomes",
+      "metrics": ["NotificationSucceeded", "NotificationFailed"],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "text",
+      "title": "Critical user flows",
+      "markdown": "Watch ticket submit (`POST /v1/tickets`), report-photo upload, staff login, citizen OTP verify, and notification delivery together with readiness. Runbook: docs/production-observability.md"
+    }
+  ]
+}

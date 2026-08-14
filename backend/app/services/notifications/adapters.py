@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from app.schemas.ticket import ReportContact
-from app.services.notifications.results import ChannelDeliveryResult
+from app.services.notifications.results import (
+    ChannelDeliveryResult,
+    redact_email,
+    redact_phone,
+)
 from app.services.notifications.templates import NotificationMessage
 
 logger = logging.getLogger(__name__)
@@ -97,8 +101,8 @@ class MockNotificationAdapter:
             message.ticket_id,
             message.status,
             "present" if "Tracking code:" in message.body else "absent",
-            recipient.phone if recipient else None,
-            recipient.email if recipient else None,
+            redact_phone(recipient.phone) if recipient else None,
+            redact_email(recipient.email) if recipient else None,
             recipient.preferred_channel if recipient else None,
             message.subject,
         )

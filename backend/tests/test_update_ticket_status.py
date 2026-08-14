@@ -193,7 +193,7 @@ def test_get_ticket_includes_status_history_after_updates(client):
     assert body["statusHistory"][2]["changedBy"] == ADMIN_STAFF_ID
 
 
-def test_list_tickets_includes_status_history(client):
+def test_list_tickets_excludes_status_history(client):
     created = create_ticket(
         client,
         description="Overflowing garbage bins blocking the sidewalk and attracting pests.",
@@ -206,6 +206,12 @@ def test_list_tickets_includes_status_history(client):
     response = client.get("/v1/tickets")
 
     assert response.status_code == 200
-    ticket = next(item for item in response.json() if item["ticketId"] == created["ticketId"])
-    assert len(ticket["statusHistory"]) == 2
-    assert ticket["statusHistory"][0]["status"] == "SUBMITTED"
+    ticket = next(
+        item for item in response.json()["items"] if item["ticketId"] == created["ticketId"]
+    )
+    assert "statusHistory" not in ticket
+
+    detail = client.get(f"/v1/tickets/{created['ticketId']}")
+    assert detail.status_code == 200
+    assert len(detail.json()["statusHistory"]) == 2
+    assert detail.json()["statusHistory"][0]["status"] == "SUBMITTED"

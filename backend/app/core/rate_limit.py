@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import Settings, get_settings
 from app.core.errors import build_error_response, get_request_id
+from app.core.metrics import emit_metric
 
 logger = logging.getLogger(__name__)
 
@@ -333,6 +334,7 @@ def enforce_rate_limit(
         client_key[:16],
         get_request_id(request),
     )
+    emit_metric("RateLimitExceeded", dimensions={"policy": policy.name})
     return rate_limit_response(
         request,
         decision.retry_after_seconds,

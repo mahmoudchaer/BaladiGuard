@@ -6,6 +6,7 @@ coverage is out of scope here because it needs real credentials and endpoints.
 """
 
 from app.database.memory import ticket_store
+from app.services.ai_job_queue import ai_job_queue
 from app.services.notifications.adapters import MockNotificationAdapter
 from tests.conftest import contribution_ready_auth_headers
 from tests.test_submit_ticket import EXPECTED_CONTACT, VALID_PAYLOAD
@@ -40,6 +41,7 @@ def _submit_report(anonymous_client, description: str = VALID_PAYLOAD["descripti
         headers=contribution_ready_auth_headers(),
     )
     assert response.status_code == 201, response.text
+    assert ai_job_queue.run_once().outcome == "succeeded"
     body = response.json()
     assert body["ticketId"].startswith("tkt_")
     assert body["ticketNumber"].startswith("BG-")
@@ -122,7 +124,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
 
     dashboard = anonymous_client.get("/v1/tickets", headers=staff_headers)
     assert dashboard.status_code == 200
-    assert any(ticket["ticketId"] == ticket_id for ticket in dashboard.json())
+    assert any(ticket["ticketId"] == ticket_id for ticket in dashboard.json()["items"])
 
     detail = anonymous_client.get(f"/v1/tickets/{ticket_id}", headers=staff_headers)
     assert detail.status_code == 200
@@ -236,7 +238,7 @@ def test_sprint5_memory_workflow_exercises_citizen_and_staff_paths(
         },
     )
     assert filtered.status_code == 200
-    assert [ticket["ticketId"] for ticket in filtered.json()] == [ticket_id]
+    assert [ticket["ticketId"] for ticket in filtered.json()["items"]] == [ticket_id]
 
     public_after_staff_work = anonymous_client.get(f"/v1/tickets/track/{created['trackingCode']}")
     assert public_after_staff_work.status_code == 200

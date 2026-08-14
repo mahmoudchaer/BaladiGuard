@@ -1,0 +1,22 @@
+.image-privacy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  margin-top: 0.65rem;
+  color: var(--color-text-secondary, #475569);
+  font-size: 0.82rem;
+}
+
+.image-privacy__label {
+  font-weight: 650;
+}
+
+.image-privacy--completed .image-privacy__label {
+  color: var(--color-success, #047857);
+}
+
+.image-privacy--failed .image-privacy__label,
+.image-privacy--review_required .image-privacy__label {
+  color: var(--color-warning, #b45309);
+}

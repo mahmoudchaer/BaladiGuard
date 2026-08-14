@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.database.memory import ticket_store
 from app.schemas.stored_ticket import PENDING_CLASSIFICATION
 from app.schemas.ticket import ReportLocation
+from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import (
     DEFAULT_CITIZEN_EMAIL,
     DEFAULT_CITIZEN_FULL_NAME,
@@ -47,6 +48,7 @@ def test_submit_ticket_success(client, contribution_ready_citizen_headers):
     )
 
     assert response.status_code == 201
+    assert ai_job_queue.run_once().outcome == "succeeded"
     body = response.json()
     assert body["ticketId"].startswith("tkt_")
     assert body["ticketNumber"].startswith("BG-")
@@ -298,7 +300,8 @@ def test_guest_submit_requires_authentication(anonymous_client):
     assert response.headers.get("WWW-Authenticate", "").startswith("Bearer")
 
 
-def test_incomplete_citizen_submit_requires_contribution_profile(anonymous_client):
+def test_phone_only_citizen_can_submit_ticket(anonymous_client):
+    """Verified phone without a full name may submit (#270)."""
     from app.services.citizens.service import citizen_service
 
     user = citizen_service.create_citizen(phone="+96170111111")
@@ -310,8 +313,12 @@ def test_incomplete_citizen_submit_requires_contribution_profile(anonymous_clien
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "CONTRIBUTION_PROFILE_REQUIRED"
+    assert response.status_code == 201, response.text
+    stored = ticket_store.get(response.json()["ticketId"])
+    assert stored is not None
+    assert stored.owner_user_id == user.user_id
+    assert stored.contact.name is None
+    assert stored.contact.phone == "+96170111111"
 
 
 def test_inactive_citizen_session_rejected_on_submit(anonymous_client):

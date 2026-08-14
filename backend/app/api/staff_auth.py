@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 from app.config import get_settings
 from app.core.errors import build_error_response, get_request_id
+from app.core.metrics import emit_metric
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import (
     StaffAuthError,
@@ -27,6 +30,8 @@ from app.services.staff.password_reset import (
     StaffPasswordResetError,
     staff_password_reset_service,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1", tags=["staff-auth"])
 
@@ -53,6 +58,11 @@ def staff_login(
             settings=settings,
         )
     except StaffAuthError:
+        logger.info(
+            "auth_failure kind=staff_login request_id=%s",
+            get_request_id(request),
+        )
+        emit_metric("AuthFailures", dimensions={"kind": "staff_login"})
         return build_error_response(
             code="UNAUTHORIZED",
             message="Invalid staff username or password.",

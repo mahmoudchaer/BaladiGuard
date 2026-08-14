@@ -191,7 +191,7 @@ def unauthorized(
 
 def contribution_profile_required(
     request: Request,
-    message: str = "Complete your profile before submitting a report.",
+    message: str = "A verified phone session is required before submitting a report.",
 ) -> HTTPException:
     from app.core.errors import get_request_id
 
@@ -237,10 +237,11 @@ def require_contribution_ready(
         Depends(_bearer_scheme),
     ],
 ) -> CitizenPrincipal:
-    """Require an active citizen session that is contribution-ready (issue #173).
+    """Require an active verified-phone citizen session (issues #173 / #270).
 
     Missing/invalid/revoked/inactive sessions → ``401 UNAUTHORIZED``.
-    Active but incomplete profiles → ``403 CONTRIBUTION_PROFILE_REQUIRED``.
+    Active accounts without a verified phone → ``403 CONTRIBUTION_PROFILE_REQUIRED``.
+    Full name is optional and does not gate contribution.
     """
     principal = require_citizen(request, credentials)
     from app.database.store_factory import get_citizen_store

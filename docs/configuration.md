@@ -14,29 +14,32 @@ Set `APP_ENV` (preferred) or `ENVIRONMENT` (alias).
 | `local` | Default local development (documented soft defaults allowed) |
 | `development` | Shared/dev servers (same soft defaults as local) |
 | `test` | Automated tests / CI |
+| `staging` | Shared pre-production — **no silent localhost deep-link defaults** |
 | `production` | Deployed environments — **no silent development defaults** |
 
 Common short forms are normalized before checks: `prod` / `prd` → `production`,
 `dev` / `develop` → `development`.
 
-Unknown values (for example `staging`) fail validation and **abort startup** so a
-deploy typo cannot bypass production fail-closed rules.
+Unknown values fail validation and **abort startup** so a deploy typo cannot bypass
+fail-closed rules.
 
 ## Policy
 
-| Area | `local` / `development` / `test` | `production` |
+| Area | `local` / `development` / `test` | `staging` / `production` |
 | --- | --- | --- |
-| Persistence | `DATABASE_BACKEND=memory` allowed | Must be `dynamodb` |
-| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Must be `real` |
-| Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Non-placeholder `SECRET_KEY` required |
-| Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Non-demo `STAFF_PASSWORD` required |
-| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Real Amazon Location index required |
-| Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | `AWS_S3_BUCKET` required |
-| Dynamo endpoint | Localhost Docker URL allowed | Must not point at localhost |
-| Sample seed | Optional synthetic mocks only | `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
+| Persistence | `DATABASE_BACKEND=memory` allowed | Production: must be `dynamodb`. Staging may use memory for demos. |
+| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Production: must be `real`. Staging may mock for demos. |
+| Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Production: non-placeholder `SECRET_KEY` required |
+| Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Production: non-demo credentials required |
+| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Production: real Amazon Location index required |
+| Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | Production: `AWS_S3_BUCKET` required |
+| Dynamo endpoint | Localhost Docker URL allowed | Production must not point at localhost |
+| Sample seed | Optional synthetic mocks only | Production: `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
+| Citizen deep links | Optional `CITIZEN_APP_BASE_URL` (defaults to `http://localhost:8081`) | **Required https**, non-localhost base for SMS/email links (#257) |
 
-Backend **startup aborts** when `APP_ENV=production` and validation finds errors.
-In other environments, the process still starts and `/health` reports `config.status`.
+Backend **startup aborts** when `APP_ENV` is `production` or `staging` and validation
+finds errors. In local / development / test, the process still starts and `/health`
+reports `config.status`.
 
 Secret **values** are never printed in logs or returned by `/health`.
 
@@ -50,12 +53,18 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `AWS_ACCESS_KEY_ID` | When not using instance role | — | boto3 / uploads |
 | `AWS_SECRET_ACCESS_KEY` | When not using instance role | — | Never commit |
 | `AWS_S3_BUCKET` | Production | — | Photo uploads |
+| `S3_PRESIGNED_URL_TTL_SECONDS` | No | `300` | Authorized photo URL lifetime; minimum 30 seconds |
 | `DYNAMODB_ENDPOINT_URL` | No | empty = AWS | `http://localhost:8001` for Docker Local only |
 | `DYNAMODB_TABLE_PREFIX` | No | `baladiguard-` | Table name prefix |
 | `SEED_SAMPLE_TICKETS` | No | `false` | Must be `false` in production |
 | `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | AI classification / cleaning |
 | `LOCATION_PLACE_INDEX_NAME` | Production | empty → local index | Geocoding |
 | `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` | No | `300` | Integer ≥ 1 |
+| `AI_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
+| `AI_JOB_TIMEOUT_SECONDS` | No | `300` | Expired worker claims become eligible for recovery |
+| `AI_JOB_BACKOFF_BASE_SECONDS` | No | `5` | First retry delay; later retries double |
+| `AI_JOB_BACKOFF_MAX_SECONDS` | No | `300` | Upper bound for retry delay |
+| `AI_JOB_POLL_SECONDS` | No | `1` | Idle worker polling interval |
 | `DUPLICATE_DISTANCE_THRESHOLD_M` | No | `100` | Meters, ≥ 1 |
 | `DUPLICATE_MIN_SCORE` | No | `0.4` | 0..1 |
 | `DUPLICATE_SAME_CATEGORY_WEIGHT` | No | `1.0` | 0..1 |
@@ -70,6 +79,8 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_ALLOWLIST_PHONES` | Sandbox/testing | empty | Comma-separated E.164 allowlist |
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
+| `CITIZEN_APP_BASE_URL` | Staging + production | local/dev/test: `http://localhost:8081` when unset | Citizen app base for notification deep links (`/t/{trackingCode}`); staging/production must be https and non-localhost (#257) |
+| `CORS_ALLOWED_ORIGINS` | Staging + production | local/dev/test: Vite admin `:5173`, citizen-web `:5174`, Expo ports when unset | Comma-separated browser origins for CORS (#263). Staging/production must set explicit https non-localhost origins (admin + citizen-web). |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
@@ -87,9 +98,19 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `STAFF_USERNAME` | Legacy | `staff` | Deprecated; ignored for authentication |
 | `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` |
+| `LOG_FORMAT` | No | `text` | `text` \| `json` — use `json` in deployed environments (#185) |
+| `APP_VERSION` | No | `0.1.0` | Deployed build label in structured logs and health payloads |
+| `METRICS_EMF` | No | on when `APP_ENV=production` | `true` \| `false` — CloudWatch Embedded Metric Format on stdout |
+| `READINESS_PROBE_PUBLISHER` | No | `true` | In-process `ReadyProbeSuccess` publisher for readiness alarms |
+| `READINESS_PROBE_INTERVAL_SECONDS` | No | `30` | Publisher interval (≥ 5) |
+| `OBSERVABILITY_ENV` | Apply script | `APP_ENV` / `production` | Stable CloudWatch `env` dimension for alarms/dashboard |
+| `OBSERVABILITY_ALARM_ACTIONS` | Apply script | empty | Comma-separated SNS ARNs for `apply_observability.py --apply` |
 
 Optional eval-only vars (`CLASSIFICATION_EVAL_*`, `OPENAI_API_KEY`) are documented in
 `.env.example` and are not required for runtime.
+
+Production observability (dashboards, alarms, retention, staging drill) is documented in
+[production-observability.md](production-observability.md).
 
 ## Admin dashboard (`admin/`)
 
@@ -102,6 +123,16 @@ Optional eval-only vars (`CLASSIFICATION_EVAL_*`, `OPENAI_API_KEY`) are document
 
 Vite embeds these values in the browser bundle. They are not backend secrets.
 
+## Citizen web (`citizen-web/`)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `VITE_APP_ENV` | `local` | `local` \| `development` \| `test` \| `staging` \| `production` |
+| `VITE_API_BASE_URL` | `http://localhost:8000` (local/dev/test only) | Staging/production **require** https non-localhost; never silent localhost |
+| `VITE_USE_MOCK_DATA` | `false` | Local/dev mock fixtures only — rejected in staging/production |
+
+Dev server defaults to port **5174** (admin uses 5173). Ensure backend `CORS_ALLOWED_ORIGINS` (or local defaults) include the citizen-web origin.
+
 ## Mobile (`mobile/`)
 
 | Variable | Default | Notes |
@@ -110,6 +141,8 @@ Vite embeds these values in the browser bundle. They are not backend secrets.
 | `EXPO_PUBLIC_ENABLE_MOCK_API` | `false` | Opt-in mock submit. **Rejected** when `EXPO_PUBLIC_APP_ENV=production` or in any release binary (`!__DEV__`). |
 | `EXPO_PUBLIC_APP_ENV` | `local` | `local` \| `development` \| `preview` \| `production` |
 | `EXPO_PUBLIC_PRIVACY_POLICY_URL` | GitHub privacy-lifecycle doc | Optional HTTPS privacy URL for store/in-app metadata |
+| `EXPO_PUBLIC_CITIZEN_APP_HOST` | derived / placeholder | Host claimed for iOS Universal Links + Android App Links (`/t/*`); must match backend `CITIZEN_APP_BASE_URL` host (#257) |
+| `EXPO_PUBLIC_CITIZEN_APP_BASE_URL` | empty | Optional full https base; used to derive host when `EXPO_PUBLIC_CITIZEN_APP_HOST` is unset |
 | `EXPO_PUBLIC_SUPABASE_URL` | empty | Reserved / unused for MVP core path |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | empty | Reserved / unused for MVP core path |
 | `EAS_PROJECT_ID` | empty | Optional; normally written by `eas init` into app config |
@@ -125,6 +158,7 @@ Signed Android/iOS release process, credential handling, and rollback steps:
    copy backend\.env.example backend\.env
    copy .env.example .env
    copy admin\.env.example admin\.env
+   copy citizen-web\.env.example citizen-web\.env
    copy mobile\.env.example mobile\.env
    ```
 
@@ -145,26 +179,51 @@ Before deploy (#74):
 7. `LOCATION_PLACE_INDEX_NAME=<Amazon Location index>`
 8. `AWS_S3_BUCKET=<bucket>`
 9. `SEED_SAMPLE_TICKETS=false`
-10. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-11. Confirm process starts (validation aborts on failure) and `/health` is `ok`
-12. Mobile production EAS profile: `EXPO_PUBLIC_APP_ENV=production`,
+10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links). Staging uses the same rule with `APP_ENV=staging`.
+11. `CORS_ALLOWED_ORIGINS=https://admin…,https://citizen…` (explicit https non-localhost browser origins for admin + citizen-web, `#263`)
+12. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+13. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
+14. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+15. Mobile production EAS profile: `EXPO_PUBLIC_APP_ENV=production`,
     `EXPO_PUBLIC_ENABLE_MOCK_API=false`, HTTPS `EXPO_PUBLIC_API_BASE_URL`,
-    signing credentials only in Expo/secret manager (see [mobile-release.md](mobile-release.md))
-13. Run `cd mobile && npm run check:release` before cutting a mobile release tag
+    signing credentials only in Expo/secret manager (see [mobile-release.md](mobile-release.md)).
+    Run `cd mobile && npm run check:release` before cutting a mobile release tag.
+    Set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host as `CITIZEN_APP_BASE_URL`, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
+16. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
 
 ## Health payload
 
-`GET /health` includes a `config` object:
+Distinct probes (#185):
+
+- `GET /health/live` — process up only (always HTTP 200 when the app answers)
+- `GET /health/ready` — database + config (HTTP 503 when not ready)
+- `GET /health` — composite for humans/demos (HTTP 200; body may be `degraded`)
+
+`GET /health` includes `config`, `ai`, `version`, and `probes`:
 
 ```json
 {
   "status": "ok",
   "service": "baladiguard-api",
   "env": "local",
+  "version": "0.1.0",
   "database": { "backend": "memory", "status": "ok" },
   "config": {
     "status": "ok",
     "issues": []
+  },
+  "ai": {
+    "status": "ok",
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "source": "memory_store",
+    "backlogWarnThreshold": 25
+  },
+  "probes": {
+    "liveness": "/health/live",
+    "readiness": "/health/ready",
+    "composite": "/health"
   }
 }
 ```

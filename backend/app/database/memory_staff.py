@@ -37,6 +37,10 @@ class InMemoryStaffStore:
                 return None
             return self._users.get(staff_id)
 
+    def list(self) -> list[StoredStaffUser]:
+        with self._lock:
+            return sorted(self._users.values(), key=lambda user: (user.username, user.staff_id))
+
     def update(self, user: StoredStaffUser) -> StoredStaffUser:
         with self._lock:
             existing = self._users.get(user.staff_id)

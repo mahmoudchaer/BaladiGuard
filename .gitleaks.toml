@@ -1,0 +1,20 @@
+title = "BaladiGuard"
+
+[extend]
+useDefault = true
+
+# Extends the default generic-api-key rule with allowlists only (other fields
+# inherit from the default ruleset via extend.useDefault).
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Client submission ids next to Idempotency-Key header in tests (issue #258 / PR #274 FP)"
+regexTarget = "line"
+regexes = [
+  '''sub-fixed-key-for-tests0[0-9]+''',
+  '''sub-retry-key-for-tests0[0-9]+''',
+  '''sub-fail-key-for-tests0[0-9]+''',
+]
+paths = [
+  '''tickets\.test\.ts''',
+]

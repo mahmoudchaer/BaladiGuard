@@ -7,13 +7,13 @@ export type MobileRuntimeConfig = {
   appVersion: string;
   privacyPolicyUrl: string;
   isReleaseBinary: boolean;
+  /** Host claimed for HTTPS notification deep links (mirrors app.config.ts). */
+  citizenAppLinkHost: string;
 };
 
-// Intentionally no localhost default in this module — production export bundles
-// must not embed loopback URLs. Local/dev sets EXPO_PUBLIC_API_BASE_URL via .env
-// (see mobile/.env.example). Tests inject values through FromValues.
 const DEFAULT_PRIVACY_POLICY_URL =
   'https://github.com/mahmoudchaer/BaladiGuard/blob/main/docs/privacy-lifecycle.md';
+const DEFAULT_CITIZEN_APP_LINK_HOST = 'app.baladiguard.example';
 
 function resolveIsReleaseBinary(): boolean {
   // Expo/Metro sets __DEV__=true for local bundling; release/EAS binaries set false.
@@ -92,10 +92,12 @@ export function buildMobileRuntimeConfigFromValues(input: {
   appEnv?: string | null;
   privacyPolicyUrl?: string | null;
   isReleaseBinary?: boolean;
+  citizenAppLinkHost?: string | null;
 }): MobileRuntimeConfig {
   const isReleaseBinary = input.isReleaseBinary ?? resolveIsReleaseBinary();
   const extra = (Constants.expoConfig?.extra ?? {}) as {
     privacyPolicyUrl?: string;
+    citizenAppLinkHost?: string;
   };
   const enableMockRaw = input.enableMockApi;
   const enableMockApi =
@@ -112,6 +114,11 @@ export function buildMobileRuntimeConfigFromValues(input: {
       DEFAULT_PRIVACY_POLICY_URL
     ).trim(),
     isReleaseBinary,
+    citizenAppLinkHost: (
+      input.citizenAppLinkHost ??
+      extra.citizenAppLinkHost ??
+      DEFAULT_CITIZEN_APP_LINK_HOST
+    ).trim(),
   };
 
   assertMobileRuntimeConfig(config);
@@ -122,6 +129,10 @@ export function buildMobileRuntimeConfigFromValues(input: {
  * Read public Expo env via direct ``process.env.EXPO_PUBLIC_*`` member access.
  * Metro only inlines these literal references — aliases like ``env.EXPO_PUBLIC_*``
  * leave unresolved keys in release bundles (issue #192 review).
+ *
+ * Intentionally no localhost default in this module — production export bundles
+ * must not embed loopback URLs. Local/dev sets EXPO_PUBLIC_API_BASE_URL via .env
+ * (see mobile/.env.example).
  */
 export function readExpoPublicEnv(): {
   apiBaseUrl: string | undefined;
