@@ -104,6 +104,7 @@ PUBLIC_TICKET_MAX_LIMIT = 50
 STAFF_TICKET_DEFAULT_LIMIT = 25
 STAFF_TICKET_MAX_LIMIT = 100
 STAFF_SLA_FILTER_MAX_ROUNDS = 20
+STAFF_WORKFORCE_FILTER_MAX_ROUNDS = 50
 # Effective-category matching is derived, so candidate pages continue across
 # source pages the same way derived SLA filters do.
 DUPLICATE_CANDIDATE_MAX_ROUNDS = 20
@@ -636,21 +637,28 @@ class TicketService:
         page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
         store_filters = filters
-        needs_post_filter = bool(
+        workforce_post_filter = bool(
             store_filters is not None
             and (
-                store_filters.sla_state
-                or store_filters.worker_id
+                store_filters.worker_id
                 or store_filters.team_id
                 or store_filters.workforce_unassigned
             )
+        )
+        needs_post_filter = bool(
+            store_filters is not None and (store_filters.sla_state or workforce_post_filter)
         )
 
         collected: list[StoredTicket] = []
         scanned_count = 0
         current_cursor = cursor
         next_cursor: str | None = None
-        max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS if needs_post_filter else 1
+        if workforce_post_filter:
+            max_rounds = STAFF_WORKFORCE_FILTER_MAX_ROUNDS
+        elif needs_post_filter:
+            max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS
+        else:
+            max_rounds = 1
 
         for _ in range(max_rounds):
             page = self._store.list_staff_page(

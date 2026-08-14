@@ -77,26 +77,56 @@ export function WorkforcePage() {
     if (!workerName.trim()) {
       return;
     }
-    await createWorker({
-      municipalityId,
-      displayName: workerName.trim(),
-      departmentIds: [workerDepartment],
-    });
-    setWorkerName('');
-    await reload();
+    try {
+      setErrorMessage(null);
+      await createWorker({
+        municipalityId,
+        displayName: workerName.trim(),
+        departmentIds: [workerDepartment],
+      });
+      setWorkerName('');
+      await reload();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to create worker.');
+    }
   }
 
   async function handleCreateTeam() {
     if (!teamName.trim()) {
       return;
     }
-    await createTeam({
-      municipalityId,
-      displayName: teamName.trim(),
-      departmentIds: [teamDepartment],
-    });
-    setTeamName('');
-    await reload();
+    try {
+      setErrorMessage(null);
+      await createTeam({
+        municipalityId,
+        displayName: teamName.trim(),
+        departmentIds: [teamDepartment],
+      });
+      setTeamName('');
+      await reload();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to create team.');
+    }
+  }
+
+  async function handleToggleWorker(workerId: string, active: boolean) {
+    try {
+      setErrorMessage(null);
+      await setWorkerActive(workerId, active);
+      await reload();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update worker.');
+    }
+  }
+
+  async function handleToggleTeam(teamId: string, active: boolean) {
+    try {
+      setErrorMessage(null);
+      await setTeamActive(teamId, active);
+      await reload();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update team.');
+    }
   }
 
   return (
@@ -188,9 +218,7 @@ export function WorkforcePage() {
                         <td>
                           <button
                             type="button"
-                            onClick={() =>
-                              void setWorkerActive(worker.workerId, !worker.active).then(reload)
-                            }
+                            onClick={() => void handleToggleWorker(worker.workerId, !worker.active)}
                           >
                             {worker.active ? 'Deactivate' : 'Reactivate'}
                           </button>
@@ -257,9 +285,7 @@ export function WorkforcePage() {
                         <td>
                           <button
                             type="button"
-                            onClick={() =>
-                              void setTeamActive(team.teamId, !team.active).then(reload)
-                            }
+                            onClick={() => void handleToggleTeam(team.teamId, !team.active)}
                           >
                             {team.active ? 'Deactivate' : 'Reactivate'}
                           </button>

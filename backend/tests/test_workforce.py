@@ -204,9 +204,7 @@ def test_assignment_rejects_unknown_inactive_and_out_of_scope(client: TestClient
 
     stored = workforce_store.get_worker(other["workerId"])
     assert stored is not None
-    workforce_store.save_worker(
-        stored.model_copy(update={"municipality_id": OTHER_MUNICIPALITY})
-    )
+    workforce_store.save_worker(stored.model_copy(update={"municipality_id": OTHER_MUNICIPALITY}))
 
     unknown = client.post(
         f"/v1/tickets/{ticket_id}/workforce-assignment",

@@ -5,9 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket, staff_can_assign_department
-from app.database.store_factory import get_ticket_store, get_workforce_store
-from app.database.ticket_store import TicketStore
+from app.core.staff_auth import StaffPrincipal, staff_can_assign_department
+from app.database.store_factory import get_workforce_store
 from app.database.workforce_store import WorkforceStore
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.workforce import (
@@ -109,19 +108,11 @@ def _require_admin(principal: StaffPrincipal) -> None:
 
 
 class WorkforceService:
-    def __init__(
-        self,
-        store: WorkforceStore | None = None,
-        ticket_store: TicketStore | None = None,
-    ) -> None:
+    def __init__(self, store: WorkforceStore | None = None) -> None:
         self._store = store
-        self._ticket_store = ticket_store
 
     def store(self) -> WorkforceStore:
         return self._store or get_workforce_store()
-
-    def tickets(self) -> TicketStore:
-        return self._ticket_store or get_ticket_store()
 
     def list_workers(
         self, principal: StaffPrincipal, *, municipality_id: str | None
@@ -293,12 +284,21 @@ class WorkforceService:
         scoped = resolve_municipality_scope(principal, municipality_id)
         workers = self.store().list_workers(scoped)
         teams = self.store().list_teams(scoped)
-        tickets = [
-            ticket
-            for ticket in self.tickets().list()
-            if staff_can_access_ticket(principal, ticket)
-            and (ticket.municipality_id in {None, scoped})
-        ]
+        from app.services.complaints.ticket_service import (
+            STAFF_AGGREGATE_SAMPLE_LIMIT,
+            _staff_browse_scope,
+            ticket_service,
+        )
+
+        browse_mode, browse_municipality, browse_departments = _staff_browse_scope(principal)
+        collected, _approximate = ticket_service._collect_staff_candidates_with_approx(
+            browse_mode=browse_mode,
+            municipality_id=browse_municipality,
+            department_ids=browse_departments,
+            filters=None,
+            budget=STAFF_AGGREGATE_SAMPLE_LIMIT,
+        )
+        tickets = [ticket for ticket in collected if ticket.municipality_id in {None, scoped}]
 
         unassigned_open = [
             ticket
@@ -332,9 +332,7 @@ class WorkforceService:
     def _require_worker(self, worker_id: str) -> StoredWorker:
         worker = self.store().get_worker(worker_id)
         if worker is None:
-                raise WorkforceError(
-                    "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
-                )
+            raise WorkforceError("Worker was not found.", status_code=404, code="WORKER_NOT_FOUND")
         return worker
 
     def _require_team(self, team_id: str) -> StoredTeam:

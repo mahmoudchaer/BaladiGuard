@@ -326,7 +326,11 @@ export function TicketDetailPage() {
     let cancelled = false;
     async function loadDirectory() {
       try {
-        const [nextWorkers, nextTeams] = await Promise.all([listWorkers(), listTeams()]);
+        const municipalityId = ticket?.municipalityId ?? session?.municipalityId ?? undefined;
+        const [nextWorkers, nextTeams] = await Promise.all([
+          listWorkers(municipalityId),
+          listTeams(municipalityId),
+        ]);
         if (!cancelled) {
           setWorkers(nextWorkers);
           setTeams(nextTeams);
@@ -342,7 +346,7 @@ export function TicketDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [ticketId]);
+  }, [ticketId, ticket?.municipalityId, session?.municipalityId]);
 
   useEffect(() => {
     if (!ticketId) return;
@@ -1384,25 +1388,29 @@ export function TicketDetailPage() {
                           {workers
                             .filter(
                               (worker) =>
-                                worker.active &&
-                                (!ticket.departmentId ||
-                                  worker.departmentIds.includes(ticket.departmentId)),
+                                worker.workerId === ticket.assignedWorkerId ||
+                                (worker.active &&
+                                  (!ticket.departmentId ||
+                                    worker.departmentIds.includes(ticket.departmentId))),
                             )
                             .map((worker) => (
                               <option key={worker.workerId} value={`worker:${worker.workerId}`}>
                                 Worker: {worker.displayName}
+                                {worker.active ? '' : ' (inactive)'}
                               </option>
                             ))}
                           {teams
                             .filter(
                               (team) =>
-                                team.active &&
-                                (!ticket.departmentId ||
-                                  team.departmentIds.includes(ticket.departmentId)),
+                                team.teamId === ticket.assignedTeamId ||
+                                (team.active &&
+                                  (!ticket.departmentId ||
+                                    team.departmentIds.includes(ticket.departmentId))),
                             )
                             .map((team) => (
                               <option key={team.teamId} value={`team:${team.teamId}`}>
                                 Team: {team.displayName}
+                                {team.active ? '' : ' (inactive)'}
                               </option>
                             ))}
                         </select>

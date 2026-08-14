@@ -1514,4 +1514,34 @@ describe('TicketDetailPage workforce assignment', () => {
     });
     expect(await screen.findByText('Workforce assignment updated.')).toBeInTheDocument();
   });
+
+  it('keeps an inactive current assignee visible so staff can clear it', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      assignedWorkerId: 'wrk_inactive',
+      assignedTeamId: null,
+    });
+    vi.mocked(listWorkers).mockResolvedValue([
+      {
+        workerId: 'wrk_inactive',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        displayName: 'Retired crew',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        teamIds: [],
+        active: false,
+        createdAt: '2026-07-17T08:00:00Z',
+        updatedAt: '2026-07-17T08:00:00Z',
+      },
+    ]);
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    expect(await screen.findByLabelText('Assigned worker or team')).toHaveValue(
+      'worker:wrk_inactive',
+    );
+    expect(
+      screen.getByRole('option', { name: 'Worker: Retired crew (inactive)' }),
+    ).toBeInTheDocument();
+  });
 });
