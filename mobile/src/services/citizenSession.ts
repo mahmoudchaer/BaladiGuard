@@ -1,8 +1,34 @@
 import * as SecureStore from 'expo-secure-store';
+import { File, Paths } from 'expo-file-system';
 
 import type { CitizenProfile, CitizenSession } from '@/types/citizen';
 
 export const CITIZEN_SESSION_STORAGE_KEY = 'baladiguard.citizenSession';
+const DEV_SESSION_FILE_NAME = 'baladiguard-dev-session.json';
+
+function devSessionFile(): File {
+  return new File(Paths.document, DEV_SESSION_FILE_NAME);
+}
+
+async function readDevSessionFallback(): Promise<string | null> {
+  if (!__DEV__) return null;
+  try {
+    const file = devSessionFile();
+    return file.exists ? await file.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDevSessionFallback(): void {
+  if (!__DEV__) return;
+  try {
+    const file = devSessionFile();
+    if (file.exists) file.delete();
+  } catch {
+    // Best-effort development fallback cleanup.
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
@@ -66,7 +92,10 @@ export async function loadCitizenSession(): Promise<CitizenSession | null> {
   try {
     raw = await SecureStore.getItemAsync(CITIZEN_SESSION_STORAGE_KEY);
   } catch {
-    return null;
+    raw = await readDevSessionFallback();
+  }
+  if (!raw) {
+    raw = await readDevSessionFallback();
   }
 
   if (!raw) {
@@ -96,10 +125,16 @@ export async function loadCitizenSession(): Promise<CitizenSession | null> {
 }
 
 export async function saveCitizenSession(session: CitizenSession): Promise<void> {
-  await SecureStore.setItemAsync(
-    CITIZEN_SESSION_STORAGE_KEY,
-    JSON.stringify(migrateCitizenSession(session)),
-  );
+  const serialized = JSON.stringify(migrateCitizenSession(session));
+  try {
+    await SecureStore.setItemAsync(CITIZEN_SESSION_STORAGE_KEY, serialized);
+    clearDevSessionFallback();
+  } catch (error) {
+    if (!__DEV__) throw error;
+    // Unsigned iOS simulator builds have no Keychain entitlement. Persist only
+    // in the development app sandbox so restarts behave like a normal app.
+    devSessionFile().write(serialized);
+  }
 }
 
 export async function clearCitizenSession(): Promise<void> {
@@ -108,6 +143,7 @@ export async function clearCitizenSession(): Promise<void> {
   } catch {
     // Best-effort clear; callers still drop in-memory session.
   }
+  clearDevSessionFallback();
 }
 
 export function buildCitizenSession(

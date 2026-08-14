@@ -20,6 +20,49 @@ class StaffTicketPage:
     scanned_count: int
 
 
+def public_ticket_matches_query(
+    ticket: StoredTicket,
+    *,
+    q: str | None = None,
+    status: TicketStatus | None = None,
+    category: str | None = None,
+    north: float | None = None,
+    south: float | None = None,
+    east: float | None = None,
+    west: float | None = None,
+) -> bool:
+    """Apply public discovery predicates before pagination limits are imposed."""
+    effective_category = (ticket.final_category or ticket.category or "").casefold()
+    if status is not None and ticket.status != status:
+        return False
+    if category and effective_category != category.strip().casefold():
+        return False
+    if q:
+        searchable = " ".join(
+            (
+                ticket.ticket_number,
+                ticket.public_description or "",
+                ticket.public_location_label or "",
+                effective_category.replace("_", " "),
+            )
+        ).casefold()
+        if q.strip().casefold() not in searchable:
+            return False
+
+    bounds = (north, south, east, west)
+    if not any(value is not None for value in bounds):
+        return True
+    if any(value is None for value in bounds):
+        raise ValueError("Public viewport bounds must be provided together.")
+    assert north is not None and south is not None
+    assert east is not None and west is not None
+    if ticket.location.latitude > north or ticket.location.latitude < south:
+        return False
+    if west <= east:
+        return west <= ticket.location.longitude <= east
+    return ticket.location.longitude >= west or ticket.location.longitude <= east
+
+
 class TicketStore(Protocol):
     def next_sequence(self) -> int: ...
 
@@ -64,7 +107,16 @@ class TicketStore(Protocol):
         *,
         limit: int,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
+        north: float | None = None,
+        south: float | None = None,
+        east: float | None = None,
+        west: float | None = None,
     ) -> TicketHistoryPage: ...
+
+    def public_continuation_cursor(self, ticket: StoredTicket) -> str: ...
 
     def list_by_owner(
         self,

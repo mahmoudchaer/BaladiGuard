@@ -37,11 +37,13 @@ from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
     PublicTicketListResponse,
+    PublicTicketMapViewportResponse,
     PublicTicketResponse,
     TicketResponse,
     UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
+from app.schemas.ticket_status import TicketStatus
 from app.services.ai_job_queue import ai_job_queue
 from app.services.citizens.service import snapshot_contact_for_ticket
 from app.services.complaints.status_workflow import (
@@ -50,6 +52,8 @@ from app.services.complaints.status_workflow import (
 )
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
+    PUBLIC_MAP_DEFAULT_LIMIT,
+    PUBLIC_MAP_MAX_LIMIT,
     STAFF_MAP_DEFAULT_LIMIT,
     STAFF_MAP_MAX_LIMIT,
     STAFF_TICKET_DEFAULT_LIMIT,
@@ -478,6 +482,9 @@ def list_public_tickets(
     request: Request,
     limit: int = Query(default=20, ge=1, le=50),
     cursor: str | None = Query(default=None),
+    q: str | None = Query(default=None, min_length=1, max_length=80),
+    status: TicketStatus | None = None,
+    category: str | None = Query(default=None, min_length=1, max_length=80),
 ) -> PublicTicketListResponse | JSONResponse:
     """Unauthenticated citizen-safe public report feed for map/list browsing."""
     limited = enforce_rate_limit(
@@ -489,7 +496,13 @@ def list_public_tickets(
         return limited
 
     try:
-        return ticket_service.list_public_tickets(limit=limit, cursor=cursor)
+        return ticket_service.list_public_tickets(
+            limit=limit,
+            cursor=cursor,
+            q=q,
+            status=status,
+            category=category,
+        )
     except ValueError:
         return build_error_response(
             code="VALIDATION_ERROR",
@@ -498,6 +511,42 @@ def list_public_tickets(
             details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
             status_code=400,
         )
+
+
+@router.get("/tickets/public/map", response_model=PublicTicketMapViewportResponse)
+def public_map_tickets_viewport(
+    request: Request,
+    north: float = Query(..., ge=-90, le=90),
+    south: float = Query(..., ge=-90, le=90),
+    east: float = Query(..., ge=-180, le=180),
+    west: float = Query(..., ge=-180, le=180),
+    zoom: float = Query(..., ge=0, le=22),
+    limit: int = Query(default=PUBLIC_MAP_DEFAULT_LIMIT, ge=1, le=PUBLIC_MAP_MAX_LIMIT),
+) -> PublicTicketMapViewportResponse | JSONResponse:
+    """Bounded public markers/clusters for only the requested map viewport."""
+    limited = enforce_rate_limit(
+        request,
+        "public-ticket-browsing",
+        message="Too many public ticket requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+    if south > north:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="south", message="south must be <= north.")],
+            status_code=400,
+        )
+    return ticket_service.public_map_viewport(
+        north=north,
+        south=south,
+        east=east,
+        west=west,
+        zoom=zoom,
+        limit=limit,
+    )
 
 
 @router.get("/tickets/public/{ticket_number}", response_model=PublicTicketResponse)

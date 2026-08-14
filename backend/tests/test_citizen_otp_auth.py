@@ -100,6 +100,62 @@ def test_otp_verify_creates_new_citizen_and_session(anonymous_client: TestClient
     assert me.json()["userId"] == body["userId"]
 
 
+def test_web_otp_uses_httponly_cookie_without_exposing_token(
+    anonymous_client: TestClient,
+) -> None:
+    status, request_body = _request_otp(anonymous_client, phone="+96170123456")
+    assert status == 202
+    code = citizen_service.peek_dev_otp_code(request_body["challengeId"])
+    assert code is not None
+
+    verify = anonymous_client.post(
+        "/v1/citizen/auth/otp/verify",
+        json={"challengeId": request_body["challengeId"], "code": code},
+        headers={"X-Citizen-Session-Mode": "cookie"},
+    )
+    assert verify.status_code == 200, verify.text
+    assert "accessToken" not in verify.json()
+    cookie = verify.headers["set-cookie"]
+    assert "baladiguard_citizen_session=" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=lax" in cookie
+    assert "Path=/v1" in cookie
+
+    restored = anonymous_client.get("/v1/citizen/me")
+    assert restored.status_code == 200
+    assert restored.json()["phone"] == "+96170123456"
+
+
+def test_web_cookie_mutations_require_an_allowed_origin(anonymous_client: TestClient) -> None:
+    _status, request_body = _request_otp(anonymous_client, phone="+96170123456")
+    code = citizen_service.peek_dev_otp_code(request_body["challengeId"])
+    assert code is not None
+    verify = anonymous_client.post(
+        "/v1/citizen/auth/otp/verify",
+        json={"challengeId": request_body["challengeId"], "code": code},
+        headers={"X-Citizen-Session-Mode": "cookie"},
+    )
+    assert verify.status_code == 200
+
+    blocked = anonymous_client.patch("/v1/citizen/me", json={"fullName": "Blocked"})
+    assert blocked.status_code == 401
+
+    allowed = anonymous_client.patch(
+        "/v1/citizen/me",
+        json={"fullName": "Allowed"},
+        headers={"Origin": "http://localhost:5174"},
+    )
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["fullName"] == "Allowed"
+
+    logout = anonymous_client.post(
+        "/v1/citizen/auth/logout",
+        headers={"Origin": "http://localhost:5174"},
+    )
+    assert logout.status_code == 204
+    assert 'baladiguard_citizen_session=""' in logout.headers["set-cookie"]
+
+
 def test_otp_verify_logs_into_existing_account(anonymous_client: TestClient) -> None:
     created = citizen_service.create_citizen(phone="+96170123456", full_name="Ada")
     status, request_body = _request_otp(anonymous_client, phone="+96170123456")

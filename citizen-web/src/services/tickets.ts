@@ -2,6 +2,7 @@ import { config } from '@/services/config';
 import type {
   CitizenTicketResponse,
   PublicTicketListResponse,
+  PublicTicketMapViewportResponse,
   PublicTicketResponse,
 } from '@/types/ticket';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
@@ -22,7 +23,18 @@ export const PUBLIC_TICKET_NETWORK_MESSAGE =
 type PublicTicketListOptions = {
   limit?: number;
   cursor?: string | null;
+  q?: string;
+  status?: string;
+  category?: string;
   signal?: AbortSignal;
+};
+
+export type PublicMapViewport = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  zoom: number;
 };
 
 function apiUrl(path: string): string {
@@ -82,6 +94,9 @@ export function sanitizePublicTicket(raw: PublicTicketResponse): PublicTicketRes
 export async function getPublicTickets({
   limit = 20,
   cursor,
+  q,
+  status,
+  category,
   signal,
 }: PublicTicketListOptions = {}): Promise<PublicTicketListResponse> {
   if (config.useMockData) {
@@ -92,6 +107,9 @@ export async function getPublicTickets({
   if (cursor) {
     params.set('cursor', cursor);
   }
+  if (q?.trim()) params.set('q', q.trim());
+  if (status) params.set('status', status);
+  if (category) params.set('category', category);
 
   let response: Response;
   try {
@@ -115,6 +133,66 @@ export async function getPublicTickets({
     items: (body.items ?? []).map(sanitizePublicTicket),
     nextCursor: body.nextCursor ?? null,
     limit: body.limit ?? limit,
+  };
+}
+
+export async function getPublicMapViewport(
+  viewport: PublicMapViewport,
+  options: { limit?: number; signal?: AbortSignal } = {},
+): Promise<PublicTicketMapViewportResponse> {
+  const limit = options.limit ?? 200;
+  const params = new URLSearchParams({
+    north: String(viewport.north),
+    south: String(viewport.south),
+    east: String(viewport.east),
+    west: String(viewport.west),
+    zoom: String(viewport.zoom),
+    limit: String(limit),
+  });
+
+  if (config.useMockData) {
+    const reports = getPublicTicketsMock({ limit }).items;
+    return {
+      markers: reports.map((report) => ({
+        ticketNumber: report.ticketNumber,
+        status: report.status,
+        category: report.category,
+        addressText: report.mapLocation.addressText,
+        latitude: report.mapLocation.latitude,
+        longitude: report.mapLocation.longitude,
+      })),
+      clusters: [],
+      limit,
+      truncated: false,
+      zoom: viewport.zoom,
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(`/tickets/public/map?${params.toString()}`), {
+      method: 'GET',
+      signal: options.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+    if (isOfflineError(error)) {
+      throw new Error(PUBLIC_TICKETS_NETWORK_MESSAGE, { cause: error });
+    }
+    throw error;
+  }
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, PUBLIC_TICKETS_NETWORK_MESSAGE));
+  }
+  const body = (await response.json()) as PublicTicketMapViewportResponse;
+  return {
+    markers: body.markers ?? [],
+    clusters: body.clusters ?? [],
+    limit: body.limit ?? limit,
+    truncated: Boolean(body.truncated),
+    zoom: body.zoom ?? viewport.zoom,
   };
 }
 

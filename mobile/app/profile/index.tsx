@@ -14,6 +14,7 @@ import {
   OTP_NETWORK_MESSAGE,
   PROFILE_UPDATE_SUCCESS_MESSAGE,
 } from '@/services/api/citizenAuth';
+import { draftHasRestorableContent, loadReportDraft } from '@/services/reportDraft';
 import { colors, radii, spacing } from '@/theme';
 import type { CitizenOtpVerifyResponse, CitizenProfileUpdatePayload } from '@/types/citizen';
 
@@ -70,43 +71,44 @@ export default function ProfileScreen() {
     void reload();
   }, [isAuthenticated, isLoading, reload]);
 
+  const finishLogout = async (retainReportDraft: boolean) => {
+    setIsLoggingOut(true);
+    try {
+      await logout({ retainReportDraft });
+      router.replace('/' as Href);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      'Sign out?',
-      'Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Keep draft & sign out',
-          onPress: () => {
-            void (async () => {
-              setIsLoggingOut(true);
-              try {
-                await logout({ retainReportDraft: true });
-                router.replace('/' as Href);
-              } finally {
-                setIsLoggingOut(false);
-              }
-            })();
+    void (async () => {
+      const draft = profile?.userId ? await loadReportDraft(profile.userId) : null;
+      if (!draft || !draftHasRestorableContent(draft)) {
+        await finishLogout(false);
+        return;
+      }
+      Alert.alert(
+        'Sign out?',
+        'Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Keep draft & sign out',
+            onPress: () => {
+              void finishLogout(true);
+            },
           },
-        },
-        {
-          text: 'Clear draft & sign out',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setIsLoggingOut(true);
-              try {
-                await logout({ retainReportDraft: false });
-                router.replace('/' as Href);
-              } finally {
-                setIsLoggingOut(false);
-              }
-            })();
+          {
+            text: 'Clear draft & sign out',
+            style: 'destructive',
+            onPress: () => {
+              void finishLogout(false);
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+    })();
   };
 
   const handleSave = async (patch: CitizenProfileUpdatePayload) => {

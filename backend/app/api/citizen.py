@@ -6,7 +6,12 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.core.citizen_auth import CitizenDep, OptionalCitizenDep
+from app.core.citizen_auth import (
+    CITIZEN_SESSION_TTL_SECONDS,
+    CITIZEN_WEB_SESSION_COOKIE,
+    CitizenDep,
+    OptionalCitizenDep,
+)
 from app.core.errors import build_error_response, get_request_id
 from app.core.metrics import emit_metric
 from app.core.rate_limit import enforce_rate_limit
@@ -143,7 +148,17 @@ def request_citizen_otp(
     )
 
 
-@router.post("/auth/otp/verify", response_model=CitizenOtpVerifyResponse)
+WEB_SESSION_HEADER = "X-Citizen-Session-Mode"
+
+
+def _use_secure_cookie() -> bool:
+    return get_settings().app_env in {"staging", "production"}
+
+
+@router.post(
+    "/auth/otp/verify",
+    response_model=CitizenOtpVerifyResponse,
+)
 def verify_citizen_otp(
     payload: CitizenOtpVerifyRequest,
     request: Request,
@@ -172,12 +187,33 @@ def verify_citizen_otp(
             return limited
 
     try:
-        return citizen_service.verify_otp(
+        verified = citizen_service.verify_otp(
             challenge_id=payload.challenge_id,
             code=payload.code,
             full_name=payload.full_name,
             authenticated_user_id=principal.user_id if principal is not None else None,
         )
+        if request.headers.get(WEB_SESSION_HEADER, "").strip().lower() == "cookie":
+            if verified.access_token is None:
+                return verified
+            browser_response = JSONResponse(
+                content=verified.model_dump(
+                    by_alias=True,
+                    mode="json",
+                    exclude={"access_token"},
+                )
+            )
+            browser_response.set_cookie(
+                key=CITIZEN_WEB_SESSION_COOKIE,
+                value=verified.access_token,
+                max_age=CITIZEN_SESSION_TTL_SECONDS,
+                httponly=True,
+                secure=_use_secure_cookie(),
+                samesite="lax",
+                path="/v1",
+            )
+            return browser_response
+        return verified
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 
@@ -190,7 +226,15 @@ def logout_citizen(principal: CitizenDep) -> Response:
     except CitizenServiceError:
         # Session disappeared between auth and revoke — treat as logged out.
         pass
-    return Response(status_code=204)
+    response = Response(status_code=204)
+    response.delete_cookie(
+        CITIZEN_WEB_SESSION_COOKIE,
+        path="/v1",
+        secure=_use_secure_cookie(),
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @router.get("/me", response_model=CitizenProfileResponse)

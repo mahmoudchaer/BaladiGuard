@@ -103,6 +103,28 @@ def test_dev_plaintext_stdout_emits_only_when_switch_enabled(monkeypatch, capsys
     assert "112233" in captured.out
 
 
+def test_dev_plaintext_stdout_emits_after_successful_sns_publish(monkeypatch, capsys, caplog):
+    sns = FakeSnsClient()
+    monkeypatch.setattr(
+        "app.services.citizens.otp_delivery.boto3.client",
+        lambda *args, **kwargs: sns,
+    )
+    settings = _settings(
+        notification_adapter="real",
+        notification_sandbox=False,
+        app_env="local",
+        otp_dev_plaintext_stdout=True,
+    )
+
+    deliver_citizen_otp(phone="+9613408680", region="LB", code="778899", settings=settings)
+
+    captured = capsys.readouterr()
+    assert len(sns.calls) == 1
+    assert "reason=sns_published" in captured.out
+    assert "778899" in captured.out
+    assert "778899" not in caplog.text
+
+
 def test_sns_publish_failure_raises_outside_local(monkeypatch):
     sns = FakeSnsClient(fail=True)
     monkeypatch.setattr(

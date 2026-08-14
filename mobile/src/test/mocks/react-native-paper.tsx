@@ -41,6 +41,10 @@ export function Switch(props: HostProps) {
   return React.createElement('Switch', props);
 }
 
+export function Icon(props: HostProps) {
+  return React.createElement('Icon', props);
+}
+
 function CardRoot({ children, ...props }: HostProps) {
   return React.createElement('Card', props, children);
 }

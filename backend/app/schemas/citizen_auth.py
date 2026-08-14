@@ -88,7 +88,9 @@ class CitizenOtpVerifyRequest(BaseModel):
 
 
 class CitizenOtpVerifyResponse(BaseModel):
-    access_token: str = Field(alias="accessToken")
+    # Browser cookie sessions intentionally omit the raw opaque token. Mobile
+    # keeps receiving it for platform-secure storage.
+    access_token: str | None = Field(default=None, alias="accessToken")
     token_type: str = Field(default="Bearer", alias="tokenType")
     expires_in: int = Field(alias="expiresIn")
     user_id: str = Field(alias="userId")

@@ -2,7 +2,7 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HomeScreen from '../../app/index';
+import HomeScreen from '../../app/(tabs)';
 import ProfileScreen from '../../app/profile/index';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
 import { __getRouterMockState, __resetExpoRouterMock } from '@/test/mocks/expo-router';
@@ -97,11 +97,8 @@ describe('citizen profile flows', () => {
     vi.mocked(logoutCitizen).mockReset();
   });
 
-  it('loads the authenticated profile summary from home', async () => {
+  it('loads the authenticated profile summary', async () => {
     await seedSession();
-
-    const home = await renderWithProvidersAsync(<HomeScreen />);
-    expect(findByTestId(home, 'profile-entry-button')).toBeTruthy();
 
     const screen = await renderWithProvidersAsync(<ProfileScreen />);
     expect(findByTestId(screen, 'profile-summary')).toBeTruthy();
