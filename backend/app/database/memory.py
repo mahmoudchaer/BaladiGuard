@@ -365,9 +365,33 @@ class InMemoryTicketStore:
                     "image_redaction_claim_token": None,
                     "image_redaction_completed_at": None,
                     "image_redaction_reason_code": None,
+                    "image_redaction_candidate_object_key": None,
+                    "image_redaction_regions": [],
                     "updated_at": updated_at,
                 }
             )
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        fields: dict[str, Any],
+    ) -> StoredTicket | None:
+        for field_name in fields:
+            resolve_ticket_attr_name(field_name)
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.image_redaction_generation != expected_generation
+                or ticket.image_redaction_status != expected_status
+            ):
+                return None
+            updated = ticket.model_copy(update=fields)
             self._tickets[ticket_id] = updated
             return updated
 

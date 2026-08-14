@@ -33,6 +33,8 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "image_redaction_completed_at": "imageRedactionCompletedAt",
     "image_redaction_reason_code": "imageRedactionReasonCode",
     "image_redaction_history": "imageRedactionHistory",
+    "image_redaction_candidate_object_key": "imageRedactionCandidateObjectKey",
+    "image_redaction_regions": "imageRedactionRegions",
     "duplicate_group_id": "duplicateGroupId",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",

@@ -120,6 +120,15 @@ class TicketStore(Protocol):
 
     def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None: ...
 
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        fields: dict[str, Any],
+    ) -> StoredTicket | None: ...
+
     def has_ticket_id(self, ticket_id: str) -> bool: ...
 
     def has_ticket_number(self, ticket_number: str) -> bool: ...

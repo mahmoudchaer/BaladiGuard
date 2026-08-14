@@ -563,7 +563,8 @@ class DynamoTicketStore:
                     "SET imageRedactionStatus=:pending, updatedAt=:updated, "
                     "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one "
                     "REMOVE imageRedactionClaimToken, imageRedactionCompletedAt, "
-                    "imageRedactionReasonCode"
+                    "imageRedactionReasonCode, imageRedactionCandidateObjectKey, "
+                    "imageRedactionRegions"
                 ),
                 ConditionExpression="attribute_exists(ticketId)",
                 ExpressionAttributeValues={
@@ -571,6 +572,32 @@ class DynamoTicketStore:
                     ":updated": updated_at,
                     ":one": 1,
                 },
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        fields: dict[str, Any],
+    ) -> StoredTicket | None:
+        expression, names, values = build_update_expression(fields)
+        names.update({"#rs": "imageRedactionStatus", "#rg": "imageRedactionGeneration"})
+        values.update({":expectedStatus": expected_status, ":generation": expected_generation})
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression="#rs=:expectedStatus AND #rg=:generation",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
             return item_to_ticket(response["Attributes"])
