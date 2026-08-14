@@ -10,10 +10,11 @@ import type { ReportWizardStepKey } from '@/features/citizen-report/components/S
 type ReviewSummaryProps = {
   control: Control<ReportFormValues>;
   onEditStep: (step: ReportWizardStepKey) => void;
+  hasUploadedPhoto?: boolean;
 };
 
 /** Review is deliberately plain (no Material cards) so it reads like a checklist, not a dashboard. */
-export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
+export function ReviewSummary({ control, onEditStep, hasUploadedPhoto }: ReviewSummaryProps) {
   const description = useWatch({ control, name: 'description' });
   const photoUri = useWatch({ control, name: 'photoUri' });
   const addressText = useWatch({ control, name: 'addressText' });
@@ -64,6 +65,12 @@ export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
         </View>
         {photoUri ? (
           <Image source={{ uri: photoUri }} style={styles.photo} />
+        ) : hasUploadedPhoto ? (
+          <View style={styles.uploadedPhoto}>
+            <Text variant="bodyMedium" style={styles.uploadedPhotoText}>
+              Photo already uploaded securely
+            </Text>
+          </View>
         ) : (
           <Text variant="bodyMedium" style={styles.sectionText}>
             No photo attached yet.
@@ -135,5 +142,16 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: radii.lg,
     backgroundColor: colors.surfaceSubtle,
+  },
+  uploadedPhoto: {
+    minHeight: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.lg,
+    backgroundColor: colors.brandSoft,
+  },
+  uploadedPhotoText: {
+    color: colors.brandDark,
+    fontWeight: '600',
   },
 });

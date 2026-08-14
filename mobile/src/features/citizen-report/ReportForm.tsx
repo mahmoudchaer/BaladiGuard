@@ -18,6 +18,7 @@ import {
 import {
   defaultReportFormValues,
   reportFormSchema,
+  reportFormSchemaWithUploadedPhoto,
   type ReportFormValues,
 } from '@/schemas/reportFormSchema';
 import { submitReport, SubmitReportError, type SubmitReportPhase } from '@/services/api/tickets';
@@ -92,7 +93,9 @@ export function ReportForm() {
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<ReportFormValues>({
-    resolver: zodResolver(reportFormSchema),
+    resolver: zodResolver(
+      submission?.imageObjectKey ? reportFormSchemaWithUploadedPhoto : reportFormSchema,
+    ),
     defaultValues: defaultReportFormValues,
     mode: 'onBlur',
   });
@@ -228,7 +231,7 @@ export function ReportForm() {
       if (!notice) {
         if (!values.photoUri.trim() && hasUploadedKey) {
           notice =
-            'Draft restored. A photo was already uploaded for this attempt — you can resubmit without re-picking if the form still has a photo, or attach again if it is missing.';
+            'Draft restored. Your photo was already uploaded securely, so you can submit without attaching it again.';
         } else if (!values.photoUri.trim() && !hasUploadedKey) {
           notice =
             'Draft restored, but no local photo was saved. Attach a photo again before submitting.';
@@ -510,7 +513,13 @@ export function ReportForm() {
           </>
         ) : null}
 
-        {step === 'review' ? <ReviewSummary control={control} onEditStep={goToStep} /> : null}
+        {step === 'review' ? (
+          <ReviewSummary
+            control={control}
+            onEditStep={goToStep}
+            hasUploadedPhoto={Boolean(submission?.imageObjectKey)}
+          />
+        ) : null}
       </View>
 
       <View style={styles.navRow}>
