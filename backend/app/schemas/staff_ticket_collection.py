@@ -40,6 +40,8 @@ class TicketListItemResponse(BaseModel):
     updated_at: str | None = Field(default=None, alias="updatedAt")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     assignment_state: AssignmentState = Field(alias="assignmentState")
+    assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
+    assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
     location: TicketListLocation
 
     model_config = {"populate_by_name": True}

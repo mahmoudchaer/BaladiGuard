@@ -4,6 +4,7 @@ import { StaffAuthProvider } from '@/auth/StaffAuthContext';
 import { TicketListPage } from '@/pages/TicketListPage';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
 import { MapViewPage } from '@/pages/MapViewPage';
+import { WorkforcePage } from '@/pages/WorkforcePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -30,6 +31,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <MapViewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workforce"
+            element={
+              <ProtectedRoute>
+                <WorkforcePage />
               </ProtectedRoute>
             }
           />

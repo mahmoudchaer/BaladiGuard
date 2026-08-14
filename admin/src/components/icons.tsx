@@ -326,3 +326,31 @@ export function IconTicket({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconPeople({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M3.5 19c.6-3 2.8-5 5.5-5s4.9 2 5.5 5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <circle cx="17" cy="9" r="2.25" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M16.2 14.2c2.1.4 3.8 2 4.3 4.3"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

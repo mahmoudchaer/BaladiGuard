@@ -60,6 +60,8 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `createdBy` | string | No | Staff/system actor identifier for workflow mutations; citizen ownership uses `ownerUserId`. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
 | `departmentId` | string | No | Staff-assigned / currently effective department. |
+| `assignedWorkerId` | string | No | Municipality field worker (`wrk_…`). Mutually exclusive with `assignedTeamId`. |
+| `assignedTeamId` | string | No | Municipality field team (`team_…`). Mutually exclusive with `assignedWorkerId`. |
 | `suggestedDepartmentId` | string | No | Automatic department suggestion; preserved when staff overrides `departmentId`. |
 | `duplicateGroupId` | string | No | Set by duplicate detection. |
 | `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
@@ -461,6 +463,8 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `staff-password-reset-challenges` | `challengeId` | Hashed staff reset codes (#178); TTL on `ttl` |
 | `municipalities` | `municipalityId` | |
 | `departments` | `departmentId` | GSI on `municipalityId` |
+| `workforce-workers` | `workerId` | Field workforce directory (#245); GSI on `municipalityId`. Not staff login accounts. |
+| `workforce-teams` | `teamId` | Field teams (#245); GSI on `municipalityId`; membership via `workerIds` / worker `teamIds`. |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |
 | `ai-outputs` | `aiOutputId` | GSI on `ticketId` |
 | `duplicate-groups` | `duplicateGroupId` | |

@@ -71,6 +71,8 @@ class StoredTicket(BaseModel):
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     department_id: str | None = Field(default=None, alias="departmentId")
     suggested_department_id: str | None = Field(default=None, alias="suggestedDepartmentId")
+    assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
+    assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")

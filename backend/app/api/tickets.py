@@ -40,6 +40,7 @@ from app.schemas.ticket_response import (
     UpdateTicketStatusRequest,
 )
 from app.schemas.ticket_status import TicketStatus
+from app.schemas.workforce import AssignWorkforceRequest
 from app.services.ai_job_queue import ai_job_queue
 from app.services.citizens.service import snapshot_contact_for_ticket
 from app.services.complaints.status_workflow import (
@@ -64,6 +65,7 @@ from app.services.complaints.ticket_service import (
 from app.services.redaction.queue import image_redaction_queue
 from app.services.staff.assistant import staff_assistant_service
 from app.services.staff.comments import StaffCommentError, staff_comment_service
+from app.services.workforce.service import WorkforceError
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
@@ -225,6 +227,9 @@ def list_tickets(
     department_id: str | None = Query(default=None, alias="departmentId"),
     sla_state: str | None = Query(default=None, alias="slaState"),
     assignment_state: str | None = Query(default=None, alias="assignmentState"),
+    worker_id: str | None = Query(default=None, alias="workerId"),
+    team_id: str | None = Query(default=None, alias="teamId"),
+    workforce_unassigned: bool = Query(default=False, alias="workforceUnassigned"),
     q: str | None = Query(default=None),
     open_only: bool = Query(default=False, alias="openOnly"),
     limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
@@ -238,6 +243,9 @@ def list_tickets(
         department_id=department_id,
         sla_state=sla_state,
         assignment_state=assignment_state,
+        worker_id=worker_id,
+        team_id=team_id,
+        workforce_unassigned=workforce_unassigned,
         q=q,
         open_only=open_only,
     )
@@ -672,6 +680,36 @@ def assign_ticket_department(
             message="You do not have permission to assign this department.",
             request_id=get_request_id(request),
             status_code=403,
+        )
+
+
+@router.post("/tickets/{ticket_id}/workforce-assignment", response_model=TicketResponse)
+def assign_ticket_workforce(
+    ticket_id: str,
+    payload: AssignWorkforceRequest,
+    request: Request,
+    principal: StaffActorDep,
+) -> TicketResponse | JSONResponse:
+    """Assign a municipality worker XOR team to a ticket (issue #245)."""
+    try:
+        return ticket_service.assign_ticket_workforce(
+            ticket_id,
+            payload,
+            staff_principal=principal,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except WorkforceError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
         )
 
 

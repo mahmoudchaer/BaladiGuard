@@ -130,6 +130,10 @@ class TicketStore(Protocol):
         self,
         ticket_id: str,
         fields: dict[str, Any],
+        expected_updated_at: str | None = None,
+        expected_municipality_id: str | None = None,
+        expected_department_id: str | None = None,
+        require_assignment_scope: bool = False,
     ) -> StoredTicket | None: ...
 
     def update_status(

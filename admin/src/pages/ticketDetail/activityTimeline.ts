@@ -21,6 +21,8 @@ const AUDIT_ACTION_LABELS: Record<TicketAuditActionType, string> = {
   DEPARTMENT_ASSIGN: 'Department assignment',
   DUPLICATE_MERGE: 'Duplicate merge',
   PUBLIC_CONTENT_UPDATE: 'Public content update',
+  STAFF_COMMENT: 'Staff comment',
+  WORKFORCE_ASSIGN: 'Workforce assignment',
 };
 
 export function formatAuditAction(actionType: TicketAuditActionType): string {

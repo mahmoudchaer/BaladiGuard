@@ -27,7 +27,10 @@ from app.database.serialization import (
     prepare_dynamodb_value,
     ticket_to_item,
 )
-from app.database.ticket_patch import build_update_expression
+from app.database.ticket_patch import (
+    append_ticket_assignment_scope_condition,
+    build_update_expression,
+)
 from app.database.ticket_store import (
     StaffTicketPage,
     TicketHistoryPage,
@@ -333,13 +336,30 @@ class DynamoTicketStore:
         self,
         ticket_id: str,
         fields: dict[str, object],
+        expected_updated_at: str | None = None,
+        expected_municipality_id: str | None = None,
+        expected_department_id: str | None = None,
+        require_assignment_scope: bool = False,
     ) -> StoredTicket | None:
         """Apply a partial attribute update so concurrent writers do not clobber each other."""
         expression, names, values = build_update_expression(fields)
+        if require_assignment_scope:
+            condition = append_ticket_assignment_scope_condition(
+                names,
+                values,
+                expected_updated_at=expected_updated_at,
+                expected_municipality_id=expected_municipality_id,
+                expected_department_id=expected_department_id,
+            )
+        elif expected_updated_at is None:
+            condition = "attribute_exists(ticketId)"
+        else:
+            condition = "attribute_exists(ticketId) AND updatedAt = :expectedUpdatedAt"
+            values[":expectedUpdatedAt"] = expected_updated_at
         update_kwargs: dict[str, object] = {
             "Key": {"ticketId": ticket_id},
             "UpdateExpression": expression,
-            "ConditionExpression": "attribute_exists(ticketId)",
+            "ConditionExpression": condition,
             "ExpressionAttributeNames": names,
             "ReturnValues": "ALL_NEW",
         }

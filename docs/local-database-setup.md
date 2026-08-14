@@ -96,6 +96,8 @@ persistence foundation.
 | `baladiguard-staff-username-claims`  | `usernameKey`      | Transactional username uniqueness (`USERNAME#…`).                                           |
 | `baladiguard-municipalities`         | `municipalityId`   | —                                                                                           |
 | `baladiguard-departments`            | `departmentId`     | `municipalityId-index`                                                                      |
+| `baladiguard-workforce-workers`      | `workerId`         | `municipalityId-index` (field workers, #245; not staff logins)                              |
+| `baladiguard-workforce-teams`        | `teamId`           | `municipalityId-index` (field teams, #245)                                                  |
 | `baladiguard-ticket-status-history`  | `historyId`        | `ticketId-index`                                                                            |
 | `baladiguard-ticket-audit-history`   | `auditId`          | `ticketId-index` (ticket mutation audit, #143 / #181)                                       |
 | `baladiguard-account-audit`          | `auditId`          | `targetStaffId-index` (staff/admin account audit, #181)                                     |

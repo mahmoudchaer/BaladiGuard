@@ -2,7 +2,7 @@
 
 This is the operator handoff for issue #187. It protects the persistent MVP
 scope: tickets, users, ticket status history, audit history, AI outputs,
-duplicate groups, municipalities, departments, categories, counters, and report
+duplicate groups, municipalities, departments, workforce workers/teams, categories, counters, and report
 photos in S3.
 
 ## Recovery objectives
