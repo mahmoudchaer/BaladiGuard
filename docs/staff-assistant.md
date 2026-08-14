@@ -44,10 +44,13 @@ invented neighborhood names.
   `separateReportCount` so the dashboard can tell merged duplicates from nearby
   independent reports.
 - Safe label: the most common staff `publicLocationLabel` in the cell, otherwise
-  `Unlabeled cell {cellId}`.
-
-`areaClusters[]` carries cell bounds, category counts, and `ticketIds` for
-map/list drill-down.
+  `Unlabeled cell {cellId}`. Equal counts break ties by case-insensitive then
+  exact lexicographic order so the label does not depend on scan order.
+- `areaClusters` is capped at **20** cells (highest distinct-report count, then
+  `cellId`). Each cluster keeps exact `ticketCount` but at most **20** `ticketIds`.
+  `areaClusterTotal` / `areaClustersTruncated` and `ticketIdsTruncated` tell the
+  dashboard when the sample is incomplete. `appliedFilters` includes
+  `maxAreaClusters` and `maxTicketIdsPerCluster`.
 
 ## Safety
 

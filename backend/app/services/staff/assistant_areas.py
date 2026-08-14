@@ -13,6 +13,8 @@ from app.schemas.stored_ticket import StoredTicket
 CELL_SIZE_DEGREES = 0.002
 UNLOCATED_CELL_ID = "unlocated"
 MINIMUM_DISTINCT_REPORTS = 2
+MAX_AREA_CLUSTERS = 20
+MAX_CLUSTER_TICKET_IDS = 20
 
 
 def has_usable_coordinates(ticket: StoredTicket) -> bool:
@@ -48,14 +50,14 @@ def distinct_report_key(ticket: StoredTicket) -> str:
     return f"ticket:{ticket.ticket_id}"
 
 
-def _safe_label(cell_id: str, tickets: list[StoredTicket]) -> str:
+def choose_safe_label(cell_id: str, tickets: list[StoredTicket]) -> str:
     labels = Counter(
         (ticket.public_location_label or "").strip()
         for ticket in tickets
         if (ticket.public_location_label or "").strip()
     )
     if labels:
-        return labels.most_common(1)[0][0]
+        return min(labels, key=lambda label: (-labels[label], label.casefold(), label))
     if cell_id == UNLOCATED_CELL_ID:
         return "Unlocated reports"
     return f"Unlabeled cell {cell_id}"
@@ -65,12 +67,15 @@ def _category(ticket: StoredTicket) -> str:
     return ticket.final_category or ticket.category
 
 
-def build_area_clusters(tickets: list[StoredTicket]) -> list[StaffAssistantAreaCluster]:
+def build_area_clusters(
+    tickets: list[StoredTicket],
+) -> tuple[list[StaffAssistantAreaCluster], list[StoredTicket], int]:
     grouped: dict[str, list[StoredTicket]] = defaultdict(list)
     for ticket in tickets:
         grouped[cell_id_for(ticket)].append(ticket)
 
     clusters: list[StaffAssistantAreaCluster] = []
+    members_by_cell: dict[str, list[StoredTicket]] = {}
     for cell_id, members in grouped.items():
         distinct_keys = {distinct_report_key(ticket) for ticket in members}
         if cell_id == UNLOCATED_CELL_ID or len(distinct_keys) < MINIMUM_DISTINCT_REPORTS:
@@ -80,6 +85,7 @@ def build_area_clusters(tickets: list[StoredTicket]) -> list[StaffAssistantAreaC
         bounds = cell_bounds(cell_id)
         south, west, north, east = bounds if bounds else (None, None, None, None)
         categories = dict(sorted(Counter(_category(ticket) for ticket in members).items()))
+        ticket_ids = sorted(ticket.ticket_id for ticket in members)
         clusters.append(
             StaffAssistantAreaCluster(
                 cellId=cell_id,
@@ -87,13 +93,18 @@ def build_area_clusters(tickets: list[StoredTicket]) -> list[StaffAssistantAreaC
                 west=west,
                 north=north,
                 east=east,
-                label=_safe_label(cell_id, members),
+                label=choose_safe_label(cell_id, members),
                 ticketCount=len(members),
                 distinctReportCount=len(distinct_keys),
                 duplicateGroupCount=len(grouped_ids),
                 separateReportCount=len(separate),
                 categories=categories,
-                ticketIds=sorted(ticket.ticket_id for ticket in members),
+                ticketIds=ticket_ids[:MAX_CLUSTER_TICKET_IDS],
+                ticketIdsTruncated=len(ticket_ids) > MAX_CLUSTER_TICKET_IDS,
             )
         )
-    return sorted(clusters, key=lambda item: (-item.distinct_report_count, item.cell_id))
+        members_by_cell[cell_id] = members
+    clusters.sort(key=lambda item: (-item.distinct_report_count, item.cell_id))
+    shown = clusters[:MAX_AREA_CLUSTERS]
+    selected = [ticket for cluster in clusters for ticket in members_by_cell[cluster.cell_id]]
+    return shown, selected, len(clusters)

@@ -49,6 +49,7 @@ class StaffAssistantAreaCluster(BaseModel):
     separate_report_count: int = Field(alias="separateReportCount", ge=0)
     categories: dict[str, int] = Field(default_factory=dict)
     ticket_ids: list[str] = Field(default_factory=list, alias="ticketIds")
+    ticket_ids_truncated: bool = Field(default=False, alias="ticketIdsTruncated")
 
     model_config = {"populate_by_name": True}
 
@@ -65,6 +66,8 @@ class StaffAssistantResponse(BaseModel):
     area_clusters: list[StaffAssistantAreaCluster] = Field(
         default_factory=list, alias="areaClusters"
     )
+    area_cluster_total: int = Field(default=0, alias="areaClusterTotal", ge=0)
+    area_clusters_truncated: bool = Field(default=False, alias="areaClustersTruncated")
     unlocated_count: int = Field(default=0, alias="unlocatedCount", ge=0)
     incomplete_count: int = Field(default=0, alias="incompleteCount", ge=0)
     tickets: list[StaffAssistantTicketReference] = Field(default_factory=list)

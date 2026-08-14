@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from app.database.memory import ticket_store
-from app.services.staff.assistant_areas import cell_id_for, cell_origin, has_usable_coordinates
+from app.schemas.stored_ticket import StoredTicket
+from app.schemas.ticket import ReportContact, ReportLocation
+from app.services.staff.assistant_areas import (
+    MAX_AREA_CLUSTERS,
+    MAX_CLUSTER_TICKET_IDS,
+    build_area_clusters,
+    cell_id_for,
+    cell_origin,
+    choose_safe_label,
+    has_usable_coordinates,
+)
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -430,3 +440,87 @@ def test_documented_generic_repeated_area_question_is_supported(anonymous_client
     )
     assert response.status_code == 200
     assert response.json()["intent"] == "repeated_area_summary"
+
+
+def _stored(
+    ticket_id: str,
+    *,
+    latitude: float,
+    longitude: float,
+    public_location_label: str | None = None,
+    duplicate_group_id: str | None = None,
+) -> StoredTicket:
+    return StoredTicket(
+        ticketId=ticket_id,
+        ticketNumber=f"BG-{ticket_id[-4:]}",
+        trackingCode=ticket_id[-6:].upper(),
+        description="Pothole near a public street.",
+        contact=ReportContact(name="Test User", phone="+96170000000"),
+        location=ReportLocation(
+            latitude=latitude,
+            longitude=longitude,
+            addressText="Private pin that must not leak",
+            source="GPS",
+        ),
+        imageObjectKey="reports/mock/test.jpg",
+        status="SUBMITTED",
+        category="road_damage",
+        finalCategory="road_damage",
+        publicLocationLabel=public_location_label,
+        duplicateGroupId=duplicate_group_id,
+        createdAt="2026-08-14T12:00:00Z",
+        updatedAt="2026-08-14T12:00:00Z",
+    )
+
+
+def test_tied_public_labels_are_stable_across_member_order() -> None:
+    first = _stored("tkt_label_a", latitude=33.85, longitude=35.51, public_location_label="Zed")
+    second = _stored("tkt_label_b", latitude=33.85, longitude=35.51, public_location_label="Alpha")
+    third = _stored("tkt_label_c", latitude=33.85, longitude=35.51, public_location_label="Zed")
+    fourth = _stored("tkt_label_d", latitude=33.85, longitude=35.51, public_location_label="Alpha")
+    cell_id = cell_id_for(first)
+    forward = choose_safe_label(cell_id, [first, second, third, fourth])
+    reverse = choose_safe_label(cell_id, [fourth, third, second, first])
+    assert forward == reverse == "Alpha"
+
+
+def test_many_clusters_are_capped_with_exact_totals() -> None:
+    tickets: list[StoredTicket] = []
+    for index in range(MAX_AREA_CLUSTERS + 5):
+        # Stay inside one 0.002° cell and space cells by 0.01° so `{south:.3f}`
+        # ids cannot collide or split a pair across a boundary.
+        lat = 33.801 + index * 0.01
+        lon = 35.501
+        tickets.extend(
+            (
+                _stored(f"tkt_cell_{index:02d}_a", latitude=lat, longitude=lon),
+                _stored(f"tkt_cell_{index:02d}_b", latitude=lat, longitude=lon),
+            )
+        )
+    shown, selected, total = build_area_clusters(tickets)
+    assert total == MAX_AREA_CLUSTERS + 5
+    assert len(shown) == MAX_AREA_CLUSTERS
+    assert len(selected) == 2 * total
+    assert all(len(cluster.ticket_ids) == 2 for cluster in shown)
+
+
+def test_large_cluster_ticket_ids_are_capped() -> None:
+    tickets = [
+        _stored(
+            f"tkt_dense_{index:02d}",
+            latitude=33.8700,
+            longitude=35.5200 + index * 0.00001,
+        )
+        for index in range(MAX_CLUSTER_TICKET_IDS + 7)
+    ]
+    shown, selected, total = build_area_clusters(tickets)
+    assert total == 1
+    assert len(shown) == 1
+    assert shown[0].ticket_count == MAX_CLUSTER_TICKET_IDS + 7
+    assert shown[0].ticket_ids_truncated is True
+    assert len(shown[0].ticket_ids) == MAX_CLUSTER_TICKET_IDS
+    assert (
+        shown[0].ticket_ids
+        == sorted(ticket.ticket_id for ticket in tickets)[:MAX_CLUSTER_TICKET_IDS]
+    )
+    assert len(selected) == MAX_CLUSTER_TICKET_IDS + 7

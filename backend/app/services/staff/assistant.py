@@ -12,6 +12,8 @@ from app.schemas.stored_ticket import PENDING_CLASSIFICATION, StoredTicket
 from app.services.complaints.sla import derive_ticket_sla
 from app.services.staff.assistant_areas import (
     CELL_SIZE_DEGREES,
+    MAX_AREA_CLUSTERS,
+    MAX_CLUSTER_TICKET_IDS,
     MINIMUM_DISTINCT_REPORTS,
     build_area_clusters,
     cell_id_for,
@@ -202,23 +204,27 @@ class StaffAssistantService:
     ) -> StaffAssistantResponse:
         located = [ticket for ticket in accessible if has_usable_coordinates(ticket)]
         unlocated = len(accessible) - len(located)
-        clusters = build_area_clusters(located)
-        selected_ids = {ticket_id for cluster in clusters for ticket_id in cluster.ticket_ids}
-        selected = [ticket for ticket in located if ticket.ticket_id in selected_ids]
+        clusters, selected, cluster_total = build_area_clusters(located)
         ordered = sorted(selected, key=_actionability)
         categories, statuses, departments = _counts(selected)
         incomplete = sum(1 for ticket in selected if _is_incomplete(ticket))
         areas = {cluster.cell_id: cluster.ticket_count for cluster in clusters}
-        if not clusters:
+        truncated = cluster_total > len(clusters)
+        if not cluster_total:
             message = (
                 "No repeated problem areas in the open operational queue. "
                 "Areas need at least two distinct reports in the same 0.002-degree cell."
             )
         else:
             message = (
-                f"{len(clusters)} repeated problem area(s) covering {len(selected)} ticket(s). "
+                f"{cluster_total} repeated problem area(s) covering {len(selected)} ticket(s). "
                 "Duplicate groups count as one report; nearby ungrouped tickets count separately."
             )
+            if truncated:
+                message += (
+                    f" Showing the top {len(clusters)} area(s) and up to "
+                    f"{MAX_CLUSTER_TICKET_IDS} ticket id(s) per area."
+                )
         if unlocated:
             message += (
                 f" {unlocated} ticket(s) omitted because coordinates are placeholder/unusable."
@@ -235,6 +241,8 @@ class StaffAssistantService:
             departments=departments,
             areas=areas,
             areaClusters=clusters,
+            areaClusterTotal=cluster_total,
+            areaClustersTruncated=truncated,
             unlocatedCount=unlocated,
             incompleteCount=incomplete,
             tickets=[_reference(ticket) for ticket in ordered[:MAX_TICKET_REFERENCES]],
@@ -242,6 +250,8 @@ class StaffAssistantService:
                 "openOnly": "true",
                 "minimumDistinctReports": str(MINIMUM_DISTINCT_REPORTS),
                 "cellSizeDegrees": str(CELL_SIZE_DEGREES),
+                "maxAreaClusters": str(MAX_AREA_CLUSTERS),
+                "maxTicketIdsPerCluster": str(MAX_CLUSTER_TICKET_IDS),
             },
         )
 
