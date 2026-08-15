@@ -28,7 +28,13 @@ import {
   createTicketWorkOrder,
   listTicketWorkOrders,
   startWorkOrder,
+  uploadWorkOrderEvidence,
 } from '@/services/workOrders';
+import {
+  fetchResolutionFeedback,
+  reviewResolutionFeedback,
+} from '@/services/resolutionFeedback';
+import type { StaffResolutionFeedback } from '@/types/resolutionFeedback';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
@@ -55,7 +61,7 @@ import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getTicketImageUrl } from '@/utils/ticketImage';
 import { listTeams, listWorkers } from '@/services/workforce';
-import type { WorkOrder } from '@/types/workOrder';
+import type { WorkOrder, WorkOrderEvidence } from '@/types/workOrder';
 
 function workOrderAssigneeValue(order: WorkOrder | null | undefined): string {
   if (order?.assignedWorkerId) {
@@ -65,6 +71,33 @@ function workOrderAssigneeValue(order: WorkOrder | null | undefined): string {
     return `team:${order.assignedTeamId}`;
   }
   return '';
+}
+
+function EvidencePhotoList({
+  items,
+  emptyLabel,
+  category,
+}: {
+  items: WorkOrderEvidence[];
+  emptyLabel: string;
+  category: string;
+}) {
+  if (!items.length) {
+    return <p className="ticket-detail__card-hint">{emptyLabel}</p>;
+  }
+  return (
+    <div className="ticket-detail__evidence-list">
+      {items.map((item) => (
+        <TicketPhoto
+          key={item.evidenceId}
+          imageObjectKey={item.objectKey}
+          imageUrl={item.photoUrl ?? undefined}
+          category={category}
+          alt={`${item.kind.replaceAll('_', ' ').toLowerCase()} evidence`}
+        />
+      ))}
+    </div>
+  );
 }
 import type { WorkforceTeam, WorkforceWorker } from '@/types/workforce';
 import {
@@ -228,6 +261,12 @@ export function TicketDetailPage() {
   const [workOrderAssignee, setWorkOrderAssignee] = useState('');
   const [workOrderCancelReason, setWorkOrderCancelReason] = useState('');
   const [workOrderNote, setWorkOrderNote] = useState('');
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
+  const [resolutionFeedback, setResolutionFeedback] = useState<StaffResolutionFeedback | null>(
+    null,
+  );
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [isReviewingFeedback, setIsReviewingFeedback] = useState(false);
   const [statusReasonCode, setStatusReasonCode] = useState('');
   const [statusPrivateNote, setStatusPrivateNote] = useState('');
 
@@ -343,6 +382,17 @@ export function TicketDetailPage() {
                   ? `team:${data.assignedTeamId}`
                   : '',
             );
+          }
+        }
+        try {
+          const feedback = await fetchResolutionFeedback(requestedTicketId);
+          if (!cancelled) {
+            setResolutionFeedback(feedback);
+            setFeedbackError(null);
+          }
+        } catch {
+          if (!cancelled) {
+            setResolutionFeedback(null);
           }
         }
         setDepartmentUpdateError(null);
@@ -811,7 +861,71 @@ export function TicketDetailPage() {
     );
   };
 
+  const handleEvidenceUpload = async (
+    workOrderId: string,
+    kind: 'BEFORE' | 'AFTER',
+    file: File | undefined,
+  ) => {
+    if (!file) {
+      return;
+    }
+    setIsUploadingEvidence(true);
+    setWorkOrderError(null);
+    setWorkOrderSuccess(null);
+    try {
+      await uploadWorkOrderEvidence(workOrderId, kind, file);
+      await refreshWorkOrders(ticket?.ticketId ?? '');
+      setWorkOrderSuccess(
+        kind === 'AFTER' ? 'After image attached.' : 'Before image attached.',
+      );
+    } catch (error) {
+      setWorkOrderError(
+        error instanceof Error ? error.message : 'Unable to upload maintenance evidence.',
+      );
+    } finally {
+      setIsUploadingEvidence(false);
+    }
+  };
+
+  const handleFeedbackReview = async (action: 'KEEP_RESOLVED' | 'RETURN_IN_PROGRESS') => {
+    if (!ticket) {
+      return;
+    }
+    setIsReviewingFeedback(true);
+    setFeedbackError(null);
+    try {
+      const updated = await reviewResolutionFeedback(ticket.ticketId, action);
+      setResolutionFeedback(updated);
+      const refreshed = await fetchTicketById(ticket.ticketId);
+      if (refreshed) {
+        loadedTicketRef.current = refreshed;
+        setTicket(refreshed);
+        setPendingStatus(refreshed.status);
+      }
+    } catch (error) {
+      setFeedbackError(
+        error instanceof Error ? error.message : 'Unable to review resolution feedback.',
+      );
+    } finally {
+      setIsReviewingFeedback(false);
+    }
+  };
+
   const activeWorkOrder = workOrders.find((item) => item.workOrderId === activeWorkOrderId) ?? null;
+  const evidenceForDisplay = (activeWorkOrder?.evidence ?? []).concat(
+    workOrders.flatMap((item) => item.evidence ?? []).filter((item) => {
+      if (!activeWorkOrder) {
+        return true;
+      }
+      return item.workOrderId !== activeWorkOrder.workOrderId;
+    }),
+  );
+  const citizenOriginalEvidence = evidenceForDisplay.filter((item) => item.kind === 'ORIGINAL_REPORT');
+  const beforeEvidence = (activeWorkOrder?.evidence ?? []).filter((item) => item.kind === 'BEFORE');
+  const afterEvidence = (activeWorkOrder?.evidence ?? []).filter((item) => item.kind === 'AFTER');
+  const canCompleteWorkOrder =
+    activeWorkOrder?.state === 'IN_PROGRESS' &&
+    ((activeWorkOrder.afterImageCount ?? afterEvidence.length) > 0);
   const pendingOutcomeKind =
     ticket && pendingStatus && pendingStatus !== ticket.status
       ? requiredOutcomeKind(ticket.status, pendingStatus)
@@ -1664,6 +1778,89 @@ export function TicketDetailPage() {
                         {activeWorkOrder.workOrderId})
                       </p>
                       <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
+                      <div className="ticket-detail__evidence-groups">
+                        <section aria-labelledby="citizen-report-evidence-heading">
+                          <h5 id="citizen-report-evidence-heading" className="ticket-detail__card-title">
+                            Citizen report evidence
+                          </h5>
+                          <p className="ticket-detail__card-hint">
+                            Original citizen photo, associated by the server. Staff cannot attach an
+                            arbitrary storage key.
+                          </p>
+                          <EvidencePhotoList
+                            items={
+                              citizenOriginalEvidence.length
+                                ? citizenOriginalEvidence
+                                : ticket
+                                  ? [
+                                      {
+                                        evidenceId: 'citizen-original',
+                                        ticketId: ticket.ticketId,
+                                        workOrderId: activeWorkOrder.workOrderId,
+                                        kind: 'ORIGINAL_REPORT',
+                                        objectKey: ticket.imageObjectKey,
+                                        contentType: 'image/jpeg',
+                                        uploadedBy: 'citizen',
+                                        createdAt: ticket.createdAt,
+                                        source: 'TICKET_ORIGINAL',
+                                        photoUrl: ticket.imageUrl,
+                                      } satisfies WorkOrderEvidence,
+                                    ]
+                                  : []
+                            }
+                            emptyLabel="No citizen report photo is available."
+                            category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
+                          />
+                        </section>
+                        <section aria-labelledby="maintenance-before-heading">
+                          <h5 id="maintenance-before-heading" className="ticket-detail__card-title">
+                            Maintenance before
+                          </h5>
+                          <EvidencePhotoList
+                            items={beforeEvidence}
+                            emptyLabel="No before images yet."
+                            category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
+                          />
+                          <label className="ticket-detail__card-hint" htmlFor="wo-before-upload">
+                            Upload a before image
+                          </label>
+                          <input
+                            id="wo-before-upload"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            disabled={isUploadingEvidence || isMutatingWorkOrder}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = '';
+                              void handleEvidenceUpload(activeWorkOrder.workOrderId, 'BEFORE', file);
+                            }}
+                          />
+                        </section>
+                        <section aria-labelledby="maintenance-after-heading">
+                          <h5 id="maintenance-after-heading" className="ticket-detail__card-title">
+                            Maintenance after
+                          </h5>
+                          <EvidencePhotoList
+                            items={afterEvidence}
+                            emptyLabel="At least one after image is required before completion."
+                            category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
+                          />
+                          <label className="ticket-detail__card-hint" htmlFor="wo-after-upload">
+                            Upload an after image
+                          </label>
+                          <input
+                            id="wo-after-upload"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            disabled={isUploadingEvidence || isMutatingWorkOrder}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = '';
+                              void handleEvidenceUpload(activeWorkOrder.workOrderId, 'AFTER', file);
+                            }}
+                          />
+                        </section>
+                      </div>
                       <div className="ticket-detail__control-row">
                         <label htmlFor="active-work-order-assignee">Work-order assignee</label>
                         <select
@@ -1749,7 +1946,7 @@ export function TicketDetailPage() {
                           <button
                             type="button"
                             className="ticket-detail__review-button"
-                            disabled={isMutatingWorkOrder}
+                            disabled={isMutatingWorkOrder || !canCompleteWorkOrder}
                             onClick={() =>
                               void runWorkOrderMutation(
                                 () => completeWorkOrder(activeWorkOrder.workOrderId, workOrderNote),
@@ -1875,6 +2072,49 @@ export function TicketDetailPage() {
                     </p>
                   )}
                 </div>
+
+                {resolutionFeedback?.status ? (
+                  <div className="ticket-detail__card">
+                    <h4 className="ticket-detail__card-title">Citizen resolution feedback</h4>
+                    <p className="ticket-detail__current-value">
+                      {resolutionFeedback.status === 'CONFIRMED_FIXED'
+                        ? 'Citizen confirmed the issue is fixed.'
+                        : 'Citizen reported the issue is still unresolved.'}
+                    </p>
+                    {resolutionFeedback.note ? (
+                      <p className="ticket-detail__card-hint">Private note: {resolutionFeedback.note}</p>
+                    ) : null}
+                    {resolutionFeedback.needsReview ? (
+                      <div className="ticket-detail__control-buttons">
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          disabled={isReviewingFeedback}
+                          onClick={() => void handleFeedbackReview('KEEP_RESOLVED')}
+                        >
+                          Keep resolved after review
+                        </button>
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                          disabled={isReviewingFeedback}
+                          onClick={() => void handleFeedbackReview('RETURN_IN_PROGRESS')}
+                        >
+                          Return to in progress
+                        </button>
+                      </div>
+                    ) : resolutionFeedback.reviewAction ? (
+                      <p className="ticket-detail__card-hint">
+                        Reviewed: {resolutionFeedback.reviewAction.replaceAll('_', ' ').toLowerCase()}.
+                      </p>
+                    ) : null}
+                    {feedbackError ? (
+                      <p className="ticket-detail__status-error" role="alert">
+                        {feedbackError}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="ticket-detail__card">
                   <div className="ticket-detail__card-heading-row">

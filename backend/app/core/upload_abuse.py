@@ -7,6 +7,8 @@ spools multipart payloads. These checks must run in HTTP middleware *before*
 
 from __future__ import annotations
 
+import re
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -15,6 +17,7 @@ from app.core.rate_limit import enforce_rate_limit
 from app.services.uploads.photo_upload_service import MAX_IMAGE_SIZE_BYTES
 
 REPORT_PHOTO_UPLOAD_PATH = "/v1/uploads/report-photo"
+WORK_ORDER_EVIDENCE_PATH = re.compile(r"^/v1/work-orders/[^/]+/evidence$")
 # Multipart framing adds boundaries/headers beyond the raw file bytes.
 MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_SIZE_BYTES + (256 * 1024)
 
@@ -24,9 +27,14 @@ def is_report_photo_upload(request: Request) -> bool:
     return request.method == "POST" and path == REPORT_PHOTO_UPLOAD_PATH
 
 
+def is_work_order_evidence_upload(request: Request) -> bool:
+    path = request.url.path.rstrip("/") or "/"
+    return request.method == "POST" and WORK_ORDER_EVIDENCE_PATH.match(path) is not None
+
+
 def reject_upload_abuse_early(request: Request) -> JSONResponse | None:
     """Reject oversized or over-quota upload requests before the body is parsed."""
-    if not is_report_photo_upload(request):
+    if not (is_report_photo_upload(request) or is_work_order_evidence_upload(request)):
         return None
 
     content_length = request.headers.get("content-length")
@@ -55,6 +63,8 @@ def reject_upload_abuse_early(request: Request) -> JSONResponse | None:
                 status_code=400,
             )
 
+    if is_work_order_evidence_upload(request):
+        return None
     return enforce_rate_limit(
         request,
         "public-upload-report-photo",

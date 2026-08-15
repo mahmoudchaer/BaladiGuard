@@ -95,6 +95,23 @@ class StoredTicket(BaseModel):
     closure_note: str | None = Field(default=None, alias="closureNote")
     closed_at: str | None = Field(default=None, alias="closedAt")
     closed_by: str | None = Field(default=None, alias="closedBy")
+    resolution_feedback_status: str | None = Field(default=None, alias="resolutionFeedbackStatus")
+    resolution_feedback_note: str | None = Field(default=None, alias="resolutionFeedbackNote")
+    resolution_feedback_submitted_at: str | None = Field(
+        default=None, alias="resolutionFeedbackSubmittedAt"
+    )
+    resolution_feedback_review_status: str | None = Field(
+        default=None, alias="resolutionFeedbackReviewStatus"
+    )
+    resolution_feedback_reviewed_at: str | None = Field(
+        default=None, alias="resolutionFeedbackReviewedAt"
+    )
+    resolution_feedback_reviewed_by: str | None = Field(
+        default=None, alias="resolutionFeedbackReviewedBy"
+    )
+    resolution_feedback_review_action: str | None = Field(
+        default=None, alias="resolutionFeedbackReviewAction"
+    )
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")

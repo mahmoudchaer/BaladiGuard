@@ -2,10 +2,12 @@ import { Platform } from 'react-native';
 
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 import type {
+  CitizenResolutionFeedback,
   CitizenTicketHistoryResponse,
   CitizenTicketResponse,
   PublicTicketListResponse,
   PublicTicketResponse,
+  ResolutionFeedbackStatus,
   SubmitTicketRequest,
   SubmitTicketResponse,
 } from '@/types/ticket';
@@ -410,4 +412,60 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
   }
 
   return response.json() as Promise<PublicTicketResponse>;
+}
+
+export async function getCitizenResolutionFeedback({
+  accessToken,
+  trackingCode,
+}: {
+  accessToken: string;
+  trackingCode: string;
+}): Promise<CitizenResolutionFeedback> {
+  const response = await fetch(
+    `${appConfig.apiBaseUrl}/citizen/me/tickets/${encodeURIComponent(trackingCode)}/resolution-feedback`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(accessToken),
+    },
+  );
+  if (response.status === 401) {
+    handleUnauthorizedResponse(response.status);
+    throw new Error(TICKET_HISTORY_UNAUTHORIZED_MESSAGE);
+  }
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, TICKET_HISTORY_NETWORK_MESSAGE));
+  }
+  return response.json() as Promise<CitizenResolutionFeedback>;
+}
+
+export async function submitCitizenResolutionFeedback({
+  accessToken,
+  trackingCode,
+  status,
+  note,
+}: {
+  accessToken: string;
+  trackingCode: string;
+  status: ResolutionFeedbackStatus;
+  note?: string;
+}): Promise<CitizenResolutionFeedback> {
+  const response = await fetch(
+    `${appConfig.apiBaseUrl}/citizen/me/tickets/${encodeURIComponent(trackingCode)}/resolution-feedback`,
+    {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(accessToken),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status, note }),
+    },
+  );
+  if (response.status === 401) {
+    handleUnauthorizedResponse(response.status);
+    throw new Error(TICKET_HISTORY_UNAUTHORIZED_MESSAGE);
+  }
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Unable to submit resolution feedback.'));
+  }
+  return response.json() as Promise<CitizenResolutionFeedback>;
 }

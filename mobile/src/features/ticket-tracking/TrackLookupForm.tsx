@@ -4,6 +4,8 @@ import { ActivityIndicator, Banner, Button, HelperText, Text, TextInput } from '
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
+import { useCitizenAuth } from '@/auth';
+import { ResolutionFeedbackCard } from '@/components/ResolutionFeedbackCard';
 import { StatusChip } from '@/components/StatusChip';
 import { TicketTimeline } from '@/components/TicketTimeline';
 import {
@@ -11,10 +13,14 @@ import {
   trackLookupSchema,
   type TrackLookupFormValues,
 } from '@/schemas/trackLookupSchema';
-import { getTicketByTrackingCode } from '@/services/api/tickets';
+import {
+  getCitizenResolutionFeedback,
+  getTicketByTrackingCode,
+  submitCitizenResolutionFeedback,
+} from '@/services/api/tickets';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { describeStatusMeaning, formatCategoryLabel } from '@/theme/labels';
-import type { CitizenTicketResponse } from '@/types/ticket';
+import type { CitizenResolutionFeedback, CitizenTicketResponse } from '@/types/ticket';
 import { getCitizenNextAction } from '@/utils/reportGuidance';
 import { normalizeTrackingCode } from '@/utils/trackingCode';
 
@@ -30,8 +36,12 @@ type TrackLookupFormProps = {
 };
 
 export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
+  const { accessToken, isAuthenticated } = useCitizenAuth();
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [result, setResult] = useState<CitizenTicketResponse | null>(null);
+  const [ownerFeedback, setOwnerFeedback] = useState<CitizenResolutionFeedback | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const requestInFlight = useRef(false);
   const didAutoLookup = useRef(false);
   const lastAttempted = useRef<string | null>(null);
@@ -57,10 +67,24 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
     lastAttempted.current = values.trackingCode;
     setLookupError(null);
     setResult(null);
+    setOwnerFeedback(null);
+    setFeedbackError(null);
 
     try {
       const ticket = await getTicketByTrackingCode(values.trackingCode);
       setResult(ticket);
+      if (isAuthenticated && accessToken) {
+        try {
+          setOwnerFeedback(
+            await getCitizenResolutionFeedback({
+              accessToken,
+              trackingCode: ticket.trackingCode,
+            }),
+          );
+        } catch {
+          setOwnerFeedback(null);
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Something went wrong. Please try again.';
@@ -68,7 +92,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
     } finally {
       requestInFlight.current = false;
     }
-  }, []);
+  }, [accessToken, isAuthenticated]);
 
   useEffect(() => {
     const normalized = normalizeTrackingCode(initialTrackingCode ?? '');
@@ -273,6 +297,37 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
               </View>
             ) : null}
           </View>
+
+          {ownerFeedback ? (
+            <ResolutionFeedbackCard
+              trackingCode={result.trackingCode}
+              feedback={ownerFeedback}
+              submitting={submittingFeedback}
+              errorMessage={feedbackError}
+              onSubmit={(status, note) => {
+                if (!accessToken) {
+                  return;
+                }
+                setSubmittingFeedback(true);
+                setFeedbackError(null);
+                void submitCitizenResolutionFeedback({
+                  accessToken,
+                  trackingCode: result.trackingCode,
+                  status,
+                  note,
+                })
+                  .then((updated) => setOwnerFeedback(updated))
+                  .catch((error: unknown) => {
+                    setFeedbackError(
+                      error instanceof Error
+                        ? error.message
+                        : 'Unable to submit resolution feedback.',
+                    );
+                  })
+                  .finally(() => setSubmittingFeedback(false));
+              }}
+            />
+          ) : null}
 
           <View style={styles.guidance} testID="track-next-action">
             <Text variant="labelLarge" style={styles.guidanceLabel}>

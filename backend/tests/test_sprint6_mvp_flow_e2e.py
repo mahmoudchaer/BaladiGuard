@@ -191,6 +191,8 @@ def test_sprint6_full_mvp_flow_acceptance(anonymous_client: TestClient, monkeypa
             "category",
             "locationAddress",
             "submittedAt",
+            "canSubmitResolutionFeedback",
+            "resolutionFeedbackStatus",
         }
         assert "ownerUserId" not in item
         assert "contact" not in item

@@ -58,12 +58,24 @@ export type CitizenTicketResponse = {
   timeline: CitizenTicketTimelineEntry[];
 };
 
+export type ResolutionFeedbackStatus = 'CONFIRMED_FIXED' | 'STILL_UNRESOLVED';
+
 export type CitizenTicketHistoryItem = {
   trackingCode: string;
   status: TicketStatus;
   category: string | null;
   locationAddress: string;
   submittedAt: string;
+  canSubmitResolutionFeedback?: boolean;
+  resolutionFeedbackStatus?: ResolutionFeedbackStatus | null;
+};
+
+export type CitizenResolutionFeedback = {
+  trackingCode: string;
+  ticketStatus: TicketStatus;
+  canSubmit: boolean;
+  status: ResolutionFeedbackStatus | null;
+  submittedAt: string | null;
 };
 
 export type CitizenTicketHistoryResponse = {

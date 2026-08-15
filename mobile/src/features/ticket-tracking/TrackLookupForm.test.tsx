@@ -29,6 +29,8 @@ const citizenTicket: CitizenTicketResponse = {
 
 vi.mock('@/services/api/tickets', () => ({
   getTicketByTrackingCode: vi.fn(),
+  getCitizenResolutionFeedback: vi.fn(),
+  submitCitizenResolutionFeedback: vi.fn(),
 }));
 
 function findButtonByText(screen: ReturnType<typeof renderWithProviders>, text: string) {

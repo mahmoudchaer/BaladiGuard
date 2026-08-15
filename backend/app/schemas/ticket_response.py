@@ -80,6 +80,9 @@ class TicketAuditHistoryEntry(BaseModel):
         "WORK_ORDER_START",
         "WORK_ORDER_COMPLETE",
         "WORK_ORDER_CANCEL",
+        "WORK_ORDER_EVIDENCE_ADD",
+        "RESOLUTION_FEEDBACK_SUBMIT",
+        "RESOLUTION_FEEDBACK_REVIEW",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
     actor_role: Literal["municipal_staff", "administrator"] | None = Field(

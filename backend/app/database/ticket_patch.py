@@ -56,6 +56,13 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "closure_note": "closureNote",
     "closed_at": "closedAt",
     "closed_by": "closedBy",
+    "resolution_feedback_status": "resolutionFeedbackStatus",
+    "resolution_feedback_note": "resolutionFeedbackNote",
+    "resolution_feedback_submitted_at": "resolutionFeedbackSubmittedAt",
+    "resolution_feedback_review_status": "resolutionFeedbackReviewStatus",
+    "resolution_feedback_reviewed_at": "resolutionFeedbackReviewedAt",
+    "resolution_feedback_reviewed_by": "resolutionFeedbackReviewedBy",
+    "resolution_feedback_review_action": "resolutionFeedbackReviewAction",
 }
 
 

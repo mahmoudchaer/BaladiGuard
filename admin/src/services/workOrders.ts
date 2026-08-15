@@ -1,6 +1,6 @@
 import { config } from '@/services/config';
 import { getStaffAuthHeaders } from '@/services/auth';
-import type { WorkOrder, WorkOrderList } from '@/types/workOrder';
+import type { WorkOrder, WorkOrderEvidence, WorkOrderList } from '@/types/workOrder';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -15,6 +15,30 @@ async function throwApiError(response: Response, fallbackMessage: string): Promi
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function normalizeEvidence(data: unknown): WorkOrderEvidence | null {
+  if (
+    !isRecord(data) ||
+    typeof data.evidenceId !== 'string' ||
+    typeof data.ticketId !== 'string' ||
+    typeof data.workOrderId !== 'string' ||
+    (data.kind !== 'BEFORE' && data.kind !== 'AFTER' && data.kind !== 'ORIGINAL_REPORT')
+  ) {
+    return null;
+  }
+  return {
+    evidenceId: data.evidenceId,
+    ticketId: data.ticketId,
+    workOrderId: data.workOrderId,
+    kind: data.kind,
+    objectKey: asString(data.objectKey) ?? '',
+    contentType: asString(data.contentType) ?? '',
+    uploadedBy: asString(data.uploadedBy) ?? '',
+    createdAt: asString(data.createdAt) ?? '',
+    source: data.source === 'TICKET_ORIGINAL' ? 'TICKET_ORIGINAL' : 'UPLOAD',
+    photoUrl: asString(data.photoUrl),
+  };
 }
 
 function normalizeWorkOrder(data: unknown): WorkOrder {
@@ -49,6 +73,15 @@ function normalizeWorkOrder(data: unknown): WorkOrder {
     cancelNote: asString(data.cancelNote),
     ticketStatus: asString(data.ticketStatus),
     created: data.created === true,
+    evidence: Array.isArray(data.evidence)
+      ? data.evidence.map(normalizeEvidence).filter((item): item is WorkOrderEvidence => item !== null)
+      : [],
+    afterImageCount:
+      typeof data.afterImageCount === 'number'
+        ? data.afterImageCount
+        : Array.isArray(data.evidence)
+          ? data.evidence.filter((item) => isRecord(item) && item.kind === 'AFTER').length
+          : 0,
   };
 }
 
@@ -122,6 +155,31 @@ export async function startWorkOrder(workOrderId: string): Promise<WorkOrder> {
     },
   );
   return readWorkOrder(response, 'Unable to start the work order.');
+}
+
+export async function uploadWorkOrderEvidence(
+  workOrderId: string,
+  kind: 'BEFORE' | 'AFTER',
+  file: File,
+): Promise<WorkOrderEvidence> {
+  const body = new FormData();
+  body.append('file', file);
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/work-orders/${encodeURIComponent(workOrderId)}/evidence?kind=${kind}`,
+    {
+      method: 'POST',
+      headers: { ...getStaffAuthHeaders() },
+      body,
+    },
+  );
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to upload maintenance evidence.');
+  }
+  const evidence = normalizeEvidence(await response.json());
+  if (!evidence) {
+    throw new Error('Unexpected evidence response shape.');
+  }
+  return evidence;
 }
 
 export async function completeWorkOrder(workOrderId: string, note?: string): Promise<WorkOrder> {

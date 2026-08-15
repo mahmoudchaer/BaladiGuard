@@ -262,6 +262,8 @@ def test_ticket_history_returns_owned_citizen_safe_tickets_only(
             "category": "sidewalk_damage",
             "locationAddress": "Hamra, Beirut",
             "submittedAt": body["items"][0]["submittedAt"],
+            "canSubmitResolutionFeedback": False,
+            "resolutionFeedbackStatus": None,
         }
     ]
     assert body["items"][0]["submittedAt"]

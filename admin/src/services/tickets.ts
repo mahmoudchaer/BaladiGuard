@@ -877,6 +877,9 @@ const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
   'WORK_ORDER_START',
   'WORK_ORDER_COMPLETE',
   'WORK_ORDER_CANCEL',
+  'WORK_ORDER_EVIDENCE_ADD',
+  'RESOLUTION_FEEDBACK_SUBMIT',
+  'RESOLUTION_FEEDBACK_REVIEW',
 ];
 
 function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {

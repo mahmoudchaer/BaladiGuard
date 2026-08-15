@@ -14,13 +14,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
 import { StatusChip } from '@/components/StatusChip';
+import { ResolutionFeedbackCard } from '@/components/ResolutionFeedbackCard';
 import {
   getCitizenTicketHistory,
+  submitCitizenResolutionFeedback,
   TICKET_HISTORY_UNAUTHORIZED_MESSAGE,
 } from '@/services/api/tickets';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
-import type { CitizenTicketHistoryItem } from '@/types/ticket';
+import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
 
 const PAGE_SIZE = 20;
 
@@ -40,6 +42,8 @@ export default function CitizenTicketHistoryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [submittingFeedbackFor, setSubmittingFeedbackFor] = useState<string | null>(null);
   const didInitialLoad = useRef(false);
 
   const loadHistory = useCallback(
@@ -79,6 +83,43 @@ export default function CitizenTicketHistoryScreen() {
     },
     [accessToken, clearSessionLocally],
   );
+
+  const handleFeedback = async (
+    trackingCode: string,
+    status: ResolutionFeedbackStatus,
+    note?: string,
+  ) => {
+    if (!accessToken) {
+      return;
+    }
+    setSubmittingFeedbackFor(trackingCode);
+    setFeedbackError(null);
+    try {
+      const result = await submitCitizenResolutionFeedback({
+        accessToken,
+        trackingCode,
+        status,
+        note,
+      });
+      setItems((current) =>
+        current.map((item) =>
+          item.trackingCode === trackingCode
+            ? {
+                ...item,
+                canSubmitResolutionFeedback: result.canSubmit,
+                resolutionFeedbackStatus: result.status,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      setFeedbackError(
+        error instanceof Error ? error.message : 'Unable to submit resolution feedback.',
+      );
+    } finally {
+      setSubmittingFeedbackFor(null);
+    }
+  };
 
   useEffect(() => {
     if (isLoading || !isAuthenticated || didInitialLoad.current) {
@@ -184,33 +225,53 @@ export default function CitizenTicketHistoryScreen() {
         {items.length > 0 ? (
           <View style={styles.list}>
             {items.map((item) => (
-              <Pressable
-                key={`${item.trackingCode}-${item.submittedAt}`}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/track',
-                    params: { trackingCode: item.trackingCode },
-                  })
-                }
-                testID={`history-open-${item.trackingCode}`}
-                accessibilityRole="button"
-                accessibilityLabel={`View report ${item.trackingCode}`}
-              >
-                <View style={styles.rowHeader}>
-                  <Text variant="titleSmall" style={styles.trackingCode}>
-                    {item.trackingCode}
+              <View key={`${item.trackingCode}-${item.submittedAt}`} style={styles.row}>
+                <Pressable
+                  style={({ pressed }) => [pressed && styles.rowPressed]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/track',
+                      params: { trackingCode: item.trackingCode },
+                    })
+                  }
+                  testID={`history-open-${item.trackingCode}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View report ${item.trackingCode}`}
+                >
+                  <View style={styles.rowHeader}>
+                    <Text variant="titleSmall" style={styles.trackingCode}>
+                      {item.trackingCode}
+                    </Text>
+                    <StatusChip status={item.status} />
+                  </View>
+                  <Text variant="bodyMedium" style={styles.location} numberOfLines={2}>
+                    {item.locationAddress}
                   </Text>
-                  <StatusChip status={item.status} />
-                </View>
-                <Text variant="bodyMedium" style={styles.location} numberOfLines={2}>
-                  {item.locationAddress}
-                </Text>
-                <Text variant="bodySmall" style={styles.muted}>
-                  {formatCategoryLabel(item.category)} · Submitted{' '}
-                  {formatDisplayDate(item.submittedAt)}
-                </Text>
-              </Pressable>
+                  <Text variant="bodySmall" style={styles.muted}>
+                    {formatCategoryLabel(item.category)} · Submitted{' '}
+                    {formatDisplayDate(item.submittedAt)}
+                  </Text>
+                </Pressable>
+                {item.canSubmitResolutionFeedback || item.resolutionFeedbackStatus ? (
+                  <ResolutionFeedbackCard
+                    trackingCode={item.trackingCode}
+                    feedback={{
+                      trackingCode: item.trackingCode,
+                      ticketStatus: item.status,
+                      canSubmit: Boolean(item.canSubmitResolutionFeedback),
+                      status: item.resolutionFeedbackStatus ?? null,
+                      submittedAt: null,
+                    }}
+                    submitting={submittingFeedbackFor === item.trackingCode}
+                    errorMessage={
+                      submittingFeedbackFor === item.trackingCode || feedbackError
+                        ? feedbackError
+                        : null
+                    }
+                    onSubmit={(status, note) => void handleFeedback(item.trackingCode, status, note)}
+                  />
+                ) : null}
+              </View>
             ))}
           </View>
         ) : null}
