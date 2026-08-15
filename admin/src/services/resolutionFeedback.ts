@@ -32,9 +32,10 @@ function normalizeFeedback(data: unknown): StaffResolutionFeedback {
       data.status === 'CONFIRMED_FIXED' || data.status === 'STILL_UNRESOLVED' ? data.status : null,
     note: asString(data.note),
     submittedAt: asString(data.submittedAt),
-    reviewStatus: data.reviewStatus === 'PENDING' || data.reviewStatus === 'REVIEWED'
-      ? data.reviewStatus
-      : null,
+    reviewStatus:
+      data.reviewStatus === 'PENDING' || data.reviewStatus === 'REVIEWED'
+        ? data.reviewStatus
+        : null,
     reviewedAt: asString(data.reviewedAt),
     reviewedBy: asString(data.reviewedBy),
     reviewAction:
@@ -45,9 +46,7 @@ function normalizeFeedback(data: unknown): StaffResolutionFeedback {
   };
 }
 
-export async function fetchResolutionFeedback(
-  ticketId: string,
-): Promise<StaffResolutionFeedback> {
+export async function fetchResolutionFeedback(ticketId: string): Promise<StaffResolutionFeedback> {
   const response = await fetch(
     `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/resolution-feedback`,
     { headers: { ...getStaffAuthHeaders() } },

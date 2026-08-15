@@ -22,15 +22,15 @@ from app.schemas.citizen import (
     CitizenProfileUpdateRequest,
     CitizenTicketHistoryResponse,
 )
-from app.schemas.resolution_feedback import (
-    CitizenResolutionFeedbackResponse,
-    SubmitResolutionFeedbackRequest,
-)
 from app.schemas.citizen_auth import (
     CitizenOtpRequest,
     CitizenOtpRequestResponse,
     CitizenOtpVerifyRequest,
     CitizenOtpVerifyResponse,
+)
+from app.schemas.resolution_feedback import (
+    CitizenResolutionFeedbackResponse,
+    SubmitResolutionFeedbackRequest,
 )
 from app.services.citizens.otp_delivery import deliver_citizen_otp
 from app.services.citizens.service import (

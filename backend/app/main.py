@@ -12,10 +12,10 @@ from app.api.admin_staff_accounts import router as admin_staff_accounts_router
 from app.api.citizen import router as citizen_router
 from app.api.health import router as health_router
 from app.api.locations import router as locations_router
+from app.api.resolution_feedback import router as resolution_feedback_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
-from app.api.resolution_feedback import router as resolution_feedback_router
 from app.api.work_orders import router as work_orders_router
 from app.api.workforce import router as workforce_router
 from app.core.config_validation import validate_configuration

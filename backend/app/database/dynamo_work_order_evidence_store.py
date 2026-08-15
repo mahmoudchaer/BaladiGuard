@@ -20,9 +20,8 @@ EVIDENCE_ITEM_TYPE = "EVIDENCE"
 
 
 def is_evidence_item(item: dict[str, Any]) -> bool:
-    return item.get("itemType") == EVIDENCE_ITEM_TYPE or str(item.get("workOrderId", "")).startswith(
-        "ev_"
-    )
+    work_order_id = str(item.get("workOrderId", ""))
+    return item.get("itemType") == EVIDENCE_ITEM_TYPE or work_order_id.startswith("ev_")
 
 
 class DynamoWorkOrderEvidenceStore:
@@ -51,9 +50,9 @@ class DynamoWorkOrderEvidenceStore:
         return _from_item(item)
 
     def list_by_work_order_id(self, work_order_id: str) -> list[StoredWorkOrderEvidence]:
-        parent = self._table.get_item(
-            Key={"workOrderId": work_order_id}, ConsistentRead=True
-        ).get("Item")
+        parent = self._table.get_item(Key={"workOrderId": work_order_id}, ConsistentRead=True).get(
+            "Item"
+        )
         ticket_id = str(parent["ticketId"]) if parent and parent.get("ticketId") else None
         if ticket_id:
             return [
@@ -73,11 +72,7 @@ class DynamoWorkOrderEvidenceStore:
             IndexName="ticketId-index",
             KeyConditionExpression=Key("ticketId").eq(ticket_id),
         )
-        items = [
-            _from_item(item)
-            for item in response.get("Items", [])
-            if is_evidence_item(item)
-        ]
+        items = [_from_item(item) for item in response.get("Items", []) if is_evidence_item(item)]
         return sorted(items, key=lambda item: (item.created_at, item.evidence_id))
 
     def find_original_for_work_order(self, work_order_id: str) -> StoredWorkOrderEvidence | None:

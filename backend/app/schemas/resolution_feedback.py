@@ -74,14 +74,10 @@ class StaffResolutionFeedbackResponse(BaseModel):
     status: ResolutionFeedbackStatus | None = None
     note: str | None = None
     submitted_at: str | None = Field(default=None, alias="submittedAt")
-    review_status: ResolutionFeedbackReviewStatus | None = Field(
-        default=None, alias="reviewStatus"
-    )
+    review_status: ResolutionFeedbackReviewStatus | None = Field(default=None, alias="reviewStatus")
     reviewed_at: str | None = Field(default=None, alias="reviewedAt")
     reviewed_by: str | None = Field(default=None, alias="reviewedBy")
-    review_action: ResolutionFeedbackReviewAction | None = Field(
-        default=None, alias="reviewAction"
-    )
+    review_action: ResolutionFeedbackReviewAction | None = Field(default=None, alias="reviewAction")
     needs_review: bool = Field(alias="needsReview")
 
     model_config = {"populate_by_name": True}

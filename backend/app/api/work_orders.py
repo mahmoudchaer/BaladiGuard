@@ -16,8 +16,8 @@ from app.schemas.work_order import (
 )
 from app.schemas.work_order_evidence import WorkOrderEvidenceResponse
 from app.schemas.workforce import AssignWorkforceRequest
-from app.services.work_orders.reasons import OutcomeReasonError
 from app.services.work_orders.evidence import work_order_evidence_service
+from app.services.work_orders.reasons import OutcomeReasonError
 from app.services.work_orders.service import WorkOrderError, work_order_service
 from app.services.work_orders.transitions import InvalidWorkOrderTransitionError
 from app.services.workforce.service import WorkforceError

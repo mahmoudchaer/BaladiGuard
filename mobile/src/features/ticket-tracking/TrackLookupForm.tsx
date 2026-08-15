@@ -58,41 +58,44 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
     mode: 'onBlur',
   });
 
-  const onSubmit = useCallback(async (values: TrackLookupFormValues) => {
-    // Guard against double-taps while the button is still enabled briefly.
-    if (requestInFlight.current) {
-      return;
-    }
-    requestInFlight.current = true;
-    lastAttempted.current = values.trackingCode;
-    setLookupError(null);
-    setResult(null);
-    setOwnerFeedback(null);
-    setFeedbackError(null);
-
-    try {
-      const ticket = await getTicketByTrackingCode(values.trackingCode);
-      setResult(ticket);
-      if (isAuthenticated && accessToken) {
-        try {
-          setOwnerFeedback(
-            await getCitizenResolutionFeedback({
-              accessToken,
-              trackingCode: ticket.trackingCode,
-            }),
-          );
-        } catch {
-          setOwnerFeedback(null);
-        }
+  const onSubmit = useCallback(
+    async (values: TrackLookupFormValues) => {
+      // Guard against double-taps while the button is still enabled briefly.
+      if (requestInFlight.current) {
+        return;
       }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Something went wrong. Please try again.';
-      setLookupError(message);
-    } finally {
-      requestInFlight.current = false;
-    }
-  }, [accessToken, isAuthenticated]);
+      requestInFlight.current = true;
+      lastAttempted.current = values.trackingCode;
+      setLookupError(null);
+      setResult(null);
+      setOwnerFeedback(null);
+      setFeedbackError(null);
+
+      try {
+        const ticket = await getTicketByTrackingCode(values.trackingCode);
+        setResult(ticket);
+        if (isAuthenticated && accessToken) {
+          try {
+            setOwnerFeedback(
+              await getCitizenResolutionFeedback({
+                accessToken,
+                trackingCode: ticket.trackingCode,
+              }),
+            );
+          } catch {
+            setOwnerFeedback(null);
+          }
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+        setLookupError(message);
+      } finally {
+        requestInFlight.current = false;
+      }
+    },
+    [accessToken, isAuthenticated],
+  );
 
   useEffect(() => {
     const normalized = normalizeTrackingCode(initialTrackingCode ?? '');

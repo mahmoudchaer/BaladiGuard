@@ -34,10 +34,7 @@ export function HistoryPage() {
     void load();
   }, [load]);
 
-  const handleFeedback = async (
-    trackingCode: string,
-    status: ResolutionFeedbackStatus,
-  ) => {
+  const handleFeedback = async (trackingCode: string, status: ResolutionFeedbackStatus) => {
     setSubmittingCode(trackingCode);
     setFeedbackError(null);
     try {

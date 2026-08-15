@@ -268,7 +268,9 @@ export default function CitizenTicketHistoryScreen() {
                         ? feedbackError
                         : null
                     }
-                    onSubmit={(status, note) => void handleFeedback(item.trackingCode, status, note)}
+                    onSubmit={(status, note) =>
+                      void handleFeedback(item.trackingCode, status, note)
+                    }
                   />
                 ) : null}
               </View>

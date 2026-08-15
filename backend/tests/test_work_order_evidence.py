@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
+from app.main import app
 from app.services.ai_job_queue import ai_job_queue
 from app.services.uploads.photo_upload_service import photo_upload_service
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
@@ -182,9 +182,7 @@ def test_rejects_invalid_kind_and_oversized_or_mismatched_files(
     assert too_large.json()["error"]["code"] == "FILE_TOO_LARGE"
 
 
-def test_failed_upload_does_not_attach_or_allow_completion(
-    client: TestClient, monkeypatch
-) -> None:
+def test_failed_upload_does_not_attach_or_allow_completion(client: TestClient, monkeypatch) -> None:
     fake = FakeS3Client(should_fail=True)
     set_aws_env(monkeypatch)
     monkeypatch.setattr(photo_upload_service, "_s3_client", fake)
@@ -211,9 +209,7 @@ def test_failed_upload_does_not_attach_or_allow_completion(
     assert complete.json()["error"]["code"] == "COMPLETION_EVIDENCE_REQUIRED"
 
 
-def test_completion_requires_after_image_and_is_retryable(
-    client: TestClient, monkeypatch
-) -> None:
+def test_completion_requires_after_image_and_is_retryable(client: TestClient, monkeypatch) -> None:
     fake = FakeS3Client()
     set_aws_env(monkeypatch)
     monkeypatch.setattr(photo_upload_service, "_s3_client", fake)

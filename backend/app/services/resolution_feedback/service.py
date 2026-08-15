@@ -88,7 +88,8 @@ class ResolutionFeedbackService:
         owner_user_id: str,
     ) -> CitizenResolutionFeedbackResponse:
         ticket = self._require_owned_ticket(tracking_code, owner_user_id)
-        if not self._can_submit(ticket, owner_user_id) and ticket.resolution_feedback_status is None:
+        already_open = ticket.resolution_feedback_status is None
+        if not self._can_submit(ticket, owner_user_id) and already_open:
             raise ResolutionFeedbackError(
                 "Resolution feedback can only be submitted for an owned resolved ticket.",
                 code="FEEDBACK_NOT_ELIGIBLE",

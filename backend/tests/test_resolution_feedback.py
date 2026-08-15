@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
 from app.database.memory_notification_delivery import notification_delivery_store
+from app.main import app
 from app.services.ai_job_queue import ai_job_queue
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
@@ -67,7 +67,11 @@ def test_owner_can_submit_and_retry_resolution_feedback(client: TestClient) -> N
     assert item["resolutionFeedbackStatus"] is None
 
     path = f"/v1/citizen/me/tickets/{created['trackingCode']}/resolution-feedback"
-    first = client.post(path, json={"status": "CONFIRMED_FIXED", "note": "Looks good."}, headers=owner)
+    first = client.post(
+        path,
+        json={"status": "CONFIRMED_FIXED", "note": "Looks good."},
+        headers=owner,
+    )
     assert first.status_code == 200, first.text
     assert first.json()["status"] == "CONFIRMED_FIXED"
     assert first.json()["canSubmit"] is False

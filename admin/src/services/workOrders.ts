@@ -74,7 +74,9 @@ function normalizeWorkOrder(data: unknown): WorkOrder {
     ticketStatus: asString(data.ticketStatus),
     created: data.created === true,
     evidence: Array.isArray(data.evidence)
-      ? data.evidence.map(normalizeEvidence).filter((item): item is WorkOrderEvidence => item !== null)
+      ? data.evidence
+          .map(normalizeEvidence)
+          .filter((item): item is WorkOrderEvidence => item !== null)
       : [],
     afterImageCount:
       typeof data.afterImageCount === 'number'

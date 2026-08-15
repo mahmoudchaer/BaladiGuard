@@ -1756,7 +1756,9 @@ describe('TicketDetailPage work orders and outcome reasons', () => {
 
     renderPage('/tickets/tkt_123?section=review');
 
-    expect(await screen.findByRole('heading', { name: 'Citizen report evidence' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Citizen report evidence' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Maintenance before' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Maintenance after' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Complete work' })).toBeDisabled();

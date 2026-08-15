@@ -42,9 +42,7 @@ class WorkOrderEvidenceService:
 
     def list_for_work_order(self, work_order_id: str) -> list[WorkOrderEvidenceResponse]:
         return [
-            WorkOrderEvidenceResponse.from_stored(
-                item, photo_url=build_image_url(item.object_key)
-            )
+            WorkOrderEvidenceResponse.from_stored(item, photo_url=build_image_url(item.object_key))
             for item in self.store().list_by_work_order_id(work_order_id)
         ]
 

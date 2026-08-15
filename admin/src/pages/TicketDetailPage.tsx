@@ -30,10 +30,7 @@ import {
   startWorkOrder,
   uploadWorkOrderEvidence,
 } from '@/services/workOrders';
-import {
-  fetchResolutionFeedback,
-  reviewResolutionFeedback,
-} from '@/services/resolutionFeedback';
+import { fetchResolutionFeedback, reviewResolutionFeedback } from '@/services/resolutionFeedback';
 import type { StaffResolutionFeedback } from '@/types/resolutionFeedback';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -875,9 +872,7 @@ export function TicketDetailPage() {
     try {
       await uploadWorkOrderEvidence(workOrderId, kind, file);
       await refreshWorkOrders(ticket?.ticketId ?? '');
-      setWorkOrderSuccess(
-        kind === 'AFTER' ? 'After image attached.' : 'Before image attached.',
-      );
+      setWorkOrderSuccess(kind === 'AFTER' ? 'After image attached.' : 'Before image attached.');
     } catch (error) {
       setWorkOrderError(
         error instanceof Error ? error.message : 'Unable to upload maintenance evidence.',
@@ -913,19 +908,23 @@ export function TicketDetailPage() {
 
   const activeWorkOrder = workOrders.find((item) => item.workOrderId === activeWorkOrderId) ?? null;
   const evidenceForDisplay = (activeWorkOrder?.evidence ?? []).concat(
-    workOrders.flatMap((item) => item.evidence ?? []).filter((item) => {
-      if (!activeWorkOrder) {
-        return true;
-      }
-      return item.workOrderId !== activeWorkOrder.workOrderId;
-    }),
+    workOrders
+      .flatMap((item) => item.evidence ?? [])
+      .filter((item) => {
+        if (!activeWorkOrder) {
+          return true;
+        }
+        return item.workOrderId !== activeWorkOrder.workOrderId;
+      }),
   );
-  const citizenOriginalEvidence = evidenceForDisplay.filter((item) => item.kind === 'ORIGINAL_REPORT');
+  const citizenOriginalEvidence = evidenceForDisplay.filter(
+    (item) => item.kind === 'ORIGINAL_REPORT',
+  );
   const beforeEvidence = (activeWorkOrder?.evidence ?? []).filter((item) => item.kind === 'BEFORE');
   const afterEvidence = (activeWorkOrder?.evidence ?? []).filter((item) => item.kind === 'AFTER');
   const canCompleteWorkOrder =
     activeWorkOrder?.state === 'IN_PROGRESS' &&
-    ((activeWorkOrder.afterImageCount ?? afterEvidence.length) > 0);
+    (activeWorkOrder.afterImageCount ?? afterEvidence.length) > 0;
   const pendingOutcomeKind =
     ticket && pendingStatus && pendingStatus !== ticket.status
       ? requiredOutcomeKind(ticket.status, pendingStatus)
@@ -1780,7 +1779,10 @@ export function TicketDetailPage() {
                       <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
                       <div className="ticket-detail__evidence-groups">
                         <section aria-labelledby="citizen-report-evidence-heading">
-                          <h5 id="citizen-report-evidence-heading" className="ticket-detail__card-title">
+                          <h5
+                            id="citizen-report-evidence-heading"
+                            className="ticket-detail__card-title"
+                          >
                             Citizen report evidence
                           </h5>
                           <p className="ticket-detail__card-hint">
@@ -1832,7 +1834,11 @@ export function TicketDetailPage() {
                             onChange={(event) => {
                               const file = event.target.files?.[0];
                               event.target.value = '';
-                              void handleEvidenceUpload(activeWorkOrder.workOrderId, 'BEFORE', file);
+                              void handleEvidenceUpload(
+                                activeWorkOrder.workOrderId,
+                                'BEFORE',
+                                file,
+                              );
                             }}
                           />
                         </section>
@@ -2082,7 +2088,9 @@ export function TicketDetailPage() {
                         : 'Citizen reported the issue is still unresolved.'}
                     </p>
                     {resolutionFeedback.note ? (
-                      <p className="ticket-detail__card-hint">Private note: {resolutionFeedback.note}</p>
+                      <p className="ticket-detail__card-hint">
+                        Private note: {resolutionFeedback.note}
+                      </p>
                     ) : null}
                     {resolutionFeedback.needsReview ? (
                       <div className="ticket-detail__control-buttons">
@@ -2105,7 +2113,8 @@ export function TicketDetailPage() {
                       </div>
                     ) : resolutionFeedback.reviewAction ? (
                       <p className="ticket-detail__card-hint">
-                        Reviewed: {resolutionFeedback.reviewAction.replaceAll('_', ' ').toLowerCase()}.
+                        Reviewed:{' '}
+                        {resolutionFeedback.reviewAction.replaceAll('_', ' ').toLowerCase()}.
                       </p>
                     ) : null}
                     {feedbackError ? (

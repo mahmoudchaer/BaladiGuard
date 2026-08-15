@@ -20,11 +20,11 @@ from app.database.memory_staff_comments import staff_comment_store
 from app.database.memory_staff_password_reset import staff_password_reset_store
 from app.database.memory_status_history import status_history_store
 from app.database.notification_delivery_store import NotificationDeliveryStore
+from app.database.resolution_review_store import ResolutionReviewStore
 from app.database.staff_comment_store import StaffCommentStore
 from app.database.staff_store import StaffStore
 from app.database.status_history_store import StatusHistoryStore
 from app.database.ticket_store import TicketStore
-from app.database.resolution_review_store import ResolutionReviewStore
 from app.database.work_order_evidence_store import WorkOrderEvidenceStore
 from app.database.work_order_store import WorkOrderStore
 from app.database.workforce_store import WorkforceStore

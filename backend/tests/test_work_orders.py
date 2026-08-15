@@ -10,6 +10,7 @@ from app.database.dynamodb_tables import TABLE_DEFINITIONS
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
 from app.services.ai_job_queue import ai_job_queue
+from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.work_orders.reasons import (
     CLOSURE_REASON_CODES,
     REJECTION_REASON_CODES,
@@ -18,7 +19,6 @@ from app.services.work_orders.reasons import (
     required_outcome_kind,
 )
 from app.services.work_orders.transitions import ticket_status_path
-from app.services.uploads.photo_upload_service import photo_upload_service
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
 from tests.test_upload_report_photo import FakeS3Client, image_bytes, set_aws_env
