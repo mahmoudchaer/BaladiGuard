@@ -25,7 +25,10 @@ npm run lint
 npm run format:check
 npm run typecheck
 npm test
+npm run test:contracts
+npm run test:e2e
 npm run build
+npm run check:production-build
 ```
 
 ## Routes
@@ -36,6 +39,7 @@ npm run build
 | `/reports`              | Six-item paginated public report directory        |
 | `/map`                  | Public map + clustering (list alternative linked) |
 | `/public/:ticketNumber` | Public detail                                     |
+| `/t/:code`              | Notification deep link (Sprint 7 / #257)          |
 | `/track`                | Tracking-code lookup                              |
 | `/privacy`              | Privacy copy for public projection                |
 | `/login`                | Phone OTP sign-in/create-account flow             |
@@ -71,3 +75,7 @@ local photo may need to be selected again after a browser restart.
 | `VITE_APP_ENV`       | `local` / `development` / `test` / `staging` / `production` |
 | `VITE_API_BASE_URL`  | Required https non-localhost in staging/production          |
 | `VITE_USE_MOCK_DATA` | Local mock fixtures only                                    |
+
+Production hosting, rollback, browsers, and the web-versus-mobile parity
+matrix are in `docs/citizen-web-deployment.md` and `docs/citizen-web-parity.md`.
+Arabic / English / French and RTL are owned by issue #259.

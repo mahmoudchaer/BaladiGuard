@@ -6,6 +6,7 @@ import {
   getPublicMapViewport,
   getPublicTickets,
   getTicketByTrackingCode,
+  sanitizeCitizenTicket,
   sanitizePublicTicket,
 } from '@/services/tickets';
 import type { PublicTicketResponse } from '@/types/ticket';
@@ -55,6 +56,30 @@ describe('sanitizePublicTicket', () => {
     expect(clean).not.toHaveProperty('ticketId');
     expect(clean).not.toHaveProperty('trackingCode');
     expect(clean).not.toHaveProperty('contact');
+    expect(clean).not.toHaveProperty('imageObjectKey');
+  });
+});
+
+describe('sanitizeCitizenTicket', () => {
+  it('keeps possession fields and drops staff-only keys', () => {
+    const dirty = {
+      ticketNumber: 'BG-1',
+      trackingCode: 'ABC234',
+      status: 'IN_PROGRESS' as const,
+      category: 'road_damage',
+      location: { addressText: 'Hamra' },
+      department: { name: 'Roads' },
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-02T00:00:00Z',
+      lastUpdatedAt: '2026-08-02T00:00:00Z',
+      timeline: [{ status: 'SUBMITTED' as const, changedAt: '2026-08-01T00:00:00Z' }],
+      ticketId: 'secret-id',
+      imageObjectKey: 'reports/photos/original.jpg',
+    };
+
+    const clean = sanitizeCitizenTicket(dirty as Parameters<typeof sanitizeCitizenTicket>[0]);
+    expect(clean.trackingCode).toBe('ABC234');
+    expect(clean).not.toHaveProperty('ticketId');
     expect(clean).not.toHaveProperty('imageObjectKey');
   });
 });

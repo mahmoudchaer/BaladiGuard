@@ -58,6 +58,7 @@ Each emit includes:
 | Local / development / test | `CITIZEN_APP_BASE_URL` optional → defaults to `http://localhost:8081` |
 | Staging / production | **Required** `CITIZEN_APP_BASE_URL` with **https**, non-localhost (startup fail-closed) |
 | Mobile landing | `mobile/app/t/[code].tsx` — malformed → safe fallback; logged-out track vs sign-in (`returnTo`); authenticated → citizen track UI. Access/error text never reveals ownership to others. |
+| Web landing | `citizen-web` route `/t/:code` (#265) — same possession rules, optional sign-in, and `returnTo` restore after OTP. SPA hosting must fall back `/t/*` to `index.html`. |
 | Native claim | Installed builds claim the HTTPS host via iOS Associated Domains + Android App Links so notification taps open the app (not only the browser). See below. |
 | Idempotency / preferences | Unchanged (`{event}:{ticketId}:{status}`, preference skip rules) |
 

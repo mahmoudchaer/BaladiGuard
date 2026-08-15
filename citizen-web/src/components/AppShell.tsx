@@ -57,7 +57,7 @@ export function AppShell() {
           )}
         </nav>
       </header>
-      <main className="shell-main">
+      <main id="main-content" className="shell-main" tabIndex={-1}>
         <Outlet />
       </main>
       <footer className="shell-footer">

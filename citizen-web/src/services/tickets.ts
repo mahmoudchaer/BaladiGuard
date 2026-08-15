@@ -228,6 +228,25 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
   return sanitizePublicTicket((await response.json()) as PublicTicketResponse);
 }
 
+/** Strip staff-only keys if a misconfigured proxy leaks them onto tracking. */
+export function sanitizeCitizenTicket(raw: CitizenTicketResponse): CitizenTicketResponse {
+  return {
+    ticketNumber: raw.ticketNumber ?? null,
+    trackingCode: String(raw.trackingCode ?? ''),
+    status: raw.status,
+    category: raw.category ?? null,
+    location: raw.location?.addressText ? { addressText: String(raw.location.addressText) } : null,
+    department: raw.department?.name ? { name: raw.department.name } : null,
+    createdAt: String(raw.createdAt ?? ''),
+    updatedAt: raw.updatedAt ?? null,
+    lastUpdatedAt: String(raw.lastUpdatedAt ?? raw.updatedAt ?? raw.createdAt ?? ''),
+    timeline: (raw.timeline ?? []).map((entry) => ({
+      status: entry.status,
+      changedAt: String(entry.changedAt ?? ''),
+    })),
+  };
+}
+
 export async function getTicketByTrackingCode(
   trackingCode: string,
 ): Promise<CitizenTicketResponse> {
@@ -262,7 +281,7 @@ export async function getTicketByTrackingCode(
     throw new Error(await parseApiError(response, TRACK_LOOKUP_NETWORK_MESSAGE));
   }
 
-  return response.json() as Promise<CitizenTicketResponse>;
+  return sanitizeCitizenTicket((await response.json()) as CitizenTicketResponse);
 }
 
 /** Local mock dataset for offline UI work — never used in staging/production. */

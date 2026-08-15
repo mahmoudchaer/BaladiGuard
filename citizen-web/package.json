@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "vitest run src/e2e",
+    "test:contracts": "vitest run src/contracts",
+    "check:production-build": "node scripts/check-production-build.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
