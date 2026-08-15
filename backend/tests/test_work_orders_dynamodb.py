@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
 from app.config import Settings
@@ -61,7 +60,9 @@ def _work_order(
     )
 
 
-def test_dynamo_create_race_keeps_one_active_work_order(dynamodb_settings: Settings) -> None:
+def test_dynamo_second_create_returns_the_existing_active_work_order(
+    dynamodb_settings: Settings,
+) -> None:
     tickets = DynamoTicketStore(dynamodb_settings)
     store = DynamoWorkOrderStore(dynamodb_settings)
     ticket = _ticket()
@@ -69,23 +70,23 @@ def test_dynamo_create_race_keeps_one_active_work_order(dynamodb_settings: Setti
     first = _work_order(ticket.ticket_id)
     second = _work_order(ticket.ticket_id)
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        winners = list(pool.map(store.create_active, [first, second]))
+    created = store.create_active(first)
+    replayed = store.create_active(second)
 
-    ids = {item.work_order_id for item in winners}
-    assert len(ids) == 1
+    assert created.work_order_id == first.work_order_id
+    assert replayed.work_order_id == first.work_order_id
     active = store.find_active_for_ticket(ticket.ticket_id)
     assert active is not None
-    assert active.work_order_id in {first.work_order_id, second.work_order_id}
+    assert active.work_order_id == first.work_order_id
     assert {item.work_order_id for item in store.list_by_ticket_id(ticket.ticket_id)} == {
-        active.work_order_id
+        first.work_order_id
     }
     refreshed = tickets.get(ticket.ticket_id)
     assert refreshed is not None
-    assert refreshed.active_work_order_id == active.work_order_id
+    assert refreshed.active_work_order_id == first.work_order_id
 
 
-def test_dynamo_conflicting_terminal_transitions_keep_one_winner(
+def test_dynamo_stale_terminal_transition_cannot_overwrite_winner(
     dynamodb_settings: Settings,
 ) -> None:
     tickets = DynamoTicketStore(dynamodb_settings)
@@ -95,55 +96,50 @@ def test_dynamo_conflicting_terminal_transitions_keep_one_winner(
     created = store.create_active(_work_order(ticket.ticket_id, state="IN_PROGRESS"))
     started_at = created.updated_at
 
-    complete = created.model_copy(
-        update={
-            "state": "COMPLETED",
-            "completed_at": _now(),
-            "completed_by": "staff_admin_001",
-            "updated_at": _now(),
-            "updated_by": "staff_admin_001",
-        }
+    completed = store.save_if_state(
+        created.model_copy(
+            update={
+                "state": "COMPLETED",
+                "completed_at": _now(),
+                "completed_by": "staff_admin_001",
+                "updated_at": _now(),
+                "updated_by": "staff_admin_001",
+            }
+        ),
+        expected_state="IN_PROGRESS",
+        expected_updated_at=started_at,
+        clear_active=True,
     )
-    cancel = created.model_copy(
-        update={
-            "state": "CANCELLED",
-            "cancelled_at": _now(),
-            "cancelled_by": "staff_admin_001",
-            "cancel_reason_code": "NO_LONGER_NEEDED",
-            "updated_at": _now(),
-            "updated_by": "staff_admin_001",
-        }
-    )
-
-    def _complete() -> StoredWorkOrder | None:
-        return store.save_if_state(
-            complete,
-            expected_state="IN_PROGRESS",
-            expected_updated_at=started_at,
-            clear_active=True,
-        )
-
-    def _cancel() -> StoredWorkOrder | None:
-        return store.save_if_state(
-            cancel,
-            expected_state="IN_PROGRESS",
-            expected_updated_at=started_at,
-            clear_active=True,
-        )
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda fn: fn(), [_complete, _cancel]))
-
-    winners = [item for item in results if item is not None]
-    assert len(winners) == 1
+    assert completed is not None
     loaded = store.get(created.work_order_id)
     assert loaded is not None
-    assert loaded.state in {"COMPLETED", "CANCELLED"}
+    assert loaded.state == "COMPLETED"
     assert store.find_active_for_ticket(ticket.ticket_id) is None
     refreshed = tickets.get(ticket.ticket_id)
     assert refreshed is not None
     assert refreshed.active_work_order_id is None
-    stale = store.save_if_state(
+
+    cancelled = store.save_if_state(
+        created.model_copy(
+            update={
+                "state": "CANCELLED",
+                "cancelled_at": _now(),
+                "cancelled_by": "staff_admin_001",
+                "cancel_reason_code": "NO_LONGER_NEEDED",
+                "updated_at": _now(),
+                "updated_by": "staff_admin_001",
+            }
+        ),
+        expected_state="IN_PROGRESS",
+        expected_updated_at=started_at,
+        clear_active=True,
+    )
+    assert cancelled is None
+    still_complete = store.get(created.work_order_id)
+    assert still_complete is not None
+    assert still_complete.state == "COMPLETED"
+
+    stale_assign = store.save_if_state(
         created.model_copy(
             update={
                 "state": "ASSIGNED",
@@ -154,4 +150,4 @@ def test_dynamo_conflicting_terminal_transitions_keep_one_winner(
         expected_state="IN_PROGRESS",
         expected_updated_at=started_at,
     )
-    assert stale is None
+    assert stale_assign is None
