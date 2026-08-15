@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -52,6 +55,45 @@ def _ticket_for(principal: StaffPrincipal, ticket_id: str):
     if ticket is None or not staff_can_access_ticket(principal, ticket):
         raise StaffCommentError("Ticket was not found.", code="TICKET_NOT_FOUND", status_code=404)
     return ticket
+
+
+def _actor_display_name(actor_id: str | None) -> str | None:
+    """Project actors to safe staff display names, never raw personnel IDs."""
+    if actor_id is None:
+        return "Citizen"
+    staff = get_staff_store().get(actor_id)
+    return staff.name if staff and staff.active else "Staff member"
+
+
+def _encode_cursor(event: ActivityEvent) -> str:
+    value = json.dumps(
+        [event.occurred_at, event.source_reference, event.event_id], separators=(",", ":")
+    ).encode()
+    return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+
+def _decode_cursor(cursor: str | None) -> tuple[str, str, str] | None:
+    if not cursor:
+        return None
+    # Accept the original numeric cursor for clients deployed before #271.
+    if cursor.isdigit():
+        return ("", "", f"__offset__:{cursor}")
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        value = json.loads(base64.urlsafe_b64decode(padded).decode())
+        if not isinstance(value, list) or len(value) != 3 or not all(
+            isinstance(item, str) for item in value
+        ):
+            raise ValueError
+        return value[0], value[1], value[2]
+    except (
+        ValueError,
+        TypeError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        binascii.Error,
+    ):
+        raise ValueError("invalid activity cursor") from None
 
 
 class StaffCommentService:
@@ -112,7 +154,7 @@ class StaffCommentService:
                     eventId=f"status:{entry.history_id}",
                     eventType="STATUS_CHANGED",
                     occurredAt=entry.created_at,
-                    actorDisplayName=entry.updated_by,
+                    actorDisplayName=_actor_display_name(entry.updated_by),
                     details={"status": entry.new_status},
                     sourceReference=f"status-history:{entry.history_id}",
                 )
@@ -125,8 +167,22 @@ class StaffCommentService:
                     eventId=f"audit:{entry.audit_id}",
                     eventType=entry.action_type,
                     occurredAt=entry.created_at,
-                    actorDisplayName=entry.actor_id,
-                    details={"summary": entry.summary},
+                    actorDisplayName=_actor_display_name(entry.actor_id),
+                    details={
+                        "summary": entry.summary,
+                        **(
+                            {"previousValue": entry.previous_value}
+                            if entry.previous_value
+                            and entry.action_type.startswith("RESOLUTION_FEEDBACK_")
+                            else {}
+                        ),
+                        **(
+                            {"newValue": entry.new_value}
+                            if entry.new_value
+                            and entry.action_type.startswith("RESOLUTION_FEEDBACK_")
+                            else {}
+                        ),
+                    },
                     sourceReference=f"audit:{entry.audit_id}",
                 )
             )
@@ -141,10 +197,29 @@ class StaffCommentService:
                     sourceReference=f"comment:{comment.comment_id}",
                 )
             )
-        events.sort(key=lambda event: (event.occurred_at, event.source_reference, event.event_id))
-        start = int(cursor or "0")
-        page = events[start : start + limit]
-        next_cursor = str(start + limit) if start + limit < len(events) else None
+        # Audit rows are the authoritative idempotency boundary: a replayed domain
+        # operation or an overlapping audit read must never render twice.
+        unique: dict[str, ActivityEvent] = {}
+        for event in events:
+            unique.setdefault(event.source_reference, event)
+        events = sorted(
+            unique.values(),
+            key=lambda event: (event.occurred_at, event.source_reference, event.event_id),
+        )
+        decoded = _decode_cursor(cursor)
+        if decoded and decoded[2].startswith("__offset__:"):
+            start = int(decoded[2].split(":", 1)[1])
+            page = events[start : start + limit]
+        else:
+            page = events
+            if decoded:
+                page = [
+                    event
+                    for event in events
+                    if (event.occurred_at, event.source_reference, event.event_id) > decoded
+                ]
+            page = page[:limit]
+        next_cursor = _encode_cursor(page[-1]) if len(page) == limit and page else None
         return ActivityTimelineResponse(events=page, nextCursor=next_cursor)
 
 

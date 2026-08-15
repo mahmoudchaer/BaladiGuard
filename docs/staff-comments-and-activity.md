@@ -8,11 +8,19 @@ development and a DynamoDB `staff-comments` table (with a `ticketId-index`) when
 Each comment records author, timestamp, text, and validated in-scope staff mentions. The audit trail
 records only that a comment was added; it never copies comment text.
 
-The activity endpoint merges status history, audit-only mutations, and comments. Status audit copies
-are suppressed because status history is canonical. Work-order mutations from issue #247 appear as
-`WORK_ORDER_CREATE`, `WORK_ORDER_ASSIGN`, `WORK_ORDER_START`, `WORK_ORDER_COMPLETE`, and
-`WORK_ORDER_CANCEL`. Results are cursor-paginated and the dashboard
-deduplicates events by stable event ID when loading additional pages.
+The protected activity endpoint merges status history, audit-only mutations, and comments. Status audit
+copies are suppressed because status history is canonical. Workforce assignment, work-order lifecycle,
+maintenance evidence, and resolution-feedback records appear using their audit action types, including
+WORKFORCE_ASSIGN, WORK_ORDER_CREATE, WORK_ORDER_ASSIGN, WORK_ORDER_START, WORK_ORDER_COMPLETE,
+WORK_ORDER_CANCEL, WORK_ORDER_EVIDENCE_ADD, RESOLUTION_FEEDBACK_SUBMIT, and
+RESOLUTION_FEEDBACK_REVIEW.
+
+Rows are ordered by (occurredAt, sourceReference, eventId) and use an opaque keyset cursor, so a new
+event arriving between requests cannot shift the next page. Replayed audit/domain operations are
+deduplicated by stable source reference. Actor IDs and protected workforce, work-order, evidence, and
+image storage identifiers are never serialized; only safe staff display names, summaries, and approved
+resolution outcome values are projected. Evidence photos remain available only through the authorized
+evidence endpoint.
 
 Administrators should treat this feature as internal coordination data and apply the municipality's
 normal access, retention, and export policies before sharing it outside authorized staff.
