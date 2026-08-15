@@ -472,7 +472,7 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `departments` | `departmentId` | GSI on `municipalityId` |
 | `workforce-workers` | `workerId` | Field workforce directory (#245); GSI on `municipalityId`. Not staff login accounts. |
 | `workforce-teams` | `teamId` | Field teams (#245); GSI on `municipalityId`; membership via `workerIds` / worker `teamIds`. |
-| `work-orders` | `workOrderId` | Private maintenance execution records (#247); GSI on `ticketId`. |
+| `work-orders` | `workOrderId` | Private maintenance execution records (#247); GSI on `ticketId`. Active-claim items use `wo_active_<ticketId>` so create is unique per ticket. |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |
 | `ai-outputs` | `aiOutputId` | GSI on `ticketId` |
 | `duplicate-groups` | `duplicateGroupId` | |

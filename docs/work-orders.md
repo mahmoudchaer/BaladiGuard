@@ -26,6 +26,13 @@ The ticket stores `activeWorkOrderId` while a work order is queued, assigned, or
 progress. Completed and cancelled work orders clear that pointer so a later work
 order can be created.
 
+DynamoDB enforces one active work order per ticket with a claim item
+`wo_active_<ticketId>` in the same table. Create writes the work order, the claim,
+and `ticket.activeWorkOrderId` in one transaction. Assign/start/complete/cancel use
+conditional writes on the current `state` and `updatedAt`. Complete/cancel also
+delete the claim and clear the ticket pointer in the same transaction so a partial
+failure cannot leave the two tables inconsistent.
+
 ## Allowed work-order transitions
 
 | Current | Allowed next |

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from app.core.staff_auth import StaffPrincipal, staff_can_access_ticket
 from app.database.store_factory import get_ticket_store, get_work_order_store
-from app.database.work_order_store import WorkOrderStore
+from app.database.work_order_store import WorkOrderStore, WorkOrderTicketMissingError
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import UpdateTicketStatusRequest
 from app.schemas.ticket_status import TicketStatus
@@ -108,26 +108,12 @@ class WorkOrderService:
             updatedBy=principal.staff_id,
         )
 
-        def _commit() -> StoredWorkOrder:
-            raced = self.store().find_active_for_ticket(ticket_id)
-            if raced is not None:
-                return raced
-            saved = self.store().save(work_order)
-            patched = get_ticket_store().patch_fields(
-                ticket_id,
-                {
-                    "active_work_order_id": saved.work_order_id,
-                    "updated_at": created_at,
-                    "updated_by": principal.staff_id,
-                },
-            )
-            if patched is None:
-                raise WorkOrderError(
-                    "Ticket was not found.", status_code=404, code="TICKET_NOT_FOUND"
-                )
-            return saved
-
-        saved = self.store().run_exclusive(_commit)
+        try:
+            saved = self.store().create_active(work_order)
+        except WorkOrderTicketMissingError as exc:
+            raise WorkOrderError(
+                "Ticket was not found.", status_code=404, code="TICKET_NOT_FOUND"
+            ) from exc
         created = saved.work_order_id == work_order.work_order_id
         if created:
             self._record_ticket_audit(
@@ -193,7 +179,7 @@ class WorkOrderService:
         if target_state != work_order.state:
             validate_work_order_transition(work_order.state, target_state)
         updated_at = _iso_now()
-        updated = self.store().save(
+        updated = self._save_transition(
             work_order.model_copy(
                 update={
                     "state": target_state,
@@ -202,7 +188,9 @@ class WorkOrderService:
                     "updated_at": updated_at,
                     "updated_by": principal.staff_id,
                 }
-            )
+            ),
+            expected_state=work_order.state,
+            expected_updated_at=work_order.updated_at,
         )
         self._record_ticket_audit(
             ticket.ticket_id,
@@ -238,7 +226,7 @@ class WorkOrderService:
             raise WorkOrderError("Assign a worker or team before starting this work order.")
         validate_work_order_transition(work_order.state, "IN_PROGRESS")
         updated_at = _iso_now()
-        updated = self.store().save(
+        updated = self._save_transition(
             work_order.model_copy(
                 update={
                     "state": "IN_PROGRESS",
@@ -247,7 +235,9 @@ class WorkOrderService:
                     "updated_at": updated_at,
                     "updated_by": principal.staff_id,
                 }
-            )
+            ),
+            expected_state=work_order.state,
+            expected_updated_at=work_order.updated_at,
         )
         self._record_ticket_audit(
             ticket.ticket_id,
@@ -281,7 +271,7 @@ class WorkOrderService:
         self._assert_completion_allowed(work_order)
         updated_at = _iso_now()
         note = normalize_private_note(payload.note)
-        updated = self.store().save(
+        updated = self._save_transition(
             work_order.model_copy(
                 update={
                     "state": "COMPLETED",
@@ -291,15 +281,10 @@ class WorkOrderService:
                     "updated_at": updated_at,
                     "updated_by": principal.staff_id,
                 }
-            )
-        )
-        get_ticket_store().patch_fields(
-            ticket.ticket_id,
-            {
-                "active_work_order_id": None,
-                "updated_at": updated_at,
-                "updated_by": principal.staff_id,
-            },
+            ),
+            expected_state=work_order.state,
+            expected_updated_at=work_order.updated_at,
+            clear_active=True,
         )
         self._record_ticket_audit(
             ticket.ticket_id,
@@ -327,7 +312,7 @@ class WorkOrderService:
         reason_code = validate_work_order_cancel_reason(payload.reason_code)
         note = normalize_private_note(payload.note)
         updated_at = _iso_now()
-        updated = self.store().save(
+        updated = self._save_transition(
             work_order.model_copy(
                 update={
                     "state": "CANCELLED",
@@ -338,15 +323,10 @@ class WorkOrderService:
                     "updated_at": updated_at,
                     "updated_by": principal.staff_id,
                 }
-            )
-        )
-        get_ticket_store().patch_fields(
-            ticket.ticket_id,
-            {
-                "active_work_order_id": None,
-                "updated_at": updated_at,
-                "updated_by": principal.staff_id,
-            },
+            ),
+            expected_state=work_order.state,
+            expected_updated_at=work_order.updated_at,
+            clear_active=True,
         )
         self._record_ticket_audit(
             ticket.ticket_id,
@@ -395,6 +375,28 @@ class WorkOrderService:
         if ticket is None or not staff_can_access_ticket(principal, ticket):
             raise WorkOrderError("Ticket was not found.", status_code=404, code="TICKET_NOT_FOUND")
         return ticket
+
+    def _save_transition(
+        self,
+        work_order: StoredWorkOrder,
+        *,
+        expected_state: str,
+        expected_updated_at: str,
+        clear_active: bool = False,
+    ) -> StoredWorkOrder:
+        updated = self.store().save_if_state(
+            work_order,
+            expected_state=expected_state,
+            expected_updated_at=expected_updated_at,
+            clear_active=clear_active,
+        )
+        if updated is None:
+            raise WorkOrderError(
+                "This work order was updated by someone else. Refresh and try again.",
+                status_code=409,
+                code="WORK_ORDER_CONFLICT",
+            )
+        return updated
 
     def _require_work_order(
         self, work_order_id: str, principal: StaffPrincipal

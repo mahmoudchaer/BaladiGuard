@@ -56,6 +56,16 @@ import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getTicketImageUrl } from '@/utils/ticketImage';
 import { listTeams, listWorkers } from '@/services/workforce';
 import type { WorkOrder } from '@/types/workOrder';
+
+function workOrderAssigneeValue(order: WorkOrder | null | undefined): string {
+  if (order?.assignedWorkerId) {
+    return `worker:${order.assignedWorkerId}`;
+  }
+  if (order?.assignedTeamId) {
+    return `team:${order.assignedTeamId}`;
+  }
+  return '';
+}
 import type { WorkforceTeam, WorkforceWorker } from '@/types/workforce';
 import {
   formatWorkOrderState,
@@ -316,11 +326,23 @@ export function TicketDetailPage() {
           if (!cancelled) {
             setWorkOrders(listed.items);
             setActiveWorkOrderId(listed.activeWorkOrderId);
+            const active =
+              listed.items.find((item) => item.workOrderId === listed.activeWorkOrderId) ?? null;
+            setWorkOrderAssignee(workOrderAssigneeValue(active));
+            setWorkOrderSummary('');
+            setWorkOrderCancelReason('');
           }
         } catch {
           if (!cancelled) {
             setWorkOrders([]);
             setActiveWorkOrderId(data.activeWorkOrderId ?? null);
+            setWorkOrderAssignee(
+              data.assignedWorkerId
+                ? `worker:${data.assignedWorkerId}`
+                : data.assignedTeamId
+                  ? `team:${data.assignedTeamId}`
+                  : '',
+            );
           }
         }
         setDepartmentUpdateError(null);
@@ -725,6 +747,9 @@ export function TicketDetailPage() {
     const listed = await listTicketWorkOrders(ticketIdToLoad);
     setWorkOrders(listed.items);
     setActiveWorkOrderId(listed.activeWorkOrderId);
+    const active =
+      listed.items.find((item) => item.workOrderId === listed.activeWorkOrderId) ?? null;
+    setWorkOrderAssignee(workOrderAssigneeValue(active));
     return listed;
   };
 
@@ -1649,6 +1674,22 @@ export function TicketDetailPage() {
                           disabled={isMutatingWorkOrder}
                         >
                           <option value="">Unassigned</option>
+                          {activeWorkOrder.assignedWorkerId &&
+                            !workers.some(
+                              (worker) => worker.workerId === activeWorkOrder.assignedWorkerId,
+                            ) && (
+                              <option value={`worker:${activeWorkOrder.assignedWorkerId}`}>
+                                Worker: {activeWorkOrder.assignedWorkerId}
+                              </option>
+                            )}
+                          {activeWorkOrder.assignedTeamId &&
+                            !teams.some(
+                              (team) => team.teamId === activeWorkOrder.assignedTeamId,
+                            ) && (
+                              <option value={`team:${activeWorkOrder.assignedTeamId}`}>
+                                Team: {activeWorkOrder.assignedTeamId}
+                              </option>
+                            )}
                           {workers
                             .filter((worker) => worker.active)
                             .map((worker) => (
