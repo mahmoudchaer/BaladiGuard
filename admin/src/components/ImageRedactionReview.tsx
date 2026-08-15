@@ -10,7 +10,7 @@ import {
   rejectImageRedaction,
   reprocessImageRedaction,
 } from '@/services/tickets';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 import './ImageRedactionReview.css';
 
 type Props = {
@@ -20,6 +20,7 @@ type Props = {
 };
 
 export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Props) {
+  const { t } = useI18n();
   const [review, setReview] = useState<ImageRedactionReview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -40,13 +41,13 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : 'Unable to load image review.');
+          setLoadError(error instanceof Error ? error.message : t('redaction.loadError'));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [ticketId]);
+  }, [ticketId, t]);
 
   async function runAction(action: () => Promise<ImageRedactionReview>) {
     setBusy(true);
@@ -56,7 +57,7 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
       setReview(next);
       onChanged?.();
     } catch (error: unknown) {
-      setActionError(error instanceof Error ? error.message : 'Unable to update image review.');
+      setActionError(error instanceof Error ? error.message : t('redaction.actionError'));
     } finally {
       setBusy(false);
     }
@@ -164,27 +165,27 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
 
       {review.canAddManualRegions ? (
         <form className="image-redaction-review__manual" onSubmit={handleManualSubmit}>
-          <p className="image-redaction-review__label">Add a bounded blur region (0–1 of image)</p>
+          <p className="image-redaction-review__label">{t('redaction.manualHint')}</p>
           <div className="image-redaction-review__fields">
             <label>
-              Left
+              {t('redaction.left')}
               <input value={left} onChange={(event) => setLeft(event.target.value)} />
             </label>
             <label>
-              Top
+              {t('redaction.top')}
               <input value={top} onChange={(event) => setTop(event.target.value)} />
             </label>
             <label>
-              Width
+              {t('redaction.width')}
               <input value={width} onChange={(event) => setWidth(event.target.value)} />
             </label>
             <label>
-              Height
+              {t('redaction.height')}
               <input value={height} onChange={(event) => setHeight(event.target.value)} />
             </label>
           </div>
           <button type="submit" className="ticket-detail__review-button" disabled={busy}>
-            Apply manual blur
+            {t('redaction.applyManual')}
           </button>
         </form>
       ) : null}

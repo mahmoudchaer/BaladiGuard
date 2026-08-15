@@ -1,19 +1,17 @@
 import { Link } from 'react-router-dom';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 export function NotFoundPage() {
+  const { t } = useI18n();
   return (
     <div className="page" data-testid="not-found-page">
       <h1>{t('notFound.title')}</h1>
       <div className="panel stack">
-        <p style={{ margin: 0, lineHeight: 1.55 }}>
-          That address is not a BaladiGuard citizen page. Check the link, or return to public
-          reports.
-        </p>
+        <p style={{ margin: 0, lineHeight: 1.55 }}>{t('notFound.body')}</p>
         <Link className="button" to="/">
           {t('notFound.browse')}
         </Link>
-        <Link to="/track">Track a report by code</Link>
+        <Link to="/track">{t('notFound.track')}</Link>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setLocale, t } from '@/i18n';
 import { renderWithProviders } from '@/test/render';
 import { WorkforcePage } from '@/pages/WorkforcePage';
 import {
@@ -146,6 +147,27 @@ describe('WorkforcePage', () => {
       'href',
       '/tickets/tkt_assigned',
     );
+  });
+
+  it('localizes workforce title, directory, and add worker for Arabic and French', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<WorkforcePage />);
+    expect(await screen.findByText('Unassigned')).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    expect(screen.getByRole('heading', { name: t('workforce.title') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('workforce.directory') })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: t('workforce.directory') }));
+    expect(screen.getByRole('button', { name: t('workforce.addWorker') })).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    expect(screen.getByRole('heading', { name: t('workforce.title') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('workforce.directory') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t('workforce.addWorker') })).toBeInTheDocument();
   });
 
   it('lets administrators manage the directory', async () => {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t } from '@/i18n';
 
 type PublicPhotoProps = {
   photoUrl?: string | null;
@@ -12,8 +13,8 @@ export function PublicPhoto({ photoUrl, alt }: PublicPhotoProps) {
 
   if (!usable) {
     return (
-      <div className="photo-fallback" role="img" aria-label="No public photo available">
-        Photo unavailable
+      <div className="photo-fallback" role="img" aria-label={t('public.noPhoto')}>
+        {t('public.photoUnavailable')}
       </div>
     );
   }

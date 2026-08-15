@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { PublicPhoto } from '@/components/PublicPhoto';
 import { PUBLIC_TICKETS_NETWORK_MESSAGE, getPublicTickets } from '@/services/tickets';
 import type { PublicTicketResponse } from '@/types/ticket';
-import { t } from '@/i18n';
+import { translateCategory, translateStatus } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 const PAGE_SIZE = 6;
 const CATEGORIES = [
@@ -20,10 +21,11 @@ const CATEGORIES = [
 const STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
 function formatCategory(category: string | null): string {
-  return (category ?? 'General').replaceAll('_', ' ');
+  return translateCategory(category);
 }
 
 export function PublicReportsPage() {
+  const { t } = useI18n();
   const [pages, setPages] = useState<Record<number, PublicTicketResponse[]>>({});
   const [cursors, setCursors] = useState<Array<string | null>>([null]);
   const [nextCursors, setNextCursors] = useState<Record<number, string | null>>({});
@@ -73,7 +75,11 @@ export function PublicReportsPage() {
         setPage(target);
       } catch (err) {
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : PUBLIC_TICKETS_NETWORK_MESSAGE);
+        setError(
+          err instanceof Error && err.message !== PUBLIC_TICKETS_NETWORK_MESSAGE
+            ? err.message
+            : t('public.network'),
+        );
       } finally {
         if (request === requestRef.current) setLoading(false);
       }
@@ -115,55 +121,55 @@ export function PublicReportsPage() {
     <section className="page page-enter reports-directory">
       <div className="directory-heading">
         <div>
-          <span className="eyebrow">COMMUNITY ACTIVITY</span>
+          <span className="eyebrow">{t('public.eyebrow')}</span>
           <h1>{t('public.title')}</h1>
-          <p className="lede">Browse approved, privacy-safe reports shared across the community.</p>
+          <p className="lede">{t('public.lede')}</p>
         </div>
         <div className="button-row">
           <Link className="button button-secondary" to="/map">
-            Map view
+            {t('public.mapView')}
           </Link>
           <Link className="button" to="/report">
-            Report an issue
+            {t('public.reportIssue')}
           </Link>
         </div>
       </div>
 
-      <div className="report-filters" role="search" aria-label="Search and filter reports">
+      <div className="report-filters" role="search" aria-label={t('public.searchFilters')}>
         <label className="report-search">
-          <span className="sr-only">Search public reports</span>
+          <span className="sr-only">{t('public.search')}</span>
           <span aria-hidden="true">⌕</span>
           <input
             type="search"
-            aria-label="Search public reports"
+            aria-label={t('public.search')}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search report number, issue, or area"
+            placeholder={t('public.searchPlaceholder')}
           />
         </label>
         <label>
-          <span className="sr-only">Filter by status</span>
+          <span className="sr-only">{t('public.filterStatus')}</span>
           <select
-            aria-label="Filter by status"
+            aria-label={t('public.filterStatus')}
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
-            <option value="">All statuses</option>
+            <option value="">{t('public.allStatuses')}</option>
             {STATUSES.map((value) => (
               <option key={value} value={value}>
-                {value.replaceAll('_', ' ')}
+                {translateStatus(value)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          <span className="sr-only">Filter by category</span>
+          <span className="sr-only">{t('public.filterCategory')}</span>
           <select
-            aria-label="Filter by category"
+            aria-label={t('public.filterCategory')}
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
-            <option value="">All categories</option>
+            <option value="">{t('public.allCategories')}</option>
             {CATEGORIES.map((value) => (
               <option key={value} value={value}>
                 {formatCategory(value)}
@@ -182,7 +188,7 @@ export function PublicReportsPage() {
               setCategory('');
             }}
           >
-            Clear
+            {t('common.clear')}
           </button>
         ) : null}
       </div>
@@ -191,24 +197,20 @@ export function PublicReportsPage() {
         <div className="notice notice-error" role="alert">
           {error}
           <button className="text-button" onClick={() => void loadPage(page)}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       ) : null}
       {loading ? (
         <div className="loading-state" role="status">
-          Loading page {page + 1}…
+          {t('public.loadingPage', { page: page + 1 })}
         </div>
       ) : null}
       {!loading && !error && items.length === 0 ? (
         <div className="empty-state">
           <span>✓</span>
-          <h2>{query || status || category ? 'No matching reports' : 'No public reports yet'}</h2>
-          <p>
-            {query || status || category
-              ? 'Try changing or clearing your search filters.'
-              : 'Approved community reports will appear here.'}
-          </p>
+          <h2>{query || status || category ? t('public.noMatch') : t('public.noReports')}</h2>
+          <p>{query || status || category ? t('public.noMatchBody') : t('public.noReportsBody')}</p>
         </div>
       ) : null}
 
@@ -218,11 +220,11 @@ export function PublicReportsPage() {
             <article className="public-report-tile" key={report.ticketNumber}>
               <PublicPhoto
                 photoUrl={report.photoUrl}
-                alt={`Public photo for ${report.ticketNumber}`}
+                alt={t('public.photoAlt', { ticketNumber: report.ticketNumber })}
               />
               <Link className="report-card" to={`/public/${report.ticketNumber}`}>
                 <div className="tile-meta">
-                  <span className="badge">{report.status.replaceAll('_', ' ')}</span>
+                  <span className="badge">{translateStatus(report.status)}</span>
                   <strong>{report.ticketNumber}</strong>
                 </div>
                 <span className="muted">{formatCategory(report.category)}</span>
@@ -235,13 +237,13 @@ export function PublicReportsPage() {
       ) : null}
 
       {!loading && (items.length > 0 || page > 0) ? (
-        <nav className="pagination" aria-label="Report pages">
+        <nav className="pagination" aria-label={t('public.pages')}>
           <button
             className="page-control"
             disabled={page === 0}
             onClick={() => void loadPage(page - 1)}
           >
-            ← Previous
+            {t('common.previous')}
           </button>
           <div className="page-numbers">
             {visiblePages.map((index) => (

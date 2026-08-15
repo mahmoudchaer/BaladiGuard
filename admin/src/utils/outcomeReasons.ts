@@ -1,36 +1,41 @@
+import { t } from '@/i18n';
 import type { TicketStatus } from '@/types/ticket';
 
 export type OutcomeKind = 'resolution' | 'rejection' | 'closure';
 
 export const RESOLUTION_REASONS = [
-  { code: 'WORK_COMPLETED', label: 'Work completed as requested' },
-  { code: 'TEMPORARY_FIX', label: 'Temporary repair applied' },
-  { code: 'NO_WORK_REQUIRED', label: 'No municipal work required' },
-  { code: 'REFERRED_EXTERNAL', label: 'Referred to another authority' },
-  { code: 'DUPLICATE_RESOLVED', label: 'Resolved as a duplicate' },
+  { code: 'WORK_COMPLETED' },
+  { code: 'TEMPORARY_FIX' },
+  { code: 'NO_WORK_REQUIRED' },
+  { code: 'REFERRED_EXTERNAL' },
+  { code: 'DUPLICATE_RESOLVED' },
 ] as const;
 
 export const REJECTION_REASONS = [
-  { code: 'OUT_OF_SCOPE', label: 'Outside municipal responsibility' },
-  { code: 'INSUFFICIENT_INFORMATION', label: 'Insufficient information' },
-  { code: 'DUPLICATE', label: 'Duplicate of an existing report' },
-  { code: 'INVALID_REPORT', label: 'Not a valid municipal issue' },
-  { code: 'CITIZEN_WITHDRAWN', label: 'Citizen withdrew the report' },
-  { code: 'SPAM', label: 'Spam or abusive report' },
+  { code: 'OUT_OF_SCOPE' },
+  { code: 'INSUFFICIENT_INFORMATION' },
+  { code: 'DUPLICATE' },
+  { code: 'INVALID_REPORT' },
+  { code: 'CITIZEN_WITHDRAWN' },
+  { code: 'SPAM' },
 ] as const;
 
 export const CLOSURE_REASONS = [
-  { code: 'CONFIRMED_COMPLETE', label: 'Resolution confirmed, case closed' },
-  { code: 'ADMINISTRATIVE_CLOSE', label: 'Closed after resolution for records' },
-  { code: 'NO_FURTHER_ACTION', label: 'No further municipal action' },
+  { code: 'CONFIRMED_COMPLETE' },
+  { code: 'ADMINISTRATIVE_CLOSE' },
+  { code: 'NO_FURTHER_ACTION' },
 ] as const;
 
 export const WORK_ORDER_CANCEL_REASONS = [
-  { code: 'CREATED_IN_ERROR', label: 'Created in error' },
-  { code: 'NO_LONGER_NEEDED', label: 'No longer needed' },
-  { code: 'UNABLE_TO_PERFORM', label: 'Unable to perform the work' },
-  { code: 'DUPLICATE_WORK', label: 'Duplicate work order' },
+  { code: 'CREATED_IN_ERROR' },
+  { code: 'NO_LONGER_NEEDED' },
+  { code: 'UNABLE_TO_PERFORM' },
+  { code: 'DUPLICATE_WORK' },
 ] as const;
+
+function withReasonLabel<T extends { code: string }>(reason: T): T & { label: string } {
+  return { ...reason, label: t(`reasons.${reason.code}`) };
+}
 
 export function requiredOutcomeKind(
   currentStatus: TicketStatus,
@@ -53,27 +58,19 @@ export function requiredOutcomeKind(
 
 export function reasonsForKind(kind: OutcomeKind) {
   if (kind === 'resolution') {
-    return RESOLUTION_REASONS;
+    return RESOLUTION_REASONS.map(withReasonLabel);
   }
   if (kind === 'rejection') {
-    return REJECTION_REASONS;
+    return REJECTION_REASONS.map(withReasonLabel);
   }
-  return CLOSURE_REASONS;
+  return CLOSURE_REASONS.map(withReasonLabel);
+}
+
+export function workOrderCancelReasons() {
+  return WORK_ORDER_CANCEL_REASONS.map(withReasonLabel);
 }
 
 export function formatWorkOrderState(state: string): string {
-  switch (state) {
-    case 'QUEUED':
-      return 'Queued';
-    case 'ASSIGNED':
-      return 'Assigned';
-    case 'IN_PROGRESS':
-      return 'In progress';
-    case 'COMPLETED':
-      return 'Completed';
-    case 'CANCELLED':
-      return 'Cancelled';
-    default:
-      return state;
-  }
+  const translated = t(`reasons.workOrder.${state}`);
+  return translated !== `reasons.workOrder.${state}` ? translated : state;
 }

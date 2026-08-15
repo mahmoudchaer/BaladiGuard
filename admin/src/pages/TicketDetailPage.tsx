@@ -80,6 +80,7 @@ function EvidencePhotoList({
   emptyLabel: string;
   category: string;
 }) {
+  const { t } = useI18n();
   if (!items.length) {
     return <p className="ticket-detail__card-hint">{emptyLabel}</p>;
   }
@@ -91,7 +92,9 @@ function EvidencePhotoList({
           imageObjectKey={item.objectKey}
           imageUrl={item.photoUrl ?? undefined}
           category={category}
-          alt={`${item.kind.replaceAll('_', ' ').toLowerCase()} evidence`}
+          alt={t('ticket.workOrder.evidenceAlt', {
+            kind: item.kind.replaceAll('_', ' ').toLowerCase(),
+          })}
         />
       ))}
     </div>
@@ -102,7 +105,7 @@ import {
   formatWorkOrderState,
   reasonsForKind,
   requiredOutcomeKind,
-  WORK_ORDER_CANCEL_REASONS,
+  workOrderCancelReasons,
 } from '@/utils/outcomeReasons';
 import { IconImage, IconLocation, IconSparkles, IconWorkflow } from '@/components/icons';
 import {
@@ -404,7 +407,7 @@ export function TicketDetailPage() {
         setLoadState('success');
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'Unable to load ticket.');
+          setErrorMessage(error instanceof Error ? error.message : t('errors.loadTicket'));
           if (loadedTicketRef.current?.ticketId !== requestedTicketId) {
             setLoadState('error');
           }
@@ -477,7 +480,7 @@ export function TicketDetailPage() {
       .catch((error) => {
         if (active) {
           setActivityError(
-            error instanceof Error ? error.message : 'Unable to load ticket activity.',
+            error instanceof Error ? error.message : t('ticket.activity.unableLoad'),
           );
         }
       })
@@ -501,7 +504,7 @@ export function TicketDetailPage() {
       .catch((error) => {
         if (active) {
           setCommentsError(
-            error instanceof Error ? error.message : 'Unable to load ticket comments.',
+            error instanceof Error ? error.message : t('ticket.comments.unableLoad'),
           );
         }
       })
@@ -530,7 +533,7 @@ export function TicketDetailPage() {
     } catch (error) {
       if (currentTicketId.current === requestedTicketId) {
         setLoadMoreActivityError(
-          error instanceof Error ? error.message : 'Unable to load more activity.',
+          error instanceof Error ? error.message : t('ticket.activity.unableLoadMore'),
         );
       }
     } finally {
@@ -549,7 +552,7 @@ export function TicketDetailPage() {
       comment = await createTicketComment(requestedTicketId, requestedCommentText);
     } catch (error) {
       if (currentTicketId.current !== requestedTicketId) return;
-      setCommentError(error instanceof Error ? error.message : 'Unable to add comment.');
+      setCommentError(error instanceof Error ? error.message : t('ticket.comments.unableAdd'));
       setIsSubmittingComment(false);
       return;
     }
@@ -569,7 +572,7 @@ export function TicketDetailPage() {
     } catch (error) {
       if (currentTicketId.current === requestedTicketId) {
         setActivityError(
-          error instanceof Error ? error.message : 'Unable to refresh ticket activity.',
+          error instanceof Error ? error.message : t('ticket.activity.unableRefresh'),
         );
       }
     } finally {
@@ -626,7 +629,7 @@ export function TicketDetailPage() {
 
     const outcomeKind = requiredOutcomeKind(ticket.status, status);
     if (outcomeKind && !statusReasonCode) {
-      setStatusUpdateError('Select a structured reason before applying this status.');
+      setStatusUpdateError(t('ticket.review.selectReasonBeforeStatus'));
       return;
     }
 
@@ -652,7 +655,8 @@ export function TicketDetailPage() {
       setStatusReasonCode('');
       setStatusPrivateNote('');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to update ticket status.';
+      const message =
+        error instanceof Error ? error.message : t('ticket.review.unableUpdateStatus');
       setStatusUpdateError(message);
     } finally {
       setIsUpdatingStatus(false);
@@ -672,7 +676,7 @@ export function TicketDetailPage() {
     }
 
     if (!SUPPORTED_CATEGORY_OPTIONS.some((category) => category === finalCategory)) {
-      setCategoryReviewError('Select a supported category before saving.');
+      setCategoryReviewError(t('ticket.review.selectCategoryBeforeSave'));
       return;
     }
 
@@ -696,7 +700,7 @@ export function TicketDetailPage() {
       setSelectedDepartmentId(updatedTicket.departmentId ?? '');
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unable to save the category review.';
+        error instanceof Error ? error.message : t('ticket.review.unableSaveCategory');
       setCategoryReviewError(message);
     } finally {
       setIsSavingCategory(false);
@@ -709,7 +713,7 @@ export function TicketDetailPage() {
     }
 
     if (!isKnownDepartmentId(departmentId)) {
-      setDepartmentUpdateError('Select a department from the catalog before saving.');
+      setDepartmentUpdateError(t('ticket.review.selectDepartmentBeforeSave'));
       setDepartmentUpdateSuccess(null);
       return;
     }
@@ -740,10 +744,10 @@ export function TicketDetailPage() {
       loadedTicketRef.current = updatedTicket;
       setTicket(updatedTicket);
       setSelectedDepartmentId(updatedTicket.departmentId ?? departmentId);
-      setDepartmentUpdateSuccess('Department assignment updated.');
+      setDepartmentUpdateSuccess(t('ticket.review.departmentUpdated'));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unable to update the ticket department.';
+        error instanceof Error ? error.message : t('ticket.review.unableUpdateDepartment');
       setDepartmentUpdateError(message);
       setSelectedDepartmentId(previousDepartmentId);
       setDepartmentUpdateSuccess(null);
@@ -783,10 +787,10 @@ export function TicketDetailPage() {
             ? `team:${updatedTicket.assignedTeamId}`
             : '',
       );
-      setWorkforceSuccess('Workforce assignment updated.');
+      setWorkforceSuccess(t('ticket.review.workforceUpdated'));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unable to update the workforce assignment.';
+        error instanceof Error ? error.message : t('ticket.review.unableUpdateWorkforce');
       setWorkforceError(message);
       setSelectedWorkforceValue(previous);
     } finally {
@@ -835,7 +839,7 @@ export function TicketDetailPage() {
       setWorkOrderNote('');
     } catch (error) {
       setWorkOrderError(
-        error instanceof Error ? error.message : 'Unable to update the work order.',
+        error instanceof Error ? error.message : t('ticket.workOrder.unableUpdate'),
       );
     } finally {
       setIsMutatingWorkOrder(false);
@@ -858,7 +862,7 @@ export function TicketDetailPage() {
           summary: workOrderSummary.trim() || undefined,
           ...assignee,
         }),
-      'Work order saved.',
+      t('ticket.workOrder.saved'),
     );
   };
 
@@ -876,10 +880,14 @@ export function TicketDetailPage() {
     try {
       await uploadWorkOrderEvidence(workOrderId, kind, file);
       await refreshWorkOrders(ticket?.ticketId ?? '');
-      setWorkOrderSuccess(kind === 'AFTER' ? 'After image attached.' : 'Before image attached.');
+      setWorkOrderSuccess(
+        kind === 'AFTER'
+          ? t('ticket.workOrder.afterAttached')
+          : t('ticket.workOrder.beforeAttached'),
+      );
     } catch (error) {
       setWorkOrderError(
-        error instanceof Error ? error.message : 'Unable to upload maintenance evidence.',
+        error instanceof Error ? error.message : t('ticket.workOrder.unableUpload'),
       );
     } finally {
       setIsUploadingEvidence(false);
@@ -902,9 +910,7 @@ export function TicketDetailPage() {
         setPendingStatus(refreshed.status);
       }
     } catch (error) {
-      setFeedbackError(
-        error instanceof Error ? error.message : 'Unable to review resolution feedback.',
-      );
+      setFeedbackError(error instanceof Error ? error.message : t('ticket.feedback.unableReview'));
     } finally {
       setIsReviewingFeedback(false);
     }
@@ -952,7 +958,7 @@ export function TicketDetailPage() {
           ...current,
           [candidateId]: {
             status: 'error',
-            message: 'This candidate ticket is no longer available.',
+            message: t('ticket.duplicates.candidateGone'),
           },
         }));
         return;
@@ -970,7 +976,7 @@ export function TicketDetailPage() {
         [candidateId]: {
           status: 'error',
           message:
-            error instanceof Error ? error.message : 'Unable to load the duplicate comparison.',
+            error instanceof Error ? error.message : t('ticket.duplicates.unableLoadComparison'),
         },
       }));
     }
@@ -1017,12 +1023,12 @@ export function TicketDetailPage() {
     }
 
     if (selectedDuplicateIds.length === 0) {
-      setMergeError('Select at least one duplicate ticket to merge.');
+      setMergeError(t('ticket.duplicates.selectAtLeastOne'));
       return;
     }
 
     if (selectedDuplicateIds.some((id) => comparisons[id]?.status !== 'ready')) {
-      setMergeError('Review the side-by-side comparison of every selected ticket before merging.');
+      setMergeError(t('ticket.duplicates.reviewBeforeMerge'));
       return;
     }
 
@@ -1036,7 +1042,7 @@ export function TicketDetailPage() {
       });
 
       if (!updatedTicket) {
-        setMergeError('One or more selected tickets were not found.');
+        setMergeError(t('ticket.duplicates.notFound'));
         return;
       }
 
@@ -1052,7 +1058,7 @@ export function TicketDetailPage() {
       setSelectedCandidatesById({});
       setIsMergeDialogOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to merge duplicate tickets.';
+      const message = error instanceof Error ? error.message : t('ticket.duplicates.unableMerge');
       setMergeError(message);
       setIsMergeDialogOpen(false);
     } finally {
@@ -1154,7 +1160,7 @@ export function TicketDetailPage() {
         setDuplicateCandidates([]);
         setCandidateNextCursor(null);
         setCandidateError(
-          error instanceof Error ? error.message : 'Unable to load duplicate candidates.',
+          error instanceof Error ? error.message : t('ticket.duplicates.unableLoad'),
         );
         setCandidateLoadState('error');
       }
@@ -1185,7 +1191,7 @@ export function TicketDetailPage() {
       setCandidateNextCursor(page.nextCursor);
     } catch (error) {
       setCandidateError(
-        error instanceof Error ? error.message : 'Unable to load more duplicate candidates.',
+        error instanceof Error ? error.message : t('ticket.duplicates.unableLoadMore'),
       );
     } finally {
       setIsLoadingMoreCandidates(false);
@@ -1465,22 +1471,18 @@ export function TicketDetailPage() {
                 aria-labelledby={ticketDetailTabId('review')}
                 className="ticket-detail__panel"
               >
-                <h3 className="sr-only">Review &amp; actions</h3>
+                <h3 className="sr-only">{t('ticket.review.heading')}</h3>
 
                 <p className="ticket-detail__ai-disclaimer">
                   <span className="ticket-detail__ai-icon" aria-hidden="true">
                     <IconSparkles />
                   </span>
-                  AI-assisted fields are decision support only. Staff must verify them before
-                  acting.
+                  {t('ticket.review.aiWarning')}
                 </p>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Image privacy review</h4>
-                  <p className="ticket-detail__card-hint">
-                    Originals stay private. Approve a redacted candidate before it can appear
-                    publicly.
-                  </p>
+                  <h4 className="ticket-detail__card-title">{t('ticket.review.privacyTitle')}</h4>
+                  <p className="ticket-detail__card-hint">{t('ticket.review.privacyHint')}</p>
                   <ImageRedactionReviewPanel
                     ticketId={ticket.ticketId}
                     category={effectiveCategory ?? ticket.category}
@@ -1495,19 +1497,17 @@ export function TicketDetailPage() {
                 </div>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Municipal actions</h4>
-                  <p className="ticket-detail__card-hint">
-                    Status and department never change until you save the change.
-                  </p>
+                  <h4 className="ticket-detail__card-title">{t('ticket.review.municipalTitle')}</h4>
+                  <p className="ticket-detail__card-hint">{t('ticket.review.municipalHint')}</p>
 
                   <div className="ticket-detail__actions-grid">
                     <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__eyebrow">Status</p>
+                      <p className="ticket-detail__eyebrow">{t('ticket.review.statusEyebrow')}</p>
                       <p className="ticket-detail__current-value">
-                        Current: <StatusBadge status={ticket.status} />
+                        {t('ticket.review.currentPrefix')} <StatusBadge status={ticket.status} />
                       </p>
                       <div className="ticket-detail__control-row">
-                        <label htmlFor="status-update-select">New status</label>
+                        <label htmlFor="status-update-select">{t('ticket.review.newStatus')}</label>
                         <select
                           id="status-update-select"
                           className="ticket-detail__control-select"
@@ -1533,13 +1533,17 @@ export function TicketDetailPage() {
                               isUpdatingStatus || !pendingStatus || pendingStatus === ticket.status
                             }
                           >
-                            {isUpdatingStatus ? 'Applying...' : 'Apply status change'}
+                            {isUpdatingStatus
+                              ? t('ticket.review.applying')
+                              : t('ticket.review.applyStatus')}
                           </button>
                         </div>
                       </div>
                       {pendingOutcomeKind && (
                         <div className="ticket-detail__control-row">
-                          <label htmlFor="status-reason-select">Required reason</label>
+                          <label htmlFor="status-reason-select">
+                            {t('ticket.review.requiredReason')}
+                          </label>
                           <select
                             id="status-reason-select"
                             className="ticket-detail__control-select"
@@ -1550,14 +1554,16 @@ export function TicketDetailPage() {
                             }}
                             disabled={isUpdatingStatus}
                           >
-                            <option value="">Select a reason</option>
+                            <option value="">{t('ticket.review.selectReason')}</option>
                             {reasonsForKind(pendingOutcomeKind).map((reason) => (
                               <option key={reason.code} value={reason.code}>
                                 {reason.label}
                               </option>
                             ))}
                           </select>
-                          <label htmlFor="status-private-note">Private note (optional)</label>
+                          <label htmlFor="status-private-note">
+                            {t('ticket.review.privateNote')}
+                          </label>
                           <input
                             id="status-private-note"
                             className="ticket-detail__control-select"
@@ -1570,21 +1576,25 @@ export function TicketDetailPage() {
                       )}
                       {ticket.outcome && (
                         <p className="ticket-detail__card-hint">
-                          Recorded outcome
+                          {t('ticket.review.recordedOutcome')}
                           {ticket.outcome.resolutionReasonCode
-                            ? `: ${ticket.outcome.resolutionReasonCode}`
+                            ? t('ticket.review.recordedOutcomeCode', {
+                                code: ticket.outcome.resolutionReasonCode,
+                              })
                             : ''}
                           {ticket.outcome.closureReasonCode
-                            ? ` / closed: ${ticket.outcome.closureReasonCode}`
+                            ? t('ticket.review.closedCode', {
+                                code: ticket.outcome.closureReasonCode,
+                              })
                             : ''}
                           {ticket.outcome.resolutionNote
-                            ? `. Private resolution note on file.`
+                            ? t('ticket.review.privateNoteOnFile')
                             : ''}
                         </p>
                       )}
                       {isUpdatingStatus && (
                         <p className="ticket-detail__status-message" role="status">
-                          Saving...
+                          {t('ticket.review.saving')}
                         </p>
                       )}
                       {statusUpdateError && (
@@ -1595,7 +1605,9 @@ export function TicketDetailPage() {
                     </div>
 
                     <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__eyebrow">Department</p>
+                      <p className="ticket-detail__eyebrow">
+                        {t('ticket.review.departmentEyebrow')}
+                      </p>
                       <div className="ticket-detail__department-current">
                         <span className="ticket-detail__department">
                           {ticket.departmentName ?? formatDepartment(ticket.departmentId)}
@@ -1606,13 +1618,17 @@ export function TicketDetailPage() {
                               <span className="ticket-detail__ai-icon" aria-hidden="true">
                                 <IconSparkles />
                               </span>
-                              Suggested: {formatDepartment(ticket.ai.suggestedDepartmentId)}
+                              {t('ticket.review.suggested', {
+                                department: formatDepartment(ticket.ai.suggestedDepartmentId),
+                              })}
                             </small>
                           )}
                       </div>
 
                       <div className="ticket-detail__control-row">
-                        <label htmlFor="department-assign-select">Assigned department</label>
+                        <label htmlFor="department-assign-select">
+                          {t('ticket.review.assignedDepartment')}
+                        </label>
                         <select
                           id="department-assign-select"
                           className="ticket-detail__control-select"
@@ -1624,7 +1640,7 @@ export function TicketDetailPage() {
                           }}
                           disabled={isSavingDepartment}
                         >
-                          <option value="">Select a department</option>
+                          <option value="">{t('ticket.review.selectDepartment')}</option>
                           {DEPARTMENT_OPTIONS.map((department) => (
                             <option key={department.departmentId} value={department.departmentId}>
                               {department.name}
@@ -1645,7 +1661,7 @@ export function TicketDetailPage() {
                                 }
                                 disabled={isSavingDepartment || !ticket.ai?.suggestedDepartmentId}
                               >
-                                Accept suggested department
+                                {t('ticket.review.acceptSuggestedDepartment')}
                               </button>
                             )}
                           <button
@@ -1658,14 +1674,16 @@ export function TicketDetailPage() {
                               selectedDepartmentId === (ticket.departmentId ?? '')
                             }
                           >
-                            {isSavingDepartment ? 'Saving department...' : 'Save department'}
+                            {isSavingDepartment
+                              ? t('ticket.review.savingDepartment')
+                              : t('ticket.review.saveDepartment')}
                           </button>
                         </div>
                       </div>
 
                       {isSavingDepartment && (
                         <p className="ticket-detail__status-message" role="status">
-                          Saving department assignment...
+                          {t('ticket.review.savingDepartmentAssignment')}
                         </p>
                       )}
                       {!isSavingDepartment && departmentUpdateSuccess && (
@@ -1680,10 +1698,11 @@ export function TicketDetailPage() {
                       )}
                       {ticket.updatedBy && ticket.departmentId && (
                         <small className="ticket-detail__department-actor">
-                          Last updated by {ticket.updatedBy}
+                          {t('ticket.review.lastUpdatedBy', { name: ticket.updatedBy })}
                           {ticket.updatedAt ? (
                             <>
-                              {' on '}
+                              {' '}
+                              {t('ticket.review.on')}{' '}
                               <time dateTime={ticket.updatedAt}>
                                 {formatCreatedDate(ticket.updatedAt)}
                               </time>
@@ -1694,9 +1713,11 @@ export function TicketDetailPage() {
                     </div>
 
                     <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__eyebrow">Field assignment</p>
+                      <p className="ticket-detail__eyebrow">{t('ticket.review.fieldAssignment')}</p>
                       <div className="ticket-detail__control-row">
-                        <label htmlFor="workforce-assign-select">Assigned worker or team</label>
+                        <label htmlFor="workforce-assign-select">
+                          {t('ticket.review.assignedWorkerOrTeam')}
+                        </label>
                         <select
                           id="workforce-assign-select"
                           className="ticket-detail__control-select"
@@ -1708,7 +1729,7 @@ export function TicketDetailPage() {
                           }}
                           disabled={isSavingWorkforce}
                         >
-                          <option value="">Unassigned</option>
+                          <option value="">{t('ticket.review.unassigned')}</option>
                           {workers
                             .filter(
                               (worker) =>
@@ -1719,8 +1740,9 @@ export function TicketDetailPage() {
                             )
                             .map((worker) => (
                               <option key={worker.workerId} value={`worker:${worker.workerId}`}>
-                                Worker: {worker.displayName}
-                                {worker.active ? '' : ' (inactive)'}
+                                {worker.active
+                                  ? t('ticket.review.workerOption', { name: worker.displayName })
+                                  : t('ticket.review.workerInactive', { name: worker.displayName })}
                               </option>
                             ))}
                           {teams
@@ -1733,8 +1755,9 @@ export function TicketDetailPage() {
                             )
                             .map((team) => (
                               <option key={team.teamId} value={`team:${team.teamId}`}>
-                                Team: {team.displayName}
-                                {team.active ? '' : ' (inactive)'}
+                                {team.active
+                                  ? t('ticket.review.teamOption', { name: team.displayName })
+                                  : t('ticket.review.teamInactive', { name: team.displayName })}
                               </option>
                             ))}
                         </select>
@@ -1745,7 +1768,9 @@ export function TicketDetailPage() {
                             onClick={() => void handleWorkforceAssignment()}
                             disabled={isSavingWorkforce}
                           >
-                            {isSavingWorkforce ? 'Saving assignment...' : 'Save assignment'}
+                            {isSavingWorkforce
+                              ? t('ticket.review.savingAssignment')
+                              : t('ticket.review.saveAssignment')}
                           </button>
                         </div>
                       </div>
@@ -1764,16 +1789,15 @@ export function TicketDetailPage() {
                 </div>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Maintenance work order</h4>
-                  <p className="ticket-detail__card-hint">
-                    The work order is the private execution record. Completing it does not resolve
-                    the citizen ticket.
-                  </p>
+                  <h4 className="ticket-detail__card-title">{t('ticket.workOrder.title')}</h4>
+                  <p className="ticket-detail__card-hint">{t('ticket.workOrder.hint')}</p>
                   {activeWorkOrder ? (
                     <div className="ticket-detail__action-group">
                       <p className="ticket-detail__current-value">
-                        Current: {formatWorkOrderState(activeWorkOrder.state)} (
-                        {activeWorkOrder.workOrderId})
+                        {t('ticket.workOrder.current', {
+                          state: formatWorkOrderState(activeWorkOrder.state),
+                          id: activeWorkOrder.workOrderId,
+                        })}
                       </p>
                       <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
                       <div className="ticket-detail__evidence-groups">
@@ -1782,11 +1806,10 @@ export function TicketDetailPage() {
                             id="citizen-report-evidence-heading"
                             className="ticket-detail__card-title"
                           >
-                            Citizen report evidence
+                            {t('ticket.workOrder.citizenEvidence')}
                           </h5>
                           <p className="ticket-detail__card-hint">
-                            Original citizen photo, associated by the server. Staff cannot attach an
-                            arbitrary storage key.
+                            {t('ticket.workOrder.citizenEvidenceHint')}
                           </p>
                           <EvidencePhotoList
                             items={
@@ -1809,21 +1832,21 @@ export function TicketDetailPage() {
                                     ]
                                   : []
                             }
-                            emptyLabel="No citizen report photo is available."
+                            emptyLabel={t('ticket.workOrder.noCitizenPhoto')}
                             category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
                           />
                         </section>
                         <section aria-labelledby="maintenance-before-heading">
                           <h5 id="maintenance-before-heading" className="ticket-detail__card-title">
-                            Maintenance before
+                            {t('ticket.workOrder.beforeTitle')}
                           </h5>
                           <EvidencePhotoList
                             items={beforeEvidence}
-                            emptyLabel="No before images yet."
+                            emptyLabel={t('ticket.workOrder.noBefore')}
                             category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
                           />
                           <label className="ticket-detail__card-hint" htmlFor="wo-before-upload">
-                            Upload a before image
+                            {t('ticket.workOrder.uploadBefore')}
                           </label>
                           <input
                             id="wo-before-upload"
@@ -1843,15 +1866,15 @@ export function TicketDetailPage() {
                         </section>
                         <section aria-labelledby="maintenance-after-heading">
                           <h5 id="maintenance-after-heading" className="ticket-detail__card-title">
-                            Maintenance after
+                            {t('ticket.workOrder.afterTitle')}
                           </h5>
                           <EvidencePhotoList
                             items={afterEvidence}
-                            emptyLabel="At least one after image is required before completion."
+                            emptyLabel={t('ticket.workOrder.noAfter')}
                             category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
                           />
                           <label className="ticket-detail__card-hint" htmlFor="wo-after-upload">
-                            Upload an after image
+                            {t('ticket.workOrder.uploadAfter')}
                           </label>
                           <input
                             id="wo-after-upload"
@@ -1867,7 +1890,9 @@ export function TicketDetailPage() {
                         </section>
                       </div>
                       <div className="ticket-detail__control-row">
-                        <label htmlFor="active-work-order-assignee">Work-order assignee</label>
+                        <label htmlFor="active-work-order-assignee">
+                          {t('ticket.workOrder.assignee')}
+                        </label>
                         <select
                           id="active-work-order-assignee"
                           className="ticket-detail__control-select"
@@ -1875,13 +1900,15 @@ export function TicketDetailPage() {
                           onChange={(event) => setWorkOrderAssignee(event.target.value)}
                           disabled={isMutatingWorkOrder}
                         >
-                          <option value="">Unassigned</option>
+                          <option value="">{t('ticket.review.unassigned')}</option>
                           {activeWorkOrder.assignedWorkerId &&
                             !workers.some(
                               (worker) => worker.workerId === activeWorkOrder.assignedWorkerId,
                             ) && (
                               <option value={`worker:${activeWorkOrder.assignedWorkerId}`}>
-                                Worker: {activeWorkOrder.assignedWorkerId}
+                                {t('ticket.review.workerOption', {
+                                  name: activeWorkOrder.assignedWorkerId,
+                                })}
                               </option>
                             )}
                           {activeWorkOrder.assignedTeamId &&
@@ -1889,21 +1916,23 @@ export function TicketDetailPage() {
                               (team) => team.teamId === activeWorkOrder.assignedTeamId,
                             ) && (
                               <option value={`team:${activeWorkOrder.assignedTeamId}`}>
-                                Team: {activeWorkOrder.assignedTeamId}
+                                {t('ticket.review.teamOption', {
+                                  name: activeWorkOrder.assignedTeamId,
+                                })}
                               </option>
                             )}
                           {workers
                             .filter((worker) => worker.active)
                             .map((worker) => (
                               <option key={worker.workerId} value={`worker:${worker.workerId}`}>
-                                Worker: {worker.displayName}
+                                {t('ticket.review.workerOption', { name: worker.displayName })}
                               </option>
                             ))}
                           {teams
                             .filter((team) => team.active)
                             .map((team) => (
                               <option key={team.teamId} value={`team:${team.teamId}`}>
-                                Team: {team.displayName}
+                                {t('ticket.review.teamOption', { name: team.displayName })}
                               </option>
                             ))}
                         </select>
@@ -1923,11 +1952,11 @@ export function TicketDetailPage() {
                                         ? { teamId: workOrderAssignee.slice('team:'.length) }
                                         : { workerId: workOrderAssignee.slice('worker:'.length) },
                                   ),
-                                'Work order assignment updated.',
+                                t('ticket.workOrder.assignmentUpdated'),
                               )
                             }
                           >
-                            Save work-order assignment
+                            {t('ticket.workOrder.saveAssignment')}
                           </button>
                         </div>
                       </div>
@@ -1940,11 +1969,11 @@ export function TicketDetailPage() {
                             onClick={() =>
                               void runWorkOrderMutation(
                                 () => startWorkOrder(activeWorkOrder.workOrderId),
-                                'Work order started.',
+                                t('ticket.workOrder.started'),
                               )
                             }
                           >
-                            Start work
+                            {t('ticket.workOrder.startWork')}
                           </button>
                         )}
                         {activeWorkOrder.state === 'IN_PROGRESS' && (
@@ -1955,16 +1984,18 @@ export function TicketDetailPage() {
                             onClick={() =>
                               void runWorkOrderMutation(
                                 () => completeWorkOrder(activeWorkOrder.workOrderId, workOrderNote),
-                                'Work order completed. Resolve the ticket separately.',
+                                t('ticket.workOrder.completed'),
                               )
                             }
                           >
-                            Complete work
+                            {t('ticket.workOrder.completeWork')}
                           </button>
                         )}
                       </div>
                       <div className="ticket-detail__control-row">
-                        <label htmlFor="work-order-cancel-reason">Cancel reason</label>
+                        <label htmlFor="work-order-cancel-reason">
+                          {t('ticket.workOrder.cancelReason')}
+                        </label>
                         <select
                           id="work-order-cancel-reason"
                           className="ticket-detail__control-select"
@@ -1972,14 +2003,14 @@ export function TicketDetailPage() {
                           onChange={(event) => setWorkOrderCancelReason(event.target.value)}
                           disabled={isMutatingWorkOrder}
                         >
-                          <option value="">Select a cancel reason</option>
-                          {WORK_ORDER_CANCEL_REASONS.map((reason) => (
+                          <option value="">{t('ticket.workOrder.selectCancelReason')}</option>
+                          {workOrderCancelReasons().map((reason) => (
                             <option key={reason.code} value={reason.code}>
                               {reason.label}
                             </option>
                           ))}
                         </select>
-                        <label htmlFor="work-order-note">Private note (optional)</label>
+                        <label htmlFor="work-order-note">{t('ticket.review.privateNote')}</label>
                         <input
                           id="work-order-note"
                           className="ticket-detail__control-select"
@@ -2001,11 +2032,11 @@ export function TicketDetailPage() {
                                     workOrderCancelReason,
                                     workOrderNote,
                                   ),
-                                'Work order cancelled.',
+                                t('ticket.workOrder.cancelled'),
                               )
                             }
                           >
-                            Cancel work order
+                            {t('ticket.workOrder.cancelWorkOrder')}
                           </button>
                         </div>
                       </div>
@@ -2013,17 +2044,19 @@ export function TicketDetailPage() {
                   ) : (
                     <div className="ticket-detail__action-group">
                       <div className="ticket-detail__control-row">
-                        <label htmlFor="work-order-summary">Summary</label>
+                        <label htmlFor="work-order-summary">{t('ticket.workOrder.summary')}</label>
                         <input
                           id="work-order-summary"
                           className="ticket-detail__control-select"
                           value={workOrderSummary}
                           maxLength={500}
-                          placeholder="Optional operational summary"
+                          placeholder={t('ticket.workOrder.summaryPlaceholder')}
                           onChange={(event) => setWorkOrderSummary(event.target.value)}
                           disabled={isMutatingWorkOrder}
                         />
-                        <label htmlFor="work-order-assignee">Assign worker or team</label>
+                        <label htmlFor="work-order-assignee">
+                          {t('ticket.workOrder.assignWorkerOrTeam')}
+                        </label>
                         <select
                           id="work-order-assignee"
                           className="ticket-detail__control-select"
@@ -2031,19 +2064,19 @@ export function TicketDetailPage() {
                           onChange={(event) => setWorkOrderAssignee(event.target.value)}
                           disabled={isMutatingWorkOrder}
                         >
-                          <option value="">Unassigned</option>
+                          <option value="">{t('ticket.review.unassigned')}</option>
                           {workers
                             .filter((worker) => worker.active)
                             .map((worker) => (
                               <option key={worker.workerId} value={`worker:${worker.workerId}`}>
-                                Worker: {worker.displayName}
+                                {t('ticket.review.workerOption', { name: worker.displayName })}
                               </option>
                             ))}
                           {teams
                             .filter((team) => team.active)
                             .map((team) => (
                               <option key={team.teamId} value={`team:${team.teamId}`}>
-                                Team: {team.displayName}
+                                {t('ticket.review.teamOption', { name: team.displayName })}
                               </option>
                             ))}
                         </select>
@@ -2054,7 +2087,9 @@ export function TicketDetailPage() {
                             disabled={isMutatingWorkOrder}
                             onClick={() => void handleCreateWorkOrder()}
                           >
-                            {isMutatingWorkOrder ? 'Saving work order...' : 'Create work order'}
+                            {isMutatingWorkOrder
+                              ? t('ticket.workOrder.saving')
+                              : t('ticket.workOrder.create')}
                           </button>
                         </div>
                       </div>
@@ -2062,8 +2097,7 @@ export function TicketDetailPage() {
                   )}
                   {workOrders.length > 1 && (
                     <p className="ticket-detail__card-hint">
-                      {workOrders.length} work orders on this ticket. Previous completed or
-                      cancelled records stay in the activity timeline.
+                      {t('ticket.workOrder.countHint', { count: workOrders.length })}
                     </p>
                   )}
                   {workOrderSuccess && (
@@ -2080,15 +2114,15 @@ export function TicketDetailPage() {
 
                 {resolutionFeedback?.status ? (
                   <div className="ticket-detail__card">
-                    <h4 className="ticket-detail__card-title">Citizen resolution feedback</h4>
+                    <h4 className="ticket-detail__card-title">{t('ticket.feedback.title')}</h4>
                     <p className="ticket-detail__current-value">
                       {resolutionFeedback.status === 'CONFIRMED_FIXED'
-                        ? 'Citizen confirmed the issue is fixed.'
-                        : 'Citizen reported the issue is still unresolved.'}
+                        ? t('ticket.feedback.confirmedFixed')
+                        : t('ticket.feedback.stillUnresolved')}
                     </p>
                     {resolutionFeedback.note ? (
                       <p className="ticket-detail__card-hint">
-                        Private note: {resolutionFeedback.note}
+                        {t('ticket.feedback.privateNote', { note: resolutionFeedback.note })}
                       </p>
                     ) : null}
                     {resolutionFeedback.needsReview ? (
@@ -2099,7 +2133,7 @@ export function TicketDetailPage() {
                           disabled={isReviewingFeedback}
                           onClick={() => void handleFeedbackReview('KEEP_RESOLVED')}
                         >
-                          Keep resolved after review
+                          {t('ticket.feedback.keepResolved')}
                         </button>
                         <button
                           type="button"
@@ -2107,13 +2141,16 @@ export function TicketDetailPage() {
                           disabled={isReviewingFeedback}
                           onClick={() => void handleFeedbackReview('RETURN_IN_PROGRESS')}
                         >
-                          Return to in progress
+                          {t('ticket.feedback.returnInProgress')}
                         </button>
                       </div>
                     ) : resolutionFeedback.reviewAction ? (
                       <p className="ticket-detail__card-hint">
-                        Reviewed:{' '}
-                        {resolutionFeedback.reviewAction.replaceAll('_', ' ').toLowerCase()}.
+                        {t('ticket.feedback.reviewed', {
+                          action: resolutionFeedback.reviewAction
+                            .replaceAll('_', ' ')
+                            .toLowerCase(),
+                        })}
                       </p>
                     ) : null}
                     {feedbackError ? (
@@ -2126,35 +2163,37 @@ export function TicketDetailPage() {
 
                 <div className="ticket-detail__card">
                   <div className="ticket-detail__card-heading-row">
-                    <h4 className="ticket-detail__card-title">Category decision</h4>
+                    <h4 className="ticket-detail__card-title">
+                      {t('ticket.review.categoryTitle')}
+                    </h4>
                     <span className="ticket-detail__ai-chip">
                       <span className="ticket-detail__ai-icon" aria-hidden="true">
                         <IconSparkles />
                       </span>
-                      AI-assisted
+                      {t('ticket.review.aiAssisted')}
                     </span>
                     {ticket.ai?.finalCategory && (
-                      <span className="ticket-detail__review-status">Reviewed</span>
+                      <span className="ticket-detail__review-status">
+                        {t('ticket.review.reviewed')}
+                      </span>
                     )}
                   </div>
 
                   {!ticket.ai && (
                     <p className="ticket-detail__review-notice" role="status">
-                      No AI analysis is available for this ticket. Select the correct category
-                      manually.
+                      {t('ticket.review.noAi')}
                     </p>
                   )}
 
                   {ticket.ai?.aiProcessingStatus === 'pending' && (
                     <p className="ticket-detail__review-notice" role="status">
-                      AI processing is still in progress. Category review will be available when it
-                      finishes.
+                      {t('ticket.review.aiPending')}
                     </p>
                   )}
 
                   {ticket.ai?.aiProcessingStatus === 'processing' && (
                     <p className="ticket-detail__review-notice" role="status">
-                      AI processing is running. Suggestions may still change.
+                      {t('ticket.review.aiProcessing')}
                     </p>
                   )}
 
@@ -2163,17 +2202,21 @@ export function TicketDetailPage() {
                       className="ticket-detail__review-notice ticket-detail__review-notice--warning"
                       role="status"
                     >
-                      AI could not recommend a category. Select the correct category manually.
+                      {t('ticket.review.aiFailed')}
                     </p>
                   )}
 
                   {ticket.ai?.aiSuggestedCategory && (
                     <div className="ticket-detail__suggestion">
-                      <span className="ticket-detail__suggestion-label">AI suggestion</span>
+                      <span className="ticket-detail__suggestion-label">
+                        {t('ticket.review.aiSuggestion')}
+                      </span>
                       <CategoryBadge category={ticket.ai.aiSuggestedCategory} />
                       {ticket.ai.aiConfidence !== undefined && (
                         <span className="ticket-detail__confidence">
-                          Confidence {Math.round(ticket.ai.aiConfidence * 100)}%
+                          {t('ticket.review.confidence', {
+                            percent: Math.round(ticket.ai.aiConfidence * 100),
+                          })}
                         </span>
                       )}
                       {ticket.ai.aiCategoryExplanation && (
@@ -2186,15 +2229,17 @@ export function TicketDetailPage() {
 
                   {ticket.ai?.finalCategory && (
                     <div className="ticket-detail__review-result" role="status">
-                      <span>Final category</span>
+                      <span>{t('ticket.review.finalCategory')}</span>
                       <CategoryBadge category={ticket.ai.finalCategory} />
                       {ticket.ai.categoryReviewedAt && (
                         <small>
-                          Reviewed
+                          {t('ticket.review.reviewed')}
                           {ticket.ai.categoryReviewedBy
-                            ? ` by ${ticket.ai.categoryReviewedBy}`
-                            : ''}
-                          {' on '}
+                            ? t('ticket.review.reviewedBy', {
+                                name: ticket.ai.categoryReviewedBy,
+                              })
+                            : ''}{' '}
+                          {t('ticket.review.on')}{' '}
                           <time dateTime={ticket.ai.categoryReviewedAt}>
                             {formatCreatedDate(ticket.ai.categoryReviewedAt)}
                           </time>
@@ -2204,7 +2249,9 @@ export function TicketDetailPage() {
                   )}
 
                   <div className="ticket-detail__control-row">
-                    <label htmlFor="category-review-select">Final category</label>
+                    <label htmlFor="category-review-select">
+                      {t('ticket.review.finalCategory')}
+                    </label>
                     <select
                       id="category-review-select"
                       className="ticket-detail__control-select"
@@ -2215,7 +2262,7 @@ export function TicketDetailPage() {
                       }}
                       disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
                     >
-                      <option value="">Select a category</option>
+                      <option value="">{t('ticket.review.selectCategory')}</option>
                       {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
                         <option key={category} value={category}>
                           {formatCategory(category)}
@@ -2237,7 +2284,7 @@ export function TicketDetailPage() {
                             ticket.ai.finalCategory === ticket.ai.aiSuggestedCategory
                           }
                         >
-                          Accept AI suggestion
+                          {t('ticket.review.acceptAi')}
                         </button>
                       )}
                       <button
@@ -2250,7 +2297,9 @@ export function TicketDetailPage() {
                           !selectedCategory
                         }
                       >
-                        {isSavingCategory ? 'Saving category...' : 'Save final category'}
+                        {isSavingCategory
+                          ? t('ticket.review.savingCategory')
+                          : t('ticket.review.saveFinalCategory')}
                       </button>
                     </div>
                   </div>
@@ -2265,12 +2314,14 @@ export function TicketDetailPage() {
                 {(ticket.ai?.urgencyScore !== undefined || ticket.ai?.urgencyReason) && (
                   <div className="ticket-detail__card ticket-detail__card--urgency">
                     <div className="ticket-detail__card-heading-row">
-                      <h4 className="ticket-detail__card-title">Urgency</h4>
+                      <h4 className="ticket-detail__card-title">
+                        {t('ticket.review.urgencyTitle')}
+                      </h4>
                       <span className="ticket-detail__ai-chip">
                         <span className="ticket-detail__ai-icon" aria-hidden="true">
                           <IconSparkles />
                         </span>
-                        AI-assisted
+                        {t('ticket.review.aiAssisted')}
                       </span>
                       {ticket.ai?.urgencyScore !== undefined && (
                         <span className="ticket-detail__urgency-summary">
@@ -2281,7 +2332,7 @@ export function TicketDetailPage() {
 
                     {ticket.ai?.urgencyReason && (
                       <details className="ticket-detail__disclosure">
-                        <summary>Why this score?</summary>
+                        <summary>{t('ticket.review.whyScore')}</summary>
                         <p className="ticket-detail__rationale">{ticket.ai.urgencyReason}</p>
                       </details>
                     )}
@@ -2298,23 +2349,18 @@ export function TicketDetailPage() {
                 aria-labelledby={ticketDetailTabId('duplicates')}
                 className="ticket-detail__panel"
               >
-                <h3 className="sr-only">Duplicates</h3>
+                <h3 className="sr-only">{t('ticket.duplicates.heading')}</h3>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Possible duplicates</h4>
-                  <p className="ticket-detail__card-hint">
-                    Suggested matches are automated hints, not confirmed duplicates. Compare the
-                    evidence before merging.
-                  </p>
+                  <h4 className="ticket-detail__card-title">{t('ticket.duplicates.title')}</h4>
+                  <p className="ticket-detail__card-hint">{t('ticket.duplicates.hint')}</p>
 
                   {ticket.duplicateGroupId && (
                     <div className="ticket-detail__group-summary" role="status">
                       <p>
-                        This ticket is grouped
                         {ticket.duplicateGroup?.canonicalTicketId === ticket.ticketId
-                          ? ' as the main report'
-                          : ''}
-                        .
+                          ? t('ticket.duplicates.groupedAsMain')
+                          : t('ticket.duplicates.grouped')}
                       </p>
                       {ticket.duplicateGroup?.ticketIds && (
                         <ul className="ticket-detail__group-links">
@@ -2323,14 +2369,14 @@ export function TicketDetailPage() {
                               {memberId === ticket.ticketId ? (
                                 <span>
                                   {memberId === ticket.duplicateGroup?.canonicalTicketId
-                                    ? 'Main: '
+                                    ? t('ticket.duplicates.mainPrefix')
                                     : ''}
-                                  Current ticket
+                                  {t('ticket.duplicates.currentTicket')}
                                 </span>
                               ) : (
                                 <Link to={`/tickets/${memberId}`}>
                                   {memberId === ticket.duplicateGroup?.canonicalTicketId
-                                    ? 'Main: '
+                                    ? t('ticket.duplicates.mainPrefix')
                                     : ''}
                                   {memberId}
                                 </Link>
@@ -2341,7 +2387,7 @@ export function TicketDetailPage() {
                       )}
                       {!isCanonicalTicket && (
                         <p className="ticket-detail__merge-help">
-                          Add further duplicates from the main ticket.
+                          {t('ticket.duplicates.addFromMain')}
                         </p>
                       )}
                     </div>
@@ -2349,41 +2395,47 @@ export function TicketDetailPage() {
 
                   {effectiveCategory === null ? (
                     <p className="ticket-detail__merge-empty">
-                      This ticket has no reviewed or AI-suggested category yet. Duplicate
-                      suggestions and merging are available once it is classified.
+                      {t('ticket.duplicates.unclassified')}
                     </p>
                   ) : (
                     <>
                       <div className="ticket-detail__candidate-toolbar">
-                        <label htmlFor="duplicate-filter">Search duplicate candidates</label>
+                        <label htmlFor="duplicate-filter">{t('ticket.duplicates.search')}</label>
                         <input
                           id="duplicate-filter"
                           type="search"
                           className="ticket-detail__filter-input"
                           value={candidateFilter}
                           onChange={(event) => setCandidateFilter(event.target.value)}
-                          placeholder="Ticket number, description, or address"
+                          placeholder={t('ticket.duplicates.searchPlaceholder')}
                         />
                         <p className="ticket-detail__candidate-count" role="status">
                           {candidateLoadState === 'loading'
-                            ? 'Searching duplicate candidates…'
-                            : `Showing ${duplicateCandidates.length} candidate${
-                                duplicateCandidates.length === 1 ? '' : 's'
-                              }${candidateNextCursor ? ' so far' : ''}`}
+                            ? t('ticket.duplicates.searching')
+                            : t(
+                                candidateNextCursor
+                                  ? duplicateCandidates.length === 1
+                                    ? 'ticket.duplicates.showingSoFar'
+                                    : 'ticket.duplicates.showingPluralSoFar'
+                                  : duplicateCandidates.length === 1
+                                    ? 'ticket.duplicates.showing'
+                                    : 'ticket.duplicates.showingPlural',
+                                { count: duplicateCandidates.length },
+                              )}
                         </p>
                       </div>
 
                       {candidateLoadState === 'error' && (
                         <div className="ticket-detail__comparison-error">
                           <p className="ticket-detail__status-error" role="alert">
-                            {candidateError ?? 'Unable to load duplicate candidates.'}
+                            {candidateError ?? t('ticket.duplicates.unableLoad')}
                           </p>
                           <button
                             type="button"
                             className="ticket-detail__review-button ticket-detail__review-button--secondary"
                             onClick={() => setRefreshToken((current) => current + 1)}
                           >
-                            Retry candidate search
+                            {t('ticket.duplicates.retrySearch')}
                           </button>
                         </div>
                       )}
@@ -2391,15 +2443,17 @@ export function TicketDetailPage() {
                       {candidateLoadState === 'ready' && duplicateCandidates.length === 0 && (
                         <p className="ticket-detail__merge-empty">
                           {candidateQuery
-                            ? 'No duplicate candidates match this search.'
-                            : 'No possible duplicate tickets found.'}
+                            ? t('ticket.duplicates.noMatch')
+                            : t('ticket.duplicates.noneFound')}
                         </p>
                       )}
 
                       {selectedCandidates.length > 1 && (
                         <div className="ticket-detail__compare-selected">
                           <h5 className="ticket-detail__subsection-title">
-                            Compare selected ({selectedCandidates.length})
+                            {t('ticket.duplicates.compareSelected', {
+                              count: selectedCandidates.length,
+                            })}
                           </h5>
                           <ul className="ticket-detail__compare-selected-list">
                             {selectedCandidates.map((candidate) => (
@@ -2410,7 +2464,7 @@ export function TicketDetailPage() {
                                 <span>
                                   {candidate.distanceMeters !== undefined
                                     ? formatDistanceMeters(candidate.distanceMeters)
-                                    : 'Distance unknown'}
+                                    : t('ticket.duplicates.distanceUnknown')}
                                 </span>
                               </li>
                             ))}
@@ -2435,7 +2489,9 @@ export function TicketDetailPage() {
                                     checked={selectedDuplicateIds.includes(candidate.ticketId)}
                                     onChange={() => toggleDuplicateSelection(candidate)}
                                     disabled={isMerging}
-                                    aria-label={`Select ${candidate.ticketNumber} as a duplicate`}
+                                    aria-label={t('ticket.duplicates.selectAria', {
+                                      ticketNumber: candidate.ticketNumber,
+                                    })}
                                   />
                                 )}
 
@@ -2455,12 +2511,12 @@ export function TicketDetailPage() {
                                     </Link>
                                     {candidate.suggested && (
                                       <span className="ticket-detail__match-hint">
-                                        Suggested match
+                                        {t('ticket.duplicates.suggestedMatch')}
                                       </span>
                                     )}
                                     {!candidate.mergeable && (
                                       <span className="ticket-detail__match-hint">
-                                        Not available to merge
+                                        {t('ticket.duplicates.notMergeable')}
                                       </span>
                                     )}
                                   </div>
@@ -2478,7 +2534,9 @@ export function TicketDetailPage() {
                                     )}
                                     {candidate.createdAt && (
                                       <span>
-                                        {formatTicketAge(candidate.createdAt)} old ·{' '}
+                                        {t('ticket.duplicates.ageOld', {
+                                          age: formatTicketAge(candidate.createdAt),
+                                        })}
                                         <time dateTime={candidate.createdAt}>
                                           {formatCreatedDate(candidate.createdAt)}
                                         </time>
@@ -2486,7 +2544,7 @@ export function TicketDetailPage() {
                                     )}
                                     <span>
                                       {candidate.location.addressText.trim() ||
-                                        'Location not provided'}
+                                        t('ticket.duplicates.locationMissing')}
                                     </span>
                                   </div>
                                 </div>
@@ -2499,8 +2557,12 @@ export function TicketDetailPage() {
                                   onClick={() => toggleCandidateExpanded(candidate.ticketId)}
                                 >
                                   {isExpanded
-                                    ? `Hide comparison for ${candidate.ticketNumber}`
-                                    : `Compare ${candidate.ticketNumber}`}
+                                    ? t('ticket.duplicates.hideComparison', {
+                                        ticketNumber: candidate.ticketNumber,
+                                      })
+                                    : t('ticket.duplicates.compare', {
+                                        ticketNumber: candidate.ticketNumber,
+                                      })}
                                 </button>
                               </div>
 
@@ -2509,11 +2571,14 @@ export function TicketDetailPage() {
                                   id={panelId}
                                   className="ticket-detail__comparison"
                                   role="region"
-                                  aria-label={`Comparison of ${candidate.ticketNumber} with ${ticket.ticketNumber}`}
+                                  aria-label={t('ticket.duplicates.comparisonAria', {
+                                    ticketNumber: candidate.ticketNumber,
+                                    currentTicketNumber: ticket.ticketNumber,
+                                  })}
                                 >
                                   {(!comparison || comparison.status === 'loading') && (
                                     <p className="ticket-detail__status-message" role="status">
-                                      Loading comparison…
+                                      {t('ticket.duplicates.loadingComparison')}
                                     </p>
                                   )}
 
@@ -2527,7 +2592,7 @@ export function TicketDetailPage() {
                                         className="ticket-detail__review-button ticket-detail__review-button--secondary"
                                         onClick={() => void loadComparison(candidate.ticketId)}
                                       >
-                                        Retry comparison
+                                        {t('ticket.duplicates.retryComparison')}
                                       </button>
                                     </div>
                                   )}
@@ -2536,12 +2601,12 @@ export function TicketDetailPage() {
                                     <>
                                       <div className="ticket-detail__comparison-grid">
                                         <ComparisonColumn
-                                          eyebrow="Current ticket"
+                                          eyebrow={t('ticket.duplicates.currentTicketEyebrow')}
                                           heading={currentComparison.ticketNumber}
                                           data={currentComparison}
                                         />
                                         <ComparisonColumn
-                                          eyebrow="Duplicate candidate"
+                                          eyebrow={t('ticket.duplicates.candidateEyebrow')}
                                           heading={comparison.data.ticketNumber}
                                           data={comparison.data}
                                         />
@@ -2556,8 +2621,10 @@ export function TicketDetailPage() {
                                             ) ??
                                             null;
                                           return distance === null
-                                            ? 'Distance between the two reports is unavailable.'
-                                            : `Reported ${formatDistanceMeters(distance)} from the current ticket.`;
+                                            ? t('ticket.duplicates.distanceUnavailable')
+                                            : t('ticket.duplicates.reportedDistance', {
+                                                distance: formatDistanceMeters(distance),
+                                              });
                                         })()}
                                       </p>
                                     </>
@@ -2578,12 +2645,11 @@ export function TicketDetailPage() {
                             disabled={isLoadingMoreCandidates}
                           >
                             {isLoadingMoreCandidates
-                              ? 'Loading more candidates…'
-                              : 'Load more candidates'}
+                              ? t('ticket.duplicates.loadingMore')
+                              : t('ticket.duplicates.loadMore')}
                           </button>
                           <p className="ticket-detail__merge-help">
-                            More same-category candidates are available. Searching narrows the list
-                            across every page.
+                            {t('ticket.duplicates.moreHelp')}
                           </p>
                         </div>
                       )}
@@ -2594,18 +2660,24 @@ export function TicketDetailPage() {
                     <div className="ticket-detail__merge-controls">
                       <p className="ticket-detail__merge-help">
                         {ticket.duplicateGroupId
-                          ? 'Add more same-category tickets to this duplicate group.'
-                          : 'Choose other same-category tickets to link under this main report.'}
+                          ? t('ticket.duplicates.addMore')
+                          : t('ticket.duplicates.chooseOthers')}
                       </p>
                       {unresolvedSelectionCount > 0 && (
                         <p className="ticket-detail__merge-help" role="status">
                           {failedSelectionCount > 0
-                            ? `A comparison could not be loaded for ${failedSelectionCount} selected ticket${
-                                failedSelectionCount === 1 ? '' : 's'
-                              }. Open the candidate and retry the comparison before merging.`
-                            : `Loading the comparison for ${unresolvedSelectionCount} selected ticket${
-                                unresolvedSelectionCount === 1 ? '' : 's'
-                              }. Merging unlocks once every comparison is ready to review.`}
+                            ? t(
+                                failedSelectionCount === 1
+                                  ? 'ticket.duplicates.comparisonFailed'
+                                  : 'ticket.duplicates.comparisonFailedPlural',
+                                { count: failedSelectionCount },
+                              )
+                            : t(
+                                unresolvedSelectionCount === 1
+                                  ? 'ticket.duplicates.loadingSelection'
+                                  : 'ticket.duplicates.loadingSelectionPlural',
+                                { count: unresolvedSelectionCount },
+                              )}
                         </p>
                       )}
                       <button
@@ -2614,7 +2686,9 @@ export function TicketDetailPage() {
                         onClick={() => setIsMergeDialogOpen(true)}
                         disabled={isMerging || !canMergeSelection}
                       >
-                        {isMerging ? 'Merging...' : 'Merge selected as duplicates'}
+                        {isMerging
+                          ? t('ticket.duplicates.merging')
+                          : t('ticket.duplicates.mergeSelected')}
                       </button>
                       {mergeError && (
                         <p className="ticket-detail__status-error" role="alert">
@@ -2635,25 +2709,26 @@ export function TicketDetailPage() {
                 aria-labelledby={ticketDetailTabId('activity')}
                 className="ticket-detail__panel"
               >
-                <h3 className="sr-only">Activity</h3>
+                <h3 className="sr-only">{t('ticket.activity.heading')}</h3>
 
                 <div className="ticket-detail__card">
-                  <h4 className="ticket-detail__card-title">Activity timeline</h4>
-                  <p className="ticket-detail__card-hint">
-                    Private comments and normalized operational events visible only to staff.
-                  </p>
+                  <h4 className="ticket-detail__card-title">{t('ticket.activity.title')}</h4>
+                  <p className="ticket-detail__card-hint">{t('ticket.activity.hint')}</p>
                   {activityLoading && internalActivity.length === 0 && (
-                    <p role="status">Loading internal activity…</p>
+                    <p role="status">{t('ticket.activity.loading')}</p>
                   )}
                   {!activityLoading &&
                     !commentsLoading &&
                     !activityError &&
                     !commentsError &&
                     unifiedInternalActivity.length === 0 && (
-                      <p className="ticket-detail__merge-empty">No internal activity yet.</p>
+                      <p className="ticket-detail__merge-empty">{t('ticket.activity.empty')}</p>
                     )}
                   {unifiedInternalActivity.length > 0 && (
-                    <ol className="ticket-detail__activity" aria-label="Internal ticket activity">
+                    <ol
+                      className="ticket-detail__activity"
+                      aria-label={t('ticket.activity.listA11y')}
+                    >
                       {unifiedInternalActivity.map(({ event, comment }) => (
                         <li key={event.eventId} className="ticket-detail__activity-item">
                           <span className="ticket-detail__activity-marker" aria-hidden="true" />
@@ -2661,7 +2736,7 @@ export function TicketDetailPage() {
                             <div className="ticket-detail__activity-heading">
                               <span className="ticket-detail__activity-title">
                                 {comment
-                                  ? 'Internal comment'
+                                  ? t('ticket.activity.internalComment')
                                   : event.eventType.replaceAll('_', ' ')}
                               </span>
                               <time
@@ -2675,7 +2750,11 @@ export function TicketDetailPage() {
                               <>
                                 <p className="ticket-detail__activity-detail">{comment.text}</p>
                                 {comment.mentionedStaffIds.length > 0 && (
-                                  <p>Mentioned: {comment.mentionedStaffIds.join(', ')}</p>
+                                  <p>
+                                    {t('ticket.activity.mentioned', {
+                                      ids: comment.mentionedStaffIds.join(', '),
+                                    })}
+                                  </p>
                                 )}
                               </>
                             ) : (
@@ -2687,7 +2766,7 @@ export function TicketDetailPage() {
                             )}
                             {event.actorDisplayName && (
                               <p className="ticket-detail__activity-actor">
-                                By {event.actorDisplayName}
+                                {t('ticket.activity.byActor', { name: event.actorDisplayName })}
                               </p>
                             )}
                           </div>
@@ -2703,7 +2782,7 @@ export function TicketDetailPage() {
                         className="ticket-detail__ghost-button"
                         onClick={() => setActivityRefreshKey((value) => value + 1)}
                       >
-                        Retry activity
+                        {t('ticket.activity.retry')}
                       </button>
                     </p>
                   )}
@@ -2719,12 +2798,14 @@ export function TicketDetailPage() {
                       onClick={() => void loadMoreActivity()}
                       disabled={isLoadingMoreActivity}
                     >
-                      {isLoadingMoreActivity ? 'Loading…' : 'Load more activity'}
+                      {isLoadingMoreActivity
+                        ? t('ticket.activity.loadingMore')
+                        : t('ticket.activity.loadMore')}
                     </button>
                   )}
 
                   {commentsLoading && comments.length === 0 && (
-                    <p role="status">Loading internal comments…</p>
+                    <p role="status">{t('ticket.comments.loading')}</p>
                   )}
                   {commentsError && (
                     <p className="ticket-detail__status-error" role="alert">
@@ -2734,11 +2815,11 @@ export function TicketDetailPage() {
                         className="ticket-detail__ghost-button"
                         onClick={() => setCommentsRefreshKey((value) => value + 1)}
                       >
-                        Retry comments
+                        {t('ticket.comments.retry')}
                       </button>
                     </p>
                   )}
-                  <label htmlFor="internal-comment">Add internal comment</label>
+                  <label htmlFor="internal-comment">{t('ticket.comments.add')}</label>
                   <textarea
                     id="internal-comment"
                     value={commentText}
@@ -2751,7 +2832,7 @@ export function TicketDetailPage() {
                     onClick={() => void handleCommentSubmit()}
                     disabled={isSubmittingComment || !commentText.trim()}
                   >
-                    {isSubmittingComment ? 'Posting…' : 'Post comment'}
+                    {isSubmittingComment ? t('ticket.comments.posting') : t('ticket.comments.post')}
                   </button>
                   {commentError && (
                     <p className="ticket-detail__status-error" role="alert">
@@ -2779,16 +2860,18 @@ export function TicketDetailPage() {
                   aria-describedby="merge-confirm-description"
                 >
                   <h4 id="merge-confirm-title" className="ticket-detail__modal-title">
-                    Confirm duplicate merge
+                    {t('ticket.duplicates.confirmTitle')}
                   </h4>
                   <p id="merge-confirm-description" className="ticket-detail__modal-text">
-                    {ticket.ticketNumber} stays the main (canonical) ticket. The selected reports
-                    become duplicates linked to it. Their evidence and history stay preserved.
+                    {t('ticket.duplicates.confirmBody', { ticketNumber: ticket.ticketNumber })}
                   </p>
                   <ul className="ticket-detail__modal-list">
                     {selectedCandidates.map((candidate) => (
                       <li key={candidate.ticketId}>
-                        {candidate.ticketNumber} becomes a duplicate of {ticket.ticketNumber}
+                        {t('ticket.duplicates.becomesDuplicate', {
+                          ticketNumber: candidate.ticketNumber,
+                          canonicalTicketNumber: ticket.ticketNumber,
+                        })}
                       </li>
                     ))}
                   </ul>
@@ -2799,7 +2882,7 @@ export function TicketDetailPage() {
                       onClick={() => setIsMergeDialogOpen(false)}
                       disabled={isMerging}
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                     <button
                       type="button"
@@ -2808,7 +2891,9 @@ export function TicketDetailPage() {
                       onClick={() => void handleMergeDuplicates()}
                       disabled={isMerging || !canMergeSelection}
                     >
-                      {isMerging ? 'Merging...' : 'Confirm merge'}
+                      {isMerging
+                        ? t('ticket.duplicates.merging')
+                        : t('ticket.duplicates.confirmMerge')}
                     </button>
                   </div>
                 </div>

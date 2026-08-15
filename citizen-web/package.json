@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales",
+    "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales && node ../scripts/check-hardcoded-ui.mjs src",
     "test": "npm run check:i18n && vitest run",
     "lint": "eslint .",
     "format": "prettier . --write",

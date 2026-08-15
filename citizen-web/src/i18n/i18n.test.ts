@@ -14,11 +14,32 @@ describe('citizen-web i18n', () => {
     expect(t('track.title')).toBe('Track a report');
   });
 
+  it('translates full report, profile, and public workflow keys', () => {
+    const keys = [
+      'report.describe',
+      'report.submit',
+      'profile.saveChanges',
+      'history.askFixed',
+      'public.search',
+      'track.timeline',
+    ];
+    const english = keys.map((key) => t(key));
+    setLocale('ar');
+    keys.forEach((key, index) => {
+      expect(t(key)).not.toBe(english[index]);
+    });
+    setLocale('fr');
+    keys.forEach((key, index) => {
+      expect(t(key)).not.toBe(english[index]);
+    });
+  });
+
   it('covers OTP, tracking, and error copy in all locales', () => {
     for (const locale of ['en', 'ar', 'fr'] as const) {
       setLocale(locale);
       expect(t('auth.verify').length).toBeGreaterThan(0);
       expect(t('common.lookUp').length).toBeGreaterThan(0);
+      expect(t('track.invalid').length).toBeGreaterThan(0);
       expect(t('errors.generic').length).toBeGreaterThan(0);
       expect(isRtlLocale()).toBe(locale === 'ar');
     }

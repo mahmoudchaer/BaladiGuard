@@ -5,9 +5,10 @@ import { requestOtp } from '@/services/citizenAuth';
 import { clearDraft, loadDraft } from '@/services/reportDraft';
 import type { TicketUpdatesPreference } from '@/types/citizen';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 export function ProfilePage() {
+  const { t } = useI18n();
   const auth = useCitizenAuth();
   const navigate = useNavigate();
   const profile = auth.profile!;
@@ -38,9 +39,9 @@ export function ProfilePage() {
         notificationPreferences: { ticketUpdates, announcements },
         publicNameVisible: Boolean(name.trim()) && publicNameVisible,
       });
-      setMessage('Your profile was updated.');
+      setMessage(t('profile.updated'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save your profile.');
+      setError(err instanceof Error ? err.message : t('profile.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -53,7 +54,7 @@ export function ProfilePage() {
       const result = await requestOtp(newPhone, 'LB', 'CHANGE_PHONE');
       setChallenge(result.challengeId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send a code.');
+      setError(err instanceof Error ? err.message : t('profile.sendFailed'));
     } finally {
       setBusy(false);
     }
@@ -69,11 +70,11 @@ export function ProfilePage() {
         phoneChangeChallengeId: challenge,
         phoneChangeCode: phoneCode,
       });
-      setMessage('Phone updated. Please sign in again with your new number.');
+      setMessage(t('profile.phoneUpdated'));
       await auth.logout();
       navigate('/login', { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to change your phone.');
+      setError(err instanceof Error ? err.message : t('profile.phoneFailed'));
     } finally {
       setBusy(false);
     }
@@ -84,11 +85,7 @@ export function ProfilePage() {
     const hasDraft = Boolean(
       draft && (draft.description.trim() || draft.addressText.trim() || draft.imageObjectKey),
     );
-    const retain = hasDraft
-      ? window.confirm(
-          'Keep this account’s saved report draft for your next sign-in? Choose Cancel to clear it before signing out.',
-        )
-      : false;
+    const retain = hasDraft ? window.confirm(t('profile.keepDraft')) : false;
     if (!retain) await clearDraft(profile.userId);
     await auth.logout();
     navigate('/');
@@ -98,9 +95,9 @@ export function ProfilePage() {
     <section className="page page-enter narrow-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR ACCOUNT</span>
+          <span className="eyebrow">{t('profile.eyebrow')}</span>
           <h1>{t('profile.title')}</h1>
-          <p className="lede">Control what you share and how the municipality reaches you.</p>
+          <p className="lede">{t('profile.lede')}</p>
         </div>
         <div className="avatar-large" aria-hidden>
           {profile.fullName?.[0]?.toUpperCase() || 'B'}
@@ -121,16 +118,16 @@ export function ProfilePage() {
 
       <form className="settings-card" onSubmit={(event) => void save(event)}>
         <div className="settings-section">
-          <h2>Identity</h2>
+          <h2>{t('profile.identity')}</h2>
           <div className="verified-row">
             <div>
-              <span className="field-label">Verified phone</span>
+              <span className="field-label">{t('profile.verifiedPhone')}</span>
               <strong>{profile.phone}</strong>
             </div>
-            <span className="verified-badge">✓ Verified</span>
+            <span className="verified-badge">{t('profile.verified')}</span>
           </div>
           <label className="field-label" htmlFor="name">
-            Full name <span>Optional</span>
+            {t('profile.fullName')} <span>{t('common.optional')}</span>
           </label>
           <input
             id="name"
@@ -143,7 +140,7 @@ export function ProfilePage() {
             }}
           />
           <label className="field-label" htmlFor="email">
-            Email <span>Optional · notifications only</span>
+            {t('profile.email')} <span>{t('profile.emailOptional')}</span>
           </label>
           <input
             id="email"
@@ -153,12 +150,12 @@ export function ProfilePage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <p className="helper">Email cannot be used to sign in or recover your account.</p>
+          <p className="helper">{t('profile.emailHelper')}</p>
         </div>
         <div className="settings-section">
-          <h2>Notifications</h2>
+          <h2>{t('profile.notifications')}</h2>
           <label className="field-label" htmlFor="updates">
-            Ticket updates
+            {t('profile.ticketUpdates')}
           </label>
           <select
             id="updates"
@@ -166,15 +163,15 @@ export function ProfilePage() {
             value={ticketUpdates}
             onChange={(e) => setTicketUpdates(e.target.value as TicketUpdatesPreference)}
           >
-            <option value="NONE">None</option>
-            <option value="SMS">SMS</option>
-            <option value="EMAIL">Email</option>
-            <option value="BOTH">SMS and email</option>
+            <option value="NONE">{t('profile.none')}</option>
+            <option value="SMS">{t('profile.sms')}</option>
+            <option value="EMAIL">{t('profile.emailOption')}</option>
+            <option value="BOTH">{t('profile.smsAndEmail')}</option>
           </select>
           <label className="toggle-row">
             <span>
-              <strong>Community announcements</strong>
-              <small>Occasional civic updates</small>
+              <strong>{t('profile.announcements')}</strong>
+              <small>{t('profile.announcementsHint')}</small>
             </span>
             <input
               type="checkbox"
@@ -184,8 +181,8 @@ export function ProfilePage() {
           </label>
           <label className="toggle-row">
             <span>
-              <strong>Show my name publicly</strong>
-              <small>Otherwise reports say “Community member”</small>
+              <strong>{t('profile.showName')}</strong>
+              <small>{t('profile.showNameHint')}</small>
             </span>
             <input
               type="checkbox"
@@ -196,15 +193,15 @@ export function ProfilePage() {
           </label>
         </div>
         <button className="button button-large" disabled={busy} type="submit">
-          {busy ? 'Saving…' : 'Save changes'}
+          {busy ? t('profile.saving') : t('profile.saveChanges')}
         </button>
       </form>
 
       <div className="settings-card">
         <button className="setting-action" type="button" onClick={() => setPhoneMode(!phoneMode)}>
           <span>
-            <strong>Change verified phone</strong>
-            <small>Requires a new OTP</small>
+            <strong>{t('profile.changePhone')}</strong>
+            <small>{t('profile.changePhoneHint')}</small>
           </span>
           <span>›</span>
         </button>
@@ -213,7 +210,7 @@ export function ProfilePage() {
             <input
               className="input"
               inputMode="tel"
-              placeholder="New phone number"
+              placeholder={t('profile.newPhone')}
               value={newPhone}
               onChange={(e) => setNewPhone(e.target.value)}
             />
@@ -224,7 +221,7 @@ export function ProfilePage() {
                 type="button"
                 onClick={() => void beginPhoneChange()}
               >
-                Send verification code
+                {t('profile.sendCode')}
               </button>
             ) : (
               <>
@@ -242,7 +239,7 @@ export function ProfilePage() {
                   type="button"
                   onClick={() => void finishPhoneChange()}
                 >
-                  Verify new phone
+                  {t('profile.verifyPhone')}
                 </button>
               </>
             )}
@@ -254,8 +251,8 @@ export function ProfilePage() {
           onClick={() => void signOut()}
         >
           <span>
-            <strong>Sign out</strong>
-            <small>Drafts remain private to this account</small>
+            <strong>{t('profile.signOut')}</strong>
+            <small>{t('profile.draftsPrivate')}</small>
           </span>
           <span>→</span>
         </button>

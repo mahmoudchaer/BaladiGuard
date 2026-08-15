@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { TRACK_LOOKUP_INVALID_MESSAGE, getTicketByTrackingCode } from '@/services/tickets';
+import {
+  TRACK_LOOKUP_INVALID_MESSAGE,
+  TRACK_LOOKUP_NETWORK_MESSAGE,
+  TRACK_LOOKUP_NOT_FOUND_MESSAGE,
+  getTicketByTrackingCode,
+} from '@/services/tickets';
 import type { CitizenTicketResponse } from '@/types/ticket';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
-import { t } from '@/i18n';
+import { translateCategory, translateStatus } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
+
+function localizeTrackError(message: string, translate: (key: string) => string): string {
+  if (message === TRACK_LOOKUP_INVALID_MESSAGE) return translate('track.invalid');
+  if (message === TRACK_LOOKUP_NOT_FOUND_MESSAGE) return translate('track.notFound');
+  if (message === TRACK_LOOKUP_NETWORK_MESSAGE) return translate('track.network');
+  return message;
+}
 
 export function TrackPage() {
+  const { t, locale } = useI18n();
   const [params] = useSearchParams();
   const initial = normalizeTrackingCode(params.get('trackingCode') ?? params.get('code') ?? '');
   const [code, setCode] = useState(initial);
@@ -18,7 +32,7 @@ export function TrackPage() {
     const normalized = normalizeTrackingCode(value);
     if (!isValidTrackingCode(normalized)) {
       setResult(null);
-      setError(TRACK_LOOKUP_INVALID_MESSAGE);
+      setError(t('track.invalid'));
       return;
     }
     setSubmitting(true);
@@ -28,7 +42,7 @@ export function TrackPage() {
       const ticket = await getTicketByTrackingCode(normalized);
       setResult(ticket);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errors.generic'));
+      setError(err instanceof Error ? localizeTrackError(err.message, t) : t('errors.generic'));
     } finally {
       setSubmitting(false);
     }
@@ -83,28 +97,29 @@ export function TrackPage() {
 
       {result ? (
         <article className="panel stack" data-testid="track-result">
-          <span className="badge">{result.status.replaceAll('_', ' ')}</span>
+          <span className="badge">{translateStatus(result.status)}</span>
           <h2 className="ltr-isolate" style={{ margin: 0 }}>
-            {result.ticketNumber ?? 'Report'}
+            {result.ticketNumber ?? t('track.reportFallback')}
           </h2>
           <p className="muted ltr-isolate" style={{ margin: 0 }}>
             {t('track.codeValue', { code: result.trackingCode })}
           </p>
           <p style={{ margin: 0 }}>
-            {result.category?.replaceAll('_', ' ') ?? 'General'}
+            {translateCategory(result.category)}
             {result.location?.addressText ? ` · ${result.location.addressText}` : ''}
           </p>
           {result.department?.name ? (
             <p className="muted" style={{ margin: 0 }}>
-              Department: {result.department.name}
+              {t('common.department', { name: result.department.name })}
             </p>
           ) : null}
           <div>
-            <h3 style={{ margin: '0 0 0.5rem' }}>Timeline</h3>
+            <h3 style={{ margin: '0 0 0.5rem' }}>{t('track.timeline')}</h3>
             <ol style={{ margin: 0, paddingLeft: '1.2rem' }}>
               {result.timeline.map((entry) => (
                 <li key={`${entry.status}-${entry.changedAt}`}>
-                  {entry.status.replaceAll('_', ' ')} — {new Date(entry.changedAt).toLocaleString()}
+                  {translateStatus(entry.status)} —{' '}
+                  {new Date(entry.changedAt).toLocaleString(locale)}
                 </li>
               ))}
             </ol>

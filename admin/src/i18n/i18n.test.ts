@@ -24,6 +24,33 @@ describe('admin i18n', () => {
     expect(t('redaction.approve')).toBe('Approuver le dérivé public');
   });
 
+  it('translates critical staff workflow keys in Arabic and French', () => {
+    const keys = [
+      'ticket.review.applyStatus',
+      'ticket.duplicates.search',
+      'ticket.comments.add',
+      'workforce.addWorker',
+      'assistant.viewTickets',
+      'redaction.applyManual',
+      'reasons.WORK_COMPLETED',
+      'guidance.UNDER_REVIEW',
+    ];
+    const english = keys.map((key) => t(key));
+    keys.forEach((key, index) => {
+      expect(english[index]).not.toBe(key);
+    });
+
+    setLocale('ar');
+    keys.forEach((key, index) => {
+      expect(t(key)).not.toBe(english[index]);
+    });
+
+    setLocale('fr');
+    keys.forEach((key, index) => {
+      expect(t(key)).not.toBe(english[index]);
+    });
+  });
+
   it('keeps status meaning independent of color tokens', () => {
     expect(t('status.UNDER_REVIEW')).toBe('Under Review');
     expect(t('priority.critical')).toBe('Critical');

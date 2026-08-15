@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
-import { t } from '@/i18n';
+import { translateCategory, translateStatus } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { getHistory } from '@/services/contributions';
 import type { CitizenTicketHistoryItem } from '@/types/ticket';
-
-function formatCategory(category: string | null): string {
-  if (!category) {
-    return 'General';
-  }
-  return category.replaceAll('_', ' ');
-}
 
 export function HomePage() {
   const auth = useCitizenAuth();
@@ -18,7 +12,15 @@ export function HomePage() {
   return <PublicHome />;
 }
 
+function greetingEyebrow(t: (key: string) => string): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return t('home.morning');
+  if (hour < 18) return t('home.afternoon');
+  return t('home.evening');
+}
+
 function CitizenHome() {
+  const { t } = useI18n();
   const { profile } = useCitizenAuth();
   const [reports, setReports] = useState<CitizenTicketHistoryItem[]>([]);
   const [error, setError] = useState(false);
@@ -33,52 +35,46 @@ function CitizenHome() {
     <section className="citizen-home page-enter">
       <div className="home-welcome">
         <div>
-          <span className="eyebrow">
-            {new Date().getHours() < 12
-              ? 'GOOD MORNING'
-              : new Date().getHours() < 18
-                ? 'GOOD AFTERNOON'
-                : 'GOOD EVENING'}
-          </span>
-          <h1>{firstName ? `Hello, ${firstName}` : 'Hello'}</h1>
-          <p className="lede">See what needs attention and follow the city’s response.</p>
+          <span className="eyebrow">{greetingEyebrow(t)}</span>
+          <h1>{firstName ? t('home.helloName', { name: firstName }) : t('home.hello')}</h1>
+          <p className="lede">{t('home.citizenLede')}</p>
         </div>
       </div>
       <Link className="primary-action tactile" to="/report">
         <span className="action-icon">＋</span>
         <span>
-          <strong>Report an issue</strong>
-          <small>Photo, location, and a few details</small>
+          <strong>{t('home.reportIssue')}</strong>
+          <small>{t('home.reportHint')}</small>
         </span>
         <span aria-hidden>→</span>
       </Link>
       <div className="quick-grid">
         <Link className="quick-card tactile" to="/track">
           <span>▦</span>
-          <strong>Track a code</strong>
-          <small>Open a private report</small>
+          <strong>{t('home.trackCode')}</strong>
+          <small>{t('home.trackHint')}</small>
         </Link>
         <Link className="quick-card tactile" to="/map">
           <span>⌖</span>
-          <strong>Nearby</strong>
-          <small>Browse public reports</small>
+          <strong>{t('home.nearby')}</strong>
+          <small>{t('home.browseReports')}</small>
         </Link>
       </div>
       <div className="section-heading">
         <div>
-          <h2>Your reports</h2>
-          <span>{reports.length ? `${active} active` : 'Your activity'}</span>
+          <h2>{t('home.yourReports')}</h2>
+          <span>
+            {reports.length ? t('home.activeCount', { count: active }) : t('home.yourActivity')}
+          </span>
         </div>
-        <Link to="/history">View all</Link>
+        <Link to="/history">{t('home.viewAll')}</Link>
       </div>
-      {error ? (
-        <div className="notice notice-info">Couldn’t refresh. Your reports are safe.</div>
-      ) : null}
+      {error ? <div className="notice notice-info">{t('home.refreshFailed')}</div> : null}
       {!error && reports.length === 0 ? (
         <div className="empty-state compact">
           <span>✓</span>
-          <h2>Nothing to follow yet</h2>
-          <p>When you report an issue, its progress will appear here.</p>
+          <h2>{t('home.emptyTitle')}</h2>
+          <p>{t('home.emptyBody')}</p>
         </div>
       ) : null}
       {reports.length ? (
@@ -91,11 +87,11 @@ function CitizenHome() {
             >
               <span className="history-glyph">⌖</span>
               <div className="history-copy">
-                <strong>{formatCategory(report.category)}</strong>
+                <strong>{translateCategory(report.category)}</strong>
                 <span>{report.locationAddress}</span>
               </div>
               <span className={`status status-${report.status.toLowerCase().replace('_', '-')}`}>
-                {report.status.replaceAll('_', ' ')}
+                {translateStatus(report.status)}
               </span>
               <span>›</span>
             </Link>
@@ -107,68 +103,64 @@ function CitizenHome() {
 }
 
 function PublicHome() {
+  const { t } = useI18n();
   return (
     <div className="landing-page page-enter">
       <div className="public-hero">
         <div>
-          <span className="eyebrow">WELCOME TO BALADIGUARD</span>
+          <span className="eyebrow">{t('home.welcome')}</span>
           <h1>
             {t('home.heroLine1')}
             <br />
             {t('home.heroLine2')}
           </h1>
-          <p className="lede">
-            Report what needs attention and follow the municipality’s response from one place.
-          </p>
+          <p className="lede">{t('home.publicLede')}</p>
           <div className="button-row">
             <Link className="button button-large" to="/report">
-              Report an issue →
+              {t('home.reportCta')}
             </Link>
             <Link className="button button-secondary button-large" to="/reports">
-              Continue as guest
+              {t('home.continueGuest')}
             </Link>
           </div>
-          <p className="helper">A verified phone number is only needed when you submit.</p>
+          <p className="helper">{t('home.phoneHint')}</p>
         </div>
         <div className="hero-symbol" aria-hidden>
           <div>⌖</div>
           <span>
-            <i /> Built for your community
+            <i /> {t('home.builtFor')}
           </span>
         </div>
       </div>
-      <section className="landing-features" aria-label="How BaladiGuard works">
+      <section className="landing-features" aria-label={t('home.howItWorks')}>
         <div>
           <span>01</span>
-          <h2>Report clearly</h2>
-          <p>Add a photo, confirm the location, and explain what needs attention.</p>
+          <h2>{t('home.reportClearly')}</h2>
+          <p>{t('home.reportClearlyBody')}</p>
         </div>
         <div>
           <span>02</span>
-          <h2>Follow progress</h2>
-          <p>See municipal updates through your private account or tracking code.</p>
+          <h2>{t('home.followProgress')}</h2>
+          <p>{t('home.followProgressBody')}</p>
         </div>
         <div>
           <span>03</span>
-          <h2>Explore safely</h2>
-          <p>Browse approved public reports without exposing citizen information.</p>
+          <h2>{t('home.exploreSafely')}</h2>
+          <p>{t('home.exploreSafelyBody')}</p>
         </div>
       </section>
       <section className="landing-community">
         <div>
-          <span className="eyebrow">SEE WHAT’S HAPPENING</span>
-          <h2>A clearer view of your community.</h2>
-          <p className="lede">
-            Public reports are separated from your private account and shown through a privacy-safe
-            projection.
-          </p>
+          <span className="eyebrow">{t('home.happening')}</span>
+          <h2>{t('home.clearerView')}</h2>
+          <p className="lede">{t('home.publicProjection')}</p>
         </div>
         <div className="button-row">
           <Link className="button" to="/reports">
             {t('home.browsePublic')}
           </Link>
           <Link className="button button-secondary" to="/map">
-            Open the map
+            {t('home.openMap')}
           </Link>
         </div>
       </section>

@@ -6,8 +6,8 @@ BaladiGuard product UI is available in **English**, **Arabic**, and **French**. 
 
 Translated catalogs cover **product UI strings** only:
 
-- Citizen mobile and citizen web: phone OTP, report creation chrome, validation and core errors, tracking/history, profile chrome, public browsing, navigation.
-- Staff dashboard: login, ticket list/detail chrome (status, priority, category labels), assistant chrome, work-order directory actions, image redaction review.
+- Citizen mobile and citizen web: complete phone OTP, report creation, validation and core errors, tracking, history, profile, public browsing, and navigation workflows.
+- Staff dashboard: login, ticket list/map/detail chrome, review and status actions, department and field assignment, work-order and evidence workflow, category and duplicate handling, feedback, activity, comments, workforce directory, assistant, and image redaction review.
 
 **Not translated** (and must stay in the original language):
 
@@ -54,10 +54,12 @@ Limitations: catalogs are reviewed engineering translations for the agreed criti
 
 ## CI
 
-`scripts/check-i18n.mjs` fails when locale files drift (missing, extra, or empty keys). Each frontend `npm test` runs `check:i18n` first so GitHub Actions detects catalog gaps without a new workflow job.
+`scripts/check-i18n.mjs` fails when locale files drift (missing, extra, or empty keys). `scripts/check-hardcoded-ui.mjs` fails when critical-flow screens still contain user-facing English literals that never entered a catalog. Each frontend `npm test` runs both checks first so GitHub Actions detects catalog gaps and untranslated JSX without a new workflow job. Automated accessibility tests cover representative citizen and staff workflows in English, Arabic, and French.
 
 ```bash
 node scripts/check-i18n.mjs mobile/src/i18n/locales
 node scripts/check-i18n.mjs admin/src/i18n/locales
 node scripts/check-i18n.mjs citizen-web/src/i18n/locales
+node scripts/check-hardcoded-ui.mjs admin/src
+node scripts/check-hardcoded-ui.mjs citizen-web/src
 ```

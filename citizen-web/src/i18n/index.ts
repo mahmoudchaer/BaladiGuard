@@ -79,3 +79,16 @@ export function resetLocaleForTests(): void {
   currentLocale = 'en';
   listeners.clear();
 }
+
+export function translateStatus(status: string): string {
+  const translated = t(`status.${status}`);
+  return translated !== `status.${status}` ? translated : status.replaceAll('_', ' ');
+}
+
+export function translateCategory(category: string | null | undefined): string {
+  if (!category) {
+    return t('category.general');
+  }
+  const translated = t(`category.${category}`);
+  return translated !== `category.${category}` ? translated : category.replaceAll('_', ' ');
+}

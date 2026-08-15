@@ -114,10 +114,10 @@ export function LoginPage() {
               value={region}
               onChange={(e) => setRegion(e.target.value)}
             >
-              <option value="LB">Lebanon (+961)</option>
-              <option value="US">United States (+1)</option>
-              <option value="FR">France (+33)</option>
-              <option value="GB">United Kingdom (+44)</option>
+              <option value="LB">{t('auth.lebanon')}</option>
+              <option value="US">{t('auth.unitedStates')}</option>
+              <option value="FR">{t('auth.france')}</option>
+              <option value="GB">{t('auth.unitedKingdom')}</option>
             </select>
             <label className="field-label" htmlFor="phone">
               {t('auth.phone')}
@@ -127,7 +127,7 @@ export function LoginPage() {
               className="input"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="70 123 456"
+              placeholder={t('auth.phonePlaceholder')}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoFocus
@@ -168,7 +168,7 @@ export function LoginPage() {
                 disabled={busy || remaining > 0}
                 onClick={() => void sendCode()}
               >
-                {remaining > 0 ? `${t('auth.resend')} (${remaining}s)` : t('auth.resend')}
+                {remaining > 0 ? t('auth.resendIn', { seconds: remaining }) : t('auth.resend')}
               </button>
             </div>
           </form>
