@@ -17,6 +17,22 @@ class DynamoStaffCommentStore:
     def append(self, comment: StoredStaffComment) -> None:
         self._table.put_item(Item=comment.model_dump(by_alias=True))
 
+    def list_by_ticket_id_page(
+        self, ticket_id: str, *, limit: int, exclusive_start_key: dict | None = None
+    ) -> tuple[list[StoredStaffComment], dict | None]:
+        query_kwargs = {
+            "IndexName": "ticketId-index",
+            "KeyConditionExpression": Key("ticketId").eq(ticket_id),
+            "Limit": limit,
+        }
+        if exclusive_start_key:
+            query_kwargs["ExclusiveStartKey"] = exclusive_start_key
+        response = self._table.query(**query_kwargs)
+        return (
+            [StoredStaffComment.model_validate(item) for item in response.get("Items", [])],
+            response.get("LastEvaluatedKey"),
+        )
+
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredStaffComment]:
         items = []
         query_kwargs = {

@@ -17,6 +17,22 @@ class DynamoAuditHistoryStore:
     def append(self, entry: StoredAuditHistory) -> None:
         self._table.put_item(Item=audit_history_to_item(entry))
 
+    def list_by_ticket_id_page(
+        self, ticket_id: str, *, limit: int, exclusive_start_key: dict | None = None
+    ) -> tuple[list[StoredAuditHistory], dict | None]:
+        query_kwargs = {
+            "IndexName": "ticketId-index",
+            "KeyConditionExpression": Key("ticketId").eq(ticket_id),
+            "Limit": limit,
+        }
+        if exclusive_start_key:
+            query_kwargs["ExclusiveStartKey"] = exclusive_start_key
+        response = self._table.query(**query_kwargs)
+        return (
+            [item_to_audit_history(item) for item in response.get("Items", [])],
+            response.get("LastEvaluatedKey"),
+        )
+
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredAuditHistory]:
         entries = []
         query_kwargs = {

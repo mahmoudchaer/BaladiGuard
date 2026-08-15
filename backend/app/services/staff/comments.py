@@ -111,6 +111,27 @@ def _decode_cursor(cursor: str | None) -> tuple[str, str, str] | None:
         raise ValueError("invalid activity cursor") from None
 
 
+def _encode_storage_cursor(cursors: dict[str, dict | None]) -> str:
+    value = json.dumps({"sources": cursors}, separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+
+def _decode_storage_cursor(cursor: str | None) -> dict[str, dict | None] | None:
+    if not cursor:
+        return None
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        value = json.loads(base64.urlsafe_b64decode(padded).decode())
+        sources = value.get("sources") if isinstance(value, dict) else None
+        if not isinstance(sources, dict) or not all(
+            key in sources for key in ("status", "audit", "comments")
+        ):
+            return None
+        return sources
+    except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error):
+        return None
+
+
 class StaffCommentService:
     def create(
         self, ticket_id: str, payload: CreateStaffCommentRequest, *, principal: StaffPrincipal
@@ -163,7 +184,23 @@ class StaffCommentService:
     ) -> ActivityTimelineResponse:
         _ticket_for(principal, ticket_id)
         events: list[ActivityEvent] = []
-        for entry in get_status_history_store().list_by_ticket_id(ticket_id):
+        status_store = get_status_history_store()
+        audit_store = get_audit_history_store()
+        comment_store = get_staff_comment_store()
+        storage_cursor = _decode_storage_cursor(cursor)
+
+        def read_source(store, source_name: str):
+            page_reader = getattr(store, "list_by_ticket_id_page", None)
+            if page_reader is None:
+                return store.list_by_ticket_id(ticket_id), None
+            source_cursor = storage_cursor.get(source_name) if storage_cursor else None
+            return page_reader(ticket_id, limit=limit, exclusive_start_key=source_cursor)
+
+        status_entries, status_next = read_source(status_store, "status")
+        audit_entries, audit_next = read_source(audit_store, "audit")
+        comment_entries, comment_next = read_source(comment_store, "comments")
+
+        for entry in status_entries:
             events.append(
                 ActivityEvent(
                     eventId=f"status:{entry.history_id}",
@@ -174,7 +211,7 @@ class StaffCommentService:
                     sourceReference=f"status-history:{entry.history_id}",
                 )
             )
-        for entry in get_audit_history_store().list_by_ticket_id(ticket_id):
+        for entry in audit_entries:
             if entry.action_type in {"STAFF_COMMENT", "STATUS_CHANGE"}:
                 continue
             events.append(
@@ -201,7 +238,7 @@ class StaffCommentService:
                     sourceReference=f"audit:{entry.audit_id}",
                 )
             )
-        for comment in get_staff_comment_store().list_by_ticket_id(ticket_id):
+        for comment in comment_entries:
             events.append(
                 ActivityEvent(
                     eventId=f"comment:{comment.comment_id}",
@@ -221,7 +258,7 @@ class StaffCommentService:
             unique.values(),
             key=lambda event: (event.occurred_at, event.source_reference, event.event_id),
         )
-        decoded = _decode_cursor(cursor)
+        decoded = None if storage_cursor else _decode_cursor(cursor)
         if decoded and decoded[2].startswith("__offset__:"):
             start = int(decoded[2].split(":", 1)[1])
             page = events[start : start + limit]
@@ -234,7 +271,12 @@ class StaffCommentService:
                     if (event.occurred_at, event.source_reference, event.event_id) > decoded
                 ]
             page = page[:limit]
-        next_cursor = _encode_cursor(page[-1]) if len(page) == limit and page else None
+        if storage_cursor or any((status_next, audit_next, comment_next)):
+            next_cursor = _encode_storage_cursor(
+                {"status": status_next, "audit": audit_next, "comments": comment_next}
+            )
+        else:
+            next_cursor = _encode_cursor(page[-1]) if len(page) == limit and page else None
         return ActivityTimelineResponse(events=page, nextCursor=next_cursor)
 
 
