@@ -68,7 +68,7 @@ def test_activity_projects_operational_audits_safely_and_paginates_by_event_key(
                 actionType="WORK_ORDER_ASSIGN",
                 actorId="staff_admin_001",
                 actorRole="administrator",
-                summary=f"Assignment {index}",
+                summary=("Work order wo_123 assigned to worker wrk_456 for team team_789"),
                 previousValue="worker-old" if index else None,
                 newValue="worker-new",
                 createdAt=f"2099-01-01T00:00:0{index}Z",
@@ -83,6 +83,10 @@ def test_activity_projects_operational_audits_safely_and_paginates_by_event_key(
         event for event in first.json()["events"] if event["eventType"] == "WORK_ORDER_ASSIGN"
     )
     assert projected["actorDisplayName"] == "Demo Administrator"
+    assert projected["details"]["summary"] == "Work order assignment changed."
+    assert "wo_123" not in first.text
+    assert "wrk_456" not in first.text
+    assert "team_789" not in first.text
     assert "worker-new" not in first.text
     assert "staff_admin_001" not in first.text
 

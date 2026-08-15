@@ -65,6 +65,19 @@ def _actor_display_name(actor_id: str | None) -> str | None:
     return staff.name if staff and staff.active else "Staff member"
 
 
+_SAFE_AUDIT_SUMMARIES = {
+    "WORKFORCE_ASSIGN": "Workforce assignment changed.",
+    "WORK_ORDER_CREATE": "Work order created.",
+    "WORK_ORDER_ASSIGN": "Work order assignment changed.",
+    "WORK_ORDER_START": "Work order started.",
+    "WORK_ORDER_COMPLETE": "Work order completed.",
+    "WORK_ORDER_CANCEL": "Work order cancelled.",
+    "WORK_ORDER_EVIDENCE_ADD": "Maintenance evidence added.",
+    "RESOLUTION_FEEDBACK_SUBMIT": "Citizen resolution feedback submitted.",
+    "RESOLUTION_FEEDBACK_REVIEW": "Citizen resolution feedback reviewed.",
+}
+
+
 def _encode_cursor(event: ActivityEvent) -> str:
     value = json.dumps(
         [event.occurred_at, event.source_reference, event.event_id], separators=(",", ":")
@@ -171,7 +184,7 @@ class StaffCommentService:
                     occurredAt=entry.created_at,
                     actorDisplayName=_actor_display_name(entry.actor_id),
                     details={
-                        "summary": entry.summary,
+                        "summary": _SAFE_AUDIT_SUMMARIES.get(entry.action_type, entry.summary),
                         **(
                             {"previousValue": entry.previous_value}
                             if entry.previous_value

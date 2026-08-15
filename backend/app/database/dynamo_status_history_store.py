@@ -18,11 +18,18 @@ class DynamoStatusHistoryStore:
         self._table.put_item(Item=status_history_to_item(entry))
 
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredStatusHistory]:
-        response = self._table.query(
-            IndexName="ticketId-index",
-            KeyConditionExpression=Key("ticketId").eq(ticket_id),
-        )
-        entries = [item_to_status_history(item) for item in response.get("Items", [])]
+        entries = []
+        query_kwargs = {
+            "IndexName": "ticketId-index",
+            "KeyConditionExpression": Key("ticketId").eq(ticket_id),
+        }
+        while True:
+            response = self._table.query(**query_kwargs)
+            entries.extend(item_to_status_history(item) for item in response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            query_kwargs["ExclusiveStartKey"] = last_key
         return sorted(entries, key=lambda entry: entry.created_at)
 
     def clear(self) -> None:
