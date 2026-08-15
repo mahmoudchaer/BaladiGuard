@@ -22,5 +22,10 @@ image storage identifiers are never serialized; only safe staff display names, s
 resolution outcome values are projected. Evidence photos remain available only through the authorized
 evidence endpoint.
 
+Deployment must create the chronological timeline GSIs and wait for them to become ACTIVE before
+switching reads. Existing rows are sparse-index-invisible until the idempotent, resumable
+activity-key backfill migration is run for status history, audit history, and staff comments. The
+migration can be rerun safely and supports per-table Dynamo scan checkpoints.
+
 Administrators should treat this feature as internal coordination data and apply the municipality's
 normal access, retention, and export policies before sharing it outside authorized staff.
