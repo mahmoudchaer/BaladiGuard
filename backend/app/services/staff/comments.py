@@ -111,23 +111,45 @@ def _decode_cursor(cursor: str | None) -> tuple[str, str, str] | None:
         raise ValueError("invalid activity cursor") from None
 
 
-def _encode_storage_cursor(cursors: dict[str, dict | None]) -> str:
-    value = json.dumps({"sources": cursors}, separators=(",", ":")).encode()
+def _encode_storage_cursor(
+    cursors: dict[str, dict | None], buffers: dict[str, list[ActivityEvent]]
+) -> str:
+    value = json.dumps(
+        {
+            "sources": cursors,
+            "buffers": {
+                name: [event.model_dump(by_alias=True) for event in events]
+                for name, events in buffers.items()
+            },
+        },
+        separators=(",", ":"),
+    ).encode()
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
 
-def _decode_storage_cursor(cursor: str | None) -> dict[str, dict | None] | None:
+def _decode_storage_cursor(
+    cursor: str | None,
+) -> tuple[dict[str, dict | None], dict[str, list[ActivityEvent]]] | None:
     if not cursor:
         return None
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
         value = json.loads(base64.urlsafe_b64decode(padded).decode())
+        if not isinstance(value, dict):
+            return None
         sources = value.get("sources") if isinstance(value, dict) else None
+        buffers = value.get("buffers", {})
         if not isinstance(sources, dict) or not all(
             key in sources for key in ("status", "audit", "comments")
         ):
             return None
-        return sources
+        if not isinstance(buffers, dict):
+            return None
+        decoded_buffers = {
+            name: [ActivityEvent.model_validate(item) for item in buffers.get(name, [])]
+            for name in ("status", "audit", "comments")
+        }
+        return sources, decoded_buffers
     except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error):
         return None
 
@@ -187,9 +209,17 @@ class StaffCommentService:
         status_store = get_status_history_store()
         audit_store = get_audit_history_store()
         comment_store = get_staff_comment_store()
-        storage_cursor = _decode_storage_cursor(cursor)
+        decoded_storage = _decode_storage_cursor(cursor)
+        storage_cursor = decoded_storage[0] if decoded_storage else None
+        source_buffers = (
+            decoded_storage[1] if decoded_storage else {"status": [], "audit": [], "comments": []}
+        )
 
         def read_source(store, source_name: str):
+            if source_buffers[source_name]:
+                return [], storage_cursor.get(source_name) if storage_cursor else None
+            if storage_cursor and storage_cursor.get(source_name) == {"done": True}:
+                return [], {"done": True}
             page_reader = getattr(store, "list_by_ticket_id_page", None)
             if page_reader is None:
                 return store.list_by_ticket_id(ticket_id), None
@@ -249,6 +279,17 @@ class StaffCommentService:
                     sourceReference=f"comment:{comment.comment_id}",
                 )
             )
+        source_events = {
+            "status": [
+                event for event in events if event.source_reference.startswith("status-history:")
+            ],
+            "audit": [event for event in events if event.source_reference.startswith("audit:")],
+            "comments": [
+                event for event in events if event.source_reference.startswith("comment:")
+            ],
+        }
+        for source_name in source_events:
+            source_events[source_name] = source_buffers[source_name] + source_events[source_name]
         # Audit rows are the authoritative idempotency boundary: a replayed domain
         # operation or an overlapping audit read must never render twice.
         unique: dict[str, ActivityEvent] = {}
@@ -272,9 +313,24 @@ class StaffCommentService:
                 ]
             page = page[:limit]
         if storage_cursor or any((status_next, audit_next, comment_next)):
-            next_cursor = _encode_storage_cursor(
-                {"status": status_next, "audit": audit_next, "comments": comment_next}
-            )
+            emitted_ids = {event.event_id for event in page}
+            next_sources = {}
+            next_buffers = {}
+            for source_name, source_items in source_events.items():
+                remaining = [event for event in source_items if event.event_id not in emitted_ids]
+                next_buffers[source_name] = remaining
+                source_next = {
+                    "status": status_next,
+                    "audit": audit_next,
+                    "comments": comment_next,
+                }[source_name]
+                next_sources[source_name] = source_next or {"done": True}
+            if not any(next_buffers.values()) and all(
+                value == {"done": True} for value in next_sources.values()
+            ):
+                next_cursor = None
+            else:
+                next_cursor = _encode_storage_cursor(next_sources, next_buffers)
         else:
             next_cursor = _encode_cursor(page[-1]) if len(page) == limit and page else None
         return ActivityTimelineResponse(events=page, nextCursor=next_cursor)
