@@ -58,6 +58,7 @@ with `npm run check:cloudfront`.
 | HTML shell | `Cache-Control: no-store` on `/index.html` |
 | Authenticated API | Never cached at the edge; API must send `Cache-Control: no-store` on `/v1/citizen/**` and cookie-authenticated mutations |
 | Env-specific API origin | Compile-time `VITE_API_BASE_URL` per stage; no runtime secret |
+| Public redacted photos | CSP `img-src` includes `PublicImageOrigin` (S3/presign or image CDN host from `build_image_url()`) |
 
 Do not cache `Set-Cookie` responses or `/v1/citizen/me*` at CloudFront. The SPA
 is static; private data comes from the API with credentials included.
@@ -72,7 +73,7 @@ policies, and `AWS::CloudFront::ResponseHeadersPolicy` resources (HSTS, CSP,
 ```bash
 cd citizen-web
 npm run check:cloudfront
-aws cloudformation deploy --template-file infra/cloudfront-spa.json --stack-name baladiguard-citizen-web --parameter-overrides HostingBucketName=baladiguard-citizen-web-prod ApiOrigin=https://api.example.test AliasDomainName=citizen.example AcmCertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/ID --capabilities CAPABILITY_IAM
+aws cloudformation deploy --template-file infra/cloudfront-spa.json --stack-name baladiguard-citizen-web --parameter-overrides HostingBucketName=baladiguard-citizen-web-prod ApiOrigin=https://api.example.test PublicImageOrigin=https://cdn.example AliasDomainName=citizen.example AcmCertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/ID --capabilities CAPABILITY_IAM
 aws s3 sync dist/ s3://baladiguard-citizen-web-prod/ --delete
 aws cloudfront create-invalidation --distribution-id DISTRIBUTION_ID --paths /index.html /t/*
 ```

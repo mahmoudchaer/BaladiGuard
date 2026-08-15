@@ -21,6 +21,27 @@ async function stubMapTiles(page: Page) {
   });
 }
 
+async function stubPublicPhoto(page: Page) {
+  await page.route('https://cdn.example/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/jpeg',
+      body: TRANSPARENT_PNG,
+    });
+  });
+}
+
+async function expectPublicPhotoLoaded(page: Page) {
+  const photo = page.getByRole('img', { name: 'Public photo for BG-100001' });
+  await expect(photo).toBeVisible();
+  await expect(photo).toHaveAttribute('src', 'https://cdn.example/redacted.jpg');
+  await expect(photo).toHaveJSProperty('naturalWidth', 1);
+  await expect(page.getByLabel('No public photo available')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText(
+    /imageObjectKey|publicImageObjectKey|originalImageUrl|reports\/photos\/v2|private-media\.example|hidden-key/i,
+  );
+}
+
 test.describe('built SPA browser subset', () => {
   test('serves notification deep links through the SPA fallback', async ({ page }) => {
     const response = await page.goto('/t/ABC234');
@@ -45,6 +66,19 @@ test.describe('built SPA browser subset', () => {
     await expect(page.locator('body')).not.toContainText(
       /WORK_COMPLETED|private crew address|Internal close note|secret-ticket-id/,
     );
+  });
+
+  test('loads the public redacted photo and keeps private image fields unavailable', async ({
+    page,
+  }) => {
+    await stubPublicPhoto(page);
+    await page.goto('/reports');
+    await expect(page.getByTestId('public-report-list')).toBeVisible();
+    await expectPublicPhotoLoaded(page);
+
+    await page.goto('/public/BG-100001');
+    await expect(page.getByTestId('public-detail')).toBeVisible();
+    await expectPublicPhotoLoaded(page);
   });
 
   test('renders the public map from the production bundle', async ({ page }) => {

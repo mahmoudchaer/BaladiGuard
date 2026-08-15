@@ -20,6 +20,10 @@ const publicTicket = {
   photoUrl: 'https://cdn.example/redacted.jpg',
   createdAt: '2026-08-01T10:00:00Z',
   updatedAt: '2026-08-02T12:00:00Z',
+  imageObjectKey: 'reports/photos/v2/scope/original.jpg',
+  imageUrl: 'https://private-media.example/original.jpg',
+  publicImageObjectKey: 'reports/redacted/hidden-key.jpg',
+  originalImageUrl: 'https://private-media.example/unredacted.jpg',
 };
 
 const trackFixture = {

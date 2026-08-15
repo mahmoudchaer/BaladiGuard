@@ -29,6 +29,12 @@
       "Default": "https://api.example.test",
       "AllowedPattern": "^https://.+",
       "Description": "HTTPS API origin allowed in CSP connect-src. Authenticated /v1/citizen/* stays on this origin and must send Cache-Control: no-store."
+    },
+    "PublicImageOrigin": {
+      "Type": "String",
+      "Default": "https://cdn.example",
+      "AllowedPattern": "^https://.+",
+      "Description": "HTTPS origin for citizen-safe public photoUrl values from ticket_read_mapper.build_image_url() (S3 virtual-hosted bucket, presign host, or image CDN). Added to img-src in both CSP policies. Do not use the raw upload bucket path or staff imageUrl host unless it is the same public-photo origin."
     }
   },
   "Conditions": {
@@ -89,7 +95,7 @@
             },
             "ContentSecurityPolicy": {
               "ContentSecurityPolicy": {
-                "Fn::Sub": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self' ${ApiOrigin}; worker-src 'self' blob:"
+                "Fn::Sub": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org ${PublicImageOrigin}; connect-src 'self' ${ApiOrigin}; worker-src 'self' blob:"
               },
               "Override": true
             },
@@ -132,7 +138,7 @@
             },
             "ContentSecurityPolicy": {
               "ContentSecurityPolicy": {
-                "Fn::Sub": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self' ${ApiOrigin}; worker-src 'self' blob:"
+                "Fn::Sub": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org ${PublicImageOrigin}; connect-src 'self' ${ApiOrigin}; worker-src 'self' blob:"
               },
               "Override": true
             },

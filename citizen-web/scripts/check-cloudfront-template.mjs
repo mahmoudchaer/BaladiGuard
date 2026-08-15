@@ -73,6 +73,21 @@ for (const item of config.CustomErrorResponses ?? []) {
   }
 }
 
+const publicImageOrigin = template.Parameters?.PublicImageOrigin ?? {};
+if (
+  publicImageOrigin.Type !== 'String' ||
+  !String(publicImageOrigin.AllowedPattern ?? '').startsWith('^https://')
+) {
+  fail('PublicImageOrigin must be an HTTPS origin parameter for public photoUrl hosts');
+}
+
+function cspSource(resourceName) {
+  const csp =
+    resources[resourceName]?.Properties?.ResponseHeadersPolicyConfig?.SecurityHeadersConfig
+      ?.ContentSecurityPolicy?.ContentSecurityPolicy;
+  return typeof csp === 'string' ? csp : JSON.stringify(csp ?? '');
+}
+
 const htmlHeaders =
   resources.CitizenWebHtmlHeadersPolicy?.Properties?.ResponseHeadersPolicyConfig ?? {};
 const security = htmlHeaders.SecurityHeadersConfig ?? {};
@@ -85,10 +100,18 @@ if (!security.StrictTransportSecurity?.AccessControlMaxAgeSec) {
 if (!security.ContentTypeOptions) {
   fail('HTML headers policy must set X-Content-Type-Options');
 }
-const csp = security.ContentSecurityPolicy?.ContentSecurityPolicy;
-const cspText = typeof csp === 'string' ? csp : JSON.stringify(csp ?? '');
-if (!cspText.includes("frame-ancestors 'none'") || !cspText.includes('connect-src')) {
+const htmlCsp = cspSource('CitizenWebHtmlHeadersPolicy');
+const assetCsp = cspSource('CitizenWebSecurityHeadersPolicy');
+if (!htmlCsp.includes("frame-ancestors 'none'") || !htmlCsp.includes('connect-src')) {
   fail('HTML headers policy must include a CSP with frame-ancestors and connect-src');
+}
+for (const [name, cspText] of [
+  ['HTML', htmlCsp],
+  ['asset', assetCsp],
+]) {
+  if (!cspText.includes('img-src') || !cspText.includes('${PublicImageOrigin}')) {
+    fail(`${name} CSP must allow PublicImageOrigin in img-src so approved public photos can load`);
+  }
 }
 const cacheControl = (htmlHeaders.CustomHeadersConfig?.Items ?? []).find(
   (item) => item.Header === 'Cache-Control',
