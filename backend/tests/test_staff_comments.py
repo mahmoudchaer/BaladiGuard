@@ -1,6 +1,11 @@
+from app.core.staff_auth import principal_from_user
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
+from app.database.store_factory import get_staff_store
+from app.schemas.staff_comment import StoredStaffComment
 from app.schemas.stored_audit_history import StoredAuditHistory
+from app.schemas.stored_status_history import StoredStatusHistory
+from app.services.staff import comments as comments_module
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
 
@@ -119,3 +124,118 @@ def test_activity_projects_operational_audits_safely_and_paginates_by_event_key(
         "audit:audit-271-1",
         "audit:audit-271-2",
     ]
+
+
+def test_activity_storage_cursor_merges_interleaved_source_pages_exactly_once(
+    anonymous_client, monkeypatch
+):
+    ticket_id = _ticket(anonymous_client)
+    principal = principal_from_user(get_staff_store().get("staff_admin_001"))
+
+    class PagedStore:
+        def __init__(self, pages):
+            self.pages = pages
+            self.calls = []
+
+        def list_by_ticket_id_page(self, ticket_id, *, limit, exclusive_start_key=None):
+            index = 0 if exclusive_start_key is None else exclusive_start_key["page"]
+            self.calls.append((limit, index))
+            page = self.pages[index]
+            next_key = {"page": index + 1} if index + 1 < len(self.pages) else None
+            return page, next_key
+
+    status = PagedStore(
+        [
+            [
+                StoredStatusHistory(
+                    historyId="h1",
+                    ticketId=ticket_id,
+                    newStatus="SUBMITTED",
+                    updatedBy="staff_admin_001",
+                    createdAt="2026-01-01T00:00:01Z",
+                )
+            ],
+            [
+                StoredStatusHistory(
+                    historyId="h2",
+                    ticketId=ticket_id,
+                    newStatus="UNDER_REVIEW",
+                    updatedBy="staff_admin_001",
+                    createdAt="2026-01-01T00:00:04Z",
+                )
+            ],
+        ]
+    )
+    audit = PagedStore(
+        [
+            [
+                StoredAuditHistory(
+                    auditId="a1",
+                    ticketId=ticket_id,
+                    actionType="WORK_ORDER_START",
+                    actorId="staff_admin_001",
+                    actorRole="administrator",
+                    summary="Work order wo_1 started.",
+                    createdAt="2026-01-01T00:00:02Z",
+                )
+            ],
+            [
+                StoredAuditHistory(
+                    auditId="a2",
+                    ticketId=ticket_id,
+                    actionType="WORK_ORDER_COMPLETE",
+                    actorId="staff_admin_001",
+                    actorRole="administrator",
+                    summary="Work order wo_2 completed.",
+                    createdAt="2026-01-01T00:00:05Z",
+                )
+            ],
+        ]
+    )
+    comments = PagedStore(
+        [
+            [
+                StoredStaffComment(
+                    commentId="c1",
+                    ticketId=ticket_id,
+                    authorStaffId="staff_admin_001",
+                    text="internal",
+                    mentionedStaffIds=[],
+                    createdAt="2026-01-01T00:00:03Z",
+                )
+            ],
+            [
+                StoredStaffComment(
+                    commentId="c2",
+                    ticketId=ticket_id,
+                    authorStaffId="staff_admin_001",
+                    text="internal 2",
+                    mentionedStaffIds=[],
+                    createdAt="2026-01-01T00:00:06Z",
+                )
+            ],
+        ]
+    )
+    monkeypatch.setattr(comments_module, "get_status_history_store", lambda: status)
+    monkeypatch.setattr(comments_module, "get_audit_history_store", lambda: audit)
+    monkeypatch.setattr(comments_module, "get_staff_comment_store", lambda: comments)
+
+    seen = []
+    cursor = None
+    for _ in range(6):
+        response = comments_module.staff_comment_service.timeline(
+            ticket_id, principal=principal, limit=1, cursor=cursor
+        )
+        assert len(response.events) == 1
+        seen.append(response.events[0].event_id)
+        cursor = response.next_cursor
+    assert seen == [
+        "status:h1",
+        "audit:a1",
+        "comment:c1",
+        "status:h2",
+        "audit:a2",
+        "comment:c2",
+    ]
+    assert cursor is None
+    assert all(call[0] == 1 for call in status.calls + audit.calls + comments.calls)

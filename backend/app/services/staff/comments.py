@@ -290,6 +290,9 @@ class StaffCommentService:
         }
         for source_name in source_events:
             source_events[source_name] = source_buffers[source_name] + source_events[source_name]
+        # Include restored buffers in the global merge; otherwise they remain
+        # encoded forever and can never be emitted on a later page.
+        events = [event for source in source_events.values() for event in source]
         # Audit rows are the authoritative idempotency boundary: a replayed domain
         # operation or an overlapping audit read must never render twice.
         unique: dict[str, ActivityEvent] = {}
