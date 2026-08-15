@@ -1,6 +1,9 @@
 # Staff assistant
 
 `POST /v1/staff-assistant/query` is a read-only, staff-Bearer-protected endpoint.
+The staff dashboard assistant panel (#42) must call this endpoint; mock answers
+are not accepted. The query is rate-limited by
+`RATE_LIMIT_STAFF_ASSISTANT_LIMIT` / `_WINDOW_SECONDS` (default 30 / 60s).
 It uses no model provider, network call, prompt, or client-supplied ticket data.
 Every count and ticket reference is derived from persisted tickets after staff
 browse scope and `staff_can_access_ticket` enforce municipality, department, and

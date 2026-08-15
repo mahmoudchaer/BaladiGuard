@@ -5,6 +5,11 @@
   gap: 1.25rem;
 }
 
+.workforce-row--focus {
+  outline: 2px solid #1d4e89;
+  background: #eef5fb;
+}
+
 .workforce-page__tabs {
   display: flex;
   gap: 0.5rem;

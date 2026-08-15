@@ -136,6 +136,9 @@ function applyFetchFilters(items: Ticket[], options: FetchPageOptions = {}) {
         return false;
       }
     }
+    if (filters.ticketIds && filters.ticketIds.length > 0 && !filters.ticketIds.includes(ticket.ticketId)) {
+      return false;
+    }
     const query = filters.q?.trim().toLowerCase();
     if (query) {
       const haystack = [
@@ -186,6 +189,29 @@ describe('TicketListPage', () => {
     expect(stats.getByText('Critical')).toBeInTheDocument();
     expect(stats.getByText('Unassigned')).toBeInTheDocument();
     expect(stats.getByText('Overdue')).toBeInTheDocument();
+  });
+
+  it('applies safe assistant filters from the URL and keeps them after interaction', async () => {
+    renderWithProviders(<TicketListPage />, {
+      route: '/?urgency=high,critical&openOnly=true&ticketIds=tkt_missing',
+    });
+
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            urgency: 'high,critical',
+            openOnly: true,
+            ticketIds: ['tkt_missing'],
+          }),
+        }),
+      ),
+    );
+    expect(
+      await screen.findByText('These tickets are no longer available'),
+    ).toBeInTheDocument();
+    expect(window.location.search).toContain('openOnly=true');
+    expect(window.location.search).not.toContain('description');
   });
 
   it('filters the rendered ticket list by search text', async () => {

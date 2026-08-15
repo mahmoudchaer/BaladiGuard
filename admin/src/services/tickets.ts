@@ -46,7 +46,7 @@ const DEFAULT_PAGE_LIMIT = 25;
 export type FetchTicketsFilters = {
   status?: TicketStatus | 'ALL';
   category?: string | 'ALL';
-  urgency?: Ticket['priority'] | 'ALL';
+  urgency?: Ticket['priority'] | 'ALL' | string;
   departmentId?: string | 'ALL';
   slaState?: Ticket['sla'] extends infer S
     ? S extends { state: infer T }
@@ -56,6 +56,9 @@ export type FetchTicketsFilters = {
   assignmentState?: 'assigned' | 'unassigned' | 'ALL';
   q?: string;
   openOnly?: boolean;
+  ticketIds?: string[];
+  workerId?: string;
+  teamId?: string;
 };
 
 export type FetchTicketsPageOptions = {
@@ -162,8 +165,11 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
   if (filters.category && filters.category !== 'ALL' && ticket.category !== filters.category) {
     return false;
   }
-  if (filters.urgency && filters.urgency !== 'ALL' && ticket.priority !== filters.urgency) {
-    return false;
+  if (filters.urgency && filters.urgency !== 'ALL') {
+    const allowed = filters.urgency.split(',').map((item) => item.trim());
+    if (!ticket.priority || !allowed.includes(ticket.priority)) {
+      return false;
+    }
   }
   if (
     filters.departmentId &&
@@ -186,6 +192,15 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
     if (!open.has(ticket.status)) {
       return false;
     }
+  }
+  if (filters.ticketIds && filters.ticketIds.length > 0 && !filters.ticketIds.includes(ticket.ticketId)) {
+    return false;
+  }
+  if (filters.workerId && ticket.assignedWorkerId !== filters.workerId) {
+    return false;
+  }
+  if (filters.teamId && ticket.assignedTeamId !== filters.teamId) {
+    return false;
   }
   const query = filters.q?.trim().toLowerCase();
   if (query) {
@@ -218,6 +233,9 @@ function filterRecord(filters: FetchTicketsFilters = {}): Record<string, string 
         : undefined,
     q: filters.q?.trim() ? filters.q.trim() : undefined,
     openOnly: filters.openOnly ? 'true' : undefined,
+    ticketIds: filters.ticketIds?.length ? filters.ticketIds.join(',') : undefined,
+    workerId: filters.workerId,
+    teamId: filters.teamId,
   };
 }
 
@@ -246,6 +264,15 @@ function appendListFilters(url: URL, filters: FetchTicketsFilters = {}): void {
   }
   if (filters.openOnly) {
     url.searchParams.set('openOnly', 'true');
+  }
+  if (filters.ticketIds && filters.ticketIds.length > 0) {
+    url.searchParams.set('ticketIds', filters.ticketIds.join(','));
+  }
+  if (filters.workerId) {
+    url.searchParams.set('workerId', filters.workerId);
+  }
+  if (filters.teamId) {
+    url.searchParams.set('teamId', filters.teamId);
   }
 }
 

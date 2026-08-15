@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CircleMarker,
@@ -22,6 +22,12 @@ type TicketMapViewportProps = {
   markers: TicketMapMarker[];
   clusters: TicketMapCluster[];
   truncated?: boolean;
+  initialBounds?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  } | null;
   onViewportChange?: (viewport: {
     north: number;
     south: number;
@@ -138,6 +144,31 @@ function FitTicketBounds({ tickets, singleZoom }: { tickets: Ticket[]; singleZoo
     );
     map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
   }, [map, tickets, singleZoom]);
+
+  return null;
+}
+
+function FitInitialBounds({
+  bounds,
+}: {
+  bounds: TicketMapViewportProps['initialBounds'];
+}) {
+  const map = useMap();
+  const applied = useRef(false);
+
+  useEffect(() => {
+    if (!bounds || applied.current) {
+      return;
+    }
+    applied.current = true;
+    map.fitBounds(
+      [
+        [bounds.south, bounds.west],
+        [bounds.north, bounds.east],
+      ],
+      { padding: [28, 28], maxZoom: 16 },
+    );
+  }, [bounds, map]);
 
   return null;
 }
@@ -277,6 +308,7 @@ function OverviewTicketMap({
   markers,
   clusters,
   truncated = false,
+  initialBounds = null,
   onViewportChange,
 }: TicketMapViewportProps) {
   const [colorMode, setColorMode] = useState<MarkerColorMode>('status');
@@ -362,6 +394,7 @@ function OverviewTicketMap({
           subdomains="abcd"
         />
         <ZoomControl position="bottomright" />
+        <FitInitialBounds bounds={initialBounds} />
         <ViewportReporter onViewportChange={onViewportChange} />
         {clusters.map((cluster) => (
           <ClusterMarker key={cluster.id} cluster={cluster} />
@@ -429,6 +462,7 @@ export function TicketMap(props: TicketMapProps) {
       markers={props.markers}
       clusters={props.clusters}
       truncated={props.truncated}
+      initialBounds={props.initialBounds}
       onViewportChange={props.onViewportChange}
     />
   );

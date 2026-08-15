@@ -15,6 +15,8 @@ URGENCY_LEVELS: tuple[ReportPriority, ...] = ("low", "medium", "high", "critical
 SLA_STATES = frozenset({"on_track", "due_soon", "overdue", "completed", "unavailable"})
 ASSIGNMENT_STATES = frozenset({"assigned", "unassigned"})
 MAX_SEARCH_QUERY_LENGTH = 80
+MAX_TICKET_IDS = 20
+MAX_TICKET_ID_LENGTH = 80
 OPEN_TICKET_STATUSES: frozenset[TicketStatus] = frozenset(
     {"SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS"}
 )
@@ -35,6 +37,7 @@ class TicketListFilters:
     workforce_unassigned: bool = False
     q: str | None = None
     open_only: bool = False
+    ticket_ids: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +59,7 @@ def parse_ticket_list_filters(
     workforce_unassigned: bool = False,
     q: str | None = None,
     open_only: bool = False,
+    ticket_ids: str | None = None,
 ) -> tuple[TicketListFilters | None, list[TicketListFilterValidationError]]:
     """Validate raw query values and build filters.
 
@@ -73,6 +77,7 @@ def parse_ticket_list_filters(
     parsed_worker_id: str | None = None
     parsed_team_id: str | None = None
     parsed_q: str | None = None
+    parsed_ticket_ids: tuple[str, ...] | None = None
 
     if status is not None:
         normalized_status = status.strip()
@@ -242,6 +247,36 @@ def parse_ticket_list_filters(
         else:
             parsed_q = normalized_q
 
+    if ticket_ids is not None:
+        parts = [part.strip() for part in ticket_ids.split(",")]
+        if not ticket_ids.strip() or any(not part for part in parts):
+            errors.append(
+                TicketListFilterValidationError(
+                    field="ticketIds",
+                    message="ticketIds must be a comma-separated list of ticket ids.",
+                )
+            )
+        elif len(parts) > MAX_TICKET_IDS:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="ticketIds",
+                    message=f"ticketIds accepts at most {MAX_TICKET_IDS} ids.",
+                )
+            )
+        elif any(len(part) > MAX_TICKET_ID_LENGTH for part in parts):
+            errors.append(
+                TicketListFilterValidationError(
+                    field="ticketIds",
+                    message=f"Each ticket id must be at most {MAX_TICKET_ID_LENGTH} characters.",
+                )
+            )
+        else:
+            unique: list[str] = []
+            for part in parts:
+                if part not in unique:
+                    unique.append(part)
+            parsed_ticket_ids = tuple(unique)
+
     if errors:
         return None, errors
 
@@ -258,6 +293,7 @@ def parse_ticket_list_filters(
             workforce_unassigned=workforce_unassigned,
             q=parsed_q,
             open_only=open_only,
+            ticket_ids=parsed_ticket_ids,
         ),
         [],
     )
@@ -287,6 +323,8 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
     if filters.team_id is not None and ticket.assigned_team_id != filters.team_id:
         return False
     if filters.workforce_unassigned and (ticket.assigned_worker_id or ticket.assigned_team_id):
+        return False
+    if filters.ticket_ids is not None and ticket.ticket_id not in filters.ticket_ids:
         return False
     if filters.q is not None:
         needle = filters.q.casefold()
@@ -321,6 +359,7 @@ __all__ = [
     "SLA_STATES",
     "ASSIGNMENT_STATES",
     "MAX_SEARCH_QUERY_LENGTH",
+    "MAX_TICKET_IDS",
     "filter_stored_tickets",
     "parse_ticket_list_filters",
     "ticket_matches_filters",
