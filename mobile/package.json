@@ -13,7 +13,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "typecheck": "tsc --noEmit",
-    "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales",
+    "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales && node ../scripts/check-hardcoded-ui.mjs .",
     "test": "npm run check:i18n && vitest run"
   },
   "dependencies": {

@@ -62,4 +62,5 @@ node scripts/check-i18n.mjs admin/src/i18n/locales
 node scripts/check-i18n.mjs citizen-web/src/i18n/locales
 node scripts/check-hardcoded-ui.mjs admin/src
 node scripts/check-hardcoded-ui.mjs citizen-web/src
+node scripts/check-hardcoded-ui.mjs mobile
 ```

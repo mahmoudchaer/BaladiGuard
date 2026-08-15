@@ -4,6 +4,7 @@ import { Button, Text } from 'react-native-paper';
 import { Link, type Href } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
@@ -17,6 +18,7 @@ type ReportSuccessProps = {
  * only the ticket number and tracking code are ever shown to citizens.
  */
 export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   const handleCopyTrackingCode = async () => {
@@ -32,7 +34,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
   return (
     <View style={styles.container}>
       <Text variant="headlineSmall" style={styles.title}>
-        Report submitted
+        {t('report.submitted')}
       </Text>
       <Text variant="bodyMedium" style={styles.message}>
         {result.message}
@@ -40,14 +42,14 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
 
       <View style={styles.referenceBlock}>
         <Text variant="labelLarge" style={styles.referenceLabel}>
-          Ticket number
+          {t('report.ticketNumber')}
         </Text>
         <Text variant="headlineMedium" style={styles.ticketNumber}>
           {result.ticketNumber}
         </Text>
 
         <Text variant="labelLarge" style={styles.referenceLabel}>
-          Tracking code
+          {t('report.trackingCode')}
         </Text>
         <View style={styles.trackingRow}>
           <Text variant="titleLarge" style={styles.trackingCode}>
@@ -62,13 +64,12 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
               void handleCopyTrackingCode();
             }}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {copied ? t('report.copied') : t('report.copy')}
           </Button>
         </View>
 
         <Text variant="bodySmall" style={styles.trackingHint}>
-          Save this number and tracking code — you&apos;ll need them to follow your report&apos;s
-          progress.
+          {t('report.saveCodes')}
         </Text>
       </View>
 
@@ -87,7 +88,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
             buttonColor={colors.brand}
             textColor={colors.textInverse}
           >
-            Track this report
+            {t('report.trackThis')}
           </Button>
         </Link>
         <Link href={'/' as Href} asChild>
@@ -98,7 +99,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
             contentStyle={styles.actionButtonContent}
             textColor={colors.brandDark}
           >
-            Back to home
+            {t('report.backHome')}
           </Button>
         </Link>
       </View>
@@ -109,7 +110,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
         textColor={colors.textSecondary}
         style={styles.anotherButton}
       >
-        Report another issue
+        {t('report.reportAnother')}
       </Button>
     </View>
   );

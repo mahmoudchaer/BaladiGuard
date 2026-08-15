@@ -83,14 +83,17 @@ export function OtpVerifyForm({
     mode: 'onBlur',
   });
 
-  const mapError = useCallback((error: unknown) => {
-    if (error instanceof CitizenAuthApiError) {
-      setFormError(error.message);
-      setRetryAfterSeconds(error.retryAfterSeconds);
-      return;
-    }
-    setFormError('Something went wrong. Please try again.');
-  }, []);
+  const mapError = useCallback(
+    (error: unknown) => {
+      if (error instanceof CitizenAuthApiError) {
+        setFormError(error.message);
+        setRetryAfterSeconds(error.retryAfterSeconds);
+        return;
+      }
+      setFormError(t('errors.generic'));
+    },
+    [t],
+  );
 
   const onSubmit = async (values: OtpVerifyValues) => {
     if (requestInFlight.current) {
@@ -154,13 +157,13 @@ export function OtpVerifyForm({
 
       {formError ? (
         <Banner visible icon="alert-circle" style={styles.banner}>
-          {`${formError}${retryAfterSeconds ? ` Try again in about ${retryAfterSeconds}s.` : ''}`}
+          {`${formError}${retryAfterSeconds ? ` ${t('auth.retryAfter', { seconds: retryAfterSeconds })}` : ''}`}
         </Banner>
       ) : null}
 
       {expired ? (
         <Banner visible icon="clock-outline" style={styles.banner}>
-          This code has expired. Request a new one to continue.
+          {t('auth.otpExpired')}
         </Banner>
       ) : null}
 

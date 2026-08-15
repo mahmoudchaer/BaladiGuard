@@ -12,7 +12,7 @@ import {
   type PhoneOtpRequestValues,
 } from '@/schemas/citizenOtpSchema';
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose } from '@/types/citizen';
 import { findCountryDialingOption, listCountryDialingOptions } from '@/utils/countryDialing';
@@ -40,6 +40,7 @@ export function PhoneEntryForm({
   subtitle,
   submitLabel,
 }: PhoneEntryFormProps) {
+  const { t } = useI18n();
   const resolvedTitle = title ?? t('auth.phoneTitle');
   const resolvedSubtitle = subtitle ?? t('auth.phoneSubtitle');
   const resolvedSubmit = submitLabel ?? t('auth.sendCode');
@@ -60,10 +61,10 @@ export function PhoneEntryForm({
   const selectedRegion = useWatch({ control, name: 'region' }) ?? DEFAULT_PHONE_REGION;
   const countryCatalog = useMemo(() => listCountryDialingOptions(), []);
   const selectedCountry = findCountryDialingOption(selectedRegion, 'en', countryCatalog);
-  const nationalPlaceholder = selectedRegion === 'LB' ? '70123456' : 'National number';
+  const nationalPlaceholder = selectedRegion === 'LB' ? '70123456' : t('auth.nationalPlaceholder');
   const nationalHelper = selectedCountry
-    ? `Enter the national mobile number for ${selectedCountry.name} (without the +${selectedCountry.callingCode} prefix), or a full E.164 number like +${selectedCountry.callingCode}70123456.`
-    : 'Enter a national mobile number for the selected country, or a full E.164 number like +96170123456.';
+    ? t('auth.nationalHelper', { name: selectedCountry.name, code: selectedCountry.callingCode })
+    : t('auth.nationalHelperFallback');
 
   const onSubmit = async (values: PhoneOtpRequestValues) => {
     if (requestInFlight.current) {
@@ -97,7 +98,7 @@ export function PhoneEntryForm({
         setFormError(error.message);
         setRetryAfterSeconds(error.retryAfterSeconds);
       } else {
-        setFormError('Something went wrong. Please try again.');
+        setFormError(t('errors.generic'));
       }
     } finally {
       requestInFlight.current = false;
@@ -115,7 +116,7 @@ export function PhoneEntryForm({
 
       {formError ? (
         <Banner visible icon="alert-circle" style={styles.banner}>
-          {`${formError}${retryAfterSeconds ? ` Try again in about ${retryAfterSeconds}s.` : ''}`}
+          {`${formError}${retryAfterSeconds ? ` ${t('auth.retryAfter', { seconds: retryAfterSeconds })}` : ''}`}
         </Banner>
       ) : null}
 
@@ -139,7 +140,7 @@ export function PhoneEntryForm({
           render={({ field: { value, onChange, onBlur } }) => (
             <TextInput
               mode="outlined"
-              label="Phone number"
+              label={t('auth.phoneLabel')}
               keyboardType="phone-pad"
               placeholder={nationalPlaceholder}
               value={value}
@@ -150,11 +151,11 @@ export function PhoneEntryForm({
               activeOutlineColor={colors.brand}
               style={styles.phoneInput}
               testID="phone-input"
-              accessibilityLabel="Phone number"
+              accessibilityLabel={t('auth.phoneLabel')}
               accessibilityHint={
                 selectedCountry
-                  ? `National number for ${selectedCountry.name}, or full international number`
-                  : 'National or full international phone number'
+                  ? t('auth.phoneHint', { name: selectedCountry.name })
+                  : t('auth.phoneHintFallback')
               }
             />
           )}

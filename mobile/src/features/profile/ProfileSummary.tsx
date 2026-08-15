@@ -3,6 +3,7 @@ import { Button, Text } from 'react-native-paper';
 import { Link, type Href } from 'expo-router';
 
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenProfile } from '@/types/citizen';
 
@@ -14,10 +15,15 @@ type ProfileSummaryProps = {
   isLoggingOut?: boolean;
 };
 
-function formatPreference(profile: CitizenProfile): string {
+function formatPreference(
+  profile: CitizenProfile,
+  translate: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const { ticketUpdates, announcements } = profile.notificationPreferences;
-  const parts = [`Ticket updates: ${ticketUpdates}`];
-  parts.push(announcements ? 'Announcements: on' : 'Announcements: off');
+  const parts = [translate('profile.ticketUpdates', { value: ticketUpdates })];
+  parts.push(
+    announcements ? translate('profile.announcementsOn') : translate('profile.announcementsOff'),
+  );
   return parts.join(' · ');
 }
 
@@ -53,47 +59,49 @@ export function ProfileSummary({
   onLogout,
   isLoggingOut = false,
 }: ProfileSummaryProps) {
+  const { t, locale } = useI18n();
   const accountStatus = !profile.active
-    ? 'Inactive'
+    ? t('profile.inactive')
     : profile.contributionReady
-      ? 'Contribution-ready'
-      : 'Not contribution-ready';
+      ? t('profile.contributionReady')
+      : t('profile.notContributionReady');
 
   return (
     <View style={styles.container} testID="profile-summary">
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>
-          Your profile
+          {t('profile.title')}
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Review your identity, communication preferences, and public attribution settings. Full
-          name is optional — a verified phone is enough to submit reports.
+          {t('profile.lede')}
         </Text>
       </View>
 
       <View style={styles.section}>
         <Text variant="labelLarge" style={styles.sectionTitle}>
-          Account
+          {t('profile.account')}
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Full name (optional)"
-            value={profile.fullName?.trim() || 'Not set'}
-            hint="Optional. Not used for sign-in, recovery, ownership, or reporting."
+            label={t('profile.fullName')}
+            value={profile.fullName?.trim() || t('common.notSet')}
+            hint={t('profile.fullNameHint')}
             valueTestID="profile-full-name"
           />
           <View style={styles.divider} />
           <SettingsRow
-            label="Verified phone"
+            label={t('profile.verifiedPhone')}
             value={profile.phone}
-            hint={`Verified ${new Date(profile.phoneVerifiedAt).toLocaleString()}`}
+            hint={t('profile.verifiedAt', {
+              date: new Date(profile.phoneVerifiedAt).toLocaleString(locale),
+            })}
             valueTestID="profile-phone"
           />
           <View style={styles.divider} />
           <SettingsRow
-            label="Email (optional)"
-            value={profile.email ?? 'Not set'}
-            hint="Optional for notifications only — not used to sign in or recover your phone."
+            label={t('profile.email')}
+            value={profile.email ?? t('common.notSet')}
+            hint={t('profile.emailHint')}
             valueTestID="profile-email"
           />
         </View>
@@ -101,19 +109,21 @@ export function ProfileSummary({
 
       <View style={styles.section}>
         <Text variant="labelLarge" style={styles.sectionTitle}>
-          Preferences
+          {t('profile.preferences')}
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Notification preferences"
-            value={formatPreference(profile)}
+            label={t('profile.notifications')}
+            value={formatPreference(profile, t)}
             valueTestID="profile-notifications"
           />
           <View style={styles.divider} />
           <SettingsRow
-            label="Public name visibility"
-            value={profile.publicNameVisible ? 'Visible on owned reports' : 'Hidden (Anonymous)'}
-            hint="Defaults off. Changes apply dynamically to existing and future owned reports."
+            label={t('profile.publicName')}
+            value={
+              profile.publicNameVisible ? t('profile.publicVisible') : t('profile.publicHidden')
+            }
+            hint={t('profile.publicNameHint')}
             valueTestID="profile-public-name"
           />
         </View>
@@ -121,12 +131,12 @@ export function ProfileSummary({
 
       <View style={styles.section}>
         <Text variant="labelLarge" style={styles.sectionTitle}>
-          Session
+          {t('profile.session')}
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Account / session status"
-            value={`${accountStatus}${profile.active ? ' · Signed in' : ''}`}
+            label={t('profile.accountStatus')}
+            value={`${accountStatus}${profile.active ? ` · ${t('profile.signedIn')}` : ''}`}
             valueTestID="profile-status"
           />
         </View>
@@ -144,7 +154,7 @@ export function ProfileSummary({
           textColor={colors.textInverse}
           testID="edit-profile-button"
         >
-          Edit profile
+          {t('profile.edit')}
         </Button>
         <Button
           mode="outlined"
@@ -154,7 +164,7 @@ export function ProfileSummary({
           textColor={colors.brandDark}
           testID="change-phone-button"
         >
-          Change phone number
+          {t('profile.changePhone')}
         </Button>
         <Link href={'/privacy' as Href} asChild>
           <Button
@@ -164,7 +174,7 @@ export function ProfileSummary({
             textColor={colors.textSecondary}
             icon="shield-account-outline"
           >
-            Privacy notice
+            {t('profile.privacy')}
           </Button>
         </Link>
         <Button
@@ -177,7 +187,7 @@ export function ProfileSummary({
           textColor={colors.danger}
           testID="profile-logout-button"
         >
-          Sign out
+          {t('common.signOut')}
         </Button>
       </View>
     </View>

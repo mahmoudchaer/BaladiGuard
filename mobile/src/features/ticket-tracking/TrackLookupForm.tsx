@@ -18,15 +18,15 @@ import {
   getTicketByTrackingCode,
   submitCitizenResolutionFeedback,
 } from '@/services/api/tickets';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { describeStatusMeaning, formatCategoryLabel } from '@/theme/labels';
 import type { CitizenResolutionFeedback, CitizenTicketResponse } from '@/types/ticket';
 import { getCitizenNextAction } from '@/utils/reportGuidance';
 import { normalizeTrackingCode } from '@/utils/trackingCode';
 
-function formatDisplayDate(isoDate: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+function formatDisplayDate(isoDate: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
@@ -37,6 +37,7 @@ type TrackLookupFormProps = {
 };
 
 export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
+  const { t, locale } = useI18n();
   const { accessToken, isAuthenticated } = useCitizenAuth();
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [result, setResult] = useState<CitizenTicketResponse | null>(null);
@@ -277,7 +278,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
                 {t('track.submitted')}
               </Text>
               <Text variant="bodyMedium" style={styles.rowValue}>
-                {formatDisplayDate(result.createdAt)}
+                {formatDisplayDate(result.createdAt, locale)}
               </Text>
             </View>
             <View style={styles.row}>
@@ -285,7 +286,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
                 {t('track.lastUpdated')}
               </Text>
               <Text variant="bodyMedium" style={styles.rowValue}>
-                {formatDisplayDate(result.lastUpdatedAt)}
+                {formatDisplayDate(result.lastUpdatedAt, locale)}
               </Text>
             </View>
             {result.department?.name ? (
@@ -321,9 +322,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
                   .then((updated) => setOwnerFeedback(updated))
                   .catch((error: unknown) => {
                     setFeedbackError(
-                      error instanceof Error
-                        ? error.message
-                        : 'Unable to submit resolution feedback.',
+                      error instanceof Error ? error.message : t('track.feedbackFailed'),
                     );
                   })
                   .finally(() => setSubmittingFeedback(false));
@@ -333,7 +332,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
 
           <View style={styles.guidance} testID="track-next-action">
             <Text variant="labelLarge" style={styles.guidanceLabel}>
-              What happens next
+              {t('track.whatHappensNext')}
             </Text>
             <Text variant="bodyMedium" style={styles.guidanceText}>
               {getCitizenNextAction(result.status)}
@@ -341,11 +340,11 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
           </View>
 
           <Text variant="titleMedium" style={styles.timelineHeading}>
-            Timeline
+            {t('track.timeline')}
           </Text>
           <TicketTimeline
             variant="citizen"
-            emptyMessage="No status updates are available for this report yet."
+            emptyMessage={t('track.emptyTimeline')}
             history={(result.timeline ?? []).map((entry) => ({
               status: entry.status,
               changedAt: entry.changedAt,
@@ -359,7 +358,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
             contentStyle={styles.controlContent}
             textColor={colors.brandDark}
           >
-            Look up another code
+            {t('track.lookUpAnother')}
           </Button>
         </View>
       ) : null}

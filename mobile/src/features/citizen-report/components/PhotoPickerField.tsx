@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
@@ -17,19 +18,13 @@ type PhotoPickerFieldProps = {
 
 type PickerSource = 'camera' | 'library';
 
-const CAMERA_PERMISSION_MESSAGE =
-  'Camera access is needed to take a photo. You can choose one from your gallery instead, or enable camera access in your device settings.';
-const LIBRARY_PERMISSION_MESSAGE =
-  'Photo library access is needed to attach a photo. Enable it in your device settings and try again.';
-const PICKER_FAILURE_MESSAGE =
-  'Something went wrong while opening the camera or gallery. Please try again.';
-
 export function PhotoPickerField({
   control,
   errors,
   setValue,
   onPhotoChanged,
 }: PhotoPickerFieldProps) {
+  const { t } = useI18n();
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [activePicker, setActivePicker] = useState<PickerSource | null>(null);
 
@@ -51,7 +46,7 @@ export function PhotoPickerField({
 
       if (!permission.granted) {
         setPermissionError(
-          source === 'camera' ? CAMERA_PERMISSION_MESSAGE : LIBRARY_PERMISSION_MESSAGE,
+          source === 'camera' ? t('report.cameraPermission') : t('report.libraryPermission'),
         );
         return;
       }
@@ -69,7 +64,7 @@ export function PhotoPickerField({
         applyAsset(result.assets[0], onChange);
       }
     } catch {
-      setPermissionError(PICKER_FAILURE_MESSAGE);
+      setPermissionError(t('report.pickerFailed'));
     } finally {
       setActivePicker(null);
     }
@@ -82,10 +77,10 @@ export function PhotoPickerField({
       render={({ field: { value, onChange } }) => (
         <View style={styles.container}>
           <Text variant="titleMedium" style={styles.label}>
-            Photo
+            {t('report.photo')}
           </Text>
           <Text variant="bodySmall" style={styles.helper}>
-            Attach a clear photo of the infrastructure issue so crews know what to expect.
+            {t('report.photoHelper')}
           </Text>
 
           {value ? (
@@ -102,7 +97,7 @@ export function PhotoPickerField({
                     void pickFrom('library', onChange);
                   }}
                 >
-                  Replace photo
+                  {t('report.replacePhoto')}
                 </Button>
                 <Button
                   mode="text"
@@ -117,7 +112,7 @@ export function PhotoPickerField({
                     setPermissionError(null);
                   }}
                 >
-                  Remove photo
+                  {t('report.removePhoto')}
                 </Button>
               </View>
             </View>
@@ -134,7 +129,7 @@ export function PhotoPickerField({
                   void pickFrom('camera', onChange);
                 }}
               >
-                Take photo
+                {t('report.takePhoto')}
               </Button>
               <Button
                 mode="outlined"
@@ -147,7 +142,7 @@ export function PhotoPickerField({
                   void pickFrom('library', onChange);
                 }}
               >
-                Choose photo
+                {t('report.choosePhoto')}
               </Button>
             </View>
           )}

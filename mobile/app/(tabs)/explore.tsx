@@ -52,7 +52,7 @@ export default function ExploreScreen() {
       if (seq === loadSeqRef.current) setReports(response.items);
     } catch (cause) {
       if (seq === loadSeqRef.current && !controller.signal.aborted) {
-        setError(cause instanceof Error ? cause.message : 'Unable to load community reports.');
+        setError(cause instanceof Error ? cause.message : t('explore.loadFailed'));
       }
     } finally {
       if (seq === loadSeqRef.current) setLoading(false);
@@ -83,25 +83,23 @@ export default function ExploreScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={styles.overline}>COMMUNITY</Text>
+          <Text style={styles.overline}>{t('explore.eyebrow')}</Text>
           <Text style={styles.title} accessibilityRole="header">
             {t('explore.title')}
           </Text>
-          <Text style={styles.subtitle}>
-            See what your community has reported and how the municipality is responding.
-          </Text>
+          <Text style={styles.subtitle}>{t('explore.subtitle')}</Text>
         </View>
         {!isAuthenticated ? (
           <View style={styles.guestBar}>
             <Button mode="text" icon="arrow-left" onPress={() => router.replace('/' as Href)}>
-              Welcome
+              {t('explore.welcome')}
             </Button>
             <Button
               mode="outlined"
               icon="barcode-scan"
               onPress={() => router.push('/track' as Href)}
             >
-              Track with a code
+              {t('explore.trackCode')}
             </Button>
           </View>
         ) : null}
@@ -111,19 +109,19 @@ export default function ExploreScreen() {
               {error}
             </Banner>
             <Button mode="outlined" onPress={() => void load()}>
-              Try again
+              {t('common.tryAgain')}
             </Button>
           </View>
         ) : null}
         {loading ? (
           <View style={styles.loading} testID="public-reports-loading">
             <ActivityIndicator color={colors.brand} />
-            <Text style={styles.muted}>Loading community reports…</Text>
+            <Text style={styles.muted}>{t('explore.loading')}</Text>
           </View>
         ) : null}
         {!loading && !error && reports.length === 0 ? (
           <View style={styles.empty} testID="explore-empty">
-            <Text style={styles.emptyTitle}>No published reports yet</Text>
+            <Text style={styles.emptyTitle}>{t('explore.emptyTitle')}</Text>
             <Text style={styles.muted}>{t('explore.empty')}</Text>
           </View>
         ) : null}
@@ -132,10 +130,10 @@ export default function ExploreScreen() {
             <PublicReportFilters filters={filters} categories={categories} onChange={setFilters} />
             {filteredReports.length === 0 ? (
               <View style={styles.empty} testID="public-filter-empty">
-                <Text style={styles.emptyTitle}>No reports match these filters</Text>
-                <Text style={styles.muted}>Clear the filters to see the public map and list.</Text>
+                <Text style={styles.emptyTitle}>{t('explore.noMatchTitle')}</Text>
+                <Text style={styles.muted}>{t('explore.noMatchBody')}</Text>
                 <Button mode="outlined" onPress={() => setFilters(DEFAULT_FILTERS)}>
-                  Clear filters
+                  {t('explore.clearFilters')}
                 </Button>
               </View>
             ) : (
@@ -143,8 +141,9 @@ export default function ExploreScreen() {
                 <PublicReportsMap reports={filteredReports} onOpenReport={openPublicReport} />
                 {skippedCount > 0 ? (
                   <Text style={styles.mapNote} testID="public-map-skipped-count">
-                    {skippedCount} public {skippedCount === 1 ? 'report has' : 'reports have'} no
-                    usable map point and {skippedCount === 1 ? 'is' : 'are'} still listed below.
+                    {skippedCount === 1
+                      ? t('explore.skippedOne', { count: skippedCount })
+                      : t('explore.skippedMany', { count: skippedCount })}
                   </Text>
                 ) : null}
               </>
@@ -157,13 +156,13 @@ export default function ExploreScreen() {
               key={report.ticketNumber}
               testID={`public-report-card-${report.ticketNumber}`}
               accessibilityRole="button"
-              accessibilityLabel={`Open public report ${report.ticketNumber}`}
+              accessibilityLabel={t('explore.openReport', { ticketNumber: report.ticketNumber })}
               onPress={() => openPublicReport(report.ticketNumber)}
               style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
             >
               <ReportPhoto
                 uri={report.photoUrl}
-                accessibilityLabel={`Approved public photo for ${report.ticketNumber}`}
+                accessibilityLabel={t('explore.photoAlt', { ticketNumber: report.ticketNumber })}
                 variant="compact"
               />
               <View style={styles.cardBody}>
@@ -194,14 +193,14 @@ export default function ExploreScreen() {
                     }}
                     testID={`public-report-directions-${report.ticketNumber}`}
                   >
-                    Open coarse location
+                    {t('explore.openLocation')}
                   </Button>
                 ) : null}
                 <Text
                   style={styles.attribution}
                   testID={`public-report-attribution-${report.ticketNumber}`}
                 >
-                  Shared by {report.attribution.displayName}
+                  {t('explore.sharedBy', { name: report.attribution.displayName })}
                 </Text>
               </View>
             </Pressable>

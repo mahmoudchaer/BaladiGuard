@@ -31,9 +31,25 @@ const TARGETS = [
   'components/PublicPhoto.tsx',
   'components/ImageRedactionReview.tsx',
   'components/StaffAssistantPanel.tsx',
+  'app/(tabs)/explore.tsx',
+  'app/(tabs)/history.tsx',
+  'src/features/citizen-auth/OtpVerifyForm.tsx',
+  'src/features/citizen-auth/PhoneEntryForm.tsx',
+  'src/features/citizen-report/ReportForm.tsx',
+  'src/features/citizen-report/components/DetailsStep.tsx',
+  'src/features/citizen-report/components/LocationFields.tsx',
+  'src/features/citizen-report/components/PhotoPickerField.tsx',
+  'src/features/citizen-report/components/ReviewSummary.tsx',
+  'src/features/citizen-report/components/ReportSuccess.tsx',
+  'src/features/citizen-report/components/StepProgress.tsx',
+  'src/features/profile/ProfileSummary.tsx',
+  'src/features/ticket-tracking/TrackLookupForm.tsx',
+  'src/features/public-browse/PublicReportFilters.tsx',
 ];
 
-const ATTR = /(aria-label|title|placeholder|alt|label)=["']([A-Za-z][^"']{2,})["']/g;
+const ATTR =
+  /(aria-label|title|placeholder|alt|label|accessibilityLabel|accessibilityHint)=["']([A-Za-z][^"']{2,})["']/g;
+const ALERT = /Alert\.alert\(\s*['"]([A-Za-z][^'"]+)['"]/g;
 const TEXT = />([A-Za-z][^<{]{2,})</g;
 const ALLOWED = new Set([
   'BaladiGuard',
@@ -78,6 +94,11 @@ for (const relative of TARGETS) {
   for (const match of source.matchAll(TEXT)) {
     if (!isAllowed(match[1])) {
       findings.push(`${relative}: >${match[1].trim()}<`);
+    }
+  }
+  for (const match of source.matchAll(ALERT)) {
+    if (!isAllowed(match[1])) {
+      findings.push(`${relative}: Alert.alert("${match[1]}")`);
     }
   }
 }

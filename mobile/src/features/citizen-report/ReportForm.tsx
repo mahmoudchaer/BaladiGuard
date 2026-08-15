@@ -35,13 +35,15 @@ import {
   type ReportDraft,
   type ReportDraftSubmissionState,
 } from '@/services/reportDraft';
-import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
-import { t } from '@/i18n';
+import { checkLocalPhotoUri } from '@/services/photoReference';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
-function submitPhaseLabel(phase: SubmitReportPhase): string {
-  return phase === 'submitting-report' ? t('report.submittingReport') : t('report.uploadingPhoto');
+function submitPhaseLabel(phase: SubmitReportPhase, translate: (key: string) => string): string {
+  return phase === 'submitting-report'
+    ? translate('report.submittingReport')
+    : translate('report.uploadingPhoto');
 }
 
 /** Fields validated before a step is allowed to advance. */
@@ -69,6 +71,7 @@ const STEP_SUBTITLE_KEYS: Record<ReportWizardStepKey, string> = {
 const DRAFT_SAVE_DEBOUNCE_MS = 450;
 
 export function ReportForm() {
+  const { t } = useI18n();
   const { profile } = useCitizenAuth();
   const ownerUserId = profile?.userId ?? null;
 
@@ -130,12 +133,10 @@ export function ReportForm() {
         await saveReportDraft(draft);
         setDraftSaveError(null);
       } catch {
-        setDraftSaveError(
-          'Could not save your draft on this device. You can keep editing, but progress may be lost if you leave.',
-        );
+        setDraftSaveError(t('report.draftSaveFailed'));
       }
     },
-    [ownerUserId],
+    [ownerUserId, t],
   );
 
   useEffect(() => {
@@ -222,21 +223,19 @@ export function ReportForm() {
             await saveReportDraft(draft);
           }
           notice = hasUploadedKey
-            ? `${PHOTO_REFERENCE_EXPIRED_MESSAGE} A photo was already uploaded for this attempt — you can resubmit without re-picking, or attach a new photo.`
-            : PHOTO_REFERENCE_EXPIRED_MESSAGE;
+            ? t('report.draftPhotoExpiredUploaded')
+            : t('report.draftPhotoExpired');
         }
       }
 
       const values = draftToFormValues(draft);
       if (!notice) {
         if (!values.photoUri.trim() && hasUploadedKey) {
-          notice =
-            'Draft restored. Your photo was already uploaded securely, so you can submit without attaching it again.';
+          notice = t('report.draftRestoredUploaded');
         } else if (!values.photoUri.trim() && !hasUploadedKey) {
-          notice =
-            'Draft restored, but no local photo was saved. Attach a photo again before submitting.';
+          notice = t('report.draftRestoredNoPhoto');
         } else {
-          notice = 'Draft restored. You can continue or discard it.';
+          notice = t('report.draftRestored');
         }
       }
 
@@ -260,34 +259,30 @@ export function ReportForm() {
   };
 
   const discardActiveDraft = () => {
-    Alert.alert(
-      'Discard draft?',
-      'This clears the saved report draft on this device. You cannot undo this.',
-      [
-        { text: 'Keep editing', style: 'cancel' },
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              if (ownerUserId) {
-                await clearReportDraft(ownerUserId);
-              }
-              skipNextAutosaveRef.current = true;
-              reset(defaultReportFormValues);
-              setSelectedPlaceholderId('');
-              setSubmitError(null);
-              setSubmitPhase(null);
-              setSuccessResult(null);
-              setReturnToReview(false);
-              setStep('details');
-              setSubmission(null);
-              setDraftBanner(null);
-            })();
-          },
+    Alert.alert(t('report.discardTitle'), t('report.discardBody'), [
+      { text: t('report.keepEditing'), style: 'cancel' },
+      {
+        text: t('report.discard'),
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            if (ownerUserId) {
+              await clearReportDraft(ownerUserId);
+            }
+            skipNextAutosaveRef.current = true;
+            reset(defaultReportFormValues);
+            setSelectedPlaceholderId('');
+            setSubmitError(null);
+            setSubmitPhase(null);
+            setSuccessResult(null);
+            setReturnToReview(false);
+            setStep('details');
+            setSubmission(null);
+            setDraftBanner(null);
+          })();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const stepIndex = REPORT_WIZARD_STEP_ORDER.indexOf(step);
@@ -373,8 +368,7 @@ export function ReportForm() {
         void persistDraft('review', values, updated, selectedPlaceholderId);
         setSubmitError(error.message);
       } else {
-        const message =
-          error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+        const message = error instanceof Error ? error.message : t('errors.generic');
         setSubmitError(message);
       }
     } finally {
@@ -418,7 +412,7 @@ export function ReportForm() {
 
       {appConfig.enableMockApi ? (
         <Banner visible icon="information">
-          Mock mode is enabled. Submissions return a sample ticket without calling the backend.
+          {t('report.mockMode')}
         </Banner>
       ) : null}
 
@@ -429,10 +423,8 @@ export function ReportForm() {
               <Icon source="content-save-outline" size={23} color={colors.brandDark} />
             </View>
             <View style={styles.draftCopy}>
-              <Text style={styles.draftTitle}>Continue your report?</Text>
-              <Text style={styles.draftBannerText}>
-                An unfinished report is saved on this device.
-              </Text>
+              <Text style={styles.draftTitle}>{t('report.continueDraft')}</Text>
+              <Text style={styles.draftBannerText}>{t('report.unfinishedSaved')}</Text>
             </View>
           </View>
           <View style={styles.draftActions}>
@@ -443,7 +435,7 @@ export function ReportForm() {
               contentStyle={styles.draftActionContent}
               testID="draft-restore-button"
             >
-              Restore draft
+              {t('report.restoreDraft')}
             </Button>
             <Button
               mode="text"
@@ -451,7 +443,7 @@ export function ReportForm() {
               contentStyle={styles.draftActionContent}
               testID="draft-discard-offer-button"
             >
-              Start over
+              {t('report.startOver')}
             </Button>
           </View>
         </View>
@@ -477,7 +469,7 @@ export function ReportForm() {
 
       {submission?.imageObjectKey && !successResult && !isSubmitting ? (
         <Banner visible icon="cloud-check-outline" testID="partial-upload-banner">
-          Your photo is saved for this draft. Submit again to finish sending the report.
+          {t('report.photoSaved')}
         </Banner>
       ) : null}
 
@@ -496,11 +488,11 @@ export function ReportForm() {
         {step === 'location' ? (
           <>
             <View style={styles.identityNotice} testID="verified-identity-notice">
-              <Text variant="labelLarge">Verified contributor</Text>
+              <Text variant="labelLarge">{t('report.verifiedContributor')}</Text>
               <Text variant="bodyMedium" style={styles.identityText}>
                 {profile?.fullName
-                  ? `${profile.fullName} is signed in by verified phone. Contact details are taken from your profile.`
-                  : 'You are signed in by verified phone. Contact details are taken from your profile.'}
+                  ? t('report.signedInNamed', { name: profile.fullName })
+                  : t('report.signedInPhone')}
               </Text>
             </View>
             <LocationFields
@@ -549,7 +541,7 @@ export function ReportForm() {
               <View style={styles.submittingContent}>
                 <ActivityIndicator animating color={colors.textInverse} />
                 <Text style={styles.submittingText}>
-                  {submitPhaseLabel(submitPhase ?? 'uploading-photo')}
+                  {submitPhaseLabel(submitPhase ?? 'uploading-photo', t)}
                 </Text>
               </View>
             ) : submitError ? (
@@ -580,7 +572,7 @@ export function ReportForm() {
           textColor={colors.textMuted}
           testID="discard-draft-button"
         >
-          Discard draft
+          {t('report.discardDraft')}
         </Button>
       ) : null}
     </ScrollView>
