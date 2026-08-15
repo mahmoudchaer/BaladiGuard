@@ -231,24 +231,45 @@ class ResolutionFeedbackService:
                     code="FEEDBACK_REVIEW_NOT_ELIGIBLE",
                 )
             fields["status"] = "IN_PROGRESS"
-        updated = self.tickets().patch_fields(
-            ticket.ticket_id,
-            fields,
-            expected_updated_at=ticket.updated_at,
-            expected_values={
-                "resolution_feedback_status": "STILL_UNRESOLVED",
-                "resolution_feedback_review_status": "PENDING",
-                "status": ticket.status,
-            },
+        queued = get_resolution_review_store().get_by_ticket_id(ticket.ticket_id)
+        if queued is None:
+            queued = StoredResolutionReview(
+                reviewId=f"rr_{ticket.ticket_id}",
+                ticketId=ticket.ticket_id,
+                trackingCode=ticket.tracking_code,
+                municipalityId=ticket.municipality_id,
+                departmentId=ticket.department_id,
+                ticketStatus=ticket.status,
+                feedbackStatus="STILL_UNRESOLVED",
+                submittedAt=ticket.resolution_feedback_submitted_at or reviewed_at,
+                reviewStatus="PENDING",
+            )
+        reviewed_queue_item = queued.model_copy(
+            update={
+                "ticket_status": fields.get("status", ticket.status),
+                "review_status": "REVIEWED",
+            }
         )
+        try:
+            updated = self.tickets().commit_resolution_feedback(
+                ticket.ticket_id,
+                fields,
+                expected_updated_at=ticket.updated_at,
+                expected_values={
+                    "resolution_feedback_status": "STILL_UNRESOLVED",
+                    "resolution_feedback_review_status": "PENDING",
+                    "status": ticket.status,
+                },
+                review_item=reviewed_queue_item,
+            )
+        except Exception as exc:
+            raise ResolutionFeedbackError(
+                "The review could not be committed.",
+                status_code=502,
+                code="RESOLUTION_FEEDBACK_REVIEW_COMMIT_FAILED",
+            ) from exc
         if updated is None:
             return self._review_after_conflict(ticket_id, payload, principal=principal)
-
-        queued = get_resolution_review_store().get_by_ticket_id(ticket.ticket_id)
-        if queued is not None:
-            get_resolution_review_store().save(
-                queued.model_copy(update={"review_status": "REVIEWED"})
-            )
 
         self._record_audit(
             updated.ticket_id,

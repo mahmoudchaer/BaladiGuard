@@ -494,14 +494,14 @@ def test_review_stays_pending_when_return_transition_cannot_apply(
         json={"status": "STILL_UNRESOLVED"},
         headers=owner,
     )
-    original = ticket_store.patch_fields
+    original = ticket_store.commit_resolution_feedback
 
     def _fail_return(ticket_id, fields, **kwargs):
         if fields.get("status") == "IN_PROGRESS":
             return None
         return original(ticket_id, fields, **kwargs)
 
-    monkeypatch.setattr(ticket_store, "patch_fields", _fail_return)
+    monkeypatch.setattr(ticket_store, "commit_resolution_feedback", _fail_return)
     response = client.post(
         f"/v1/tickets/{created['ticketId']}/resolution-feedback/review",
         json={"action": "RETURN_IN_PROGRESS"},
@@ -513,6 +513,57 @@ def test_review_stays_pending_when_return_transition_cannot_apply(
     assert stored is not None
     assert stored.status == "RESOLVED"
     assert stored.resolution_feedback_review_status == "PENDING"
+
+
+def test_review_queue_write_failure_rolls_back_and_retry_commits(
+    client: TestClient, monkeypatch
+) -> None:
+    owner = contribution_ready_auth_headers()
+    created = _create_ticket(client, owner)
+    _resolve_ticket(client, created["ticketId"])
+    client.post(
+        f"/v1/citizen/me/tickets/{created['trackingCode']}/resolution-feedback",
+        json={"status": "STILL_UNRESOLVED"},
+        headers=owner,
+    )
+    from app.database.memory_resolution_review import resolution_review_store
+
+    original_save = resolution_review_store.save
+
+    def _boom(review) -> None:
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr(resolution_review_store, "save", _boom)
+    path = f"/v1/tickets/{created['ticketId']}/resolution-feedback/review"
+    failed = client.post(
+        path,
+        json={"action": "RETURN_IN_PROGRESS"},
+        headers=_admin(client),
+    )
+    assert failed.status_code == 502
+    assert failed.json()["error"]["code"] == "RESOLUTION_FEEDBACK_REVIEW_COMMIT_FAILED"
+    stored = ticket_store.get(created["ticketId"])
+    queued = resolution_review_store.get_by_ticket_id(created["ticketId"])
+    assert stored is not None
+    assert queued is not None
+    assert stored.status == "RESOLVED"
+    assert stored.resolution_feedback_review_status == "PENDING"
+    assert queued.review_status == "PENDING"
+
+    monkeypatch.setattr(resolution_review_store, "save", original_save)
+    retried = client.post(
+        path,
+        json={"action": "RETURN_IN_PROGRESS"},
+        headers=_admin(client),
+    )
+    assert retried.status_code == 200, retried.text
+    stored = ticket_store.get(created["ticketId"])
+    queued = resolution_review_store.get_by_ticket_id(created["ticketId"])
+    assert stored is not None
+    assert queued is not None
+    assert stored.status == "IN_PROGRESS"
+    assert stored.resolution_feedback_review_status == "REVIEWED"
+    assert queued.review_status == "REVIEWED"
 
 
 def test_conflicting_review_actions_keep_one_winner(client: TestClient) -> None:
