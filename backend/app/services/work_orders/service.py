@@ -345,7 +345,8 @@ class WorkOrderService:
         """Require at least one after image. Completion never resolves the ticket."""
         from app.services.work_orders.evidence import work_order_evidence_service
 
-        if work_order_evidence_service.after_image_count(work_order.work_order_id) < 1:
+        current = self.store().get(work_order.work_order_id) or work_order
+        if work_order_evidence_service.after_image_count(current.work_order_id) < 1:
             raise WorkOrderError(
                 "At least one after image is required before completing this work order.",
                 code="COMPLETION_EVIDENCE_REQUIRED",

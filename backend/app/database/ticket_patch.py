@@ -193,3 +193,52 @@ def append_ticket_assignment_scope_condition(
         values[value_key] = expected
         parts.append(f"{alias} = {value_key}")
     return " AND ".join(parts)
+
+
+def append_expected_values_condition(
+    names: dict[str, str],
+    values: dict[str, Any],
+    expected_values: dict[str, Any],
+) -> str:
+    """AND-able Dynamo condition for exact current field values (None = absent)."""
+    parts: list[str] = []
+    for index, (field_name, expected) in enumerate(expected_values.items()):
+        alias = f"#exp{index}"
+        names[alias] = resolve_ticket_attr_name(field_name)
+        if expected is None:
+            parts.append(f"attribute_not_exists({alias})")
+            continue
+        value_key = f":exp{index}"
+        values[value_key] = expected
+        parts.append(f"{alias} = {value_key}")
+    return " AND ".join(parts)
+
+
+def append_no_pending_unresolved_feedback_condition(
+    names: dict[str, str],
+    values: dict[str, Any],
+) -> str:
+    """Reject CLOSED writes while unresolved citizen feedback is still pending review."""
+    names["#npufs"] = "resolutionFeedbackStatus"
+    names["#npufr"] = "resolutionFeedbackReviewStatus"
+    values[":npufUnresolved"] = "STILL_UNRESOLVED"
+    values[":npufPending"] = "PENDING"
+    return (
+        "(attribute_not_exists(#npufs) OR #npufs <> :npufUnresolved "
+        "OR attribute_not_exists(#npufr) OR #npufr <> :npufPending)"
+    )
+
+
+def ticket_matches_expected_values(ticket: Any, expected_values: dict[str, Any]) -> bool:
+    for field_name, expected in expected_values.items():
+        resolve_ticket_attr_name(field_name)
+        if getattr(ticket, field_name) != expected:
+            return False
+    return True
+
+
+def ticket_has_pending_unresolved_feedback(ticket: Any) -> bool:
+    return (
+        getattr(ticket, "resolution_feedback_status", None) == "STILL_UNRESOLVED"
+        and getattr(ticket, "resolution_feedback_review_status", None) == "PENDING"
+    )

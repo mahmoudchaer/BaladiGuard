@@ -77,6 +77,7 @@ class StoredWorkOrder(BaseModel):
     cancel_reason_code: str | None = Field(default=None, alias="cancelReasonCode")
     completion_note: str | None = Field(default=None, alias="completionNote")
     cancel_note: str | None = Field(default=None, alias="cancelNote")
+    after_image_count: int = Field(default=0, alias="afterImageCount")
 
     model_config = {"populate_by_name": True}
 

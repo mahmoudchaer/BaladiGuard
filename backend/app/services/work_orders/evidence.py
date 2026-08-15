@@ -47,6 +47,11 @@ class WorkOrderEvidenceService:
         ]
 
     def after_image_count(self, work_order_id: str) -> int:
+        from app.database.store_factory import get_work_order_store
+
+        work_order = get_work_order_store().get(work_order_id)
+        if work_order is not None:
+            return work_order.after_image_count
         return self.store().count_by_kind(work_order_id, "AFTER")
 
     def associate_original_report(

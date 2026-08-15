@@ -272,3 +272,34 @@ def test_evidence_audit_omits_urls_and_keys(client: TestClient, monkeypatch) -> 
     assert "objectKey" not in tracking.text
     assert "afterImage" not in tracking.text.lower()
     assert "evidence" not in tracking.text.lower()
+
+
+def test_completion_succeeds_when_evidence_index_lags(client: TestClient, monkeypatch) -> None:
+    fake = FakeS3Client()
+    set_aws_env(monkeypatch)
+    monkeypatch.setattr(photo_upload_service, "_s3_client", fake)
+    created = _create_accepted_ticket(client)
+    work_order = _create_work_order(client, created["ticketId"])
+    _start(client, work_order["workOrderId"])
+    uploaded = _upload(client, work_order["workOrderId"], kind="AFTER")
+    assert uploaded.status_code == 200, uploaded.text
+
+    from app.database.memory_work_order import work_order_store
+    from app.database.memory_work_order_evidence import work_order_evidence_store
+
+    stored = work_order_store.get(work_order["workOrderId"])
+    assert stored is not None
+    assert stored.after_image_count >= 1
+    monkeypatch.setattr(work_order_evidence_store, "list_by_ticket_id", lambda *_args, **_kw: [])
+    monkeypatch.setattr(
+        work_order_evidence_store, "list_by_work_order_id", lambda *_args, **_kw: []
+    )
+    monkeypatch.setattr(work_order_evidence_store, "count_by_kind", lambda *_args, **_kw: 0)
+
+    completed = client.post(
+        f"/v1/work-orders/{work_order['workOrderId']}/complete",
+        json={},
+        headers=_admin(client),
+    )
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["state"] == "COMPLETED"

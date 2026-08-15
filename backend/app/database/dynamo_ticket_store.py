@@ -29,6 +29,8 @@ from app.database.serialization import (
     ticket_to_item,
 )
 from app.database.ticket_patch import (
+    append_expected_values_condition,
+    append_no_pending_unresolved_feedback_condition,
     append_redaction_review_condition,
     append_ticket_access_scope_condition,
     append_ticket_assignment_scope_condition,
@@ -346,6 +348,8 @@ class DynamoTicketStore:
         expected_municipality_id: str | None = None,
         expected_department_id: str | None = None,
         require_assignment_scope: bool = False,
+        expected_values: dict[str, object] | None = None,
+        forbid_pending_unresolved_feedback: bool = False,
     ) -> StoredTicket | None:
         """Apply a partial attribute update so concurrent writers do not clobber each other."""
         expression, names, values = build_update_expression(fields)
@@ -362,6 +366,15 @@ class DynamoTicketStore:
         else:
             condition = "attribute_exists(ticketId) AND updatedAt = :expectedUpdatedAt"
             values[":expectedUpdatedAt"] = expected_updated_at
+        extra_conditions: list[str] = []
+        if expected_values:
+            extra_conditions.append(
+                append_expected_values_condition(names, values, expected_values)
+            )
+        if forbid_pending_unresolved_feedback:
+            extra_conditions.append(append_no_pending_unresolved_feedback_condition(names, values))
+        if extra_conditions:
+            condition = " AND ".join([condition, *extra_conditions])
         update_kwargs: dict[str, object] = {
             "Key": {"ticketId": ticket_id},
             "UpdateExpression": expression,
@@ -382,6 +395,69 @@ class DynamoTicketStore:
         if PUBLIC_INDEX_FIELDS.intersection(fields):
             self._sync_public_index_fields(updated_ticket)
         return updated_ticket
+
+    def commit_resolution_feedback(
+        self,
+        ticket_id: str,
+        fields: dict[str, object],
+        *,
+        expected_updated_at: str,
+        expected_values: dict[str, object],
+        review_item: object | None = None,
+        delete_review: bool = False,
+    ) -> StoredTicket | None:
+        from app.database.dynamo_resolution_review_store import REVIEW_ITEM_TYPE, review_item_id
+
+        expression, names, values = build_update_expression(fields)
+        condition = "attribute_exists(ticketId) AND updatedAt = :expectedUpdatedAt"
+        values[":expectedUpdatedAt"] = expected_updated_at
+        if expected_values:
+            condition = " AND ".join(
+                [condition, append_expected_values_condition(names, values, expected_values)]
+            )
+        update_item: dict[str, object] = {
+            "TableName": self._tickets_table.name,
+            "Key": {"ticketId": ticket_id},
+            "UpdateExpression": expression,
+            "ConditionExpression": condition,
+            "ExpressionAttributeNames": names,
+        }
+        if values:
+            update_item["ExpressionAttributeValues"] = prepare_dynamodb_value(values)
+        transact_items: list[dict[str, object]] = [{"Update": update_item}]
+        work_orders = self._resource.Table(
+            build_table_name(self._settings.dynamodb_table_prefix, "work-orders")
+        )
+        if review_item is not None:
+            payload = review_item.model_dump(by_alias=True, mode="json")
+            payload["workOrderId"] = review_item_id(review_item.ticket_id)
+            payload["itemType"] = REVIEW_ITEM_TYPE
+            transact_items.append(
+                {"Put": {"TableName": work_orders.name, "Item": prepare_dynamodb_value(payload)}}
+            )
+        elif delete_review:
+            transact_items.append(
+                {
+                    "Delete": {
+                        "TableName": work_orders.name,
+                        "Key": {"workOrderId": review_item_id(ticket_id)},
+                    }
+                }
+            )
+        try:
+            self._resource.meta.client.transact_write_items(TransactItems=transact_items)
+        except ClientError as error:
+            code = error.response.get("Error", {}).get("Code")
+            if code == "ConditionalCheckFailedException":
+                return None
+            if code == "TransactionCanceledException":
+                reasons = error.response.get("CancellationReasons") or []
+                ticket_reason = reasons[0].get("Code") if reasons else None
+                if ticket_reason == "ConditionalCheckFailed":
+                    return None
+                raise
+            raise
+        return self.get(ticket_id)
 
     def update_status(
         self,

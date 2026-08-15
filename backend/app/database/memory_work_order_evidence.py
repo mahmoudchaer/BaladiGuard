@@ -15,6 +15,20 @@ class InMemoryWorkOrderEvidenceStore:
     def save(self, evidence: StoredWorkOrderEvidence) -> StoredWorkOrderEvidence:
         with self._lock:
             self._items[evidence.evidence_id] = evidence
+            if evidence.kind == "AFTER":
+                from app.database.memory_work_order import work_order_store
+
+                def _bump() -> None:
+                    work_order = work_order_store.get(evidence.work_order_id)
+                    if work_order is None:
+                        return
+                    work_order_store.save(
+                        work_order.model_copy(
+                            update={"after_image_count": work_order.after_image_count + 1}
+                        )
+                    )
+
+                work_order_store.run_exclusive(_bump)
             return evidence
 
     def get(self, evidence_id: str) -> StoredWorkOrderEvidence | None:

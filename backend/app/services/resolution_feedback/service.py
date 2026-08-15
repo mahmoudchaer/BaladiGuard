@@ -20,7 +20,6 @@ from app.schemas.resolution_feedback import (
     SubmitResolutionFeedbackRequest,
 )
 from app.schemas.stored_ticket import StoredTicket
-from app.schemas.ticket_response import UpdateTicketStatusRequest
 from app.services.notifications.recipients import ticket_notification_recipient
 from app.services.notifications.service import emit_ticket_notification
 
@@ -114,40 +113,52 @@ class ResolutionFeedbackService:
 
         submitted_at = _iso_now()
         review_status = "PENDING" if payload.status == "STILL_UNRESOLVED" else None
-        updated = self.tickets().patch_fields(
-            ticket.ticket_id,
-            {
-                "resolution_feedback_status": payload.status,
-                "resolution_feedback_note": note,
-                "resolution_feedback_submitted_at": submitted_at,
-                "resolution_feedback_review_status": review_status,
-                "resolution_feedback_reviewed_at": None,
-                "resolution_feedback_reviewed_by": None,
-                "resolution_feedback_review_action": None,
-                "updated_at": submitted_at,
-            },
-        )
-        if updated is None:
-            raise ResolutionFeedbackError(
-                "Ticket was not found.", status_code=404, code="TICKET_NOT_FOUND"
-            )
-
+        fields = {
+            "resolution_feedback_status": payload.status,
+            "resolution_feedback_note": note,
+            "resolution_feedback_submitted_at": submitted_at,
+            "resolution_feedback_review_status": review_status,
+            "resolution_feedback_reviewed_at": None,
+            "resolution_feedback_reviewed_by": None,
+            "resolution_feedback_review_action": None,
+            "updated_at": submitted_at,
+        }
+        review_item = None
         if payload.status == "STILL_UNRESOLVED":
-            get_resolution_review_store().save(
-                StoredResolutionReview(
-                    reviewId=f"rr_{updated.ticket_id}",
-                    ticketId=updated.ticket_id,
-                    trackingCode=updated.tracking_code,
-                    municipalityId=updated.municipality_id,
-                    departmentId=updated.department_id,
-                    ticketStatus=updated.status,
-                    feedbackStatus="STILL_UNRESOLVED",
-                    submittedAt=submitted_at,
-                    reviewStatus="PENDING",
-                )
+            review_item = StoredResolutionReview(
+                reviewId=f"rr_{ticket.ticket_id}",
+                ticketId=ticket.ticket_id,
+                trackingCode=ticket.tracking_code,
+                municipalityId=ticket.municipality_id,
+                departmentId=ticket.department_id,
+                ticketStatus="RESOLVED",
+                feedbackStatus="STILL_UNRESOLVED",
+                submittedAt=submitted_at,
+                reviewStatus="PENDING",
             )
-        else:
-            get_resolution_review_store().delete(updated.ticket_id)
+        try:
+            updated = self.tickets().commit_resolution_feedback(
+                ticket.ticket_id,
+                fields,
+                expected_updated_at=ticket.updated_at,
+                expected_values={
+                    "status": "RESOLVED",
+                    "owner_user_id": owner_user_id,
+                    "resolution_feedback_status": None,
+                },
+                review_item=review_item,
+                delete_review=payload.status != "STILL_UNRESOLVED",
+            )
+        except Exception as exc:
+            raise ResolutionFeedbackError(
+                "Resolution feedback could not be recorded.",
+                status_code=502,
+                code="RESOLUTION_FEEDBACK_COMMIT_FAILED",
+            ) from exc
+        if updated is None:
+            return self._submit_after_conflict(
+                tracking_code, payload, owner_user_id=owner_user_id, note=note
+            )
 
         self._record_audit(
             updated.ticket_id,
@@ -205,21 +216,33 @@ class ResolutionFeedbackService:
             )
 
         reviewed_at = _iso_now()
+        fields: dict[str, object] = {
+            "resolution_feedback_review_status": "REVIEWED",
+            "resolution_feedback_reviewed_at": reviewed_at,
+            "resolution_feedback_reviewed_by": principal.staff_id,
+            "resolution_feedback_review_action": payload.action,
+            "updated_at": reviewed_at,
+            "updated_by": principal.staff_id,
+        }
+        if payload.action == "RETURN_IN_PROGRESS":
+            if ticket.status != "RESOLVED":
+                raise ResolutionFeedbackError(
+                    "There is no unresolved citizen feedback to review.",
+                    code="FEEDBACK_REVIEW_NOT_ELIGIBLE",
+                )
+            fields["status"] = "IN_PROGRESS"
         updated = self.tickets().patch_fields(
             ticket.ticket_id,
-            {
-                "resolution_feedback_review_status": "REVIEWED",
-                "resolution_feedback_reviewed_at": reviewed_at,
-                "resolution_feedback_reviewed_by": principal.staff_id,
-                "resolution_feedback_review_action": payload.action,
-                "updated_at": reviewed_at,
-                "updated_by": principal.staff_id,
+            fields,
+            expected_updated_at=ticket.updated_at,
+            expected_values={
+                "resolution_feedback_status": "STILL_UNRESOLVED",
+                "resolution_feedback_review_status": "PENDING",
+                "status": ticket.status,
             },
         )
         if updated is None:
-            raise ResolutionFeedbackError(
-                "Ticket was not found.", status_code=404, code="TICKET_NOT_FOUND"
-            )
+            return self._review_after_conflict(ticket_id, payload, principal=principal)
 
         queued = get_resolution_review_store().get_by_ticket_id(ticket.ticket_id)
         if queued is not None:
@@ -241,20 +264,17 @@ class ResolutionFeedbackService:
             created_at=reviewed_at,
         )
 
-        if payload.action == "RETURN_IN_PROGRESS" and updated.status == "RESOLVED":
+        if payload.action == "RETURN_IN_PROGRESS" and updated.status == "IN_PROGRESS":
             from app.services.complaints.ticket_service import ticket_service
 
-            ticket_service.update_ticket_status(
-                updated.ticket_id,
-                UpdateTicketStatusRequest(
-                    status="IN_PROGRESS",
-                    note=_normalize_note(payload.note) or "Returned after citizen feedback review.",
-                ),
-                staff_principal=principal,
+            ticket_service._record_status_history(  # noqa: SLF001
+                ticket_id=updated.ticket_id,
+                previous_status="RESOLVED",
+                new_status="IN_PROGRESS",
+                updated_by=principal.staff_id,
+                note=_normalize_note(payload.note) or "Returned after citizen feedback review.",
+                created_at=reviewed_at,
             )
-            refreshed = self.tickets().get(updated.ticket_id)
-            if refreshed is not None:
-                updated = refreshed
 
         return self._staff_response(updated)
 
@@ -280,6 +300,61 @@ class ResolutionFeedbackService:
                 )
             )
         return ResolutionReviewQueueResponse(items=items)
+
+    def _submit_after_conflict(
+        self,
+        tracking_code: str,
+        payload: SubmitResolutionFeedbackRequest,
+        *,
+        owner_user_id: str,
+        note: str | None,
+    ) -> CitizenResolutionFeedbackResponse:
+        ticket = self._require_owned_ticket(tracking_code, owner_user_id)
+        existing_status = ticket.resolution_feedback_status
+        existing_note = _normalize_note(ticket.resolution_feedback_note)
+        if existing_status is not None:
+            if existing_status == payload.status and existing_note == note:
+                return self.citizen_view(tracking_code, owner_user_id=owner_user_id)
+            raise ResolutionFeedbackError(
+                "Resolution feedback was already submitted for this ticket.",
+                status_code=409,
+                code="RESOLUTION_FEEDBACK_ALREADY_SUBMITTED",
+            )
+        if ticket.status != "RESOLVED" or ticket.owner_user_id != owner_user_id:
+            raise ResolutionFeedbackError(
+                "Resolution feedback can only be submitted for an owned resolved ticket.",
+                code="FEEDBACK_NOT_ELIGIBLE",
+            )
+        raise ResolutionFeedbackError(
+            "Ticket was updated by another request. Retry the feedback submission.",
+            status_code=409,
+            code="RESOLUTION_FEEDBACK_CONFLICT",
+        )
+
+    def _review_after_conflict(
+        self,
+        ticket_id: str,
+        payload: ReviewResolutionFeedbackRequest,
+        *,
+        principal: StaffPrincipal,
+    ) -> StaffResolutionFeedbackResponse:
+        ticket = self._require_staff_ticket(ticket_id, principal)
+        if (
+            ticket.resolution_feedback_review_status == "REVIEWED"
+            and ticket.resolution_feedback_review_action == payload.action
+        ):
+            return self._staff_response(ticket)
+        if ticket.resolution_feedback_review_status == "REVIEWED":
+            raise ResolutionFeedbackError(
+                "This unresolved feedback was already reviewed.",
+                status_code=409,
+                code="RESOLUTION_FEEDBACK_ALREADY_REVIEWED",
+            )
+        raise ResolutionFeedbackError(
+            "The review could not be applied because the ticket changed.",
+            status_code=409,
+            code="FEEDBACK_REVIEW_CONFLICT",
+        )
 
     def _can_submit(self, ticket: StoredTicket, owner_user_id: str) -> bool:
         return (

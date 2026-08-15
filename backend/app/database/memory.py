@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from threading import Lock
+from threading import RLock
 from typing import Any, Literal
 
 from app.database.serialization import (
@@ -9,7 +9,11 @@ from app.database.serialization import (
     build_staff_sort_key,
     is_public_ticket_publishable,
 )
-from app.database.ticket_patch import resolve_ticket_attr_name
+from app.database.ticket_patch import (
+    resolve_ticket_attr_name,
+    ticket_has_pending_unresolved_feedback,
+    ticket_matches_expected_values,
+)
 from app.database.ticket_store import (
     StaffTicketPage,
     TicketHistoryPage,
@@ -28,7 +32,7 @@ class InMemoryTicketStore:
         self._ticket_numbers: set[str] = set()
         self._tracking_codes: set[str] = set()
         self._sequence = 0
-        self._lock = Lock()
+        self._lock = RLock()
 
     def next_sequence(self) -> int:
         with self._lock:
@@ -224,6 +228,8 @@ class InMemoryTicketStore:
         expected_municipality_id: str | None = None,
         expected_department_id: str | None = None,
         require_assignment_scope: bool = False,
+        expected_values: dict[str, Any] | None = None,
+        forbid_pending_unresolved_feedback: bool = False,
     ) -> StoredTicket | None:
         if not fields:
             raise ValueError("At least one field is required for a ticket patch.")
@@ -244,9 +250,48 @@ class InMemoryTicketStore:
                     return None
             elif expected_updated_at is not None and ticket.updated_at != expected_updated_at:
                 return None
+            if expected_values and not ticket_matches_expected_values(ticket, expected_values):
+                return None
+            if forbid_pending_unresolved_feedback and ticket_has_pending_unresolved_feedback(
+                ticket
+            ):
+                return None
             updated_ticket = ticket.model_copy(update=fields)
             self._tickets[ticket_id] = updated_ticket
             return updated_ticket
+
+    def commit_resolution_feedback(
+        self,
+        ticket_id: str,
+        fields: dict[str, Any],
+        *,
+        expected_updated_at: str,
+        expected_values: dict[str, Any],
+        review_item: object | None = None,
+        delete_review: bool = False,
+    ) -> StoredTicket | None:
+        from app.database.memory_resolution_review import resolution_review_store
+
+        with self._lock:
+            previous = self._tickets.get(ticket_id)
+            updated = self.patch_fields(
+                ticket_id,
+                fields,
+                expected_updated_at=expected_updated_at,
+                expected_values=expected_values,
+            )
+            if updated is None:
+                return None
+            try:
+                if review_item is not None:
+                    resolution_review_store.save(review_item)
+                elif delete_review:
+                    resolution_review_store.delete(ticket_id)
+            except Exception:
+                if previous is not None:
+                    self._tickets[ticket_id] = previous
+                raise
+            return updated
 
     def update_status(
         self,

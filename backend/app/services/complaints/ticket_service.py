@@ -1258,9 +1258,33 @@ class TicketService:
                 }
             )
         # Partial update so concurrent merges/AI writes are not overwritten.
-        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        updated_ticket = self._store.patch_fields(
+            ticket_id,
+            update_fields,
+            expected_updated_at=ticket.updated_at,
+            expected_values={"status": ticket.status},
+            forbid_pending_unresolved_feedback=payload.status == "CLOSED",
+        )
         if updated_ticket is None:
-            raise TicketNotFoundError(ticket_id)
+            from app.services.work_orders.reasons import OutcomeReasonError
+
+            latest = self._store.get(ticket_id)
+            if latest is None:
+                raise TicketNotFoundError(ticket_id)
+            if payload.status == "CLOSED":
+                from app.services.resolution_feedback.service import (
+                    ResolutionFeedbackError,
+                    assert_closure_allowed,
+                )
+
+                try:
+                    assert_closure_allowed(latest)
+                except ResolutionFeedbackError as exc:
+                    raise OutcomeReasonError(exc.message, code=exc.code) from exc
+            raise OutcomeReasonError(
+                "Ticket was updated by another request. Retry the status change.",
+                code="TICKET_CONFLICT",
+            )
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=ticket.status,

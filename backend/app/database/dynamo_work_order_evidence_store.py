@@ -36,9 +36,26 @@ class DynamoWorkOrderEvidenceStore:
         item["workOrderId"] = evidence.evidence_id
         item["parentWorkOrderId"] = evidence.work_order_id
         item["itemType"] = EVIDENCE_ITEM_TYPE
-        self._table.put_item(
-            Item=prepare_dynamodb_value(item),
-            ConditionExpression="attribute_not_exists(workOrderId)",
+        put_item = {
+            "Item": prepare_dynamodb_value(item),
+            "ConditionExpression": "attribute_not_exists(workOrderId)",
+        }
+        if evidence.kind != "AFTER":
+            self._table.put_item(**put_item)
+            return evidence
+        self._table.meta.client.transact_write_items(
+            TransactItems=[
+                {"Put": {"TableName": self._table.name, **put_item}},
+                {
+                    "Update": {
+                        "TableName": self._table.name,
+                        "Key": {"workOrderId": evidence.work_order_id},
+                        "UpdateExpression": "ADD afterImageCount :one",
+                        "ConditionExpression": "attribute_exists(workOrderId)",
+                        "ExpressionAttributeValues": {":one": 1},
+                    }
+                },
+            ]
         )
         return evidence
 
@@ -68,12 +85,20 @@ class DynamoWorkOrderEvidenceStore:
         return sorted(items, key=lambda item: (item.created_at, item.evidence_id))
 
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredWorkOrderEvidence]:
-        response = self._table.query(
-            IndexName="ticketId-index",
-            KeyConditionExpression=Key("ticketId").eq(ticket_id),
-        )
-        items = [_from_item(item) for item in response.get("Items", []) if is_evidence_item(item)]
-        return sorted(items, key=lambda item: (item.created_at, item.evidence_id))
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": "ticketId-index",
+            "KeyConditionExpression": Key("ticketId").eq(ticket_id),
+        }
+        while True:
+            response = self._table.query(**kwargs)
+            items.extend(response.get("Items") or [])
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            kwargs["ExclusiveStartKey"] = last_key
+        evidence = [_from_item(item) for item in items if is_evidence_item(item)]
+        return sorted(evidence, key=lambda item: (item.created_at, item.evidence_id))
 
     def find_original_for_work_order(self, work_order_id: str) -> StoredWorkOrderEvidence | None:
         for item in self.list_by_work_order_id(work_order_id):
