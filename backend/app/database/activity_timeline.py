@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from boto3.dynamodb.conditions import Attr, Key
+from boto3.dynamodb.conditions import Key
 
 TICKET_ID_INDEX = "ticketId-index"
 TICKET_TIMELINE_INDEX = "ticketTimeline-index"
@@ -67,8 +67,7 @@ def _query_gsi_page(
         Limit=limit,
     )
     items = list(response.get("Items") or [])
-    has_more = bool(response.get("LastEvaluatedKey")) or len(items) >= limit
-    return items, has_more
+    return items, bool(response.get("LastEvaluatedKey"))
 
 
 def list_ticket_timeline_page(
@@ -82,10 +81,11 @@ def list_ticket_timeline_page(
     from_item: Callable[[dict[str, Any]], T],
     use_gsi: bool,
 ) -> tuple[list[T], dict[str, Any] | None]:
-    """Return a keyset page that never hides rows missing ``timelineKey``.
+    """Return a keyset page from the cutover GSI or the pre-cutover compatibility path.
 
-    GSI reads are used only after cutover. Leftover unkeyed rows are still merged
-    in so a premature flag flip cannot drop pre-migration activity.
+    After ``ACTIVITY_TIMELINE_USE_GSI=true``, only ``ticketTimeline-index`` is
+    queried. Leftover unkeyed rows are the compatibility path's job, used only
+    while the flag is still off.
     """
     if exclusive_start_key and exclusive_start_key.get("done"):
         return [], None
@@ -93,25 +93,20 @@ def list_ticket_timeline_page(
     if cursor is not None and not isinstance(cursor, str):
         cursor = None
 
-    gsi_has_more = False
     if use_gsi:
-        gsi_items, gsi_has_more = _query_gsi_page(
-            table, ticket_id=ticket_id, limit=limit + 1, cursor=cursor
-        )
-        leftovers = _query_all_pages(
-            table,
-            index_name=TICKET_ID_INDEX,
-            key_condition=Key("ticketId").eq(ticket_id),
-            filter_expression=Attr("timelineKey").not_exists(),
-        )
-        combined = gsi_items + leftovers
-    else:
-        combined = _query_all_pages(
-            table,
-            index_name=TICKET_ID_INDEX,
-            key_condition=Key("ticketId").eq(ticket_id),
-        )
+        items, has_more = _query_gsi_page(table, ticket_id=ticket_id, limit=limit, cursor=cursor)
+        next_key = None
+        if items and has_more:
+            last_key = items[-1].get("timelineKey")
+            if isinstance(last_key, str):
+                next_key = {"timelineKey": last_key}
+        return [from_item(item) for item in items], next_key
 
+    combined = _query_all_pages(
+        table,
+        index_name=TICKET_ID_INDEX,
+        key_condition=Key("ticketId").eq(ticket_id),
+    )
     unique: dict[str, tuple[str, dict[str, Any]]] = {}
     for item in combined:
         key = item_timeline_key(item, kind=kind, id_field=id_field)
@@ -124,6 +119,5 @@ def list_ticket_timeline_page(
 
     ordered = sorted(unique.values(), key=lambda pair: pair[0])
     page = ordered[:limit]
-    has_more = gsi_has_more or len(ordered) > limit
-    next_key = {"timelineKey": page[-1][0]} if page and has_more else None
+    next_key = {"timelineKey": page[-1][0]} if page and len(ordered) > limit else None
     return [from_item(item) for _, item in page], next_key

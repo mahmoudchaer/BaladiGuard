@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings
-from app.database.activity_timeline import build_timeline_key
+from app.database.activity_timeline import (
+    TICKET_ID_INDEX,
+    TICKET_TIMELINE_INDEX,
+    build_timeline_key,
+    list_ticket_timeline_page,
+)
 from app.database.dynamo_audit_history_store import DynamoAuditHistoryStore
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
@@ -159,13 +164,11 @@ def _put_legacy_audit(settings: Settings, *, audit_id: str, created_at: str) -> 
     )
 
 
-def test_legacy_row_stays_visible_before_and_during_gsi_cutover(
-    dynamodb_settings: Settings,
-) -> None:
+def test_legacy_row_stays_visible_before_gsi_cutover(dynamodb_settings: Settings) -> None:
     _put_legacy_audit(dynamodb_settings, audit_id="audit_legacy", created_at="2026-01-01T00:00:01Z")
-    dynamodb_settings.activity_timeline_use_gsi = True
-    keyed_store = DynamoAuditHistoryStore(dynamodb_settings)
-    keyed_store.append(
+    dynamodb_settings.activity_timeline_use_gsi = False
+    store = DynamoAuditHistoryStore(dynamodb_settings)
+    store.append(
         StoredAuditHistory(
             auditId="audit_new",
             ticketId="tkt_cutover",
@@ -174,14 +177,48 @@ def test_legacy_row_stays_visible_before_and_during_gsi_cutover(
             createdAt="2026-01-01T00:00:02Z",
         )
     )
+    page, _next = store.list_by_ticket_id_page("tkt_cutover", limit=10)
+    assert [item.audit_id for item in page] == ["audit_legacy", "audit_new"]
 
-    gsi_page, _next = keyed_store.list_by_ticket_id_page("tkt_cutover", limit=10)
-    assert [item.audit_id for item in gsi_page] == ["audit_legacy", "audit_new"]
 
-    dynamodb_settings.activity_timeline_use_gsi = False
-    compat_store = DynamoAuditHistoryStore(dynamodb_settings)
-    compat_page, _next = compat_store.list_by_ticket_id_page("tkt_cutover", limit=10)
-    assert [item.audit_id for item in compat_page] == ["audit_legacy", "audit_new"]
+class RecordingQueryTable:
+    def __init__(self, gsi_items: list[dict[str, Any]]) -> None:
+        self.gsi_items = gsi_items
+        self.indexes: list[str] = []
+
+    def query(self, **kwargs: Any) -> dict[str, Any]:
+        index_name = str(kwargs.get("IndexName") or "")
+        self.indexes.append(index_name)
+        if index_name == TICKET_TIMELINE_INDEX:
+            return {"Items": list(self.gsi_items)}
+        raise AssertionError(f"legacy index should not be queried after cutover: {index_name}")
+
+
+def test_gsi_cutover_page_does_not_query_legacy_index() -> None:
+    created_at = "2026-01-01T00:00:01Z"
+    item = {
+        "auditId": "audit_done",
+        "ticketId": "tkt_cutover",
+        "actionType": "WORK_ORDER_START",
+        "summary": "Work order started.",
+        "createdAt": created_at,
+        "timelineKey": build_timeline_key("audit", "audit_done", created_at),
+    }
+    table = RecordingQueryTable([item])
+    page, next_key = list_ticket_timeline_page(
+        table,
+        ticket_id="tkt_cutover",
+        limit=10,
+        exclusive_start_key=None,
+        kind="audit",
+        id_field="auditId",
+        from_item=lambda row: row["auditId"],
+        use_gsi=True,
+    )
+    assert page == ["audit_done"]
+    assert next_key is None
+    assert table.indexes == [TICKET_TIMELINE_INDEX]
+    assert TICKET_ID_INDEX not in table.indexes
 
 
 def test_backfill_then_gsi_read_includes_migrated_legacy_row(

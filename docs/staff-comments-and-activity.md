@@ -39,8 +39,9 @@ lacks `timelineKey`, so GSI reads stay off until backfill is complete and verifi
 3. Verify sample tickets still show pre-migration status, audit, and comment activity.
 4. Only then set `ACTIVITY_TIMELINE_USE_GSI=true` and restart the API.
 
-Until step 4 the API keeps a compatibility read (and still merges leftover unkeyed rows if the flag
-is flipped early), so historical activity cannot disappear during an incomplete backfill.
+Until step 4 the API keeps a compatibility read over `ticketId-index`, so historical activity
+cannot disappear during an incomplete backfill. After the flag is enabled, each page reads only
+the chronological GSI and does not rescan the legacy index.
 
 Administrators should treat this feature as internal coordination data and apply the municipality's
 normal access, retention, and export policies before sharing it outside authorized staff.
