@@ -159,6 +159,36 @@
     "empty": "Les signalements publics apparaîtront ici après l’examen de confidentialité.",
     "emptyMap": "Aucun emplacement cartographiable dans les résultats actuels. Utilisez la liste ci-dessous."
   },
+  "history": {
+    "title": "Mes signalements",
+    "subtitle": "Signalements envoyés depuis votre compte. Touchez un signalement pour voir sa chronologie.",
+    "loadingAccount": "Chargement du compte...",
+    "loading": "Chargement de vos signalements...",
+    "emptyTitle": "Aucun signalement pour le moment",
+    "emptyBody": "Les signalements envoyés une fois connecté apparaîtront ici.",
+    "reportIssue": "Signaler un problème",
+    "tryAgain": "Réessayer",
+    "loadMore": "Charger plus",
+    "loadingMore": "Chargement...",
+    "categorySubmitted": "{category} · Soumis {date}",
+    "viewReport": "Voir le signalement {code}",
+    "loadError": "Impossible de charger l’historique de vos signalements.",
+    "feedbackError": "Impossible d’envoyer le retour de résolution."
+  },
+  "timeline": {
+    "empty": "Aucun historique de statut n’est encore disponible pour ce ticket.",
+    "a11y": "Chronologie du statut du ticket",
+    "updatedBy": "Mis à jour par {name}"
+  },
+  "feedback": {
+    "title": "Le problème a-t-il été résolu ?",
+    "prompt": "Indiquez à la municipalité si le problème est réellement résolu. Votre note facultative reste privée.",
+    "confirmed": "Vous avez confirmé que ce signalement était résolu.",
+    "unresolved": "Vous avez indiqué à la municipalité que le problème n’est pas résolu.",
+    "note": "Note privée (facultatif)",
+    "confirmedFixed": "Confirmé résolu",
+    "stillUnresolved": "Toujours non résolu"
+  },
   "a11y": {
     "goBack": "Retour",
     "openProfile": "Ouvrir le profil",

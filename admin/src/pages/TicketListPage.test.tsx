@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setLocale, t } from '@/i18n';
 
 import { TicketListPage } from '@/pages/TicketListPage';
 import { queryStaffAssistant } from '@/services/staffAssistant';
@@ -199,6 +200,34 @@ describe('TicketListPage', () => {
     expect(stats.getByText('Critical')).toBeInTheDocument();
     expect(stats.getByText('Unassigned')).toBeInTheDocument();
     expect(stats.getByText('Overdue')).toBeInTheDocument();
+  });
+
+  it('localizes the ticket list chrome for Arabic and French', async () => {
+    renderWithProviders(<TicketListPage />);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Work queue' }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    expect(
+      screen.getByRole('heading', { level: 1, name: t('tickets.queueTitle') }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(t('filters.category'))).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: t('queue.needsAttention') }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    expect(
+      screen.getByRole('heading', { level: 1, name: t('tickets.queueTitle') }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: t('tickets.citizenReports') }),
+    ).toBeInTheDocument();
   });
 
   const assistantListAnswer: StaffAssistantResponse = {

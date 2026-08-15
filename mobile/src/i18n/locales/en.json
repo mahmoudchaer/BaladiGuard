@@ -159,6 +159,36 @@
     "empty": "Public reports will appear here after privacy review.",
     "emptyMap": "No mappable locations in the current public results. Use the list below."
   },
+  "history": {
+    "title": "My Reports",
+    "subtitle": "Reports submitted from your signed-in account. Tap any report to see its full status timeline.",
+    "loadingAccount": "Loading account...",
+    "loading": "Loading your reports...",
+    "emptyTitle": "No reports yet",
+    "emptyBody": "Reports you submit while signed in will appear here.",
+    "reportIssue": "Report an issue",
+    "tryAgain": "Try again",
+    "loadMore": "Load more",
+    "loadingMore": "Loading more...",
+    "categorySubmitted": "{category} · Submitted {date}",
+    "viewReport": "View report {code}",
+    "loadError": "Unable to load your report history right now.",
+    "feedbackError": "Unable to submit resolution feedback."
+  },
+  "timeline": {
+    "empty": "No status history is available for this ticket yet.",
+    "a11y": "Ticket status timeline",
+    "updatedBy": "Updated by {name}"
+  },
+  "feedback": {
+    "title": "Was this issue fixed?",
+    "prompt": "Tell the municipality whether the reported issue is actually fixed. Your optional note stays private.",
+    "confirmed": "You confirmed this report was fixed.",
+    "unresolved": "You told the municipality this is still unresolved.",
+    "note": "Private note (optional)",
+    "confirmedFixed": "Confirmed fixed",
+    "stillUnresolved": "Still unresolved"
+  },
   "a11y": {
     "goBack": "Go back",
     "openProfile": "Open profile",

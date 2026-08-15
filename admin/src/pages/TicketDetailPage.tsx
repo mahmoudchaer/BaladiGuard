@@ -32,6 +32,7 @@ import {
 } from '@/services/workOrders';
 import { fetchResolutionFeedback, reviewResolutionFeedback } from '@/services/resolutionFeedback';
 import type { StaffResolutionFeedback } from '@/types/resolutionFeedback';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
@@ -106,8 +107,8 @@ import {
 import { IconImage, IconLocation, IconSparkles, IconWorkflow } from '@/components/icons';
 import {
   parseTicketDetailSection,
-  TICKET_DETAIL_SECTION_LABELS,
   TICKET_DETAIL_SECTION_PARAM,
+  ticketDetailSectionLabel,
   TICKET_DETAIL_SECTIONS,
   ticketDetailPanelId,
   ticketDetailTabId,
@@ -144,6 +145,7 @@ function CandidateThumb({
   category: string;
   imageUrl?: string;
 }) {
+  const { t } = useI18n();
   // Candidates carry a presigned URL only; there is no raw storage key to resolve.
   const resolvedUrl = imageUrl ? getTicketImageUrl(undefined, category, imageUrl) : null;
 
@@ -152,7 +154,7 @@ function CandidateThumb({
       <span
         className="ticket-detail__thumb ticket-detail__thumb--empty"
         role="img"
-        aria-label={`No photo available for ${ticketNumber}`}
+        aria-label={t('ticket.noPhoto', { ticketNumber })}
       >
         <IconImage className="ticket-detail__thumb-icon" />
       </span>
@@ -163,7 +165,7 @@ function CandidateThumb({
     <img
       className="ticket-detail__thumb"
       src={resolvedUrl}
-      alt={`Report photo for ${ticketNumber}`}
+      alt={t('ticket.photoAlt', { ticketNumber })}
     />
   );
 }
@@ -177,6 +179,7 @@ function ComparisonColumn({
   eyebrow: string;
   data: DuplicateComparison;
 }) {
+  const { t } = useI18n();
   return (
     <div className="ticket-detail__comparison-column">
       <p className="ticket-detail__eyebrow">{eyebrow}</p>
@@ -184,37 +187,37 @@ function ComparisonColumn({
       <TicketPhoto
         imageUrl={data.imageUrl}
         category={data.category}
-        alt={`Report photo for ${data.ticketNumber}`}
+        alt={t('ticket.photoAlt', { ticketNumber: data.ticketNumber })}
       />
       <p className="ticket-detail__comparison-description">{data.description}</p>
       <dl className="ticket-detail__comparison-facts">
         <div>
-          <dt>Status</dt>
+          <dt>{t('ticket.status')}</dt>
           <dd>
             <StatusBadge status={data.status} />
           </dd>
         </div>
         <div>
-          <dt>Category</dt>
+          <dt>{t('ticket.category')}</dt>
           <dd>
             <CategoryBadge category={data.category} />
           </dd>
         </div>
         <div>
-          <dt>Priority</dt>
+          <dt>{t('ticket.priority')}</dt>
           <dd>
             <PriorityBadge priority={data.priority} />
           </dd>
         </div>
         <div>
-          <dt>Submitted</dt>
+          <dt>{t('ticket.submitted')}</dt>
           <dd>
             <time dateTime={data.createdAt}>{formatCreatedDate(data.createdAt)}</time>
           </dd>
         </div>
         <div>
-          <dt>Location</dt>
-          <dd>{data.location.addressText || 'No address provided'}</dd>
+          <dt>{t('ticket.location')}</dt>
+          <dd>{data.location.addressText || t('ticket.noAddress')}</dd>
         </div>
       </dl>
     </div>
@@ -222,6 +225,7 @@ function ComparisonColumn({
 }
 
 export function TicketDetailPage() {
+  const { t } = useI18n();
   const { ticketId } = useParams<{ ticketId: string }>();
   const { session } = useStaffAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1205,32 +1209,27 @@ export function TicketDetailPage() {
 
   return (
     <DashboardLayout
-      title="Ticket Details"
+      title={t('ticket.details')}
       subtitle={
-        ticket
-          ? `${ticket.ticketNumber} · ${formatStatus(ticket.status)}`
-          : 'Municipal review workspace'
+        ticket ? `${ticket.ticketNumber} · ${formatStatus(ticket.status)}` : t('ticket.workspace')
       }
     >
       <div className="ticket-detail-page">
         <Link to="/" className="ticket-detail-page__back">
-          ← Back to ticket queue
+          {t('ticket.back')}
         </Link>
 
-        {loadState === 'loading' && <LoadingState message="Loading ticket details…" />}
+        {loadState === 'loading' && <LoadingState message={t('ticket.loading')} />}
 
         {loadState === 'error' && (
           <div className="ticket-detail-page__error" role="alert">
-            <h3>Unable to load ticket</h3>
+            <h3>{t('ticket.unableLoad')}</h3>
             <p>{errorMessage}</p>
           </div>
         )}
 
         {loadState === 'not-found' && (
-          <EmptyState
-            title="Ticket not found"
-            message="This ticket may have been removed or the link is incorrect. Return to the list to browse available reports."
-          />
+          <EmptyState title={t('ticket.notFoundTitle')} message={t('ticket.notFoundBody')} />
         )}
 
         {loadState === 'success' && ticket && (
@@ -1255,7 +1254,7 @@ export function TicketDetailPage() {
                     className="ticket-detail__primary-action"
                     onClick={() => selectSection('review')}
                   >
-                    Review & update ticket
+                    {t('ticket.reviewUpdate')}
                   </button>
                   <button
                     type="button"
@@ -1263,31 +1262,31 @@ export function TicketDetailPage() {
                     onClick={handleRefresh}
                     disabled={isRefreshing}
                   >
-                    {isRefreshing ? 'Refreshing…' : 'Refresh'}
+                    {isRefreshing ? t('ticket.refreshing') : t('ticket.refresh')}
                   </button>
                 </div>
               </div>
 
               <dl className="ticket-detail__summary-meta">
                 <div className="ticket-detail__summary-meta-item">
-                  <dt>Age</dt>
-                  <dd>{formatTicketAge(ticket.createdAt)} old</dd>
+                  <dt>{t('ticket.age')}</dt>
+                  <dd>{t('ticket.ageValue', { age: formatTicketAge(ticket.createdAt) })}</dd>
                 </div>
                 <div className="ticket-detail__summary-meta-item">
-                  <dt>Department</dt>
+                  <dt>{t('ticket.department')}</dt>
                   <dd>{ticket.departmentName ?? formatDepartment(ticket.departmentId)}</dd>
                 </div>
                 <div className="ticket-detail__summary-meta-item">
-                  <dt>Category</dt>
+                  <dt>{t('ticket.category')}</dt>
                   <dd>
                     {effectiveCategory
                       ? formatCategory(effectiveCategory)
-                      : 'Pending classification'}
+                      : t('ticket.pendingCategory')}
                   </dd>
                 </div>
                 {ticket.sla && ticket.sla.state !== 'unavailable' && (
                   <div className="ticket-detail__summary-meta-item">
-                    <dt>SLA</dt>
+                    <dt>{t('ticket.sla')}</dt>
                     <dd>{ticket.sla.state.replace(/_/g, ' ')}</dd>
                   </div>
                 )}
@@ -1295,7 +1294,7 @@ export function TicketDetailPage() {
 
               {isRefreshing && (
                 <p className="ticket-detail__refresh-status" role="status">
-                  Refreshing ticket…
+                  {t('ticket.refreshingTicket')}
                 </p>
               )}
               {!isRefreshing && errorMessage && (
@@ -1305,29 +1304,29 @@ export function TicketDetailPage() {
               )}
 
               <details className="ticket-detail__technical">
-                <summary>Technical details</summary>
+                <summary>{t('ticket.technical')}</summary>
                 <dl className="ticket-detail__technical-list">
                   <div>
-                    <dt>Tracking code</dt>
+                    <dt>{t('ticket.trackingCode')}</dt>
                     <dd className="ticket-detail__mono">{ticket.trackingCode}</dd>
                   </div>
                   <div>
-                    <dt>Internal ticket ID</dt>
+                    <dt>{t('ticket.internalId')}</dt>
                     <dd className="ticket-detail__mono">{ticket.ticketId}</dd>
                   </div>
                   <div>
-                    <dt>Evidence object key</dt>
+                    <dt>{t('ticket.evidenceKey')}</dt>
                     <dd className="ticket-detail__mono">{ticket.imageObjectKey}</dd>
                   </div>
                   <div>
-                    <dt>Created</dt>
+                    <dt>{t('ticket.created')}</dt>
                     <dd>
                       <time dateTime={ticket.createdAt}>{formatCreatedDate(ticket.createdAt)}</time>
                     </dd>
                   </div>
                   {ticket.updatedAt && (
                     <div>
-                      <dt>Last updated</dt>
+                      <dt>{t('ticket.lastUpdated')}</dt>
                       <dd>
                         <time dateTime={ticket.updatedAt}>
                           {formatCreatedDate(ticket.updatedAt)}
@@ -1342,7 +1341,7 @@ export function TicketDetailPage() {
             <div
               className="ticket-detail__tabs"
               role="tablist"
-              aria-label="Ticket workspace sections"
+              aria-label={t('ticket.sectionsA11y')}
             >
               {TICKET_DETAIL_SECTIONS.map((section, index) => {
                 const isActive = section === activeSection;
@@ -1356,7 +1355,7 @@ export function TicketDetailPage() {
                     aria-selected={isActive}
                     aria-label={
                       section === 'duplicates' && suggestionCount > 0
-                        ? `Duplicates, ${suggestionCount} possible duplicates`
+                        ? t('ticket.duplicatesA11y', { count: suggestionCount })
                         : undefined
                     }
                     tabIndex={isActive ? 0 : -1}
@@ -1367,7 +1366,7 @@ export function TicketDetailPage() {
                     onClick={() => selectSection(section)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                   >
-                    {TICKET_DETAIL_SECTION_LABELS[section]}
+                    {ticketDetailSectionLabel(section)}
                     {section === 'duplicates' && suggestionCount > 0 && (
                       <span className="ticket-detail__tab-badge" aria-hidden="true">
                         {suggestionCount}
@@ -1386,14 +1385,14 @@ export function TicketDetailPage() {
                 aria-labelledby={ticketDetailTabId('overview')}
                 className="ticket-detail__panel"
               >
-                <h3 className="sr-only">Overview</h3>
+                <h3 className="sr-only">{t('ticket.section.overview')}</h3>
 
                 <div className="ticket-detail__next-action">
                   <span className="ticket-detail__next-action-icon" aria-hidden="true">
                     <IconWorkflow />
                   </span>
                   <div>
-                    <p className="ticket-detail__next-action-title">Next action</p>
+                    <p className="ticket-detail__next-action-title">{t('ticket.nextAction')}</p>
                     <p className="ticket-detail__next-action-text">
                       {getStaffNextAction(ticket.status)}
                     </p>
@@ -1402,14 +1401,14 @@ export function TicketDetailPage() {
 
                 <div className="ticket-detail__overview-grid">
                   <div className="ticket-detail__card">
-                    <h4 className="ticket-detail__card-title">Citizen report</h4>
+                    <h4 className="ticket-detail__card-title">{t('ticket.citizenReport')}</h4>
                     <p className="ticket-detail__description">{ticket.description}</p>
                     <div className="ticket-detail__overview-photo">
                       <TicketPhoto
                         imageObjectKey={ticket.imageObjectKey}
                         imageUrl={ticket.imageUrl}
                         category={effectiveCategory ?? ticket.category}
-                        alt={`Report photo for ${ticket.ticketNumber}`}
+                        alt={t('ticket.photoAlt', { ticketNumber: ticket.ticketNumber })}
                       />
                       <ImagePrivacyStatus redaction={ticket.imageRedaction} />
                     </div>
@@ -1420,10 +1419,10 @@ export function TicketDetailPage() {
                       <span className="ticket-detail__card-title-icon" aria-hidden="true">
                         <IconLocation />
                       </span>
-                      Location
+                      {t('ticket.location')}
                     </h4>
                     <p className="ticket-detail__location-text">
-                      {ticket.location.addressText.trim() || 'No address provided'}
+                      {ticket.location.addressText.trim() || t('ticket.noAddress')}
                     </p>
                     {isPlottableTicket(ticket) ? (
                       <>
@@ -1444,13 +1443,13 @@ export function TicketDetailPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Open in Google Maps
+                          {t('ticket.openMaps')}
                         </a>
                         <TicketMap tickets={[ticket]} variant="detail" />
                       </>
                     ) : (
                       <p className="ticket-detail__location-unavailable">
-                        No valid map coordinates are available for this ticket.
+                        {t('ticket.noCoordinates')}
                       </p>
                     )}
                   </div>

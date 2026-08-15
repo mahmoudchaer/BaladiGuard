@@ -15,6 +15,7 @@ import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
 import { StatusChip } from '@/components/StatusChip';
 import { ResolutionFeedbackCard } from '@/components/ResolutionFeedbackCard';
+import { useI18n } from '@/i18n/LocaleProvider';
 import {
   getCitizenTicketHistory,
   submitCitizenResolutionFeedback,
@@ -26,8 +27,8 @@ import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types
 
 const PAGE_SIZE = 20;
 
-function formatDisplayDate(isoDate: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+function formatDisplayDate(isoDate: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
@@ -35,6 +36,7 @@ function formatDisplayDate(isoDate: string): string {
 
 export default function CitizenTicketHistoryScreen() {
   const router = useRouter();
+  const { t, locale } = useI18n();
   const { accessToken, clearSessionLocally, isAuthenticated, isLoading } = useCitizenAuth();
   const [items, setItems] = useState<CitizenTicketHistoryItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -69,8 +71,7 @@ export default function CitizenTicketHistoryScreen() {
         setItems((current) => (mode === 'more' ? [...current, ...page.items] : page.items));
         setNextCursor(page.nextCursor);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unable to load your report history right now.';
+        const message = error instanceof Error ? error.message : t('history.loadError');
         setErrorMessage(message);
         if (message === TICKET_HISTORY_UNAUTHORIZED_MESSAGE) {
           await clearSessionLocally();
@@ -81,7 +82,7 @@ export default function CitizenTicketHistoryScreen() {
         setIsLoadingMore(false);
       }
     },
-    [accessToken, clearSessionLocally],
+    [accessToken, clearSessionLocally, t],
   );
 
   const handleFeedback = async (
@@ -113,9 +114,7 @@ export default function CitizenTicketHistoryScreen() {
         ),
       );
     } catch (error) {
-      setFeedbackError(
-        error instanceof Error ? error.message : 'Unable to submit resolution feedback.',
-      );
+      setFeedbackError(error instanceof Error ? error.message : t('history.feedbackError'));
     } finally {
       setSubmittingFeedbackFor(null);
     }
@@ -135,7 +134,7 @@ export default function CitizenTicketHistoryScreen() {
         <View style={styles.centered} testID="history-auth-loading">
           <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
-            Loading account...
+            {t('history.loadingAccount')}
           </Text>
         </View>
       </SafeAreaView>
@@ -161,11 +160,10 @@ export default function CitizenTicketHistoryScreen() {
       >
         <View style={styles.header}>
           <Text variant="headlineMedium" style={styles.title} accessibilityRole="header">
-            My Reports
+            {t('history.title')}
           </Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
-            Reports submitted from your signed-in account. Tap any report to see its full status
-            timeline.
+            {t('history.subtitle')}
           </Text>
         </View>
 
@@ -186,7 +184,7 @@ export default function CitizenTicketHistoryScreen() {
               style={styles.retryButton}
               testID="history-retry"
             >
-              Try again
+              {t('history.tryAgain')}
             </Button>
           </View>
         ) : null}
@@ -195,7 +193,7 @@ export default function CitizenTicketHistoryScreen() {
           <View style={styles.centeredBlock} testID="history-loading">
             <ActivityIndicator color={colors.brand} />
             <Text variant="bodyMedium" style={styles.muted}>
-              Loading your reports...
+              {t('history.loading')}
             </Text>
           </View>
         ) : null}
@@ -203,10 +201,10 @@ export default function CitizenTicketHistoryScreen() {
         {!isInitialLoading && items.length === 0 && !errorMessage ? (
           <View style={styles.emptyState} testID="history-empty">
             <Text variant="titleMedium" style={styles.emptyTitle}>
-              No reports yet
+              {t('history.emptyTitle')}
             </Text>
             <Text variant="bodyMedium" style={styles.muted}>
-              Reports you submit while signed in will appear here.
+              {t('history.emptyBody')}
             </Text>
             <Button
               mode="contained"
@@ -217,7 +215,7 @@ export default function CitizenTicketHistoryScreen() {
               buttonColor={colors.brand}
               textColor={colors.textInverse}
             >
-              Report an issue
+              {t('history.reportIssue')}
             </Button>
           </View>
         ) : null}
@@ -236,7 +234,7 @@ export default function CitizenTicketHistoryScreen() {
                   }
                   testID={`history-open-${item.trackingCode}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`View report ${item.trackingCode}`}
+                  accessibilityLabel={t('history.viewReport', { code: item.trackingCode })}
                 >
                   <View style={styles.rowHeader}>
                     <Text variant="titleSmall" style={styles.trackingCode}>
@@ -248,8 +246,10 @@ export default function CitizenTicketHistoryScreen() {
                     {item.locationAddress}
                   </Text>
                   <Text variant="bodySmall" style={styles.muted}>
-                    {formatCategoryLabel(item.category)} · Submitted{' '}
-                    {formatDisplayDate(item.submittedAt)}
+                    {t('history.categorySubmitted', {
+                      category: formatCategoryLabel(item.category),
+                      date: formatDisplayDate(item.submittedAt, locale),
+                    })}
                   </Text>
                 </Pressable>
                 {item.canSubmitResolutionFeedback || item.resolutionFeedbackStatus ? (
@@ -289,7 +289,7 @@ export default function CitizenTicketHistoryScreen() {
             textColor={colors.brandDark}
             testID="history-load-more"
           >
-            {isLoadingMore ? 'Loading more...' : 'Load more'}
+            {isLoadingMore ? t('history.loadingMore') : t('history.loadMore')}
           </Button>
         ) : null}
       </ScrollView>

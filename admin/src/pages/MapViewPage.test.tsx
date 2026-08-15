@@ -1,7 +1,8 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setLocale, t } from '@/i18n';
 
 import { queryStaffAssistant } from '@/services/staffAssistant';
 import { fetchTicketMapViewport } from '@/services/tickets';
@@ -89,6 +90,24 @@ describe('MapViewPage', () => {
     expect(screen.getByRole('heading', { name: 'Map View' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Tickets in view' })).toBeInTheDocument();
     expect(screen.getByText('BG-2026-0001')).toBeInTheDocument();
+  });
+
+  it('localizes map headings and list chrome for Arabic and French', async () => {
+    vi.mocked(fetchTicketMapViewport).mockResolvedValue(viewportFromMarkers([baseMarker]));
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Map View' })).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    expect(screen.getByRole('heading', { name: t('map.title') })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: t('map.listTitle') })).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    expect(screen.getByRole('heading', { name: t('map.title') })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: t('map.listTitle') })).toBeInTheDocument();
   });
 
   it('keeps the map visible while filter results refresh', async () => {
