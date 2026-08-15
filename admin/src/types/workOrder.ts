@@ -1,5 +1,20 @@
 export type WorkOrderState = 'QUEUED' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
+export type WorkOrderEvidenceKind = 'BEFORE' | 'AFTER' | 'ORIGINAL_REPORT';
+
+export type WorkOrderEvidence = {
+  evidenceId: string;
+  ticketId: string;
+  workOrderId: string;
+  kind: WorkOrderEvidenceKind;
+  objectKey: string;
+  contentType: string;
+  uploadedBy: string;
+  createdAt: string;
+  source: 'UPLOAD' | 'TICKET_ORIGINAL';
+  photoUrl?: string | null;
+};
+
 export type WorkOrder = {
   workOrderId: string;
   ticketId: string;
@@ -24,6 +39,8 @@ export type WorkOrder = {
   cancelNote?: string | null;
   ticketStatus?: string | null;
   created?: boolean;
+  evidence?: WorkOrderEvidence[];
+  afterImageCount?: number;
 };
 
 export type WorkOrderList = {

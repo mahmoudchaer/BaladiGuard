@@ -28,6 +28,10 @@ from app.schemas.citizen_auth import (
     CitizenOtpVerifyRequest,
     CitizenOtpVerifyResponse,
 )
+from app.schemas.resolution_feedback import (
+    CitizenResolutionFeedbackResponse,
+    SubmitResolutionFeedbackRequest,
+)
 from app.services.citizens.otp_delivery import deliver_citizen_otp
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
@@ -292,6 +296,61 @@ def list_citizen_ticket_history(
         )
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
+
+
+@router.get(
+    "/me/tickets/{tracking_code}/resolution-feedback",
+    response_model=CitizenResolutionFeedbackResponse,
+)
+def get_citizen_resolution_feedback(
+    tracking_code: str,
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenResolutionFeedbackResponse | JSONResponse:
+    from app.services.resolution_feedback.service import (
+        ResolutionFeedbackError,
+        resolution_feedback_service,
+    )
+
+    try:
+        return resolution_feedback_service.citizen_view(
+            tracking_code, owner_user_id=principal.user_id
+        )
+    except ResolutionFeedbackError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+
+
+@router.post(
+    "/me/tickets/{tracking_code}/resolution-feedback",
+    response_model=CitizenResolutionFeedbackResponse,
+)
+def submit_citizen_resolution_feedback(
+    tracking_code: str,
+    payload: SubmitResolutionFeedbackRequest,
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenResolutionFeedbackResponse | JSONResponse:
+    from app.services.resolution_feedback.service import (
+        ResolutionFeedbackError,
+        resolution_feedback_service,
+    )
+
+    try:
+        return resolution_feedback_service.submit_citizen_feedback(
+            tracking_code, payload, owner_user_id=principal.user_id
+        )
+    except ResolutionFeedbackError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
 
 
 @router.post("/me/delete", response_model=CitizenDeleteResponse)

@@ -784,6 +784,12 @@ class CitizenService:
                     category=self._citizen_history_category(ticket),
                     locationAddress=ticket.location.address_text,
                     submittedAt=ticket.created_at,
+                    canSubmitResolutionFeedback=(
+                        ticket.status == "RESOLVED"
+                        and ticket.owner_user_id == user_id
+                        and ticket.resolution_feedback_status is None
+                    ),
+                    resolutionFeedbackStatus=ticket.resolution_feedback_status,
                 )
                 for ticket in page.items
             ],

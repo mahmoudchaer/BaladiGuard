@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.ticket_status import TicketStatus
+from app.schemas.work_order_evidence import WorkOrderEvidenceResponse
 from app.schemas.workforce import AssignWorkforceRequest
 
 WorkOrderState = Literal["QUEUED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]
@@ -76,6 +77,7 @@ class StoredWorkOrder(BaseModel):
     cancel_reason_code: str | None = Field(default=None, alias="cancelReasonCode")
     completion_note: str | None = Field(default=None, alias="completionNote")
     cancel_note: str | None = Field(default=None, alias="cancelNote")
+    after_image_count: int = Field(default=0, alias="afterImageCount")
 
     model_config = {"populate_by_name": True}
 
@@ -176,6 +178,8 @@ class WorkOrderResponse(BaseModel):
     cancel_note: str | None = Field(default=None, alias="cancelNote")
     ticket_status: TicketStatus | None = Field(default=None, alias="ticketStatus")
     created: bool = False
+    evidence: list[WorkOrderEvidenceResponse] = Field(default_factory=list)
+    after_image_count: int = Field(default=0, alias="afterImageCount")
 
     model_config = {"populate_by_name": True}
 
@@ -186,10 +190,14 @@ class WorkOrderResponse(BaseModel):
         *,
         ticket_status: TicketStatus | None = None,
         created: bool = False,
+        evidence: list[WorkOrderEvidenceResponse] | None = None,
     ) -> WorkOrderResponse:
         payload = work_order.model_dump(by_alias=True)
         payload["ticketStatus"] = ticket_status
         payload["created"] = created
+        attached = evidence or []
+        payload["evidence"] = [item.model_dump(by_alias=True) for item in attached]
+        payload["afterImageCount"] = sum(1 for item in attached if item.kind == "AFTER")
         return cls.model_validate(payload)
 
 

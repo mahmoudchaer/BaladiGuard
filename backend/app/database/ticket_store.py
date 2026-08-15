@@ -135,6 +135,19 @@ class TicketStore(Protocol):
         expected_municipality_id: str | None = None,
         expected_department_id: str | None = None,
         require_assignment_scope: bool = False,
+        expected_values: dict[str, Any] | None = None,
+        forbid_pending_unresolved_feedback: bool = False,
+    ) -> StoredTicket | None: ...
+
+    def commit_resolution_feedback(
+        self,
+        ticket_id: str,
+        fields: dict[str, Any],
+        *,
+        expected_updated_at: str,
+        expected_values: dict[str, Any],
+        review_item: object | None = None,
+        delete_review: bool = False,
     ) -> StoredTicket | None: ...
 
     def update_status(

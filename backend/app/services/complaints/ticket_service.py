@@ -1270,6 +1270,17 @@ class TicketService:
         validate_status_transition(ticket.status, payload.status)
         if payload.status == "ASSIGNED" and ticket.department_id not in department_ids():
             raise MissingDepartmentAssignmentError()
+        if payload.status == "CLOSED":
+            from app.services.resolution_feedback.service import (
+                ResolutionFeedbackError,
+                assert_closure_allowed,
+            )
+            from app.services.work_orders.reasons import OutcomeReasonError
+
+            try:
+                assert_closure_allowed(ticket)
+            except ResolutionFeedbackError as exc:
+                raise OutcomeReasonError(exc.message, code=exc.code) from exc
         reason_code = validate_outcome_reason(ticket.status, payload.status, payload.reason_code)
         private_note = normalize_private_note(payload.note)
 
@@ -1288,6 +1299,13 @@ class TicketService:
                     "resolution_note": private_note,
                     "resolved_at": updated_at,
                     "resolved_by": actor_id,
+                    "resolution_feedback_status": None,
+                    "resolution_feedback_note": None,
+                    "resolution_feedback_submitted_at": None,
+                    "resolution_feedback_review_status": None,
+                    "resolution_feedback_reviewed_at": None,
+                    "resolution_feedback_reviewed_by": None,
+                    "resolution_feedback_review_action": None,
                 }
             )
         elif outcome_kind in {"rejection", "closure"} and reason_code:
@@ -1300,9 +1318,33 @@ class TicketService:
                 }
             )
         # Partial update so concurrent merges/AI writes are not overwritten.
-        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
+        updated_ticket = self._store.patch_fields(
+            ticket_id,
+            update_fields,
+            expected_updated_at=ticket.updated_at,
+            expected_values={"status": ticket.status},
+            forbid_pending_unresolved_feedback=payload.status == "CLOSED",
+        )
         if updated_ticket is None:
-            raise TicketNotFoundError(ticket_id)
+            from app.services.work_orders.reasons import OutcomeReasonError
+
+            latest = self._store.get(ticket_id)
+            if latest is None:
+                raise TicketNotFoundError(ticket_id)
+            if payload.status == "CLOSED":
+                from app.services.resolution_feedback.service import (
+                    ResolutionFeedbackError,
+                    assert_closure_allowed,
+                )
+
+                try:
+                    assert_closure_allowed(latest)
+                except ResolutionFeedbackError as exc:
+                    raise OutcomeReasonError(exc.message, code=exc.code) from exc
+            raise OutcomeReasonError(
+                "Ticket was updated by another request. Retry the status change.",
+                code="TICKET_CONFLICT",
+            )
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=ticket.status,

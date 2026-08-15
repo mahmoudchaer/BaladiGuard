@@ -4,8 +4,8 @@ The **ticket** stays the citizen-facing case. A **work order** is the private mu
 execution record used to queue, assign, start, complete, or cancel field work.
 
 Issue #251 (structured resolution and rejection reasons) is implemented on the same
-ticket status path. Completion evidence (#248) is not required yet; completing a work
-order never resolves the citizen ticket.
+ticket status path. Completing a work order requires after-image evidence (#248) and
+never resolves the citizen ticket.
 
 ## Work-order persistence
 
@@ -57,7 +57,7 @@ Staff-only. Missing tickets and out-of-scope tickets return `404 TICKET_NOT_FOUN
 | `GET` | `/v1/work-orders/{workOrderId}` | Single work order |
 | `POST` | `/v1/work-orders/{id}/assign` | `#245` worker XOR team XOR `clear` |
 | `POST` | `/v1/work-orders/{id}/start` | Moves work to `IN_PROGRESS` |
-| `POST` | `/v1/work-orders/{id}/complete` | Optional private `note`. Does **not** resolve the ticket |
+| `POST` | `/v1/work-orders/{id}/complete` | Requires ≥1 after image. Optional private `note`. Does **not** resolve the ticket |
 | `POST` | `/v1/work-orders/{id}/cancel` | Requires `reasonCode` |
 
 Create is allowed only for accepted tickets (`UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`)
@@ -119,13 +119,44 @@ leave staff responses. Legacy terminal tickets without reasons remain readable;
 ## Audit and activity
 
 Work-order mutations append ticket audit actions `WORK_ORDER_CREATE`,
-`WORK_ORDER_ASSIGN`, `WORK_ORDER_START`, `WORK_ORDER_COMPLETE`, and
-`WORK_ORDER_CANCEL` with the authenticated actor and timestamp. The #246 activity
-timeline includes those events. Status history remains the canonical ticket-status
-record; internal notes stay off citizen tracking.
+`WORK_ORDER_ASSIGN`, `WORK_ORDER_START`, `WORK_ORDER_COMPLETE`,
+`WORK_ORDER_CANCEL`, and `WORK_ORDER_EVIDENCE_ADD` with the authenticated actor
+and timestamp. Evidence and resolution-feedback audits never include image URLs
+or private notes. The #246 activity timeline includes those events. Status
+history remains the canonical ticket-status record; internal notes stay off
+citizen tracking.
 
-## Completion evidence
+## Completion evidence (issue #248)
 
-`WorkOrderService._assert_completion_allowed` is the seam for #248. Until that
-issue lands, completion does not require after-images and does not resolve or
-close the citizen ticket.
+Authorized staff attach **before** and **after** images on an active work order.
+Keys are generated server-side under `work-orders/evidence/v1/{ticketScope}/...`.
+Clients cannot supply object keys. The ticket's original report photo is
+associated as `ORIGINAL_REPORT` when the work order is created.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/v1/work-orders/{id}/evidence?kind=BEFORE\|AFTER` | Multipart `file`. Same 5MB / JPEG-PNG-WebP rules as report photos |
+| `GET` | `/v1/work-orders/{id}` and ticket work-order list | Staff-only `evidence[]` plus `afterImageCount` |
+
+At least one **after** image is required before `POST .../complete`. A failed or
+partial upload does not create an evidence record and cannot complete the work
+order. Completion still does not resolve the citizen ticket.
+
+## Citizen resolution verification (issue #261)
+
+Only the authenticated owner of an account-linked `RESOLVED` ticket can submit
+feedback: `CONFIRMED_FIXED` or `STILL_UNRESOLVED`, plus an optional private note
+(max 500). Retry with the same payload is idempotent. Other citizens and public
+tracking never receive the note or the submitter identity.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET`/`POST` | `/v1/citizen/me/tickets/{trackingCode}/resolution-feedback` | Owner only |
+| `GET` | `/v1/tickets/{ticketId}/resolution-feedback` | Staff; includes the private note |
+| `POST` | `/v1/tickets/{ticketId}/resolution-feedback/review` | `KEEP_RESOLVED` or `RETURN_IN_PROGRESS` |
+| `GET` | `/v1/resolution-reviews` | Pending municipal review queue |
+
+`STILL_UNRESOLVED` alerts the review queue and never silently reopens or
+reassigns the ticket. Staff may explicitly return it to `IN_PROGRESS`. Closing a
+resolved ticket is blocked until unresolved feedback is reviewed. A receipt
+notification confirms the update without repeating the private note.

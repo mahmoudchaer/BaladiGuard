@@ -39,11 +39,13 @@ from app.database.memory_citizen_session import citizen_session_store  # noqa: E
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_notification_delivery import notification_delivery_store  # noqa: E402
 from app.database.memory_photo_claim import photo_claim_store  # noqa: E402
+from app.database.memory_resolution_review import resolution_review_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
 from app.database.memory_staff_comments import staff_comment_store  # noqa: E402
 from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
 from app.database.memory_work_order import work_order_store  # noqa: E402
+from app.database.memory_work_order_evidence import work_order_evidence_store  # noqa: E402
 from app.database.memory_workforce import workforce_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
@@ -156,6 +158,8 @@ def reset_ticket_store() -> None:
     staff_password_reset_store.clear()
     workforce_store.clear()
     work_order_store.clear()
+    work_order_evidence_store.clear()
+    resolution_review_store.clear()
     staff_password_reset_service.clear_dev_reset_codes()
     from app.services.citizens.service import citizen_service
 

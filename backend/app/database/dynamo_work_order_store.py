@@ -31,6 +31,13 @@ def _is_claim_item(item: dict[str, Any]) -> bool:
     )
 
 
+def _is_work_order_item(item: dict[str, Any]) -> bool:
+    if _is_claim_item(item):
+        return False
+    item_type = item.get("itemType")
+    return item_type in (None, "WORK_ORDER")
+
+
 def _serialize_item(item: dict[str, Any]) -> dict[str, Any]:
     return {key: _SERIALIZER.serialize(value) for key, value in item.items()}
 
@@ -199,7 +206,7 @@ class DynamoWorkOrderStore:
     def get(self, work_order_id: str) -> StoredWorkOrder | None:
         response = self._table.get_item(Key={"workOrderId": work_order_id}, ConsistentRead=True)
         item = response.get("Item")
-        if not item or _is_claim_item(item):
+        if not item or not _is_work_order_item(item):
             return None
         return StoredWorkOrder.model_validate(convert_decimals(item))
 
@@ -211,7 +218,7 @@ class DynamoWorkOrderStore:
         items = [
             StoredWorkOrder.model_validate(convert_decimals(item))
             for item in response.get("Items", [])
-            if not _is_claim_item(item)
+            if _is_work_order_item(item)
         ]
         return sorted(items, key=lambda item: (item.created_at, item.work_order_id))
 

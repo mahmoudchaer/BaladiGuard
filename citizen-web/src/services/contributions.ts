@@ -1,5 +1,9 @@
 import { apiError, apiFetch, jsonRequest } from '@/services/api';
-import type { CitizenTicketHistoryResponse, SubmitTicketResponse } from '@/types/ticket';
+import type {
+  CitizenTicketHistoryResponse,
+  ResolutionFeedbackStatus,
+  SubmitTicketResponse,
+} from '@/types/ticket';
 
 export type ValidatedLocation = {
   latitude: number;
@@ -67,5 +71,23 @@ export async function getHistory(
     `/citizen/me/tickets?${params}`,
     { method: 'GET' },
     'Unable to load your reports.',
+  );
+}
+
+export async function submitResolutionFeedback(
+  trackingCode: string,
+  status: ResolutionFeedbackStatus,
+  note?: string,
+): Promise<{
+  canSubmit: boolean;
+  status: ResolutionFeedbackStatus | null;
+}> {
+  return jsonRequest(
+    `/citizen/me/tickets/${encodeURIComponent(trackingCode)}/resolution-feedback`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ status, note }),
+    },
+    'Unable to submit resolution feedback.',
   );
 }

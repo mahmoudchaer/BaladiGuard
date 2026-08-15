@@ -77,9 +77,7 @@ class WorkOrderService:
         ticket = self._require_ticket(ticket_id, principal)
         existing = self.store().find_active_for_ticket(ticket_id)
         if existing is not None:
-            return WorkOrderResponse.from_work_order(
-                existing, ticket_status=ticket.status, created=False
-            )
+            return self._to_response(existing, ticket_status=ticket.status, created=False)
         self._assert_ticket_can_receive_work(ticket)
 
         worker_id: str | None = None
@@ -116,6 +114,7 @@ class WorkOrderService:
             ) from exc
         created = saved.work_order_id == work_order.work_order_id
         if created:
+            self._associate_original_report(saved, ticket=ticket, principal=principal)
             self._record_ticket_audit(
                 ticket_id,
                 action_type="WORK_ORDER_CREATE",
@@ -138,7 +137,7 @@ class WorkOrderService:
                 note="Work order created.",
             )
         refreshed = get_ticket_store().get(ticket_id)
-        return WorkOrderResponse.from_work_order(
+        return self._to_response(
             saved,
             ticket_status=refreshed.status if refreshed else ticket.status,
             created=created,
@@ -149,7 +148,7 @@ class WorkOrderService:
     ) -> WorkOrderListResponse:
         ticket = self._require_ticket(ticket_id, principal)
         items = [
-            WorkOrderResponse.from_work_order(item, ticket_status=ticket.status)
+            self._to_response(item, ticket_status=ticket.status)
             for item in self.store().list_by_ticket_id(ticket_id)
         ]
         active = self.store().find_active_for_ticket(ticket_id)
@@ -160,7 +159,7 @@ class WorkOrderService:
 
     def get(self, work_order_id: str, *, principal: StaffPrincipal) -> WorkOrderResponse:
         work_order, ticket = self._require_work_order(work_order_id, principal)
-        return WorkOrderResponse.from_work_order(work_order, ticket_status=ticket.status)
+        return self._to_response(work_order, ticket_status=ticket.status)
 
     def assign(
         self,
@@ -214,7 +213,7 @@ class WorkOrderService:
                 note="Work order assigned.",
             )
         refreshed = get_ticket_store().get(ticket.ticket_id)
-        return WorkOrderResponse.from_work_order(
+        return self._to_response(
             updated, ticket_status=refreshed.status if refreshed else ticket.status
         )
 
@@ -255,7 +254,7 @@ class WorkOrderService:
             note="Work order started.",
         )
         refreshed = get_ticket_store().get(ticket.ticket_id)
-        return WorkOrderResponse.from_work_order(
+        return self._to_response(
             updated, ticket_status=refreshed.status if refreshed else ticket.status
         )
 
@@ -296,7 +295,7 @@ class WorkOrderService:
             created_at=updated_at,
         )
         refreshed = get_ticket_store().get(ticket.ticket_id)
-        return WorkOrderResponse.from_work_order(
+        return self._to_response(
             updated, ticket_status=refreshed.status if refreshed else ticket.status
         )
 
@@ -338,13 +337,51 @@ class WorkOrderService:
             created_at=updated_at,
         )
         refreshed = get_ticket_store().get(ticket.ticket_id)
-        return WorkOrderResponse.from_work_order(
+        return self._to_response(
             updated, ticket_status=refreshed.status if refreshed else ticket.status
         )
 
     def _assert_completion_allowed(self, work_order: StoredWorkOrder) -> None:
-        """#248 will require after-image evidence here. Completion never resolves the ticket."""
-        del work_order
+        """Require at least one after image. Completion never resolves the ticket."""
+        from app.services.work_orders.evidence import work_order_evidence_service
+
+        current = self.store().get(work_order.work_order_id) or work_order
+        if work_order_evidence_service.after_image_count(current.work_order_id) < 1:
+            raise WorkOrderError(
+                "At least one after image is required before completing this work order.",
+                code="COMPLETION_EVIDENCE_REQUIRED",
+            )
+
+    def _associate_original_report(
+        self,
+        work_order: StoredWorkOrder,
+        *,
+        ticket: StoredTicket,
+        principal: StaffPrincipal,
+    ) -> None:
+        from app.services.work_orders.evidence import work_order_evidence_service
+
+        work_order_evidence_service.associate_original_report(
+            work_order,
+            object_key=ticket.image_object_key,
+            uploaded_by=principal.staff_id,
+        )
+
+    def _to_response(
+        self,
+        work_order: StoredWorkOrder,
+        *,
+        ticket_status: TicketStatus | None = None,
+        created: bool = False,
+    ) -> WorkOrderResponse:
+        from app.services.work_orders.evidence import work_order_evidence_service
+
+        return WorkOrderResponse.from_work_order(
+            work_order,
+            ticket_status=ticket_status,
+            created=created,
+            evidence=work_order_evidence_service.list_for_work_order(work_order.work_order_id),
+        )
 
     def _assert_ticket_can_receive_work(self, ticket: StoredTicket) -> None:
         if not is_work_order_eligible_ticket_status(ticket.status):

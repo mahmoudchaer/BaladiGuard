@@ -26,6 +26,7 @@ MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
 OWNER_SCOPE_LENGTH = 24
 KEY_PREFIX = "reports/photos/v2"
+EVIDENCE_KEY_PREFIX = "work-orders/evidence/v1"
 
 
 class InvalidUploadError(ValueError):
@@ -106,6 +107,65 @@ class PhotoUploadService:
             emit_metric("S3Errors", dimensions={"operation": "put_report_photo"})
             raise S3UploadError("Failed to upload image to storage.") from exc
         return storage_key
+
+    async def upload_work_order_evidence(
+        self,
+        file: UploadFile,
+        *,
+        ticket_id: str,
+        work_order_id: str,
+        kind: str,
+    ) -> tuple[str, str]:
+        """Sanitize and store a staff before/after image under a ticket-bound key."""
+        claimed_extension = self._get_extension(file.filename)
+        self._validate_content_type(file.content_type)
+        contents = await file.read(MAX_IMAGE_SIZE_BYTES + 1)
+        if len(contents) > MAX_IMAGE_SIZE_BYTES:
+            raise InvalidUploadError(
+                code="FILE_TOO_LARGE",
+                message="Image file must be 5MB or smaller.",
+            )
+
+        image = self._sanitize_image(contents)
+        if claimed_extension == "jpeg":
+            claimed_extension = "jpg"
+        if claimed_extension != image.extension or file.content_type != image.content_type:
+            raise InvalidUploadError(
+                code="IMAGE_TYPE_MISMATCH",
+                message="The image contents do not match the declared file type.",
+            )
+
+        ticket_scope = self.ticket_scope(ticket_id)
+        kind_scope = kind.strip().lower()
+        storage_key = (
+            f"{EVIDENCE_KEY_PREFIX}/{ticket_scope}/{work_order_id}/{kind_scope}/"
+            f"{uuid4().hex}.{image.extension}"
+        )
+        tags = urlencode(
+            {
+                "upload-state": "linked",
+                "ticket-scope": ticket_scope,
+                "work-order-id": work_order_id,
+                "evidence-kind": kind_scope,
+            },
+            safe="",
+        )
+        try:
+            self._get_s3_client().put_object(
+                Bucket=self._get_bucket_name(),
+                Key=storage_key,
+                Body=image.body,
+                ContentType=image.content_type,
+                ServerSideEncryption="AES256",
+                Tagging=tags,
+                Metadata={"sanitized": "true"},
+            )
+        except (BotoCoreError, ClientError) as exc:
+            from app.core.metrics import emit_metric
+
+            emit_metric("S3Errors", dimensions={"operation": "put_work_order_evidence"})
+            raise S3UploadError("Failed to upload image to storage.") from exc
+        return storage_key, image.content_type
 
     @staticmethod
     def _get_claim_store() -> PhotoClaimStore:

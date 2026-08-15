@@ -32,6 +32,9 @@ const AUDIT_ACTION_LABELS: Record<TicketAuditActionType, string> = {
   WORK_ORDER_START: 'Work order started',
   WORK_ORDER_COMPLETE: 'Work order completed',
   WORK_ORDER_CANCEL: 'Work order cancelled',
+  WORK_ORDER_EVIDENCE_ADD: 'Maintenance evidence added',
+  RESOLUTION_FEEDBACK_SUBMIT: 'Citizen resolution feedback',
+  RESOLUTION_FEEDBACK_REVIEW: 'Resolution feedback reviewed',
 };
 
 export function formatAuditAction(actionType: TicketAuditActionType): string {

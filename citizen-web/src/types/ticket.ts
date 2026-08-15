@@ -61,12 +61,16 @@ export type PublicTicketMapViewportResponse = {
   zoom: number;
 };
 
+export type ResolutionFeedbackStatus = 'CONFIRMED_FIXED' | 'STILL_UNRESOLVED';
+
 export type CitizenTicketHistoryItem = {
   trackingCode: string;
   status: TicketStatus;
   category: string | null;
   locationAddress: string;
   submittedAt: string;
+  canSubmitResolutionFeedback?: boolean;
+  resolutionFeedbackStatus?: ResolutionFeedbackStatus | null;
 };
 
 export type CitizenTicketHistoryResponse = {

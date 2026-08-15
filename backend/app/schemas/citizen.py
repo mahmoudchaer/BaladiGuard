@@ -132,6 +132,8 @@ class CitizenTicketHistoryItem(BaseModel):
     category: str | None = None
     location_address: str = Field(alias="locationAddress")
     submitted_at: str = Field(alias="submittedAt")
+    can_submit_resolution_feedback: bool = Field(default=False, alias="canSubmitResolutionFeedback")
+    resolution_feedback_status: str | None = Field(default=None, alias="resolutionFeedbackStatus")
 
     model_config = {"populate_by_name": True}
 

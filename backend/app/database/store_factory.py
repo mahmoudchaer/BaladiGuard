@@ -20,10 +20,12 @@ from app.database.memory_staff_comments import staff_comment_store
 from app.database.memory_staff_password_reset import staff_password_reset_store
 from app.database.memory_status_history import status_history_store
 from app.database.notification_delivery_store import NotificationDeliveryStore
+from app.database.resolution_review_store import ResolutionReviewStore
 from app.database.staff_comment_store import StaffCommentStore
 from app.database.staff_store import StaffStore
 from app.database.status_history_store import StatusHistoryStore
 from app.database.ticket_store import TicketStore
+from app.database.work_order_evidence_store import WorkOrderEvidenceStore
 from app.database.work_order_store import WorkOrderStore
 from app.database.workforce_store import WorkforceStore
 
@@ -244,3 +246,33 @@ def get_workforce_store() -> WorkforceStore:
 
 def get_work_order_store() -> WorkOrderStore:
     return build_work_order_store(get_settings())
+
+
+def build_work_order_evidence_store(settings: Settings | None = None) -> WorkOrderEvidenceStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_work_order_evidence_store import DynamoWorkOrderEvidenceStore
+
+        return DynamoWorkOrderEvidenceStore(settings)
+    from app.database.memory_work_order_evidence import work_order_evidence_store
+
+    return work_order_evidence_store
+
+
+def get_work_order_evidence_store() -> WorkOrderEvidenceStore:
+    return build_work_order_evidence_store(get_settings())
+
+
+def build_resolution_review_store(settings: Settings | None = None) -> ResolutionReviewStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_resolution_review_store import DynamoResolutionReviewStore
+
+        return DynamoResolutionReviewStore(settings)
+    from app.database.memory_resolution_review import resolution_review_store
+
+    return resolution_review_store
+
+
+def get_resolution_review_store() -> ResolutionReviewStore:
+    return build_resolution_review_store(get_settings())

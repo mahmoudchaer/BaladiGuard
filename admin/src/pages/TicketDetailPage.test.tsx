@@ -17,8 +17,10 @@ import {
   updateTicketStatus,
   fetchImageRedactionReview,
 } from '@/services/tickets';
+import { fetchResolutionFeedback } from '@/services/resolutionFeedback';
 import {
   assignWorkOrder,
+  completeWorkOrder,
   createTicketWorkOrder,
   listTicketWorkOrders,
 } from '@/services/workOrders';
@@ -59,6 +61,24 @@ vi.mock('@/services/workOrders', () => ({
   startWorkOrder: vi.fn(),
   completeWorkOrder: vi.fn(),
   cancelWorkOrder: vi.fn(),
+  uploadWorkOrderEvidence: vi.fn(),
+}));
+
+vi.mock('@/services/resolutionFeedback', () => ({
+  fetchResolutionFeedback: vi.fn(async () => ({
+    ticketId: 'tkt_123',
+    trackingCode: 'ABC123',
+    ticketStatus: 'ASSIGNED',
+    status: null,
+    note: null,
+    submittedAt: null,
+    reviewStatus: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewAction: null,
+    needsReview: false,
+  })),
+  reviewResolutionFeedback: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -1699,5 +1719,72 @@ describe('TicketDetailPage work orders and outcome reasons', () => {
       expect(assignWorkOrder).toHaveBeenCalledWith('wo_assigned', { workerId: 'wrk_road' });
     });
     expect(assignWorkOrder).not.toHaveBeenCalledWith('wo_assigned', { clear: true });
+  });
+
+  it('separates evidence groups and blocks complete until an after image exists', async () => {
+    vi.mocked(listTicketWorkOrders).mockResolvedValue({
+      items: [
+        {
+          workOrderId: 'wo_progress',
+          ticketId: 'tkt_123',
+          municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          departmentId: 'd1111111-1111-1111-1111-111111111111',
+          state: 'IN_PROGRESS',
+          summary: 'Patch the road',
+          createdAt: '2026-07-17T08:10:00Z',
+          createdBy: 'staff_admin_001',
+          updatedAt: '2026-07-17T08:10:00Z',
+          updatedBy: 'staff_admin_001',
+          evidence: [
+            {
+              evidenceId: 'ev_original',
+              ticketId: 'tkt_123',
+              workOrderId: 'wo_progress',
+              kind: 'ORIGINAL_REPORT',
+              objectKey: 'reports/photos/v2/owner/a.jpg',
+              contentType: 'image/jpeg',
+              uploadedBy: 'staff_admin_001',
+              createdAt: '2026-07-17T08:10:00Z',
+              source: 'TICKET_ORIGINAL',
+            },
+          ],
+          afterImageCount: 0,
+        },
+      ],
+      activeWorkOrderId: 'wo_progress',
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Citizen report evidence' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Maintenance before' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Maintenance after' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Complete work' })).toBeDisabled();
+    expect(completeWorkOrder).not.toHaveBeenCalled();
+  });
+
+  it('shows citizen resolution feedback and review actions', async () => {
+    vi.mocked(fetchResolutionFeedback).mockResolvedValue({
+      ticketId: 'tkt_123',
+      trackingCode: 'ABC123',
+      ticketStatus: 'RESOLVED',
+      status: 'STILL_UNRESOLVED',
+      note: 'The hole is still there.',
+      submittedAt: '2026-07-17T12:00:00Z',
+      reviewStatus: 'PENDING',
+      reviewedAt: null,
+      reviewedBy: null,
+      reviewAction: null,
+      needsReview: true,
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+
+    expect(await screen.findByText(/still unresolved/i)).toBeInTheDocument();
+    expect(screen.getByText(/The hole is still there/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep resolved after review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return to in progress' })).toBeInTheDocument();
   });
 });

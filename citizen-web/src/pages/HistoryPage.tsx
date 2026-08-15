@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getHistory } from '@/services/contributions';
-import type { CitizenTicketHistoryItem } from '@/types/ticket';
+import { getHistory, submitResolutionFeedback } from '@/services/contributions';
+import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
 
 function label(value: string | null): string {
   if (!value) return 'General report';
@@ -13,6 +13,8 @@ export function HistoryPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [submittingCode, setSubmittingCode] = useState<string | null>(null);
 
   const load = useCallback(async (next?: string | null) => {
     setLoading(true);
@@ -31,6 +33,29 @@ export function HistoryPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleFeedback = async (trackingCode: string, status: ResolutionFeedbackStatus) => {
+    setSubmittingCode(trackingCode);
+    setFeedbackError(null);
+    try {
+      const result = await submitResolutionFeedback(trackingCode, status);
+      setItems((current) =>
+        current.map((item) =>
+          item.trackingCode === trackingCode
+            ? {
+                ...item,
+                canSubmitResolutionFeedback: result.canSubmit,
+                resolutionFeedbackStatus: result.status,
+              }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : 'Unable to submit feedback.');
+    } finally {
+      setSubmittingCode(null);
+    }
+  };
 
   return (
     <section className="page page-enter narrow-page">
@@ -65,23 +90,53 @@ export function HistoryPage() {
       {items.length ? (
         <div className="history-list">
           {items.map((item) => (
-            <Link
-              className="history-row tactile"
-              key={item.trackingCode}
-              to={`/track?trackingCode=${item.trackingCode}`}
-            >
-              <span className="history-glyph">⌖</span>
-              <div className="history-copy">
-                <strong>{label(item.category)}</strong>
-                <span>{item.locationAddress}</span>
-                <small>{new Date(item.submittedAt).toLocaleDateString()}</small>
-              </div>
-              <span className={`status status-${item.status.toLowerCase().replace('_', '-')}`}>
-                {item.status.replaceAll('_', ' ')}
-              </span>
-              <span aria-hidden>›</span>
-            </Link>
+            <article className="history-row" key={item.trackingCode}>
+              <Link className="history-row tactile" to={`/track?trackingCode=${item.trackingCode}`}>
+                <span className="history-glyph">⌖</span>
+                <div className="history-copy">
+                  <strong>{label(item.category)}</strong>
+                  <span>{item.locationAddress}</span>
+                  <small>{new Date(item.submittedAt).toLocaleDateString()}</small>
+                </div>
+                <span className={`status status-${item.status.toLowerCase().replace('_', '-')}`}>
+                  {item.status.replaceAll('_', ' ')}
+                </span>
+                <span aria-hidden>›</span>
+              </Link>
+              {item.canSubmitResolutionFeedback || item.resolutionFeedbackStatus ? (
+                <div className="history-feedback">
+                  <p>
+                    {item.resolutionFeedbackStatus === 'CONFIRMED_FIXED'
+                      ? 'You confirmed this report was fixed.'
+                      : item.resolutionFeedbackStatus === 'STILL_UNRESOLVED'
+                        ? 'You told the municipality this is still unresolved.'
+                        : 'Was this issue fixed?'}
+                  </p>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={submittingCode === item.trackingCode}
+                    onClick={() => void handleFeedback(item.trackingCode, 'CONFIRMED_FIXED')}
+                  >
+                    Confirmed fixed
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={submittingCode === item.trackingCode}
+                    onClick={() => void handleFeedback(item.trackingCode, 'STILL_UNRESOLVED')}
+                  >
+                    Still unresolved
+                  </button>
+                </div>
+              ) : null}
+            </article>
           ))}
+          {feedbackError ? (
+            <div className="notice notice-error" role="alert">
+              {feedbackError}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {loading ? (

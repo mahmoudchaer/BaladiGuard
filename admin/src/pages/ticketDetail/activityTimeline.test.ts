@@ -40,6 +40,8 @@ describe('activity timeline work-order events', () => {
   it('labels work-order audit actions', () => {
     expect(formatAuditAction('WORK_ORDER_CREATE')).toBe('Work order created');
     expect(formatAuditAction('WORK_ORDER_COMPLETE')).toBe('Work order completed');
+    expect(formatAuditAction('WORK_ORDER_EVIDENCE_ADD')).toBe('Maintenance evidence added');
+    expect(formatAuditAction('RESOLUTION_FEEDBACK_SUBMIT')).toBe('Citizen resolution feedback');
   });
 
   it('keeps work-order audit rows on the operational timeline', () => {

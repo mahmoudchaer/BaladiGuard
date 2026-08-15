@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, File, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
@@ -14,7 +14,9 @@ from app.schemas.work_order import (
     WorkOrderListResponse,
     WorkOrderResponse,
 )
+from app.schemas.work_order_evidence import WorkOrderEvidenceResponse
 from app.schemas.workforce import AssignWorkforceRequest
+from app.services.work_orders.evidence import work_order_evidence_service
 from app.services.work_orders.reasons import OutcomeReasonError
 from app.services.work_orders.service import WorkOrderError, work_order_service
 from app.services.work_orders.transitions import InvalidWorkOrderTransitionError
@@ -129,6 +131,28 @@ def start_work_order(
 ) -> WorkOrderResponse | JSONResponse:
     try:
         return work_order_service.start(work_order_id, principal=principal)
+    except Exception as exc:
+        mapped = _map_known_errors(request, exc)
+        if mapped is not None:
+            return mapped
+        raise
+
+
+EVIDENCE_FILE = File(default=None)
+
+
+@router.post("/work-orders/{work_order_id}/evidence", response_model=WorkOrderEvidenceResponse)
+async def attach_work_order_evidence(
+    work_order_id: str,
+    request: Request,
+    principal: StaffDep,
+    kind: str = Query(..., description="BEFORE or AFTER"),
+    file: UploadFile | None = EVIDENCE_FILE,
+) -> WorkOrderEvidenceResponse | JSONResponse:
+    try:
+        return await work_order_evidence_service.attach_upload(
+            work_order_id, kind=kind, file=file, principal=principal
+        )
     except Exception as exc:
         mapped = _map_known_errors(request, exc)
         if mapped is not None:

@@ -10,6 +10,7 @@ from app.database.dynamodb_tables import TABLE_DEFINITIONS
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
 from app.services.ai_job_queue import ai_job_queue
+from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.work_orders.reasons import (
     CLOSURE_REASON_CODES,
     REJECTION_REASON_CODES,
@@ -20,6 +21,7 @@ from app.services.work_orders.reasons import (
 from app.services.work_orders.transitions import ticket_status_path
 from tests.conftest import contribution_ready_auth_headers, issue_test_staff_token
 from tests.test_submit_ticket import VALID_PAYLOAD
+from tests.test_upload_report_photo import FakeS3Client, image_bytes, set_aws_env
 from tests.test_workforce import BEIRUT, OTHER_MUNICIPALITY, ROAD, WASTE
 
 ADMIN_STAFF_ID = "staff_admin_001"
@@ -70,6 +72,19 @@ def _create_worker(client: TestClient, *, departments: list[str] | None = None) 
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def _attach_after_image(client: TestClient, work_order_id: str, monkeypatch) -> None:
+    fake = FakeS3Client()
+    set_aws_env(monkeypatch)
+    monkeypatch.setattr(photo_upload_service, "_s3_client", fake)
+    response = client.post(
+        f"/v1/work-orders/{work_order_id}/evidence",
+        params={"kind": "AFTER"},
+        files={"file": ("after.png", image_bytes(), "image/png")},
+        headers=_staff(client),
+    )
+    assert response.status_code == 200, response.text
 
 
 def _advance_to_in_progress(client: TestClient, ticket_id: str) -> None:
@@ -239,7 +254,7 @@ def test_work_order_assignment_uses_workforce_scope(client: TestClient) -> None:
     )
 
 
-def test_start_complete_cancel_and_ticket_sync(client: TestClient) -> None:
+def test_start_complete_cancel_and_ticket_sync(client: TestClient, monkeypatch) -> None:
     created = _create_ticket(client)
     _accept_ticket(client, created["ticketId"])
     worker = _create_worker(client)
@@ -253,6 +268,14 @@ def test_start_complete_cancel_and_ticket_sync(client: TestClient) -> None:
     assert started.json()["state"] == "IN_PROGRESS"
     assert started.json()["ticketStatus"] == "IN_PROGRESS"
     assert client.get(f"/v1/tickets/{created['ticketId']}").json()["status"] == "IN_PROGRESS"
+
+    blocked = client.post(
+        f"/v1/work-orders/{work_order['workOrderId']}/complete",
+        json={"note": "Crew finished the patch."},
+    )
+    assert blocked.status_code == 400
+    assert blocked.json()["error"]["code"] == "COMPLETION_EVIDENCE_REQUIRED"
+    _attach_after_image(client, work_order["workOrderId"], monkeypatch)
 
     completed = client.post(
         f"/v1/work-orders/{work_order['workOrderId']}/complete",
