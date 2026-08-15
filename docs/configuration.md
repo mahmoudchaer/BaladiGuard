@@ -56,6 +56,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `S3_PRESIGNED_URL_TTL_SECONDS` | No | `300` | Authorized photo URL lifetime; minimum 30 seconds |
 | `DYNAMODB_ENDPOINT_URL` | No | empty = AWS | `http://localhost:8001` for Docker Local only |
 | `DYNAMODB_TABLE_PREFIX` | No | `baladiguard-` | Table name prefix |
+| `ACTIVITY_TIMELINE_USE_GSI` | No | `false` | Enable only after timeline GSIs are ACTIVE and `backfill_activity_timeline_keys.py` has finished for status, audit, and comments. See `docs/staff-comments-and-activity.md`. |
 | `SEED_SAMPLE_TICKETS` | No | `false` | Must be `false` in production |
 | `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | AI classification / cleaning |
 | `LOCATION_PLACE_INDEX_NAME` | Production | empty → local index | Geocoding |

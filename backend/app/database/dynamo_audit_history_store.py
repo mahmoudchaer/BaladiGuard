@@ -1,6 +1,7 @@
 from boto3.dynamodb.conditions import Key
 
 from app.config import Settings, get_settings
+from app.database.activity_timeline import build_timeline_key, list_ticket_timeline_page
 from app.database.audit_history_serialization import audit_history_to_item, item_to_audit_history
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
@@ -16,28 +17,21 @@ class DynamoAuditHistoryStore:
 
     def append(self, entry: StoredAuditHistory) -> None:
         item = audit_history_to_item(entry)
-        item["timelineKey"] = f"{entry.created_at}#audit:{entry.audit_id}"
+        item["timelineKey"] = build_timeline_key("audit", entry.audit_id, entry.created_at)
         self._table.put_item(Item=item)
 
     def list_by_ticket_id_page(
         self, ticket_id: str, *, limit: int, exclusive_start_key: dict | None = None
     ) -> tuple[list[StoredAuditHistory], dict | None]:
-        timeline_key = exclusive_start_key.get("timelineKey") if exclusive_start_key else None
-        query_kwargs = {
-            "IndexName": "ticketTimeline-index",
-            "KeyConditionExpression": Key("ticketId").eq(ticket_id)
-            & (
-                Key("timelineKey").gt(timeline_key)
-                if timeline_key
-                else Key("timelineKey").begins_with("")
-            ),
-            "Limit": limit,
-        }
-        response = self._table.query(**query_kwargs)
-        items = response.get("Items", [])
-        return (
-            [item_to_audit_history(item) for item in items],
-            {"timelineKey": items[-1]["timelineKey"]} if items else None,
+        return list_ticket_timeline_page(
+            self._table,
+            ticket_id=ticket_id,
+            limit=limit,
+            exclusive_start_key=exclusive_start_key,
+            kind="audit",
+            id_field="auditId",
+            from_item=item_to_audit_history,
+            use_gsi=self._settings.activity_timeline_use_gsi,
         )
 
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredAuditHistory]:

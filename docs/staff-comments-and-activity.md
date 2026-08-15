@@ -22,10 +22,25 @@ image storage identifiers are never serialized; only safe staff display names, s
 resolution outcome values are projected. Evidence photos remain available only through the authorized
 evidence endpoint.
 
-Deployment must create the chronological timeline GSIs and wait for them to become ACTIVE before
-switching reads. Existing rows are sparse-index-invisible until the idempotent, resumable
-activity-key backfill migration is run for status history, audit history, and staff comments. The
-migration can be rerun safely and supports per-table Dynamo scan checkpoints.
+Deployment must follow this cutover. The sparse `ticketTimeline-index` hides any row that still
+lacks `timelineKey`, so GSI reads stay off until backfill is complete and verified.
+
+1. `make db-migrate` (or `python scripts/db/migrate.py`) creates the timeline GSIs and waits until
+   they are ACTIVE.
+2. Dry-run, then apply the idempotent backfill in bounded chunks:
+   ```bash
+   cd backend
+   python scripts/db/backfill_activity_timeline_keys.py --dry-run
+   python scripts/db/backfill_activity_timeline_keys.py --checkpoint-file /tmp/timeline-backfill.json --max-pages 20
+   ```
+   Repeat the apply command until it prints completion and removes the checkpoint file. Interrupted
+   runs resume from that file. `--max-items` and `--max-seconds` are additional soft stops; the
+   current scan page is always finished before a checkpoint is written.
+3. Verify sample tickets still show pre-migration status, audit, and comment activity.
+4. Only then set `ACTIVITY_TIMELINE_USE_GSI=true` and restart the API.
+
+Until step 4 the API keeps a compatibility read (and still merges leftover unkeyed rows if the flag
+is flipped early), so historical activity cannot disappear during an incomplete backfill.
 
 Administrators should treat this feature as internal coordination data and apply the municipality's
 normal access, retention, and export policies before sharing it outside authorized staff.

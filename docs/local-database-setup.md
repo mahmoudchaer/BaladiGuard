@@ -78,6 +78,17 @@ python scripts/db/backfill_staff_ticket_keys.py
 
 See `docs/staff-ticket-collection.md` for deploy ordering and resume flags.
 
+Activity timeline GSIs are also created by `make db-migrate`. Existing status-history, audit, and
+staff-comment rows need `timelineKey` before `ACTIVITY_TIMELINE_USE_GSI=true`:
+
+```bash
+cd backend
+python scripts/db/backfill_activity_timeline_keys.py --dry-run
+python scripts/db/backfill_activity_timeline_keys.py --checkpoint-file /tmp/timeline-backfill.json
+```
+
+See `docs/staff-comments-and-activity.md` for the required create → backfill → verify → cutover order.
+
 ## Current tables (including Sprint 6 citizen persistence)
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
