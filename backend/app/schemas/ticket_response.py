@@ -7,6 +7,7 @@ from app.schemas.image_redaction import TicketImageRedaction
 from app.schemas.stored_ticket import PublicTicketStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
+from app.schemas.work_order import TicketOutcomeFields
 
 TicketPriority = Literal["low", "medium", "high", "critical"]
 
@@ -74,6 +75,11 @@ class TicketAuditHistoryEntry(BaseModel):
         "IMAGE_REDACTION_REPROCESS",
         "IMAGE_REDACTION_MANUAL_BLUR",
         "WORKFORCE_ASSIGN",
+        "WORK_ORDER_CREATE",
+        "WORK_ORDER_ASSIGN",
+        "WORK_ORDER_START",
+        "WORK_ORDER_COMPLETE",
+        "WORK_ORDER_CANCEL",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
     actor_role: Literal["municipal_staff", "administrator"] | None = Field(
@@ -120,6 +126,7 @@ class CitizenTicketResponse(BaseModel):
     updated_at: str | None = Field(default=None, alias="updatedAt")
     last_updated_at: str = Field(alias="lastUpdatedAt")
     timeline: list[CitizenTicketTimelineEntry] = Field(default_factory=list)
+    outcome_message: str | None = Field(default=None, alias="outcomeMessage")
 
     model_config = {"populate_by_name": True}
 
@@ -221,6 +228,7 @@ class UpdateTicketStatusRequest(BaseModel):
     status: TicketStatus
     updated_by: str | None = Field(default=None, alias="updatedBy", max_length=120)
     note: str | None = Field(default=None, max_length=500)
+    reason_code: str | None = Field(default=None, alias="reasonCode", max_length=64)
 
     model_config = {"populate_by_name": True}
 
@@ -284,6 +292,8 @@ class TicketResponse(BaseModel):
     department_id: str | None = Field(default=None, alias="departmentId")
     assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
     assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
+    active_work_order_id: str | None = Field(default=None, alias="activeWorkOrderId")
+    outcome: TicketOutcomeFields | None = None
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")

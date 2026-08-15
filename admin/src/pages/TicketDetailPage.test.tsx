@@ -14,8 +14,14 @@ import {
   fetchDuplicateComparison,
   fetchTicketById,
   mergeDuplicateTickets,
+  updateTicketStatus,
   fetchImageRedactionReview,
 } from '@/services/tickets';
+import {
+  assignWorkOrder,
+  createTicketWorkOrder,
+  listTicketWorkOrders,
+} from '@/services/workOrders';
 import { renderWithProviders } from '@/test/render';
 import type {
   DuplicateCandidate,
@@ -44,6 +50,15 @@ vi.mock('@/services/tickets', () => ({
 vi.mock('@/services/workforce', () => ({
   listWorkers: vi.fn(async () => []),
   listTeams: vi.fn(async () => []),
+}));
+
+vi.mock('@/services/workOrders', () => ({
+  listTicketWorkOrders: vi.fn(async () => ({ items: [], activeWorkOrderId: null })),
+  createTicketWorkOrder: vi.fn(),
+  assignWorkOrder: vi.fn(),
+  startWorkOrder: vi.fn(),
+  completeWorkOrder: vi.fn(),
+  cancelWorkOrder: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -1546,5 +1561,143 @@ describe('TicketDetailPage workforce assignment', () => {
     expect(
       screen.getByRole('option', { name: 'Worker: Retired crew (inactive)' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage work orders and outcome reasons', () => {
+  it('requires a structured reason before closing from review', async () => {
+    const user = userEvent.setup();
+    renderPage('/tickets/tkt_123?section=review');
+
+    const statusSelect = await screen.findByLabelText('New status');
+    await user.selectOptions(statusSelect, 'CLOSED');
+    await user.click(screen.getByRole('button', { name: 'Apply status change' }));
+
+    expect(updateTicketStatus).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText('Select a structured reason before applying this status.'),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Required reason'), 'DUPLICATE');
+    await user.click(screen.getByRole('button', { name: 'Apply status change' }));
+
+    await waitFor(() => {
+      expect(updateTicketStatus).toHaveBeenCalledWith('tkt_123', 'CLOSED', {
+        reasonCode: 'DUPLICATE',
+        note: undefined,
+      });
+    });
+  });
+
+  it('creates a work order from the review workspace', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createTicketWorkOrder).mockResolvedValue({
+      workOrderId: 'wo_1',
+      ticketId: 'tkt_123',
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      state: 'QUEUED',
+      summary: 'Repair the pothole',
+      createdAt: '2026-07-17T08:10:00Z',
+      createdBy: 'staff_admin_001',
+      updatedAt: '2026-07-17T08:10:00Z',
+      updatedBy: 'staff_admin_001',
+      created: true,
+    });
+    vi.mocked(listTicketWorkOrders)
+      .mockResolvedValueOnce({ items: [], activeWorkOrderId: null })
+      .mockResolvedValue({
+        items: [
+          {
+            workOrderId: 'wo_1',
+            ticketId: 'tkt_123',
+            municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            departmentId: 'd1111111-1111-1111-1111-111111111111',
+            state: 'QUEUED',
+            summary: 'Repair the pothole',
+            createdAt: '2026-07-17T08:10:00Z',
+            createdBy: 'staff_admin_001',
+            updatedAt: '2026-07-17T08:10:00Z',
+            updatedBy: 'staff_admin_001',
+          },
+        ],
+        activeWorkOrderId: 'wo_1',
+      });
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      status: 'ASSIGNED',
+      activeWorkOrderId: 'wo_1',
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+    const summary = await screen.findByLabelText('Summary');
+    await user.type(summary, 'Repair the pothole');
+    await user.click(screen.getByRole('button', { name: 'Create work order' }));
+
+    await waitFor(() => {
+      expect(createTicketWorkOrder).toHaveBeenCalledWith('tkt_123', {
+        summary: 'Repair the pothole',
+      });
+    });
+    expect(await screen.findByText(/Work order saved/)).toBeInTheDocument();
+  });
+
+  it('loads the current work-order assignee and does not clear it on save', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listWorkers).mockResolvedValue([
+      {
+        workerId: 'wrk_road',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        displayName: 'Road crew A',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        teamIds: [],
+        active: true,
+        createdAt: '2026-07-17T08:00:00Z',
+        updatedAt: '2026-07-17T08:00:00Z',
+      },
+    ]);
+    vi.mocked(listTicketWorkOrders).mockResolvedValue({
+      items: [
+        {
+          workOrderId: 'wo_assigned',
+          ticketId: 'tkt_123',
+          municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          departmentId: 'd1111111-1111-1111-1111-111111111111',
+          state: 'ASSIGNED',
+          summary: 'Inspect the pothole',
+          assignedWorkerId: 'wrk_road',
+          createdAt: '2026-07-17T08:10:00Z',
+          createdBy: 'staff_admin_001',
+          updatedAt: '2026-07-17T08:10:00Z',
+          updatedBy: 'staff_admin_001',
+        },
+      ],
+      activeWorkOrderId: 'wo_assigned',
+    });
+    vi.mocked(assignWorkOrder).mockResolvedValue({
+      workOrderId: 'wo_assigned',
+      ticketId: 'tkt_123',
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      state: 'ASSIGNED',
+      summary: 'Inspect the pothole',
+      assignedWorkerId: 'wrk_road',
+      createdAt: '2026-07-17T08:10:00Z',
+      createdBy: 'staff_admin_001',
+      updatedAt: '2026-07-17T08:12:00Z',
+      updatedBy: 'staff_admin_001',
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+
+    const assignee = await screen.findByLabelText('Work-order assignee');
+    expect(assignee).toHaveValue('worker:wrk_road');
+
+    await user.click(screen.getByRole('button', { name: 'Save work-order assignment' }));
+
+    await waitFor(() => {
+      expect(assignWorkOrder).toHaveBeenCalledWith('wo_assigned', { workerId: 'wrk_road' });
+    });
+    expect(assignWorkOrder).not.toHaveBeenCalledWith('wo_assigned', { clear: true });
   });
 });

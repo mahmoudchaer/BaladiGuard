@@ -47,6 +47,15 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "suggested_department_id": "suggestedDepartmentId",
     "assigned_worker_id": "assignedWorkerId",
     "assigned_team_id": "assignedTeamId",
+    "active_work_order_id": "activeWorkOrderId",
+    "resolution_reason_code": "resolutionReasonCode",
+    "resolution_note": "resolutionNote",
+    "resolved_at": "resolvedAt",
+    "resolved_by": "resolvedBy",
+    "closure_reason_code": "closureReasonCode",
+    "closure_note": "closureNote",
+    "closed_at": "closedAt",
+    "closed_by": "closedBy",
 }
 
 

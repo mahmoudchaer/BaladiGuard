@@ -62,6 +62,13 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `departmentId` | string | No | Staff-assigned / currently effective department. |
 | `assignedWorkerId` | string | No | Municipality field worker (`wrk_…`). Mutually exclusive with `assignedTeamId`. |
 | `assignedTeamId` | string | No | Municipality field team (`team_…`). Mutually exclusive with `assignedWorkerId`. |
+| `activeWorkOrderId` | string | No | Current active maintenance work order (`wo_…`), if any. Cleared on complete/cancel. |
+| `resolutionReasonCode` | string | No | Structured reason when the ticket was resolved. Legacy tickets may omit it. |
+| `resolutionNote` | string | No | Private staff note for the resolution (max 500). Never citizen-visible. |
+| `resolvedAt` / `resolvedBy` | string | No | Authenticated actor and timestamp for the resolution. |
+| `closureReasonCode` | string | No | Structured rejection or post-resolution closure reason. |
+| `closureNote` | string | No | Private staff note for the closure (max 500). Never citizen-visible. |
+| `closedAt` / `closedBy` | string | No | Authenticated actor and timestamp for the closure. |
 | `suggestedDepartmentId` | string | No | Automatic department suggestion; preserved when staff overrides `departmentId`. |
 | `duplicateGroupId` | string | No | Set by duplicate detection. |
 | `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
@@ -267,7 +274,7 @@ Client-provided `updatedBy` / `categoryReviewedBy` / `mergedBy` fields are not t
 | --- | --- | --- |
 | `auditId` | string | Primary key. |
 | `ticketId` | string | Parent ticket. |
-| `actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`. |
+| `actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, `PUBLIC_CONTENT_UPDATE`, `STAFF_COMMENT`, `WORKFORCE_ASSIGN`, `WORK_ORDER_CREATE`, `WORK_ORDER_ASSIGN`, `WORK_ORDER_START`, `WORK_ORDER_COMPLETE`, or `WORK_ORDER_CANCEL`. |
 | `actorId` | string, nullable | Verified staff actor identifier when available. |
 | `actorRole` | enum, nullable | `municipal_staff` or `administrator` from the verified principal (issue #181). |
 | `summary` | string | Concise human-readable change summary. |
@@ -465,6 +472,7 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `departments` | `departmentId` | GSI on `municipalityId` |
 | `workforce-workers` | `workerId` | Field workforce directory (#245); GSI on `municipalityId`. Not staff login accounts. |
 | `workforce-teams` | `teamId` | Field teams (#245); GSI on `municipalityId`; membership via `workerIds` / worker `teamIds`. |
+| `work-orders` | `workOrderId` | Private maintenance execution records (#247); GSI on `ticketId`. Active-claim items use `wo_active_<ticketId>` so create is unique per ticket. |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |
 | `ai-outputs` | `aiOutputId` | GSI on `ticketId` |
 | `duplicate-groups` | `duplicateGroupId` | |

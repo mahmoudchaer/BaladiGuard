@@ -120,7 +120,12 @@ def test_update_ticket_status_closes_from_submitted(client):
 
     response = client.patch(
         f"/v1/tickets/{created['ticketId']}/status",
-        json={"status": "CLOSED", "updatedBy": "staff-2", "note": "Duplicate report."},
+        json={
+            "status": "CLOSED",
+            "updatedBy": "staff-2",
+            "note": "Duplicate report.",
+            "reasonCode": "DUPLICATE",
+        },
     )
 
     assert response.status_code == 200
@@ -143,7 +148,7 @@ def test_update_ticket_status_emits_resolved_event_for_closed(client, monkeypatc
 
     response = client.patch(
         f"/v1/tickets/{created['ticketId']}/status",
-        json={"status": "CLOSED"},
+        json={"status": "CLOSED", "reasonCode": "OUT_OF_SCOPE"},
     )
 
     assert response.status_code == 200
@@ -156,7 +161,7 @@ def test_update_ticket_status_rejects_transition_from_closed(client):
     created = create_ticket(client)
     client.patch(
         f"/v1/tickets/{created['ticketId']}/status",
-        json={"status": "CLOSED"},
+        json={"status": "CLOSED", "reasonCode": "OUT_OF_SCOPE"},
     )
 
     response = client.patch(

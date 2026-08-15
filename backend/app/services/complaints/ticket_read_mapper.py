@@ -39,10 +39,12 @@ from app.schemas.ticket_response import (
     TicketSlaFields,
     TicketStatusHistoryEntry,
 )
+from app.schemas.work_order import TicketOutcomeFields
 from app.services.complaints.sla import derive_ticket_sla
 from app.services.duplicates import effective_ticket_category
 from app.services.routing import department_name
 from app.services.uploads.photo_upload_service import PhotoUploadService
+from app.services.work_orders.reasons import citizen_safe_message
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
 LIST_SUMMARY_MAX_CHARS = 240
@@ -228,6 +230,44 @@ def map_ticket_to_citizen_response(
         updatedAt=ticket.updated_at,
         lastUpdatedAt=last_updated_at,
         timeline=timeline,
+        outcomeMessage=_citizen_outcome_message(ticket),
+    )
+
+
+def _citizen_outcome_message(ticket: StoredTicket) -> str | None:
+    """Citizen-safe wording only. Internal notes and reason codes stay private."""
+    if ticket.status == "RESOLVED":
+        return citizen_safe_message(ticket.resolution_reason_code)
+    if ticket.status == "CLOSED":
+        return citizen_safe_message(ticket.resolution_reason_code) or citizen_safe_message(
+            ticket.closure_reason_code
+        )
+    return None
+
+
+def _staff_outcome_fields(ticket: StoredTicket) -> TicketOutcomeFields | None:
+    if not any(
+        (
+            ticket.resolution_reason_code,
+            ticket.resolution_note,
+            ticket.resolved_at,
+            ticket.closure_reason_code,
+            ticket.closure_note,
+            ticket.closed_at,
+        )
+    ):
+        return None
+    return TicketOutcomeFields(
+        resolutionReasonCode=ticket.resolution_reason_code,
+        resolutionCitizenMessage=citizen_safe_message(ticket.resolution_reason_code),
+        resolutionNote=ticket.resolution_note,
+        resolvedAt=ticket.resolved_at,
+        resolvedBy=ticket.resolved_by,
+        closureReasonCode=ticket.closure_reason_code,
+        closureCitizenMessage=citizen_safe_message(ticket.closure_reason_code),
+        closureNote=ticket.closure_note,
+        closedAt=ticket.closed_at,
+        closedBy=ticket.closed_by,
     )
 
 
@@ -341,6 +381,8 @@ def map_ticket_to_response(
         departmentId=ticket.department_id,
         assignedWorkerId=ticket.assigned_worker_id,
         assignedTeamId=ticket.assigned_team_id,
+        activeWorkOrderId=ticket.active_work_order_id,
+        outcome=_staff_outcome_fields(ticket),
         createdBy=ticket.created_by,
         municipalityId=ticket.municipality_id,
         duplicateGroupId=ticket.duplicate_group_id,

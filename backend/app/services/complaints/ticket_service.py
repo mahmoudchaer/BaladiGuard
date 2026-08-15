@@ -98,6 +98,11 @@ from app.services.redaction.review import (
 from app.services.routing import department_ids, suggest_department_id
 from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.urgency import score_urgency
+from app.services.work_orders.reasons import (
+    normalize_private_note,
+    required_outcome_kind,
+    validate_outcome_reason,
+)
 from app.utils.ticket_ids import (
     generate_audit_history_id,
     generate_duplicate_group_id,
@@ -1205,18 +1210,37 @@ class TicketService:
         validate_status_transition(ticket.status, payload.status)
         if payload.status == "ASSIGNED" and ticket.department_id not in department_ids():
             raise MissingDepartmentAssignmentError()
+        reason_code = validate_outcome_reason(ticket.status, payload.status, payload.reason_code)
+        private_note = normalize_private_note(payload.note)
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        update_fields: dict[str, object] = {
+            "status": payload.status,
+            "updated_at": updated_at,
+            "updated_by": actor_id,
+        }
+        outcome_kind = required_outcome_kind(ticket.status, payload.status)
+        if outcome_kind == "resolution" and reason_code:
+            update_fields.update(
+                {
+                    "resolution_reason_code": reason_code,
+                    "resolution_note": private_note,
+                    "resolved_at": updated_at,
+                    "resolved_by": actor_id,
+                }
+            )
+        elif outcome_kind in {"rejection", "closure"} and reason_code:
+            update_fields.update(
+                {
+                    "closure_reason_code": reason_code,
+                    "closure_note": private_note,
+                    "closed_at": updated_at,
+                    "closed_by": actor_id,
+                }
+            )
         # Partial update so concurrent merges/AI writes are not overwritten.
-        updated_ticket = self._store.patch_fields(
-            ticket_id,
-            {
-                "status": payload.status,
-                "updated_at": updated_at,
-                "updated_by": actor_id,
-            },
-        )
+        updated_ticket = self._store.patch_fields(ticket_id, update_fields)
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
         self._record_status_history(
@@ -1227,12 +1251,13 @@ class TicketService:
             note=payload.note,
             created_at=updated_at,
         )
+        reason_suffix = f" Reason {reason_code}." if reason_code else ""
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="STATUS_CHANGE",
             actor_id=actor_id,
             actor_role=actor_role,
-            summary=f"Status changed from {ticket.status} to {payload.status}.",
+            summary=f"Status changed from {ticket.status} to {payload.status}.{reason_suffix}",
             previous_value=ticket.status,
             new_value=payload.status,
             created_at=updated_at,

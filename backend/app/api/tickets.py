@@ -73,6 +73,7 @@ from app.services.redaction.review import (
 )
 from app.services.staff.assistant import staff_assistant_service
 from app.services.staff.comments import StaffCommentError, staff_comment_service
+from app.services.work_orders.reasons import OutcomeReasonError
 from app.services.workforce.service import WorkforceError
 from app.utils.ticket_ids import is_valid_tracking_code
 
@@ -696,6 +697,13 @@ def update_ticket_status(
     except (InvalidStatusTransitionError, MissingDepartmentAssignmentError) as exc:
         return build_error_response(
             code="INVALID_STATUS_TRANSITION",
+            message=str(exc),
+            request_id=get_request_id(request),
+            status_code=400,
+        )
+    except OutcomeReasonError as exc:
+        return build_error_response(
+            code=exc.code,
             message=str(exc),
             request_id=get_request_id(request),
             status_code=400,

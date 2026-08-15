@@ -22,6 +22,7 @@ import {
 } from '@/utils/labels';
 import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
+import { reasonsForKind, requiredOutcomeKind } from '@/utils/outcomeReasons';
 import './TicketPreviewPanel.css';
 
 type TicketPreviewPanelProps = {
@@ -41,6 +42,8 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   const [isSavingPublic, setIsSavingPublic] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [statusReasonCode, setStatusReasonCode] = useState('');
+  const [statusPrivateNote, setStatusPrivateNote] = useState('');
 
   useEffect(() => {
     if (!ticket) {
@@ -53,6 +56,8 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setPublicLocationLabel(ticket.public?.locationLabel ?? '');
     setActionError(null);
     setActionSuccess(null);
+    setStatusReasonCode('');
+    setStatusPrivateNote('');
   }, [ticket]);
 
   if (!ticket) {
@@ -122,11 +127,19 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     if (!ticket || !pendingStatus || pendingStatus === ticket.status) {
       return;
     }
+    const outcomeKind = requiredOutcomeKind(ticket.status, pendingStatus);
+    if (outcomeKind && !statusReasonCode) {
+      setActionError('Select a structured reason before applying this status.');
+      return;
+    }
     setIsUpdatingStatus(true);
     setActionError(null);
     setActionSuccess(null);
     try {
-      const updated = await updateTicketStatus(ticket.ticketId, pendingStatus);
+      const updated = await updateTicketStatus(ticket.ticketId, pendingStatus, {
+        reasonCode: outcomeKind ? statusReasonCode : undefined,
+        note: statusPrivateNote.trim() || undefined,
+      });
       if (!updated) {
         setActionError('Unable to update status.');
         return;
@@ -308,6 +321,27 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               ))}
             </select>
           </label>
+          {pendingStatus &&
+            pendingStatus !== ticket.status &&
+            requiredOutcomeKind(ticket.status, pendingStatus) && (
+              <label className="ticket-preview__field">
+                <span>Required reason</span>
+                <select
+                  value={statusReasonCode}
+                  onChange={(event) => setStatusReasonCode(event.target.value)}
+                  disabled={isUpdatingStatus}
+                >
+                  <option value="">Select a reason</option>
+                  {reasonsForKind(requiredOutcomeKind(ticket.status, pendingStatus)!).map(
+                    (reason) => (
+                      <option key={reason.code} value={reason.code}>
+                        {reason.label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+            )}
           <button
             type="button"
             className="ticket-preview__btn"

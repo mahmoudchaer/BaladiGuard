@@ -187,6 +187,21 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
     },
     {
+        "suffix": "work-orders",
+        "key_schema": [{"AttributeName": "workOrderId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "workOrderId", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "workforce-teams",
         "key_schema": [{"AttributeName": "teamId", "KeyType": "HASH"}],
         "attribute_definitions": [

@@ -15,6 +15,7 @@ from app.api.locations import router as locations_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
+from app.api.work_orders import router as work_orders_router
 from app.api.workforce import router as workforce_router
 from app.core.config_validation import validate_configuration
 from app.core.cors import resolve_cors_origins
@@ -278,6 +279,7 @@ def create_app() -> FastAPI:
     app.include_router(citizen_router)
     app.include_router(tickets_router)
     app.include_router(workforce_router)
+    app.include_router(work_orders_router)
     app.include_router(locations_router)
     app.include_router(uploads_router)
 
