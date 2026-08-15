@@ -2,7 +2,7 @@ from app.core.staff_auth import principal_from_user
 from app.database.memory import ticket_store
 from app.database.memory_audit_history import audit_history_store
 from app.database.store_factory import get_staff_store
-from app.schemas.staff_comment import StoredStaffComment
+from app.schemas.staff_comment import ActivityEvent, StoredStaffComment
 from app.schemas.stored_audit_history import StoredAuditHistory
 from app.schemas.stored_status_history import StoredStatusHistory
 from app.services.staff import comments as comments_module
@@ -239,3 +239,19 @@ def test_activity_storage_cursor_merges_interleaved_source_pages_exactly_once(
     ]
     assert cursor is None
     assert all(call[0] == 1 for call in status.calls + audit.calls + comments.calls)
+
+
+def test_storage_cursor_rejects_tampering():
+    event = ActivityEvent(
+        eventId="audit:a1",
+        eventType="WORK_ORDER_START",
+        occurredAt="2026-01-01T00:00:00Z",
+        details={"summary": "Work order started."},
+        sourceReference="audit:a1",
+    )
+    cursor = comments_module._encode_storage_cursor(
+        {"status": {"done": True}, "audit": {"done": True}, "comments": {"done": True}},
+        {"status": [event], "audit": [], "comments": []},
+    )
+    tampered = f"{cursor[:-1]}{'A' if cursor[-1] != 'A' else 'B'}"
+    assert comments_module._decode_storage_cursor(tampered) is None

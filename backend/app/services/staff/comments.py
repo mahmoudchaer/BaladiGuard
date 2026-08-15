@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import hmac
 import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.config import get_settings
 from app.core.staff_auth import StaffPrincipal, principal_from_user, staff_can_access_ticket
 from app.database.store_factory import (
     get_audit_history_store,
@@ -114,7 +117,7 @@ def _decode_cursor(cursor: str | None) -> tuple[str, str, str] | None:
 def _encode_storage_cursor(
     cursors: dict[str, dict | None], buffers: dict[str, list[ActivityEvent]]
 ) -> str:
-    value = json.dumps(
+    payload = json.dumps(
         {
             "sources": cursors,
             "buffers": {
@@ -124,7 +127,13 @@ def _encode_storage_cursor(
         },
         separators=(",", ":"),
     ).encode()
+    signature = hmac.new(_cursor_secret(), payload, hashlib.sha256).digest()
+    value = payload + b"." + signature
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
+
+
+def _cursor_secret() -> bytes:
+    return (get_settings().secret_key or "baladiguard-dev-secret-change-me").encode()
 
 
 def _decode_storage_cursor(
@@ -134,7 +143,13 @@ def _decode_storage_cursor(
         return None
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
-        value = json.loads(base64.urlsafe_b64decode(padded).decode())
+        value = base64.urlsafe_b64decode(padded)
+        payload, separator, signature = value.rpartition(b".")
+        if not separator or not hmac.compare_digest(
+            signature, hmac.new(_cursor_secret(), payload, hashlib.sha256).digest()
+        ):
+            return None
+        value = json.loads(payload.decode())
         if not isinstance(value, dict):
             return None
         sources = value.get("sources") if isinstance(value, dict) else None

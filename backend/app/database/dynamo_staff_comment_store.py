@@ -15,22 +15,29 @@ class DynamoStaffCommentStore:
         )
 
     def append(self, comment: StoredStaffComment) -> None:
-        self._table.put_item(Item=comment.model_dump(by_alias=True))
+        item = comment.model_dump(by_alias=True)
+        item["timelineKey"] = f"{comment.created_at}#comment:{comment.comment_id}"
+        self._table.put_item(Item=item)
 
     def list_by_ticket_id_page(
         self, ticket_id: str, *, limit: int, exclusive_start_key: dict | None = None
     ) -> tuple[list[StoredStaffComment], dict | None]:
+        timeline_key = exclusive_start_key.get("timelineKey") if exclusive_start_key else None
         query_kwargs = {
-            "IndexName": "ticketId-index",
-            "KeyConditionExpression": Key("ticketId").eq(ticket_id),
+            "IndexName": "ticketTimeline-index",
+            "KeyConditionExpression": Key("ticketId").eq(ticket_id)
+            & (
+                Key("timelineKey").gt(timeline_key)
+                if timeline_key
+                else Key("timelineKey").begins_with("")
+            ),
             "Limit": limit,
         }
-        if exclusive_start_key:
-            query_kwargs["ExclusiveStartKey"] = exclusive_start_key
         response = self._table.query(**query_kwargs)
+        items = response.get("Items", [])
         return (
-            [StoredStaffComment.model_validate(item) for item in response.get("Items", [])],
-            response.get("LastEvaluatedKey"),
+            [StoredStaffComment.model_validate(item) for item in items],
+            {"timelineKey": items[-1]["timelineKey"]} if items else None,
         )
 
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredStaffComment]:

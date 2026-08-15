@@ -237,11 +237,20 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "historyId", "AttributeType": "S"},
             {"AttributeName": "ticketId", "AttributeType": "S"},
+            {"AttributeName": "timelineKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
                 "IndexName": "ticketId-index",
                 "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketTimeline-index",
+                "KeySchema": [
+                    {"AttributeName": "ticketId", "KeyType": "HASH"},
+                    {"AttributeName": "timelineKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
@@ -252,11 +261,20 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "auditId", "AttributeType": "S"},
             {"AttributeName": "ticketId", "AttributeType": "S"},
+            {"AttributeName": "timelineKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
                 "IndexName": "ticketId-index",
                 "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketTimeline-index",
+                "KeySchema": [
+                    {"AttributeName": "ticketId", "KeyType": "HASH"},
+                    {"AttributeName": "timelineKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
@@ -267,11 +285,20 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "commentId", "AttributeType": "S"},
             {"AttributeName": "ticketId", "AttributeType": "S"},
+            {"AttributeName": "timelineKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
                 "IndexName": "ticketId-index",
                 "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketTimeline-index",
+                "KeySchema": [
+                    {"AttributeName": "ticketId", "KeyType": "HASH"},
+                    {"AttributeName": "timelineKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
