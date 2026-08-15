@@ -105,4 +105,6 @@ export type CitizenTicketResponse = {
   updatedAt: string | null;
   lastUpdatedAt: string;
   timeline: CitizenTicketTimelineEntry[];
+  /** Citizen-safe resolution/closure wording. Never a reason code or private note. */
+  outcomeMessage?: string | null;
 };

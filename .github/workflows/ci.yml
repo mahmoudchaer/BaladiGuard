@@ -174,3 +174,33 @@ jobs:
       - name: Build citizen-web
         working-directory: citizen-web
         run: npm run build
+
+      - name: Validate citizen-web CloudFront template
+        working-directory: citizen-web
+        run: npm run check:cloudfront
+
+      - name: Run citizen-web contract tests
+        working-directory: citizen-web
+        run: npm run test:contracts
+
+      - name: Run citizen-web integration flows
+        working-directory: citizen-web
+        run: npm run test:integration
+
+      - name: Install Playwright Chromium
+        working-directory: citizen-web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run citizen-web browser E2E subset
+        working-directory: citizen-web
+        run: npm run test:e2e
+
+      - name: Verify production citizen-web bundle
+        working-directory: citizen-web
+        env:
+          VITE_APP_ENV: production
+          VITE_API_BASE_URL: https://api.example.test
+          VITE_USE_MOCK_DATA: "false"
+        run: |
+          npm run build
+          npm run check:production-build

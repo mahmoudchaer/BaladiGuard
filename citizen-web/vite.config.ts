@@ -15,4 +15,15 @@ export default defineConfig({
   server: {
     port: 5174,
   },
+  build: {
+    sourcemap: false,
+  },
+  preview: {
+    port: 4174,
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    },
+  },
 });
