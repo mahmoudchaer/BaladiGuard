@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
+
+import pytest
+from botocore.exceptions import ClientError
 
 from app.config import Settings
 from app.database.dynamo_ticket_store import DynamoTicketStore
@@ -78,6 +82,56 @@ def test_dynamo_second_create_returns_the_existing_active_work_order(
     active = store.find_active_for_ticket(ticket.ticket_id)
     assert active is not None
     assert active.work_order_id == first.work_order_id
+    assert {item.work_order_id for item in store.list_by_ticket_id(ticket.ticket_id)} == {
+        first.work_order_id
+    }
+    refreshed = tickets.get(ticket.ticket_id)
+    assert refreshed is not None
+    assert refreshed.active_work_order_id == first.work_order_id
+
+
+def test_dynamo_create_race_loser_returns_winner_after_canceled_transaction(
+    dynamodb_settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tickets = DynamoTicketStore(dynamodb_settings)
+    store = DynamoWorkOrderStore(dynamodb_settings)
+    ticket = _ticket("tkt_wo_create_race")
+    tickets.save(ticket)
+    first = _work_order(ticket.ticket_id)
+    second = _work_order(ticket.ticket_id)
+    winner = store.create_active(first)
+
+    lookups = {"count": 0}
+    real_find = store.find_active_for_ticket
+
+    def miss_initial_lookup(ticket_id: str) -> StoredWorkOrder | None:
+        lookups["count"] += 1
+        if lookups["count"] == 1:
+            return None
+        return real_find(ticket_id)
+
+    canceled = {"raised": False}
+    real_transact = store._transact_write
+
+    def record_canceled_transaction(items: list[dict[str, Any]]) -> None:
+        try:
+            real_transact(items)
+        except ClientError as exc:
+            canceled["raised"] = (
+                exc.response.get("Error", {}).get("Code") == "TransactionCanceledException"
+            )
+            raise
+
+    monkeypatch.setattr(store, "find_active_for_ticket", miss_initial_lookup)
+    monkeypatch.setattr(store, "_transact_write", record_canceled_transaction)
+
+    loser = store.create_active(second)
+
+    assert canceled["raised"] is True
+    assert lookups["count"] >= 2
+    assert loser.work_order_id == winner.work_order_id
+    assert store.get(second.work_order_id) is None
     assert {item.work_order_id for item in store.list_by_ticket_id(ticket.ticket_id)} == {
         first.work_order_id
     }
