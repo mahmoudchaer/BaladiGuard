@@ -162,9 +162,7 @@ def test_create_work_order_is_idempotent_and_syncs_ticket(client: TestClient) ->
     ticket = client.get(f"/v1/tickets/{created['ticketId']}").json()
     assert ticket["status"] == "ASSIGNED"
     assert ticket["activeWorkOrderId"] == body["workOrderId"]
-    assert any(
-        entry["actionType"] == "WORK_ORDER_CREATE" for entry in ticket["auditHistory"]
-    )
+    assert any(entry["actionType"] == "WORK_ORDER_CREATE" for entry in ticket["auditHistory"])
 
 
 def test_concurrent_create_yields_one_active_work_order(client: TestClient) -> None:
@@ -182,9 +180,7 @@ def test_concurrent_create_yields_one_active_work_order(client: TestClient) -> N
     assert len(set(ids)) == 1
     listed = client.get(f"/v1/tickets/{created['ticketId']}/work-orders").json()
     active = [
-        item
-        for item in listed["items"]
-        if item["state"] in {"QUEUED", "ASSIGNED", "IN_PROGRESS"}
+        item for item in listed["items"] if item["state"] in {"QUEUED", "ASSIGNED", "IN_PROGRESS"}
     ]
     assert len(active) == 1
 

@@ -18,7 +18,11 @@ function asString(value: unknown): string | null {
 }
 
 function normalizeWorkOrder(data: unknown): WorkOrder {
-  if (!isRecord(data) || typeof data.workOrderId !== 'string' || typeof data.ticketId !== 'string') {
+  if (
+    !isRecord(data) ||
+    typeof data.workOrderId !== 'string' ||
+    typeof data.ticketId !== 'string'
+  ) {
     throw new Error('Unexpected work-order response shape.');
   }
   return {

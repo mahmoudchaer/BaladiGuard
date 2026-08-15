@@ -1,9 +1,4 @@
-export type WorkOrderState =
-  | 'QUEUED'
-  | 'ASSIGNED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELLED';
+export type WorkOrderState = 'QUEUED' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 export type WorkOrder = {
   workOrderId: string;

@@ -186,9 +186,7 @@ class WorkOrderService:
         work_order, ticket = self._require_work_order(work_order_id, principal)
         if not is_active_work_order_state(work_order.state):
             raise WorkOrderError("A completed or cancelled work order cannot be assigned.")
-        worker_id, team_id = workforce_service.resolve_ticket_assignment(
-            principal, ticket, payload
-        )
+        worker_id, team_id = workforce_service.resolve_ticket_assignment(principal, ticket, payload)
         target_state: str = "QUEUED" if worker_id is None and team_id is None else "ASSIGNED"
         if work_order.state == "IN_PROGRESS" and target_state == "ASSIGNED":
             target_state = "IN_PROGRESS"
@@ -459,9 +457,7 @@ class WorkOrderService:
         from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
 
         try:
-            ticket_service.assign_ticket_workforce(
-                ticket_id, payload, staff_principal=principal
-            )
+            ticket_service.assign_ticket_workforce(ticket_id, payload, staff_principal=principal)
         except TicketNotFoundError:
             return
 

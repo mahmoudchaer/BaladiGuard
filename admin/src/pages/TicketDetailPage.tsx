@@ -758,7 +758,9 @@ export function TicketDetailPage() {
       setWorkOrderSuccess(success);
       setWorkOrderNote('');
     } catch (error) {
-      setWorkOrderError(error instanceof Error ? error.message : 'Unable to update the work order.');
+      setWorkOrderError(
+        error instanceof Error ? error.message : 'Unable to update the work order.',
+      );
     } finally {
       setIsMutatingWorkOrder(false);
     }
@@ -1398,7 +1400,7 @@ export function TicketDetailPage() {
                           </button>
                         </div>
                       </div>
-                          {pendingOutcomeKind && (
+                      {pendingOutcomeKind && (
                         <div className="ticket-detail__control-row">
                           <label htmlFor="status-reason-select">Required reason</label>
                           <select
@@ -1633,7 +1635,8 @@ export function TicketDetailPage() {
                   {activeWorkOrder ? (
                     <div className="ticket-detail__action-group">
                       <p className="ticket-detail__current-value">
-                        Current: {formatWorkOrderState(activeWorkOrder.state)} ({activeWorkOrder.workOrderId})
+                        Current: {formatWorkOrderState(activeWorkOrder.state)} (
+                        {activeWorkOrder.workOrderId})
                       </p>
                       <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
                       <div className="ticket-detail__control-row">
