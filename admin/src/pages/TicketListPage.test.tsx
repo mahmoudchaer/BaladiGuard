@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TicketListPage } from '@/pages/TicketListPage';
+import { queryStaffAssistant } from '@/services/staffAssistant';
 import {
   assignTicketDepartment,
   fetchTicketAggregates,
@@ -10,8 +11,13 @@ import {
   updateTicketStatus,
 } from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
+import type { StaffAssistantResponse } from '@/types/staffAssistant';
 import type { Ticket } from '@/types/ticket';
 import type { TicketAggregates } from '@/types/ticketCollection';
+
+vi.mock('@/services/staffAssistant', () => ({
+  queryStaffAssistant: vi.fn(),
+}));
 
 vi.mock('@/services/tickets', async () => {
   const actual = await vi.importActual<typeof import('@/services/tickets')>('@/services/tickets');
@@ -193,6 +199,91 @@ describe('TicketListPage', () => {
     expect(stats.getByText('Critical')).toBeInTheDocument();
     expect(stats.getByText('Unassigned')).toBeInTheDocument();
     expect(stats.getByText('Overdue')).toBeInTheDocument();
+  });
+
+  const assistantListAnswer: StaffAssistantResponse = {
+    intent: 'high_priority_summary',
+    asOf: '2026-08-15T12:00:00Z',
+    message: '2 accessible high-priority or critical ticket(s) in the open operational queue.',
+    count: 2,
+    categories: { road_damage: 2 },
+    statuses: { IN_PROGRESS: 2 },
+    departments: {},
+    areas: {},
+    areaClusters: [
+      {
+        cellId: 'c1',
+        south: 33.8,
+        west: 35.4,
+        north: 33.9,
+        east: 35.5,
+        label: 'Hamra',
+        ticketCount: 1,
+        distinctReportCount: 1,
+        duplicateGroupCount: 0,
+        separateReportCount: 1,
+        categories: { road_damage: 1 },
+        ticketIds: ['tkt_road'],
+        ticketIdsTruncated: false,
+      },
+    ],
+    areaClusterTotal: 1,
+    areaClustersTruncated: false,
+    unlocatedCount: 0,
+    incompleteCount: 0,
+    tickets: [],
+    appliedFilters: { urgency: 'high,critical', openOnly: 'true' },
+  };
+
+  it('applies assistant list filters when already on the ticket list route', async () => {
+    vi.mocked(queryStaffAssistant).mockResolvedValue(assistantListAnswer);
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Assistant' }));
+    await user.click(screen.getByRole('button', { name: 'Show high-priority tickets' }));
+    const listActions = await screen.findAllByRole('button', { name: 'View matching tickets' });
+    await user.click(listActions[0]);
+
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            urgency: 'high,critical',
+            openOnly: true,
+          }),
+        }),
+      ),
+    );
+    expect(window.location.pathname).toBe('/');
+    expect(window.location.search).toContain('urgency=high%2Ccritical');
+    expect(window.location.search).toContain('openOnly=true');
+  });
+
+  it('applies assistant cluster ticket ids when already on the ticket list route', async () => {
+    vi.mocked(queryStaffAssistant).mockResolvedValue(assistantListAnswer);
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Assistant' }));
+    await user.click(screen.getByRole('button', { name: 'Show high-priority tickets' }));
+    const clusterActions = await screen.findAllByRole('button', { name: 'View matching tickets' });
+    await user.click(clusterActions[1]);
+
+    await waitFor(() =>
+      expect(fetchTicketsPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            openOnly: true,
+            ticketIds: ['tkt_road'],
+          }),
+        }),
+      ),
+    );
+    expect(window.location.search).toContain('ticketIds=tkt_road');
+    expect(window.location.search).toContain('openOnly=true');
   });
 
   it('applies safe assistant filters from the URL and keeps them after interaction', async () => {

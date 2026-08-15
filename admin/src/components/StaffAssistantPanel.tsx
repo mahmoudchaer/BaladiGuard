@@ -1,4 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { queryStaffAssistant } from '@/services/staffAssistant';
 import type { StaffAssistantAreaCluster, StaffAssistantResponse } from '@/types/staffAssistant';
@@ -23,6 +29,22 @@ type StaffAssistantPanelProps = {
   open: boolean;
   onClose: () => void;
 };
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function focusableElements(container: HTMLElement): HTMLElement[] {
+  return [...container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
+    (element) =>
+      !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true',
+  );
+}
 
 function formatAsOf(value: string): string {
   const parsed = new Date(value);
@@ -59,16 +81,45 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
   const titleId = useId();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const [question, setQuestion] = useState('');
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [answer, setAnswer] = useState<StaffAssistantResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
+    if (!open) {
+      return;
     }
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    inputRef.current?.focus();
+    return () => {
+      previous?.focus();
+    };
   }, [open]);
+
+  function trapTab(event: ReactKeyboardEvent<HTMLElement> | KeyboardEvent) {
+    if (event.key !== 'Tab' || !panelRef.current) {
+      return;
+    }
+    const focusable = focusableElements(panelRef.current);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !panelRef.current.contains(active))) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && (active === last || !panelRef.current.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   useEffect(() => {
     if (!open) {
@@ -78,10 +129,12 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
+        return;
       }
+      trapTab(event);
     }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [open, onClose]);
 
   async function ask(nextQuestion: string) {
@@ -114,11 +167,13 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
 
   return (
     <aside
+      ref={panelRef}
       id="staff-assistant-panel"
       className="staff-assistant-panel"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
+      onKeyDown={trapTab}
     >
       <header className="staff-assistant-panel__header">
         <div>

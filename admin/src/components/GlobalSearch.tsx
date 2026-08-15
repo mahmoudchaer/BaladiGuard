@@ -242,6 +242,18 @@ export function GlobalSearch() {
               tracking number for an exact lookup.
             </p>
           ) : null}
+          {results?.workforceScanTruncated ? (
+            <p className="global-search__note">
+              Workforce search stopped at the directory scan budget. Use a worker or team id for an
+              exact lookup.
+            </p>
+          ) : null}
+          {results?.workOrderScanTruncated ? (
+            <p className="global-search__note">
+              Work-order search stopped after a bounded number of ticket lookups. Use a work-order
+              id for an exact lookup.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -14,6 +14,8 @@ approved operational records. It is the backend for the dashboard global search
 | Ticket / tracking references | ticket id (`tkt_…`), ticket number (`BG-YYYY-####`), tracking code (spaces ignored) |
 | Results per type | 8 |
 | Ticket scan budget | 200 most recent scoped staff tickets |
+| Workforce scan budget | 80 workers and 80 teams per municipality query |
+| Work-order query budget | 40 `list_by_ticket_id` lookups after an exact `wo_` get |
 
 Rate limit: `RATE_LIMIT_STAFF_SEARCH_LIMIT` / `_WINDOW_SECONDS` (default 40 / 60s),
 keyed by client identity plus staff id.
@@ -39,10 +41,13 @@ to inaccessible tickets are omitted, not 404'd.
 ## Response
 
 Grouped arrays: `tickets`, `workers`, `teams`, `workOrders`. Each group exposes
-`truncated` when more than 8 matches existed. `scanTruncated` is true when the
-ticket budget was exhausted. `partialFailures` lists `tickets`, `work_orders`,
-or `workforce` when that group failed independently so the UI can show the
-remaining groups.
+`truncated` when more than 8 matches existed or a scan/query budget ran out.
+`scanTruncated` is true when the ticket budget was exhausted.
+`workforceScanTruncated` / `workOrderScanTruncated` signal the workforce
+directory and work-order ticket-query budgets. Exact `wrk_`, `team_`, and
+`wo_` identifiers still use point reads and do not consume those budgets.
+`partialFailures` lists `tickets`, `work_orders`, or `workforce` when that
+group failed independently so the UI can show the remaining groups.
 
 `limits` repeats the documented caps so the dashboard can explain incomplete
 results.

@@ -45,6 +45,8 @@ export type StaffSearchResponse = {
   teamsTruncated: boolean;
   workOrdersTruncated: boolean;
   scanTruncated: boolean;
+  workforceScanTruncated: boolean;
+  workOrderScanTruncated: boolean;
   partialFailures: string[];
   limits: Record<string, number>;
 };

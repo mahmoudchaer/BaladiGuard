@@ -23,6 +23,8 @@ const emptyResults: StaffSearchResponse = {
   teamsTruncated: false,
   workOrdersTruncated: false,
   scanTruncated: false,
+  workforceScanTruncated: false,
+  workOrderScanTruncated: false,
   partialFailures: [],
   limits: {},
 };

@@ -57,7 +57,7 @@ export function DashboardLayout({
 
   return (
     <div className={`dashboard-layout${flush ? ' dashboard-layout--flush' : ''}`}>
-      <aside className="dashboard-rail" aria-label="Primary modules">
+      <aside className="dashboard-rail" aria-label="Primary modules" inert={assistantOpen}>
         <NavLink to="/" className="dashboard-rail__brand" aria-label="BaladiGuard home">
           <BrandMark size={22} />
         </NavLink>
@@ -82,7 +82,7 @@ export function DashboardLayout({
         </nav>
       </aside>
 
-      <div className="dashboard-shell">
+      <div className="dashboard-shell" inert={assistantOpen}>
         <header className="dashboard-topbar">
           <div className="dashboard-topbar__brand-block">
             <p className="dashboard-topbar__product">BaladiGuard</p>

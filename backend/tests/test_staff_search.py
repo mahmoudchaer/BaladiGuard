@@ -193,6 +193,10 @@ def test_staff_search_groups_workers_teams_and_work_orders(
     assert "completionNote" not in body["workOrders"][0]
     assert body["limits"]["ticketScanBudget"] == 200
     assert body["limits"]["maxResultsPerType"] == 8
+    assert body["limits"]["workforceScanBudget"] == 80
+    assert body["limits"]["workOrderQueryBudget"] == 40
+    assert body["workforceScanTruncated"] is False
+    assert body["workOrderScanTruncated"] is False
 
 
 def test_staff_search_work_order_id_requires_ticket_access(
@@ -250,3 +254,110 @@ def test_ticket_ids_filter_rejects_too_many_ids(anonymous_client: TestClient) ->
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_staff_search_bounds_large_workforce_directory(
+    anonymous_client: TestClient, monkeypatch
+) -> None:
+    from app.database.memory_workforce import workforce_store
+    from app.schemas.workforce import StoredWorker
+    from app.services.staff import search as search_mod
+
+    now = "2026-08-15T12:00:00Z"
+    for index in range(120):
+        workforce_store.save_worker(
+            StoredWorker(
+                workerId=f"wrk_{index:04d}",
+                municipalityId=BEIRUT,
+                displayName=f"Crew {index:04d}",
+                departmentIds=[ROADS],
+                teamIds=[],
+                active=True,
+                createdAt=now,
+                updatedAt=now,
+            )
+        )
+    workforce_store.save_worker(
+        StoredWorker(
+            workerId="wrk_zebra_unique",
+            municipalityId=BEIRUT,
+            displayName="Zebra Unique",
+            departmentIds=[ROADS],
+            teamIds=[],
+            active=True,
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+
+    list_calls = {"workers": 0, "teams": 0}
+    original_workers = workforce_store.list_workers
+    original_teams = workforce_store.list_teams
+
+    def counted_workers(*args, **kwargs):
+        list_calls["workers"] += 1
+        return original_workers(*args, **kwargs)
+
+    def counted_teams(*args, **kwargs):
+        list_calls["teams"] += 1
+        return original_teams(*args, **kwargs)
+
+    monkeypatch.setattr(workforce_store, "list_workers", counted_workers)
+    monkeypatch.setattr(workforce_store, "list_teams", counted_teams)
+    monkeypatch.setattr(search_mod, "WORKFORCE_SCAN_BUDGET", 80)
+
+    crew = _search(anonymous_client, "Crew").json()
+    assert list_calls["workers"] == 0
+    assert list_calls["teams"] == 0
+    assert len(crew["workers"]) == 8
+    assert crew["workersTruncated"] is True
+    assert crew["workforceScanTruncated"] is True
+    assert crew["limits"]["workforceScanBudget"] == 80
+
+    exact = _search(anonymous_client, "wrk_zebra_unique").json()
+    assert [item["workerId"] for item in exact["workers"]] == ["wrk_zebra_unique"]
+    assert exact["workforceScanTruncated"] is False
+    assert list_calls["workers"] == 0
+
+
+def test_staff_search_bounds_work_order_ticket_queries(
+    anonymous_client: TestClient, monkeypatch
+) -> None:
+    from app.database.memory_work_order import work_order_store
+    from app.services.staff import search as search_mod
+
+    monkeypatch.setattr(search_mod, "WORK_ORDER_QUERY_BUDGET", 3)
+    created_ids: list[str] = []
+    for index in range(6):
+        ticket_id = _ticket(
+            anonymous_client,
+            area=f"Area {index}",
+            priority="high",
+            department=ROADS,
+            public_location_label=f"Label {index}",
+            status="IN_PROGRESS",
+        )
+        created_ids.append(ticket_id)
+        work_order = anonymous_client.post(
+            f"/v1/tickets/{ticket_id}/work-orders",
+            json={"summary": f"Inspect culvert {index}"},
+            headers=_headers(anonymous_client),
+        )
+        assert work_order.status_code == 201, work_order.text
+
+    original = work_order_store.list_by_ticket_id
+    calls = {"n": 0}
+
+    def counted(ticket_id: str):
+        calls["n"] += 1
+        return original(ticket_id)
+
+    monkeypatch.setattr(work_order_store, "list_by_ticket_id", counted)
+    body = _search(anonymous_client, "culvert").json()
+    assert calls["n"] <= 3
+    assert body["workOrderScanTruncated"] is True
+    assert body["workOrdersTruncated"] is True
+    assert body["limits"]["workOrderQueryBudget"] == 3
+    assert created_ids
+    exact = _search(anonymous_client, work_order.json()["workOrderId"]).json()
+    assert exact["workOrders"][0]["workOrderId"] == work_order.json()["workOrderId"]

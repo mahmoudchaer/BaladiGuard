@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -92,5 +93,53 @@ describe('StaffAssistantPanel', () => {
     renderWithProviders(<StaffAssistantPanel open onClose={onClose} />);
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  function AssistantHarness() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>
+          Assistant
+        </button>
+        <StaffAssistantPanel open={open} onClose={() => setOpen(false)} />
+      </>
+    );
+  }
+
+  it('traps Tab and Shift+Tab inside the dialog', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AssistantHarness />);
+    await user.click(screen.getByRole('button', { name: 'Assistant' }));
+    const dialog = screen.getByRole('dialog', { name: 'Staff assistant' });
+    const closeButton = screen.getByRole('button', { name: 'Close' });
+    const input = screen.getByLabelText('Ask a supported question');
+    const lastSuggestion = screen.getByRole('button', { name: 'وين المشاكل المتكررة؟' });
+
+    expect(input).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(closeButton).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(lastSuggestion).toHaveFocus();
+    await user.tab();
+    expect(closeButton).toHaveFocus();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
+  it('restores focus to the Assistant trigger on Escape and Close', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AssistantHarness />);
+    const trigger = screen.getByRole('button', { name: 'Assistant' });
+
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Staff assistant' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Staff assistant' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: 'Staff assistant' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 });

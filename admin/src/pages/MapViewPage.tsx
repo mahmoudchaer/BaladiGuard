@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { TicketMapMarker, TicketMapViewport } from '@/types/ticketCollection';
 import { fetchTicketMapViewport } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -7,6 +7,7 @@ import { TicketMap } from '@/components/TicketMap';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useDashboardLocationSync } from '@/hooks/useDashboardLocationSync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   getCategoryFilterOptions,
@@ -19,7 +20,7 @@ import { BEIRUT_CENTER } from '@/utils/ticketLocation';
 import {
   hasMapBounds,
   parseDashboardSearchParams,
-  serializeDashboardSearchParams,
+  type DashboardNavigationFilters,
 } from '@/utils/dashboardNavigation';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import './MapViewPage.css';
@@ -46,46 +47,99 @@ const FILTER_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 300;
 const VIEWPORT_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 350;
 
 export function MapViewPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigationFilters = useMemo(() => parseDashboardSearchParams(searchParams), [searchParams]);
+  const initialFilters = parseDashboardSearchParams(new URLSearchParams(window.location.search));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [viewport, setViewport] = useState<TicketMapViewport | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
-    (navigationFilters.status as StatusFilter) ?? 'ALL',
+    (initialFilters.status as StatusFilter) ?? 'ALL',
   );
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(
-    navigationFilters.category ?? 'ALL',
+    initialFilters.category ?? 'ALL',
   );
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>(
-    navigationFilters.urgency && !navigationFilters.urgency.includes(',')
-      ? (navigationFilters.urgency as UrgencyFilter)
+    initialFilters.urgency && !initialFilters.urgency.includes(',')
+      ? (initialFilters.urgency as UrgencyFilter)
       : 'ALL',
   );
   const [urgencyCsv, setUrgencyCsv] = useState<string | null>(
-    navigationFilters.urgency?.includes(',') ? navigationFilters.urgency : null,
+    initialFilters.urgency?.includes(',') ? initialFilters.urgency : null,
   );
   const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>(
-    navigationFilters.departmentId ?? 'ALL',
+    initialFilters.departmentId ?? 'ALL',
   );
-  const [openOnly, setOpenOnly] = useState(Boolean(navigationFilters.openOnly));
-  const [ticketIds, setTicketIds] = useState<string[]>(navigationFilters.ticketIds ?? []);
-  const persistBounds = hasMapBounds(navigationFilters);
+  const [openOnly, setOpenOnly] = useState(Boolean(initialFilters.openOnly));
+  const [ticketIds, setTicketIds] = useState<string[]>(initialFilters.ticketIds ?? []);
+  const [persistBounds, setPersistBounds] = useState(() => hasMapBounds(initialFilters));
   const [bounds, setBounds] = useState<MapBounds>(() =>
-    persistBounds
+    hasMapBounds(initialFilters)
       ? {
-          north: navigationFilters.north as number,
-          south: navigationFilters.south as number,
-          east: navigationFilters.east as number,
-          west: navigationFilters.west as number,
-          zoom: navigationFilters.zoom ?? 15,
+          north: initialFilters.north as number,
+          south: initialFilters.south as number,
+          east: initialFilters.east as number,
+          west: initialFilters.west as number,
+          zoom: initialFilters.zoom ?? 15,
         }
       : DEFAULT_BOUNDS,
   );
   const hasLoaded = useRef(false);
   const requestGeneration = useRef(0);
+
+  const applyNavigationFilters = useCallback((filters: DashboardNavigationFilters) => {
+    setStatusFilter((filters.status as StatusFilter) ?? 'ALL');
+    setCategoryFilter(filters.category ?? 'ALL');
+    setUrgencyFilter(
+      filters.urgency && !filters.urgency.includes(',')
+        ? (filters.urgency as UrgencyFilter)
+        : 'ALL',
+    );
+    setUrgencyCsv(filters.urgency?.includes(',') ? filters.urgency : null);
+    setDepartmentFilter(filters.departmentId ?? 'ALL');
+    setOpenOnly(Boolean(filters.openOnly));
+    setTicketIds(filters.ticketIds ?? []);
+    if (hasMapBounds(filters)) {
+      setPersistBounds(true);
+      setBounds({
+        north: filters.north as number,
+        south: filters.south as number,
+        east: filters.east as number,
+        west: filters.west as number,
+        zoom: filters.zoom ?? 15,
+      });
+    } else {
+      setPersistBounds(false);
+    }
+  }, []);
+
+  const stateFilters = useMemo(
+    () => ({
+      status: statusFilter !== 'ALL' ? statusFilter : undefined,
+      category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
+      urgency: urgencyCsv || (urgencyFilter !== 'ALL' ? urgencyFilter : undefined),
+      departmentId: departmentFilter !== 'ALL' ? departmentFilter : undefined,
+      openOnly: openOnly || undefined,
+      ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
+      south: persistBounds ? bounds.south : undefined,
+      west: persistBounds ? bounds.west : undefined,
+      north: persistBounds ? bounds.north : undefined,
+      east: persistBounds ? bounds.east : undefined,
+      zoom: persistBounds ? bounds.zoom : undefined,
+    }),
+    [
+      bounds,
+      categoryFilter,
+      departmentFilter,
+      openOnly,
+      persistBounds,
+      statusFilter,
+      ticketIds,
+      urgencyCsv,
+      urgencyFilter,
+    ],
+  );
+  const { navigationFilters } = useDashboardLocationSync(stateFilters, applyNavigationFilters);
 
   const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
   const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
@@ -162,41 +216,6 @@ export function MapViewPage() {
     mapUrgency,
     openOnly,
     ticketIds,
-  ]);
-
-  useEffect(() => {
-    const next = serializeDashboardSearchParams({
-      status: statusFilter !== 'ALL' ? statusFilter : undefined,
-      category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
-      urgency: urgencyCsv || (urgencyFilter !== 'ALL' ? urgencyFilter : undefined),
-      departmentId: departmentFilter !== 'ALL' ? departmentFilter : undefined,
-      openOnly: openOnly || undefined,
-      ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
-      south: persistBounds ? bounds.south : undefined,
-      west: persistBounds ? bounds.west : undefined,
-      north: persistBounds ? bounds.north : undefined,
-      east: persistBounds ? bounds.east : undefined,
-      zoom: persistBounds ? bounds.zoom : undefined,
-    });
-    const ownedCurrent = serializeDashboardSearchParams(
-      parseDashboardSearchParams(searchParams),
-    ).toString();
-    if (!next.toString() || ownedCurrent === next.toString()) {
-      return;
-    }
-    setSearchParams(next, { replace: true });
-  }, [
-    bounds,
-    categoryFilter,
-    departmentFilter,
-    openOnly,
-    searchParams,
-    setSearchParams,
-    statusFilter,
-    ticketIds,
-    persistBounds,
-    urgencyCsv,
-    urgencyFilter,
   ]);
 
   const handleViewportChange = useCallback((next: MapBounds) => {

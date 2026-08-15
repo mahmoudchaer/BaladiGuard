@@ -9,6 +9,7 @@ from typing import TypeVar
 
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.workforce import StoredTeam, StoredWorker
+from app.utils.search_text import search_text_contains
 
 T = TypeVar("T")
 
@@ -51,6 +52,34 @@ class InMemoryWorkforceStore:
             workers = [worker for worker in workers if worker.municipality_id == municipality_id]
         return sorted(workers, key=lambda item: (item.display_name.lower(), item.worker_id))
 
+    def search_workers(
+        self,
+        municipality_id: str | None,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+    ) -> tuple[list[StoredWorker], bool]:
+        with self._lock:
+            workers = list(self._workers.values())
+        if municipality_id:
+            workers = [worker for worker in workers if worker.municipality_id == municipality_id]
+        workers.sort(key=lambda item: (item.display_name.lower(), item.worker_id))
+        exact = self.get_worker(query.strip()) if query.strip().startswith("wrk_") else None
+        return _search_directory(
+            items=workers,
+            exact=exact,
+            municipality_id=municipality_id,
+            budget=budget,
+            limit=limit,
+            match=lambda item: (
+                search_text_contains(item.display_name, query)
+                or search_text_contains(item.worker_id, query)
+            ),
+            item_municipality=lambda item: item.municipality_id,
+            item_id=lambda item: item.worker_id,
+        )
+
     def save_team(self, team: StoredTeam) -> StoredTeam:
         with self._lock:
             self._teams[team.team_id] = team
@@ -66,6 +95,34 @@ class InMemoryWorkforceStore:
         if municipality_id:
             teams = [team for team in teams if team.municipality_id == municipality_id]
         return sorted(teams, key=lambda item: (item.display_name.lower(), item.team_id))
+
+    def search_teams(
+        self,
+        municipality_id: str | None,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+    ) -> tuple[list[StoredTeam], bool]:
+        with self._lock:
+            teams = list(self._teams.values())
+        if municipality_id:
+            teams = [team for team in teams if team.municipality_id == municipality_id]
+        teams.sort(key=lambda item: (item.display_name.lower(), item.team_id))
+        exact = self.get_team(query.strip()) if query.strip().startswith("team_") else None
+        return _search_directory(
+            items=teams,
+            exact=exact,
+            municipality_id=municipality_id,
+            budget=budget,
+            limit=limit,
+            match=lambda item: (
+                search_text_contains(item.display_name, query)
+                or search_text_contains(item.team_id, query)
+            ),
+            item_municipality=lambda item: item.municipality_id,
+            item_id=lambda item: item.team_id,
+        )
 
     def claim_worker(
         self, worker_id: str, expected_updated_at: str, department_id: str | None
@@ -142,6 +199,37 @@ class InMemoryWorkforceStore:
         with self._lock:
             self._workers.clear()
             self._teams.clear()
+
+
+def _search_directory(
+    *,
+    items: list[T],
+    exact: T | None,
+    municipality_id: str | None,
+    budget: int,
+    limit: int,
+    match,
+    item_municipality,
+    item_id,
+) -> tuple[list[T], bool]:
+    del item_id
+    if exact is not None:
+        in_scope = municipality_id is None or item_municipality(exact) == municipality_id
+        if in_scope:
+            return [exact], False
+
+    hits: list[T] = []
+    scanned = 0
+    for item in items:
+        scanned += 1
+        if scanned > budget:
+            return hits[:limit], True
+        if not match(item):
+            continue
+        hits.append(item)
+        if len(hits) > limit:
+            return hits[:limit], True
+    return hits[:limit], False
 
 
 workforce_store = InMemoryWorkforceStore()

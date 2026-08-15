@@ -19,6 +19,7 @@ from app.database.ticket_patch import (
 )
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.workforce import StoredTeam, StoredWorker
+from app.utils.search_text import search_text_contains
 
 T = TypeVar("T")
 
@@ -56,6 +57,34 @@ class DynamoWorkforceStore:
         workers = [StoredWorker.model_validate(convert_decimals(item)) for item in items]
         return sorted(workers, key=lambda item: (item.display_name.lower(), item.worker_id))
 
+    def search_workers(
+        self,
+        municipality_id: str | None,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+    ) -> tuple[list[StoredWorker], bool]:
+        compact = query.strip()
+        if compact.startswith("wrk_"):
+            loaded = self.get_worker(compact)
+            if loaded is not None and (
+                municipality_id is None or loaded.municipality_id == municipality_id
+            ):
+                return [loaded], False
+        return _search_or_scan(
+            self._workers,
+            "municipalityId",
+            municipality_id,
+            budget=budget,
+            limit=limit,
+            parse=lambda item: StoredWorker.model_validate(convert_decimals(item)),
+            matches=lambda worker: (
+                search_text_contains(worker.display_name, query)
+                or search_text_contains(worker.worker_id, query)
+            ),
+        )
+
     def save_team(self, team: StoredTeam) -> StoredTeam:
         self._teams.put_item(
             Item=prepare_dynamodb_value(team.model_dump(by_alias=True, mode="json"))
@@ -71,6 +100,34 @@ class DynamoWorkforceStore:
         items = _query_or_scan(self._teams, "municipalityId", municipality_id)
         teams = [StoredTeam.model_validate(convert_decimals(item)) for item in items]
         return sorted(teams, key=lambda item: (item.display_name.lower(), item.team_id))
+
+    def search_teams(
+        self,
+        municipality_id: str | None,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+    ) -> tuple[list[StoredTeam], bool]:
+        compact = query.strip()
+        if compact.startswith("team_"):
+            loaded = self.get_team(compact)
+            if loaded is not None and (
+                municipality_id is None or loaded.municipality_id == municipality_id
+            ):
+                return [loaded], False
+        return _search_or_scan(
+            self._teams,
+            "municipalityId",
+            municipality_id,
+            budget=budget,
+            limit=limit,
+            parse=lambda item: StoredTeam.model_validate(convert_decimals(item)),
+            matches=lambda team: (
+                search_text_contains(team.display_name, query)
+                or search_text_contains(team.team_id, query)
+            ),
+        )
 
     def claim_worker(
         self, worker_id: str, expected_updated_at: str, department_id: str | None
@@ -210,3 +267,42 @@ def _query_or_scan(table, key_name: str, municipality_id: str | None) -> list[di
         if not last_key:
             return items
         kwargs["ExclusiveStartKey"] = last_key
+
+
+def _search_or_scan(
+    table,
+    key_name: str,
+    municipality_id: str | None,
+    *,
+    budget: int,
+    limit: int,
+    parse,
+    matches,
+) -> tuple[list[Any], bool]:
+    hits: list[Any] = []
+    scanned = 0
+    page_size = min(25, max(1, budget))
+    kwargs: dict[str, Any] = {"Limit": page_size}
+    use_query = bool(municipality_id)
+    if use_query:
+        kwargs["IndexName"] = "municipalityId-index"
+        kwargs["KeyConditionExpression"] = Key(key_name).eq(municipality_id)
+
+    while True:
+        kwargs["Limit"] = min(page_size, max(1, budget - scanned))
+        response = table.query(**kwargs) if use_query else table.scan(**kwargs)
+        page = response.get("Items") or []
+        last_key = response.get("LastEvaluatedKey")
+        for item in page:
+            scanned += 1
+            parsed = parse(item)
+            if matches(parsed):
+                hits.append(parsed)
+                if len(hits) > limit:
+                    return hits[:limit], True
+            if scanned >= budget:
+                return hits[:limit], True
+        if not last_key:
+            return hits[:limit], False
+        if scanned >= budget:
+            return hits[:limit], True

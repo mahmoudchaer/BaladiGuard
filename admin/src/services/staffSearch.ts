@@ -25,6 +25,8 @@ export function parseStaffSearchResponse(value: unknown): StaffSearchResponse | 
     teamsTruncated: value.teamsTruncated === true,
     workOrdersTruncated: value.workOrdersTruncated === true,
     scanTruncated: value.scanTruncated === true,
+    workforceScanTruncated: value.workforceScanTruncated === true,
+    workOrderScanTruncated: value.workOrderScanTruncated === true,
     partialFailures: Array.isArray(value.partialFailures)
       ? value.partialFailures.filter((item): item is string => typeof item === 'string')
       : [],

@@ -64,6 +64,8 @@ class StaffSearchResponse(BaseModel):
     teams_truncated: bool = Field(default=False, alias="teamsTruncated")
     work_orders_truncated: bool = Field(default=False, alias="workOrdersTruncated")
     scan_truncated: bool = Field(default=False, alias="scanTruncated")
+    workforce_scan_truncated: bool = Field(default=False, alias="workforceScanTruncated")
+    work_order_scan_truncated: bool = Field(default=False, alias="workOrderScanTruncated")
     partial_failures: list[str] = Field(default_factory=list, alias="partialFailures")
     limits: dict[str, int] = Field(default_factory=dict)
 

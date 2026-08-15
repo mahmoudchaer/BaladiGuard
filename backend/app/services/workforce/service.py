@@ -129,6 +129,30 @@ class WorkforceService:
         scoped = resolve_municipality_scope(principal, municipality_id)
         return [TeamResponse.from_team(item) for item in self.store().list_teams(scoped)]
 
+    def search_workers(
+        self,
+        principal: StaffPrincipal,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+        municipality_id: str | None = None,
+    ) -> tuple[list[StoredWorker], bool]:
+        scoped = resolve_municipality_scope(principal, municipality_id)
+        return self.store().search_workers(scoped, query=query, budget=budget, limit=limit)
+
+    def search_teams(
+        self,
+        principal: StaffPrincipal,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+        municipality_id: str | None = None,
+    ) -> tuple[list[StoredTeam], bool]:
+        scoped = resolve_municipality_scope(principal, municipality_id)
+        return self.store().search_teams(scoped, query=query, budget=budget, limit=limit)
+
     def create_worker(
         self, principal: StaffPrincipal, payload: UpsertWorkerRequest
     ) -> WorkerResponse:
