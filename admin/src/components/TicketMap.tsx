@@ -148,11 +148,7 @@ function FitTicketBounds({ tickets, singleZoom }: { tickets: Ticket[]; singleZoo
   return null;
 }
 
-function FitInitialBounds({
-  bounds,
-}: {
-  bounds: TicketMapViewportProps['initialBounds'];
-}) {
+function FitInitialBounds({ bounds }: { bounds: TicketMapViewportProps['initialBounds'] }) {
   const map = useMap();
   const applied = useRef(false);
 

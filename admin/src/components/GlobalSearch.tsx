@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { searchStaffRecords } from '@/services/staffSearch';
 import type { StaffSearchResponse } from '@/types/staffSearch';
-import {
-  buildTicketDetailPath,
-  buildWorkforcePath,
-} from '@/utils/dashboardNavigation';
+import { buildTicketDetailPath, buildWorkforcePath } from '@/utils/dashboardNavigation';
+import type { TicketStatus } from '@/types/ticket';
 import { formatCategory, formatStatus } from '@/utils/labels';
 import { IconSearch } from '@/components/icons';
 import './GlobalSearch.css';
@@ -27,7 +25,12 @@ function buildOptions(results: StaffSearchResponse): SearchOption[] {
       id: `ticket:${item.ticketId}`,
       group: 'Tickets',
       title: item.ticketNumber,
-      meta: [item.trackingCode, formatCategory(item.category), formatStatus(item.status), item.publicLocationLabel]
+      meta: [
+        item.trackingCode,
+        formatCategory(item.category),
+        formatStatus(item.status as TicketStatus),
+        item.publicLocationLabel,
+      ]
         .filter(Boolean)
         .join(' · '),
       href: buildTicketDetailPath(item.ticketId),
@@ -114,11 +117,14 @@ export function GlobalSearch() {
     return next;
   }, [options]);
 
-  function choose(option: SearchOption) {
-    navigate(option.href);
+  function closeSearch() {
     setOpen(false);
     setQuery('');
-    inputRef.current?.blur();
+  }
+
+  function choose(option: SearchOption) {
+    navigate(option.href);
+    closeSearch();
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -165,7 +171,9 @@ export function GlobalSearch() {
         aria-expanded={showPanel}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={showPanel && options[activeIndex] ? options[activeIndex].id : undefined}
+        aria-activedescendant={
+          showPanel && options[activeIndex] ? options[activeIndex].id : undefined
+        }
         value={query}
         onChange={(event) => {
           setQuery(event.target.value);
@@ -210,7 +218,10 @@ export function GlobalSearch() {
                         aria-selected={index === activeIndex}
                         className="global-search__option"
                         onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => choose(option)}
+                        onClick={() => {
+                          navigate(option.href);
+                          closeSearch();
+                        }}
                       >
                         <span className="global-search__option-title">{option.title}</span>
                         <span className="global-search__option-meta">{option.meta}</span>

@@ -136,7 +136,11 @@ function applyFetchFilters(items: Ticket[], options: FetchPageOptions = {}) {
         return false;
       }
     }
-    if (filters.ticketIds && filters.ticketIds.length > 0 && !filters.ticketIds.includes(ticket.ticketId)) {
+    if (
+      filters.ticketIds &&
+      filters.ticketIds.length > 0 &&
+      !filters.ticketIds.includes(ticket.ticketId)
+    ) {
       return false;
     }
     const query = filters.q?.trim().toLowerCase();
@@ -207,9 +211,7 @@ describe('TicketListPage', () => {
         }),
       ),
     );
-    expect(
-      await screen.findByText('These tickets are no longer available'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('These tickets are no longer available')).toBeInTheDocument();
     expect(window.location.search).toContain('openOnly=true');
     expect(window.location.search).not.toContain('description');
   });

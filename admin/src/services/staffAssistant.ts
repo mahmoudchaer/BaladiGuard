@@ -37,7 +37,9 @@ export function parseStaffAssistantResponse(value: unknown): StaffAssistantRespo
     areaClustersTruncated: value.areaClustersTruncated === true,
     unlocatedCount: typeof value.unlocatedCount === 'number' ? value.unlocatedCount : 0,
     incompleteCount: typeof value.incompleteCount === 'number' ? value.incompleteCount : 0,
-    tickets: Array.isArray(value.tickets) ? (value.tickets as StaffAssistantResponse['tickets']) : [],
+    tickets: Array.isArray(value.tickets)
+      ? (value.tickets as StaffAssistantResponse['tickets'])
+      : [],
     appliedFilters: isRecord(value.appliedFilters)
       ? (value.appliedFilters as Record<string, string>)
       : {},

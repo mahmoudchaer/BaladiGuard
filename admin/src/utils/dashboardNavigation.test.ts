@@ -32,7 +32,7 @@ describe('dashboardNavigation', () => {
     );
     const parsed = parseDashboardSearchParams(params);
     expect(parsed.south).toBe(33.8);
-    expect(parsed.q).toBeUndefined();
+    expect('q' in parsed).toBe(false);
     expect(buildMapPath(parsed)).toContain('south=33.8');
     expect(buildMapPath(parsed)).not.toContain('secret');
   });

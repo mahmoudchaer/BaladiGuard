@@ -184,7 +184,9 @@ export function buildMapPath(filters: DashboardNavigationFilters): string {
   return query ? `/map?${query}` : '/map';
 }
 
-export function buildWorkforcePath(filters: Pick<DashboardNavigationFilters, 'workerId' | 'teamId'>): string {
+export function buildWorkforcePath(
+  filters: Pick<DashboardNavigationFilters, 'workerId' | 'teamId'>,
+): string {
   const params = serializeDashboardSearchParams({
     workerId: filters.workerId,
     teamId: filters.teamId,

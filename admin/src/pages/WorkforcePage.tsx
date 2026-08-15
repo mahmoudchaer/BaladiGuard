@@ -263,12 +263,18 @@ export function WorkforcePage() {
         )}
         {loadState === 'loading' && <LoadingState message="Loading workforce…" />}
 
-        {loadState === 'ready' && tab === 'directory' && focusWorkerId && !workers.some((item) => item.workerId === focusWorkerId) ? (
+        {loadState === 'ready' &&
+        tab === 'directory' &&
+        focusWorkerId &&
+        !workers.some((item) => item.workerId === focusWorkerId) ? (
           <p className="workforce-page__error" role="status">
             That worker is no longer available or you no longer have access.
           </p>
         ) : null}
-        {loadState === 'ready' && tab === 'directory' && focusTeamId && !teams.some((item) => item.teamId === focusTeamId) ? (
+        {loadState === 'ready' &&
+        tab === 'directory' &&
+        focusTeamId &&
+        !teams.some((item) => item.teamId === focusTeamId) ? (
           <p className="workforce-page__error" role="status">
             That team is no longer available or you no longer have access.
           </p>

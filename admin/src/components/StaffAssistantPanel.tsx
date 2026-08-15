@@ -8,6 +8,7 @@ import {
   buildTicketDetailPath,
   buildTicketListPath,
 } from '@/utils/dashboardNavigation';
+import type { TicketPriority, TicketStatus } from '@/types/ticket';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import './StaffAssistantPanel.css';
 
@@ -58,7 +59,6 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
   const titleId = useId();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const [question, setQuestion] = useState('');
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [answer, setAnswer] = useState<StaffAssistantResponse | null>(null);
@@ -98,7 +98,9 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
       setLoadState('success');
     } catch (error) {
       setAnswer(null);
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to ask the staff assistant.');
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to ask the staff assistant.',
+      );
       setLoadState('error');
     }
   }
@@ -128,12 +130,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
             visible records.
           </p>
         </div>
-        <button
-          ref={closeRef}
-          type="button"
-          className="staff-assistant-panel__close"
-          onClick={onClose}
-        >
+        <button type="button" className="staff-assistant-panel__close" onClick={onClose}>
           Close
         </button>
       </header>
@@ -159,7 +156,11 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
           />
         </form>
 
-        <div className="staff-assistant-panel__suggestions" role="group" aria-label="Suggested questions">
+        <div
+          className="staff-assistant-panel__suggestions"
+          role="group"
+          aria-label="Suggested questions"
+        >
           {SUGGESTIONS.map((suggestion) => (
             <button
               key={suggestion}
@@ -295,8 +296,11 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                   <li key={ticket.ticketId} className="staff-assistant-panel__ticket">
                     <p className="staff-assistant-panel__ticket-id">{ticket.ticketNumber}</p>
                     <p className="staff-assistant-panel__ticket-meta">
-                      {formatCategory(ticket.category)} · {formatStatus(ticket.status)}
-                      {ticket.priority ? ` · ${formatPriority(ticket.priority)}` : ''}
+                      {formatCategory(ticket.category)} ·{' '}
+                      {formatStatus(ticket.status as TicketStatus)}
+                      {ticket.priority
+                        ? ` · ${formatPriority(ticket.priority as TicketPriority)}`
+                        : ''}
                     </p>
                     <button
                       type="button"

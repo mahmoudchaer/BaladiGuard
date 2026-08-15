@@ -92,10 +92,7 @@ function buildServerFilters(input: {
 
 export function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigationFilters = useMemo(
-    () => parseDashboardSearchParams(searchParams),
-    [searchParams],
-  );
+  const navigationFilters = useMemo(() => parseDashboardSearchParams(searchParams), [searchParams]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageTickets, setPageTickets] = useState<Ticket[]>([]);
   const [baselineTickets, setBaselineTickets] = useState<Ticket[]>([]);
@@ -597,7 +594,11 @@ export function TicketListPage() {
 
             {hasActiveFilters && pageTickets.length === 0 && (
               <EmptyState
-                title={ticketIds.length > 0 ? 'These tickets are no longer available' : 'No matching tickets'}
+                title={
+                  ticketIds.length > 0
+                    ? 'These tickets are no longer available'
+                    : 'No matching tickets'
+                }
                 message={
                   ticketIds.length > 0
                     ? 'The referenced tickets were removed, closed out of this filter, or you no longer have access.'

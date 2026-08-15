@@ -62,10 +62,7 @@ describe('GlobalSearch', () => {
     const user = userEvent.setup();
     renderWithProviders(<GlobalSearch />);
 
-    await user.type(
-      screen.getByLabelText('Search tickets, workers, teams, and work orders'),
-      'BG',
-    );
+    await user.type(screen.getByLabelText('Search tickets, workers, teams, and work orders'), 'BG');
     expect(await screen.findByText('Tickets')).toBeInTheDocument();
     expect(screen.getByText('Workers')).toBeInTheDocument();
 
@@ -93,10 +90,7 @@ describe('GlobalSearch', () => {
   it('does not search one-character queries', async () => {
     const user = userEvent.setup();
     renderWithProviders(<GlobalSearch />);
-    await user.type(
-      screen.getByLabelText('Search tickets, workers, teams, and work orders'),
-      'a',
-    );
+    await user.type(screen.getByLabelText('Search tickets, workers, teams, and work orders'), 'a');
     await waitFor(() => {
       expect(searchStaffRecords).not.toHaveBeenCalled();
     });

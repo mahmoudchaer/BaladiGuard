@@ -47,10 +47,7 @@ const VIEWPORT_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 350;
 
 export function MapViewPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigationFilters = useMemo(
-    () => parseDashboardSearchParams(searchParams),
-    [searchParams],
-  );
+  const navigationFilters = useMemo(() => parseDashboardSearchParams(searchParams), [searchParams]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [viewport, setViewport] = useState<TicketMapViewport | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -318,7 +315,11 @@ export function MapViewPage() {
 
           {hasActiveFilters && markers.length === 0 && clusters.length === 0 && (
             <EmptyState
-              title={ticketIds.length > 0 ? 'These tickets are no longer available' : 'No matching tickets'}
+              title={
+                ticketIds.length > 0
+                  ? 'These tickets are no longer available'
+                  : 'No matching tickets'
+              }
               message={
                 ticketIds.length > 0
                   ? 'The referenced tickets are outside this view, were removed, or you no longer have access.'
@@ -335,7 +336,16 @@ export function MapViewPage() {
               markers={markers}
               clusters={clusters}
               truncated={viewport?.truncated}
-              initialBounds={hasMapBounds(navigationFilters) ? navigationFilters : null}
+              initialBounds={
+                hasMapBounds(navigationFilters)
+                  ? {
+                      north: navigationFilters.north as number,
+                      south: navigationFilters.south as number,
+                      east: navigationFilters.east as number,
+                      west: navigationFilters.west as number,
+                    }
+                  : null
+              }
               onViewportChange={handleViewportChange}
             />
           </div>

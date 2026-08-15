@@ -193,7 +193,11 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
       return false;
     }
   }
-  if (filters.ticketIds && filters.ticketIds.length > 0 && !filters.ticketIds.includes(ticket.ticketId)) {
+  if (
+    filters.ticketIds &&
+    filters.ticketIds.length > 0 &&
+    !filters.ticketIds.includes(ticket.ticketId)
+  ) {
     return false;
   }
   if (filters.workerId && ticket.assignedWorkerId !== filters.workerId) {

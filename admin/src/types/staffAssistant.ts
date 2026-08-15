@@ -1,7 +1,5 @@
 export type StaffAssistantIntent =
-  | 'high_priority_summary'
-  | 'repeated_area_summary'
-  | 'unsupported';
+  'high_priority_summary' | 'repeated_area_summary' | 'unsupported';
 
 export type StaffAssistantTicketReference = {
   ticketId: string;
