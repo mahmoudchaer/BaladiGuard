@@ -15,7 +15,12 @@ import { DepartmentSummary } from '@/components/DepartmentSummary';
 import { TicketFilters, type SlaFilter } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useDashboardLocationSync } from '@/hooks/useDashboardLocationSync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import {
+  parseDashboardSearchParams,
+  type DashboardNavigationFilters,
+} from '@/utils/dashboardNavigation';
 import {
   getCategoryFilterOptions,
   type CategoryFilter,
@@ -46,14 +51,23 @@ function buildServerFilters(input: {
   sla: SlaFilter;
   queueView: QueueViewId;
   search: string;
+  urgencyCsv?: string | null;
+  openOnly?: boolean;
+  ticketIds?: string[];
+  workerId?: string;
+  teamId?: string;
 }): FetchTicketsFilters {
   const filters: FetchTicketsFilters = {
     status: input.status,
     category: input.category,
-    urgency: input.urgency,
+    urgency: input.urgencyCsv || input.urgency,
     departmentId: input.department,
     slaState: input.sla,
     q: input.search.trim() || undefined,
+    openOnly: input.openOnly || undefined,
+    ticketIds: input.ticketIds?.length ? input.ticketIds : undefined,
+    workerId: input.workerId,
+    teamId: input.teamId,
   };
 
   if (input.queueView === 'unassigned') {
@@ -76,7 +90,24 @@ function buildServerFilters(input: {
   return filters;
 }
 
+function queueViewFromNavigation(filters: DashboardNavigationFilters): QueueViewId {
+  if (filters.assignmentState === 'unassigned') {
+    return 'unassigned';
+  }
+  if (filters.slaState === 'overdue') {
+    return 'aging';
+  }
+  if (filters.urgency === 'critical') {
+    return 'critical';
+  }
+  if (filters.urgency === 'high') {
+    return 'high';
+  }
+  return 'all';
+}
+
 export function TicketListPage() {
+  const initialFilters = parseDashboardSearchParams(new URLSearchParams(window.location.search));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageTickets, setPageTickets] = useState<Ticket[]>([]);
   const [baselineTickets, setBaselineTickets] = useState<Ticket[]>([]);
@@ -84,13 +115,34 @@ export function TicketListPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
-  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
-  const [slaFilter, setSlaFilter] = useState<SlaFilter>('ALL');
-  const [queueView, setQueueView] = useState<QueueViewId>('all');
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    (initialFilters.status as StatusFilter) ?? 'ALL',
+  );
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(
+    initialFilters.category ?? 'ALL',
+  );
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>(
+    initialFilters.urgency && !initialFilters.urgency.includes(',')
+      ? (initialFilters.urgency as UrgencyFilter)
+      : 'ALL',
+  );
+  const [urgencyCsv, setUrgencyCsv] = useState<string | null>(
+    initialFilters.urgency?.includes(',') ? initialFilters.urgency : null,
+  );
+  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>(
+    initialFilters.departmentId ?? 'ALL',
+  );
+  const [slaFilter, setSlaFilter] = useState<SlaFilter>(
+    (initialFilters.slaState as SlaFilter) ?? 'ALL',
+  );
+  const [openOnly, setOpenOnly] = useState(Boolean(initialFilters.openOnly));
+  const [ticketIds, setTicketIds] = useState<string[]>(initialFilters.ticketIds ?? []);
+  const [workerId, setWorkerId] = useState(initialFilters.workerId);
+  const [teamId, setTeamId] = useState(initialFilters.teamId);
+  const [queueView, setQueueView] = useState<QueueViewId>(queueViewFromNavigation(initialFilters));
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
+    initialFilters.focusTicket ?? null,
+  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [canGoPrevious, setCanGoPrevious] = useState(false);
@@ -98,6 +150,59 @@ export function TicketListPage() {
   const hasLoadedTickets = useRef(false);
   const requestGeneration = useRef(0);
   const cursorHistoryRef = useRef<(string | null)[]>([]);
+
+  function applyNavigationFilters(filters: DashboardNavigationFilters) {
+    setStatusFilter((filters.status as StatusFilter) ?? 'ALL');
+    setCategoryFilter(filters.category ?? 'ALL');
+    setUrgencyFilter(
+      filters.urgency && !filters.urgency.includes(',')
+        ? (filters.urgency as UrgencyFilter)
+        : 'ALL',
+    );
+    setUrgencyCsv(filters.urgency?.includes(',') ? filters.urgency : null);
+    setDepartmentFilter(filters.departmentId ?? 'ALL');
+    setSlaFilter((filters.slaState as SlaFilter) ?? 'ALL');
+    setOpenOnly(Boolean(filters.openOnly));
+    setTicketIds(filters.ticketIds ?? []);
+    setWorkerId(filters.workerId);
+    setTeamId(filters.teamId);
+    setQueueView(queueViewFromNavigation(filters));
+    setSelectedTicketId(filters.focusTicket ?? null);
+    setCursor(null);
+    cursorHistoryRef.current = [];
+    setCanGoPrevious(false);
+  }
+
+  const stateFilters = useMemo(
+    () => ({
+      status: statusFilter !== 'ALL' ? statusFilter : undefined,
+      category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
+      urgency: urgencyCsv || (urgencyFilter !== 'ALL' ? urgencyFilter : undefined),
+      departmentId: departmentFilter !== 'ALL' ? departmentFilter : undefined,
+      slaState: slaFilter !== 'ALL' ? slaFilter : undefined,
+      assignmentState: queueView === 'unassigned' ? 'unassigned' : undefined,
+      openOnly: openOnly || undefined,
+      ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
+      workerId,
+      teamId,
+      focusTicket: selectedTicketId ?? undefined,
+    }),
+    [
+      categoryFilter,
+      departmentFilter,
+      openOnly,
+      queueView,
+      selectedTicketId,
+      slaFilter,
+      statusFilter,
+      teamId,
+      ticketIds,
+      urgencyCsv,
+      urgencyFilter,
+      workerId,
+    ],
+  );
+  useDashboardLocationSync(stateFilters, applyNavigationFilters);
 
   const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
   const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
@@ -117,6 +222,11 @@ export function TicketListPage() {
         sla: debouncedSla,
         queueView: debouncedQueueView,
         search: debouncedSearch,
+        urgencyCsv,
+        openOnly,
+        ticketIds,
+        workerId,
+        teamId,
       }),
     [
       debouncedCategory,
@@ -126,6 +236,11 @@ export function TicketListPage() {
       debouncedSla,
       debouncedStatus,
       debouncedUrgency,
+      openOnly,
+      teamId,
+      ticketIds,
+      urgencyCsv,
+      workerId,
     ],
   );
 
@@ -137,7 +252,10 @@ export function TicketListPage() {
     (serverFilters.slaState && serverFilters.slaState !== 'ALL') ||
     (serverFilters.assignmentState && serverFilters.assignmentState !== 'ALL') ||
     Boolean(serverFilters.q) ||
-    Boolean(serverFilters.openOnly);
+    Boolean(serverFilters.openOnly) ||
+    Boolean(serverFilters.ticketIds?.length) ||
+    Boolean(serverFilters.workerId) ||
+    Boolean(serverFilters.teamId);
 
   const hasActiveFilters =
     hasActiveServerFilters ||
@@ -147,7 +265,12 @@ export function TicketListPage() {
     departmentFilter !== 'ALL' ||
     slaFilter !== 'ALL' ||
     searchQuery.trim().length > 0 ||
-    queueView !== 'all';
+    queueView !== 'all' ||
+    openOnly ||
+    ticketIds.length > 0 ||
+    Boolean(workerId) ||
+    Boolean(teamId) ||
+    Boolean(urgencyCsv);
 
   // Reset to the first page whenever server filters change.
   useEffect(() => {
@@ -352,8 +475,13 @@ export function TicketListPage() {
     setStatusFilter('ALL');
     setCategoryFilter('ALL');
     setUrgencyFilter('ALL');
+    setUrgencyCsv(null);
     setDepartmentFilter('ALL');
     setSlaFilter('ALL');
+    setOpenOnly(false);
+    setTicketIds([]);
+    setWorkerId(undefined);
+    setTeamId(undefined);
     setQueueView('all');
     setCursor(null);
     cursorHistoryRef.current = [];
@@ -415,12 +543,6 @@ export function TicketListPage() {
       title="Work queue"
       subtitle="Triage citizen infrastructure reports by urgency, ownership, and age"
       flush
-      search={{
-        value: searchQuery,
-        onChange: setSearchQuery,
-        label: 'Search tickets',
-        placeholder: 'Search ticket #, location, or description…',
-      }}
     >
       {loadState === 'loading' && (
         <div className="ticket-list-page__loading">
@@ -458,7 +580,6 @@ export function TicketListPage() {
               resultCount={pageTickets.length}
               totalCount={totalCount}
               isRefreshing={isRefreshing}
-              hideSearch
               onSearchChange={setSearchQuery}
               onStatusChange={setStatusFilter}
               onCategoryChange={setCategoryFilter}
@@ -495,8 +616,16 @@ export function TicketListPage() {
 
             {hasActiveFilters && pageTickets.length === 0 && (
               <EmptyState
-                title="No matching tickets"
-                message="Try adjusting your search, status, category, urgency, or department filters to find tickets."
+                title={
+                  ticketIds.length > 0
+                    ? 'These tickets are no longer available'
+                    : 'No matching tickets'
+                }
+                message={
+                  ticketIds.length > 0
+                    ? 'The referenced tickets were removed, closed out of this filter, or you no longer have access.'
+                    : 'Try adjusting your search, status, category, urgency, or department filters to find tickets.'
+                }
               />
             )}
 

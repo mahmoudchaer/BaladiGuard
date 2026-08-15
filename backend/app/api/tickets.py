@@ -20,6 +20,7 @@ from app.schemas.staff_comment import (
     CreateStaffCommentRequest,
     StaffCommentResponse,
 )
+from app.schemas.staff_search import StaffSearchResponse
 from app.schemas.staff_ticket_collection import (
     TicketAggregatesResponse,
     TicketListPageResponse,
@@ -73,6 +74,11 @@ from app.services.redaction.review import (
 )
 from app.services.staff.assistant import staff_assistant_service
 from app.services.staff.comments import StaffCommentError, staff_comment_service
+from app.services.staff.search import (
+    MAX_SEARCH_QUERY_LENGTH,
+    MIN_SEARCH_QUERY_LENGTH,
+    staff_search_service,
+)
 from app.services.work_orders.reasons import OutcomeReasonError
 from app.services.workforce.service import WorkforceError
 from app.utils.ticket_ids import is_valid_tracking_code
@@ -84,10 +90,51 @@ logger = logging.getLogger(__name__)
 @router.post("/staff-assistant/query", response_model=StaffAssistantResponse)
 def query_staff_assistant(
     payload: StaffAssistantQuery,
+    request: Request,
     principal: StaffDep,
-) -> StaffAssistantResponse:
+) -> StaffAssistantResponse | JSONResponse:
     """Read-only deterministic assistant, grounded in the caller's visible tickets."""
+    limited = enforce_rate_limit(
+        request,
+        "staff-assistant-query",
+        extra_identity=principal.staff_id,
+        message="Too many assistant questions. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
     return staff_assistant_service.answer(payload.question, principal=principal)
+
+
+@router.get("/staff-search", response_model=StaffSearchResponse)
+def search_staff_records(
+    request: Request,
+    principal: StaffDep,
+    q: str = Query(min_length=1, max_length=MAX_SEARCH_QUERY_LENGTH),
+) -> StaffSearchResponse | JSONResponse:
+    """Permission-scoped global search across approved operational fields (#42 / #260)."""
+    limited = enforce_rate_limit(
+        request,
+        "staff-search",
+        extra_identity=principal.staff_id,
+        message="Too many search requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+    normalized = q.strip()
+    if len(normalized) < MIN_SEARCH_QUERY_LENGTH:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[
+                ErrorDetail(
+                    field="q",
+                    message=f"Search query must be at least {MIN_SEARCH_QUERY_LENGTH} characters.",
+                )
+            ],
+            status_code=400,
+        )
+    return staff_search_service.search(normalized, principal=principal)
 
 
 def _staff_comment_error(request: Request, exc: StaffCommentError) -> JSONResponse:
@@ -344,6 +391,7 @@ def list_tickets(
     workforce_unassigned: bool = Query(default=False, alias="workforceUnassigned"),
     q: str | None = Query(default=None),
     open_only: bool = Query(default=False, alias="openOnly"),
+    ticket_ids: str | None = Query(default=None, alias="ticketIds"),
     limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
     cursor: str | None = Query(default=None),
 ) -> TicketListPageResponse | JSONResponse:
@@ -360,6 +408,7 @@ def list_tickets(
         workforce_unassigned=workforce_unassigned,
         q=q,
         open_only=open_only,
+        ticket_ids=ticket_ids,
     )
     if errors:
         return build_error_response(
@@ -400,6 +449,8 @@ def map_tickets_viewport(
     urgency: str | None = Query(default=None),
     department_id: str | None = Query(default=None, alias="departmentId"),
     sla_state: str | None = Query(default=None, alias="slaState"),
+    open_only: bool = Query(default=False, alias="openOnly"),
+    ticket_ids: str | None = Query(default=None, alias="ticketIds"),
     limit: int = Query(default=STAFF_MAP_DEFAULT_LIMIT, ge=1, le=STAFF_MAP_MAX_LIMIT),
 ) -> TicketMapViewportResponse | JSONResponse:
     """Staff map viewport with markers or grid clusters (issue #267)."""
@@ -417,6 +468,8 @@ def map_tickets_viewport(
         urgency=urgency,
         department_id=department_id,
         sla_state=sla_state,
+        open_only=open_only,
+        ticket_ids=ticket_ids,
     )
     if errors:
         return build_error_response(

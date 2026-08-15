@@ -3,10 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queryStaffAssistant } from '@/services/staffAssistant';
 import { fetchTicketMapViewport } from '@/services/tickets';
 import { renderWithProviders } from '@/test/render';
+import type { StaffAssistantResponse } from '@/types/staffAssistant';
 import type { TicketMapMarker, TicketMapViewport } from '@/types/ticketCollection';
 import { MapViewPage } from '@/pages/MapViewPage';
+
+vi.mock('@/services/staffAssistant', () => ({
+  queryStaffAssistant: vi.fn(),
+}));
 
 vi.mock('@/services/tickets', () => ({
   fetchTicketMapViewport: vi.fn(),
@@ -120,6 +126,128 @@ describe('MapViewPage', () => {
 
     await waitFor(() => expect(fetchTicketMapViewport).toHaveBeenCalledTimes(2));
     expect(screen.getByText('No matching tickets')).toBeInTheDocument();
+  });
+
+  it('applies assistant map filters when already on the map route', async () => {
+    const answer: StaffAssistantResponse = {
+      intent: 'high_priority_summary',
+      asOf: '2026-08-15T12:00:00Z',
+      message: '2 accessible high-priority or critical ticket(s).',
+      count: 2,
+      categories: {},
+      statuses: {},
+      departments: {},
+      areas: {},
+      areaClusters: [
+        {
+          cellId: 'c1',
+          south: 33.81,
+          west: 35.41,
+          north: 33.91,
+          east: 35.51,
+          label: 'Hamra',
+          ticketCount: 2,
+          distinctReportCount: 2,
+          duplicateGroupCount: 0,
+          separateReportCount: 2,
+          categories: {},
+          ticketIds: ['tkt_123'],
+          ticketIdsTruncated: false,
+        },
+      ],
+      areaClusterTotal: 1,
+      areaClustersTruncated: false,
+      unlocatedCount: 0,
+      incompleteCount: 0,
+      tickets: [],
+      appliedFilters: { urgency: 'high,critical', openOnly: 'true' },
+    };
+    vi.mocked(queryStaffAssistant).mockResolvedValue(answer);
+    vi.mocked(fetchTicketMapViewport).mockResolvedValue(viewportFromMarkers([baseMarker]));
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByTestId('ticket-map')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assistant' }));
+    await user.click(screen.getByRole('button', { name: 'Show high-priority tickets' }));
+    const mapActions = await screen.findAllByRole('button', { name: 'View on map' });
+    await user.click(mapActions[0]);
+
+    await waitFor(() =>
+      expect(fetchTicketMapViewport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: expect.objectContaining({
+            urgency: 'high,critical',
+            openOnly: true,
+          }),
+        }),
+      ),
+    );
+    expect(window.location.pathname).toBe('/map');
+    expect(window.location.search).toContain('urgency=high%2Ccritical');
+    expect(window.location.search).toContain('openOnly=true');
+  });
+
+  it('applies assistant cluster bounds when already on the map route', async () => {
+    const answer: StaffAssistantResponse = {
+      intent: 'repeated_area_summary',
+      asOf: '2026-08-15T12:00:00Z',
+      message: 'Repeated problems in 1 area.',
+      count: 2,
+      categories: {},
+      statuses: {},
+      departments: {},
+      areas: {},
+      areaClusters: [
+        {
+          cellId: 'c1',
+          south: 33.81,
+          west: 35.41,
+          north: 33.91,
+          east: 35.51,
+          label: 'Hamra',
+          ticketCount: 2,
+          distinctReportCount: 2,
+          duplicateGroupCount: 0,
+          separateReportCount: 2,
+          categories: {},
+          ticketIds: ['tkt_123'],
+          ticketIdsTruncated: false,
+        },
+      ],
+      areaClusterTotal: 1,
+      areaClustersTruncated: false,
+      unlocatedCount: 0,
+      incompleteCount: 0,
+      tickets: [],
+      appliedFilters: { openOnly: 'true' },
+    };
+    vi.mocked(queryStaffAssistant).mockResolvedValue(answer);
+    vi.mocked(fetchTicketMapViewport).mockResolvedValue(viewportFromMarkers([baseMarker]));
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByTestId('ticket-map')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Assistant' }));
+    await user.click(screen.getByRole('button', { name: 'Where are repeated problems?' }));
+    const mapButtons = await screen.findAllByRole('button', { name: 'View on map' });
+    await user.click(mapButtons[1]);
+
+    await waitFor(() =>
+      expect(fetchTicketMapViewport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          south: 33.81,
+          west: 35.41,
+          north: 33.91,
+          east: 35.51,
+          filters: expect.objectContaining({
+            openOnly: true,
+          }),
+        }),
+      ),
+    );
+    expect(window.location.search).toContain('south=33.81');
+    expect(window.location.search).toContain('openOnly=true');
   });
 
   it('renders cluster summary when the viewport returns clusters', async () => {

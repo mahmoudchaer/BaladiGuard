@@ -341,6 +341,47 @@ def test_dynamo_workforce_store_round_trip(dynamodb_settings: Settings) -> None:
     assert store.claim_worker(refreshed.worker_id, refreshed.updated_at, WASTE) is False
 
 
+def test_dynamo_workforce_search_stops_at_budget(dynamodb_settings: Settings) -> None:
+    store = DynamoWorkforceStore(dynamodb_settings)
+    now = "2026-08-15T12:00:00Z"
+    for index in range(30):
+        store.save_worker(
+            StoredWorker(
+                workerId=f"wrk_scan_{index:02d}",
+                municipalityId=BEIRUT,
+                displayName=f"Scan crew {index:02d}",
+                departmentIds=[ROAD],
+                teamIds=[],
+                active=True,
+                createdAt=now,
+                updatedAt=now,
+            )
+        )
+    store.save_worker(
+        StoredWorker(
+            workerId="wrk_exact_tail",
+            municipalityId=BEIRUT,
+            displayName="Tail worker",
+            departmentIds=[ROAD],
+            teamIds=[],
+            active=True,
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+
+    hits, truncated = store.search_workers(BEIRUT, query="Scan crew", budget=10, limit=8)
+    assert truncated is True
+    assert len(hits) <= 8
+    assert all(item.display_name.startswith("Scan crew") for item in hits)
+
+    exact, exact_truncated = store.search_workers(
+        BEIRUT, query="wrk_exact_tail", budget=10, limit=8
+    )
+    assert exact_truncated is False
+    assert [item.worker_id for item in exact] == ["wrk_exact_tail"]
+
+
 def test_assignment_rejects_stale_read_after_deactivation(client: TestClient) -> None:
     ticket_id = _create_ticket(client)
     _stamp_ticket(ticket_id)

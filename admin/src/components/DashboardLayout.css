@@ -239,6 +239,27 @@
   padding-right: 0.25rem;
 }
 
+.dashboard-topbar__assistant {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.7rem;
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.dashboard-topbar__assistant:hover,
+.dashboard-topbar__assistant[aria-expanded='true'] {
+  background: rgb(255 255 255 / 14%);
+  border-color: rgb(255 255 255 / 32%);
+}
+
 .dashboard-topbar__logout {
   border: 1px solid rgb(255 255 255 / 18%);
   border-radius: var(--radius-md);

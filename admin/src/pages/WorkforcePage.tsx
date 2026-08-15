@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { DEPARTMENT_NAMES } from '@/data/departments';
@@ -60,10 +60,13 @@ function DepartmentChecklist({
 }
 
 export function WorkforcePage() {
+  const [searchParams] = useSearchParams();
+  const focusWorkerId = searchParams.get('workerId');
+  const focusTeamId = searchParams.get('teamId');
   const { session } = useStaffAuth();
   const isAdmin = session?.role === 'administrator';
   const municipalityId = session?.municipalityId ?? BEIRUT_MUNICIPALITY_ID;
-  const [tab, setTab] = useState<TabId>('workload');
+  const [tab, setTab] = useState<TabId>(focusWorkerId || focusTeamId ? 'directory' : 'workload');
   const [workers, setWorkers] = useState<WorkforceWorker[]>([]);
   const [teams, setTeams] = useState<WorkforceTeam[]>([]);
   const [workload, setWorkload] = useState<WorkloadSnapshot | null>(null);
@@ -104,6 +107,18 @@ export function WorkforcePage() {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [municipalityId]);
+
+  useEffect(() => {
+    const targetId = focusWorkerId
+      ? `worker-${focusWorkerId}`
+      : focusTeamId
+        ? `team-${focusTeamId}`
+        : null;
+    if (!targetId || loadState !== 'ready') {
+      return;
+    }
+    document.getElementById(targetId)?.scrollIntoView({ block: 'center' });
+  }, [focusTeamId, focusWorkerId, loadState]);
 
   const workerLookup = useMemo(
     () => Object.fromEntries(workers.map((worker) => [worker.workerId, worker.displayName])),
@@ -248,6 +263,22 @@ export function WorkforcePage() {
         )}
         {loadState === 'loading' && <LoadingState message="Loading workforce…" />}
 
+        {loadState === 'ready' &&
+        tab === 'directory' &&
+        focusWorkerId &&
+        !workers.some((item) => item.workerId === focusWorkerId) ? (
+          <p className="workforce-page__error" role="status">
+            That worker is no longer available or you no longer have access.
+          </p>
+        ) : null}
+        {loadState === 'ready' &&
+        tab === 'directory' &&
+        focusTeamId &&
+        !teams.some((item) => item.teamId === focusTeamId) ? (
+          <p className="workforce-page__error" role="status">
+            That team is no longer available or you no longer have access.
+          </p>
+        ) : null}
         {loadState === 'ready' && tab === 'directory' && (
           <div className="workforce-page__grid">
             <section className="workforce-card">
@@ -295,7 +326,13 @@ export function WorkforcePage() {
                 </thead>
                 <tbody>
                   {workers.map((worker) => (
-                    <tr key={worker.workerId}>
+                    <tr
+                      key={worker.workerId}
+                      id={`worker-${worker.workerId}`}
+                      className={
+                        focusWorkerId === worker.workerId ? 'workforce-row--focus' : undefined
+                      }
+                    >
                       {editingWorkerId === worker.workerId ? (
                         <td colSpan={isAdmin ? 4 : 3}>
                           <form
@@ -398,7 +435,11 @@ export function WorkforcePage() {
                 </thead>
                 <tbody>
                   {teams.map((team) => (
-                    <tr key={team.teamId}>
+                    <tr
+                      key={team.teamId}
+                      id={`team-${team.teamId}`}
+                      className={focusTeamId === team.teamId ? 'workforce-row--focus' : undefined}
+                    >
                       {editingTeamId === team.teamId ? (
                         <td colSpan={isAdmin ? 4 : 3}>
                           <form

@@ -190,6 +190,16 @@ def build_rate_limit_policies(settings: Settings | None = None) -> dict[str, Rat
             limit=cfg.rate_limit_staff_login_limit,
             window_seconds=cfg.rate_limit_staff_login_window_seconds,
         ),
+        "staff-assistant-query": RateLimitPolicy(
+            name="staff-assistant-query",
+            limit=cfg.rate_limit_staff_assistant_limit,
+            window_seconds=cfg.rate_limit_staff_assistant_window_seconds,
+        ),
+        "staff-search": RateLimitPolicy(
+            name="staff-search",
+            limit=cfg.rate_limit_staff_search_limit,
+            window_seconds=cfg.rate_limit_staff_search_window_seconds,
+        ),
         "staff-password-reset-request": RateLimitPolicy(
             name="staff-password-reset-request",
             limit=cfg.rate_limit_staff_login_limit,

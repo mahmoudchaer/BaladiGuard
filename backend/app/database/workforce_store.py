@@ -24,11 +24,29 @@ class WorkforceStore(Protocol):
 
     def list_workers(self, municipality_id: str | None = None) -> list[StoredWorker]: ...
 
+    def search_workers(
+        self,
+        municipality_id: str | None,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+    ) -> tuple[list[StoredWorker], bool]: ...
+
     def save_team(self, team: StoredTeam) -> StoredTeam: ...
 
     def get_team(self, team_id: str) -> StoredTeam | None: ...
 
     def list_teams(self, municipality_id: str | None = None) -> list[StoredTeam]: ...
+
+    def search_teams(
+        self,
+        municipality_id: str | None,
+        *,
+        query: str,
+        budget: int,
+        limit: int,
+    ) -> tuple[list[StoredTeam], bool]: ...
 
     def claim_worker(
         self, worker_id: str, expected_updated_at: str, department_id: str | None

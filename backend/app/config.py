@@ -195,6 +195,18 @@ class Settings:
         self.rate_limit_staff_login_window_seconds = self._int_setting(
             "RATE_LIMIT_STAFF_LOGIN_WINDOW_SECONDS", default=300, minimum=1
         )
+        self.rate_limit_staff_assistant_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_ASSISTANT_LIMIT", default=30, minimum=1
+        )
+        self.rate_limit_staff_assistant_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_ASSISTANT_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_staff_search_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_SEARCH_LIMIT", default=40, minimum=1
+        )
+        self.rate_limit_staff_search_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_SEARCH_WINDOW_SECONDS", default=60, minimum=1
+        )
         self.rate_limit_citizen_otp_request_limit = self._int_setting(
             "RATE_LIMIT_CITIZEN_OTP_REQUEST_LIMIT", default=5, minimum=1
         )

@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
 import { getStaffRoleLabel } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
-import { IconMap, IconPeople, IconSearch, IconTickets } from '@/components/icons';
+import { GlobalSearch } from '@/components/GlobalSearch';
+import { StaffAssistantPanel } from '@/components/StaffAssistantPanel';
+import { IconMap, IconPeople, IconSparkles, IconTickets } from '@/components/icons';
 import './BrandMark.css';
 import './DashboardLayout.css';
 
@@ -14,12 +16,6 @@ type DashboardLayoutProps = {
   subtitle?: string;
   /** When true, main content is flush for multi-pane desk layouts. */
   flush?: boolean;
-  search?: {
-    value: string;
-    onChange: (value: string) => void;
-    label?: string;
-    placeholder?: string;
-  };
 };
 
 type NavItem = {
@@ -48,13 +44,11 @@ export function DashboardLayout({
   title = 'Ticket Dashboard',
   subtitle = 'Monitor and manage citizen infrastructure reports',
   flush = false,
-  search,
 }: DashboardLayoutProps) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { logout, session } = useStaffAuth();
-  const searchLabel = search?.label ?? 'Search tickets';
-  const searchId = 'dashboard-global-search';
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   function handleLogout() {
     logout();
@@ -63,7 +57,7 @@ export function DashboardLayout({
 
   return (
     <div className={`dashboard-layout${flush ? ' dashboard-layout--flush' : ''}`}>
-      <aside className="dashboard-rail" aria-label="Primary modules">
+      <aside className="dashboard-rail" aria-label="Primary modules" inert={assistantOpen}>
         <NavLink to="/" className="dashboard-rail__brand" aria-label="BaladiGuard home">
           <BrandMark size={22} />
         </NavLink>
@@ -88,39 +82,26 @@ export function DashboardLayout({
         </nav>
       </aside>
 
-      <div className="dashboard-shell">
+      <div className="dashboard-shell" inert={assistantOpen}>
         <header className="dashboard-topbar">
           <div className="dashboard-topbar__brand-block">
             <p className="dashboard-topbar__product">BaladiGuard</p>
             <p className="dashboard-topbar__context">Municipal desk</p>
           </div>
 
-          {search ? (
-            <div className="dashboard-topbar__search">
-              <label className="sr-only" htmlFor={searchId}>
-                {searchLabel}
-              </label>
-              <span className="dashboard-topbar__search-icon" aria-hidden="true">
-                <IconSearch />
-              </span>
-              <input
-                id={searchId}
-                type="search"
-                className="dashboard-topbar__search-input"
-                value={search.value}
-                onChange={(event) => search.onChange(event.target.value)}
-                placeholder={search.placeholder ?? 'Search Capacity…'}
-                autoComplete="off"
-              />
-            </div>
-          ) : (
-            <div className="dashboard-topbar__titles">
-              <h1 className="dashboard-topbar__title">{title}</h1>
-              {subtitle ? <p className="dashboard-topbar__subtitle">{subtitle}</p> : null}
-            </div>
-          )}
+          <GlobalSearch />
 
           <div className="dashboard-topbar__actions">
+            <button
+              type="button"
+              className="dashboard-topbar__assistant"
+              aria-expanded={assistantOpen}
+              aria-controls="staff-assistant-panel"
+              onClick={() => setAssistantOpen(true)}
+            >
+              <IconSparkles />
+              Assistant
+            </button>
             {config.useMockData && <span className="dashboard-topbar__badge">Mock data</span>}
             <span className="dashboard-topbar__date">
               {new Intl.DateTimeFormat(undefined, {
@@ -143,11 +124,13 @@ export function DashboardLayout({
           </div>
         </header>
 
-        {/* Keep page title available for screen readers / tests when search occupies the topbar. */}
-        {search ? <h1 className="sr-only">{title}</h1> : null}
+        <h1 className="sr-only">{title}</h1>
+        {subtitle ? <p className="sr-only">{subtitle}</p> : null}
 
         <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>{children}</main>
       </div>
+
+      <StaffAssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </div>
   );
 }
