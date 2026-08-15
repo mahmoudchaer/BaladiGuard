@@ -13,6 +13,7 @@ BaladiGuard API contracts and verification notes are maintained under `docs/`. T
 | [sprint6-testing.md](./sprint6-testing.md) | Sprint 6 auth/permission verification index |
 | [configuration.md](./configuration.md) | Environment catalog (with [env-sync.md](./env-sync.md) for Secrets Manager pull/push) |
 | [workforce.md](./workforce.md) | Municipality workers, teams, ticket assignment, and workload (#245) |
+| [work-orders.md](./work-orders.md) | Maintenance work orders and structured resolution/rejection reasons (#247) |
 
 ## Interactive OpenAPI
 

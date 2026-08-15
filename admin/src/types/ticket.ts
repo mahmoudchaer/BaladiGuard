@@ -1,3 +1,5 @@
+import type { TicketOutcome } from '@/types/workOrder';
+
 /**
  * Shared ticket shape aligned with:
  * - backend/app/schemas/stored_ticket.py (StoredTicket)
@@ -74,7 +76,12 @@ export type TicketAuditActionType =
   | 'DUPLICATE_MERGE'
   | 'PUBLIC_CONTENT_UPDATE'
   | 'STAFF_COMMENT'
-  | 'WORKFORCE_ASSIGN';
+  | 'WORKFORCE_ASSIGN'
+  | 'WORK_ORDER_CREATE'
+  | 'WORK_ORDER_ASSIGN'
+  | 'WORK_ORDER_START'
+  | 'WORK_ORDER_COMPLETE'
+  | 'WORK_ORDER_CANCEL';
 
 export type TicketStaffRole = 'municipal_staff' | 'administrator';
 
@@ -257,6 +264,8 @@ export type Ticket = {
   sla?: TicketSla | null;
   public?: TicketPublicFields;
   imageRedaction?: TicketImageRedaction;
+  activeWorkOrderId?: string | null;
+  outcome?: TicketOutcome | null;
 };
 
 export type TicketListItem = Pick<

@@ -144,7 +144,7 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string):
   return typeof message === 'string' ? message : fallbackMessage;
 }
 
-async function throwApiError(response: Response, fallbackMessage: string): Promise<never> {
+export async function throwApiError(response: Response, fallbackMessage: string): Promise<never> {
   if (response.status === 401) {
     clearStoredStaffSession();
     invalidateTicketListCache();
@@ -865,6 +865,13 @@ const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
   'DEPARTMENT_ASSIGN',
   'DUPLICATE_MERGE',
   'PUBLIC_CONTENT_UPDATE',
+  'STAFF_COMMENT',
+  'WORKFORCE_ASSIGN',
+  'WORK_ORDER_CREATE',
+  'WORK_ORDER_ASSIGN',
+  'WORK_ORDER_START',
+  'WORK_ORDER_COMPLETE',
+  'WORK_ORDER_CANCEL',
 ];
 
 function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {
@@ -1112,6 +1119,37 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     sla: normalizeTicketSla(data.sla),
     public: normalizeTicketPublicFields(data.public),
     imageRedaction: normalizeImageRedaction(data.imageRedaction),
+    activeWorkOrderId: typeof data.activeWorkOrderId === 'string' ? data.activeWorkOrderId : null,
+    outcome: normalizeTicketOutcome(data.outcome),
+  };
+}
+
+function normalizeTicketOutcome(data: unknown): Ticket['outcome'] {
+  if (!isRecord(data)) {
+    return null;
+  }
+  const asOptional = (value: unknown) => (typeof value === 'string' ? value : null);
+  if (
+    !asOptional(data.resolutionReasonCode) &&
+    !asOptional(data.resolutionNote) &&
+    !asOptional(data.resolvedAt) &&
+    !asOptional(data.closureReasonCode) &&
+    !asOptional(data.closureNote) &&
+    !asOptional(data.closedAt)
+  ) {
+    return null;
+  }
+  return {
+    resolutionReasonCode: asOptional(data.resolutionReasonCode),
+    resolutionCitizenMessage: asOptional(data.resolutionCitizenMessage),
+    resolutionNote: asOptional(data.resolutionNote),
+    resolvedAt: asOptional(data.resolvedAt),
+    resolvedBy: asOptional(data.resolvedBy),
+    closureReasonCode: asOptional(data.closureReasonCode),
+    closureCitizenMessage: asOptional(data.closureCitizenMessage),
+    closureNote: asOptional(data.closureNote),
+    closedAt: asOptional(data.closedAt),
+    closedBy: asOptional(data.closedBy),
   };
 }
 
@@ -1559,9 +1597,15 @@ async function updateMockTicketStatus(
   };
 }
 
+export type UpdateTicketStatusOptions = {
+  reasonCode?: string;
+  note?: string;
+};
+
 async function updateTicketStatusFromApi(
   ticketId: string,
   status: TicketStatus,
+  options: UpdateTicketStatusOptions = {},
 ): Promise<Ticket | null> {
   const response = await fetch(
     `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/status`,
@@ -1571,7 +1615,11 @@ async function updateTicketStatusFromApi(
         'Content-Type': 'application/json',
         ...getStaffAuthHeaders(),
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        reasonCode: options.reasonCode,
+        note: options.note,
+      }),
     },
   );
 
@@ -1592,6 +1640,7 @@ async function updateTicketStatusFromApi(
 export async function updateTicketStatus(
   ticketId: string,
   status: TicketStatus,
+  options: UpdateTicketStatusOptions = {},
 ): Promise<Ticket | null> {
   if (config.useMockData) {
     const ticket = await updateMockTicketStatus(ticketId, status);
@@ -1601,7 +1650,7 @@ export async function updateTicketStatus(
     return ticket;
   }
 
-  return updateTicketStatusFromApi(ticketId, status);
+  return updateTicketStatusFromApi(ticketId, status, options);
 }
 
 export type ReviewTicketCategoryInput = {

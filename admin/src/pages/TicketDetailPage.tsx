@@ -21,6 +21,14 @@ import {
   reviewTicketCategory,
   updateTicketStatus,
 } from '@/services/tickets';
+import {
+  assignWorkOrder,
+  cancelWorkOrder,
+  completeWorkOrder,
+  createTicketWorkOrder,
+  listTicketWorkOrders,
+  startWorkOrder,
+} from '@/services/workOrders';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
@@ -46,7 +54,14 @@ import { buildGoogleMapsUrl, isPlottableTicket } from '@/utils/ticketLocation';
 import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getTicketImageUrl } from '@/utils/ticketImage';
 import { listTeams, listWorkers } from '@/services/workforce';
+import type { WorkOrder } from '@/types/workOrder';
 import type { WorkforceTeam, WorkforceWorker } from '@/types/workforce';
+import {
+  formatWorkOrderState,
+  reasonsForKind,
+  requiredOutcomeKind,
+  WORK_ORDER_CANCEL_REASONS,
+} from '@/utils/outcomeReasons';
 import { IconImage, IconLocation, IconSparkles, IconWorkflow } from '@/components/icons';
 import {
   parseTicketDetailSection,
@@ -193,6 +208,17 @@ export function TicketDetailPage() {
   const [workforceError, setWorkforceError] = useState<string | null>(null);
   const [workforceSuccess, setWorkforceSuccess] = useState<string | null>(null);
   const [isSavingWorkforce, setIsSavingWorkforce] = useState(false);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [activeWorkOrderId, setActiveWorkOrderId] = useState<string | null>(null);
+  const [workOrderError, setWorkOrderError] = useState<string | null>(null);
+  const [workOrderSuccess, setWorkOrderSuccess] = useState<string | null>(null);
+  const [isMutatingWorkOrder, setIsMutatingWorkOrder] = useState(false);
+  const [workOrderSummary, setWorkOrderSummary] = useState('');
+  const [workOrderAssignee, setWorkOrderAssignee] = useState('');
+  const [workOrderCancelReason, setWorkOrderCancelReason] = useState('');
+  const [workOrderNote, setWorkOrderNote] = useState('');
+  const [statusReasonCode, setStatusReasonCode] = useState('');
+  const [statusPrivateNote, setStatusPrivateNote] = useState('');
 
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([]);
   const [candidateLoadState, setCandidateLoadState] = useState<CandidateLoadState>('idle');
@@ -282,6 +308,20 @@ export function TicketDetailPage() {
               ? `team:${data.assignedTeamId}`
               : '',
         );
+        setStatusReasonCode('');
+        setStatusPrivateNote('');
+        try {
+          const listed = await listTicketWorkOrders(requestedTicketId);
+          if (!cancelled) {
+            setWorkOrders(listed.items);
+            setActiveWorkOrderId(listed.activeWorkOrderId);
+          }
+        } catch {
+          if (!cancelled) {
+            setWorkOrders([]);
+            setActiveWorkOrderId(data.activeWorkOrderId ?? null);
+          }
+        }
         setDepartmentUpdateError(null);
         setDepartmentUpdateSuccess(null);
         setSelectedDuplicateIds([]);
@@ -510,11 +550,20 @@ export function TicketDetailPage() {
       return;
     }
 
+    const outcomeKind = requiredOutcomeKind(ticket.status, status);
+    if (outcomeKind && !statusReasonCode) {
+      setStatusUpdateError('Select a structured reason before applying this status.');
+      return;
+    }
+
     setIsUpdatingStatus(true);
     setStatusUpdateError(null);
 
     try {
-      const updatedTicket = await updateTicketStatus(ticket.ticketId, status);
+      const updatedTicket = await updateTicketStatus(ticket.ticketId, status, {
+        reasonCode: outcomeKind ? statusReasonCode : undefined,
+        note: statusPrivateNote.trim() || undefined,
+      });
 
       if (!updatedTicket) {
         loadedTicketRef.current = null;
@@ -526,6 +575,8 @@ export function TicketDetailPage() {
       loadedTicketRef.current = updatedTicket;
       setTicket(updatedTicket);
       setPendingStatus(updatedTicket.status);
+      setStatusReasonCode('');
+      setStatusPrivateNote('');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to update ticket status.';
       setStatusUpdateError(message);
@@ -668,6 +719,75 @@ export function TicketDetailPage() {
       setIsSavingWorkforce(false);
     }
   };
+
+  const refreshWorkOrders = async (ticketIdToLoad: string) => {
+    const listed = await listTicketWorkOrders(ticketIdToLoad);
+    setWorkOrders(listed.items);
+    setActiveWorkOrderId(listed.activeWorkOrderId);
+    return listed;
+  };
+
+  const applyWorkOrderResult = async (workOrder: WorkOrder) => {
+    if (!ticket) {
+      return;
+    }
+    const updatedTicket = await fetchTicketById(ticket.ticketId);
+    if (updatedTicket) {
+      loadedTicketRef.current = updatedTicket;
+      setTicket(updatedTicket);
+      setPendingStatus(updatedTicket.status);
+      setSelectedWorkforceValue(
+        updatedTicket.assignedWorkerId
+          ? `worker:${updatedTicket.assignedWorkerId}`
+          : updatedTicket.assignedTeamId
+            ? `team:${updatedTicket.assignedTeamId}`
+            : '',
+      );
+    }
+    await refreshWorkOrders(workOrder.ticketId);
+  };
+
+  const runWorkOrderMutation = async (action: () => Promise<WorkOrder>, success: string) => {
+    setIsMutatingWorkOrder(true);
+    setWorkOrderError(null);
+    setWorkOrderSuccess(null);
+    try {
+      const result = await action();
+      await applyWorkOrderResult(result);
+      setWorkOrderSuccess(success);
+      setWorkOrderNote('');
+    } catch (error) {
+      setWorkOrderError(error instanceof Error ? error.message : 'Unable to update the work order.');
+    } finally {
+      setIsMutatingWorkOrder(false);
+    }
+  };
+
+  const handleCreateWorkOrder = async () => {
+    if (!ticket) {
+      return;
+    }
+    const assignee =
+      workOrderAssignee === ''
+        ? {}
+        : workOrderAssignee.startsWith('team:')
+          ? { teamId: workOrderAssignee.slice('team:'.length) }
+          : { workerId: workOrderAssignee.slice('worker:'.length) };
+    await runWorkOrderMutation(
+      () =>
+        createTicketWorkOrder(ticket.ticketId, {
+          summary: workOrderSummary.trim() || undefined,
+          ...assignee,
+        }),
+      'Work order saved.',
+    );
+  };
+
+  const activeWorkOrder = workOrders.find((item) => item.workOrderId === activeWorkOrderId) ?? null;
+  const pendingOutcomeKind =
+    ticket && pendingStatus && pendingStatus !== ticket.status
+      ? requiredOutcomeKind(ticket.status, pendingStatus)
+      : null;
 
   const loadComparison = useCallback(async (candidateId: string) => {
     const sourceTicketId = loadedTicketRef.current?.ticketId;
@@ -1258,6 +1378,51 @@ export function TicketDetailPage() {
                           </button>
                         </div>
                       </div>
+                          {pendingOutcomeKind && (
+                        <div className="ticket-detail__control-row">
+                          <label htmlFor="status-reason-select">Required reason</label>
+                          <select
+                            id="status-reason-select"
+                            className="ticket-detail__control-select"
+                            value={statusReasonCode}
+                            onChange={(event) => {
+                              setStatusReasonCode(event.target.value);
+                              setStatusUpdateError(null);
+                            }}
+                            disabled={isUpdatingStatus}
+                          >
+                            <option value="">Select a reason</option>
+                            {reasonsForKind(pendingOutcomeKind).map((reason) => (
+                              <option key={reason.code} value={reason.code}>
+                                {reason.label}
+                              </option>
+                            ))}
+                          </select>
+                          <label htmlFor="status-private-note">Private note (optional)</label>
+                          <input
+                            id="status-private-note"
+                            className="ticket-detail__control-select"
+                            value={statusPrivateNote}
+                            maxLength={500}
+                            onChange={(event) => setStatusPrivateNote(event.target.value)}
+                            disabled={isUpdatingStatus}
+                          />
+                        </div>
+                      )}
+                      {ticket.outcome && (
+                        <p className="ticket-detail__card-hint">
+                          Recorded outcome
+                          {ticket.outcome.resolutionReasonCode
+                            ? `: ${ticket.outcome.resolutionReasonCode}`
+                            : ''}
+                          {ticket.outcome.closureReasonCode
+                            ? ` / closed: ${ticket.outcome.closureReasonCode}`
+                            : ''}
+                          {ticket.outcome.resolutionNote
+                            ? `. Private resolution note on file.`
+                            : ''}
+                        </p>
+                      )}
                       {isUpdatingStatus && (
                         <p className="ticket-detail__status-message" role="status">
                           Saving...
@@ -1437,6 +1602,214 @@ export function TicketDetailPage() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                <div className="ticket-detail__card">
+                  <h4 className="ticket-detail__card-title">Maintenance work order</h4>
+                  <p className="ticket-detail__card-hint">
+                    The work order is the private execution record. Completing it does not resolve
+                    the citizen ticket.
+                  </p>
+                  {activeWorkOrder ? (
+                    <div className="ticket-detail__action-group">
+                      <p className="ticket-detail__current-value">
+                        Current: {formatWorkOrderState(activeWorkOrder.state)} ({activeWorkOrder.workOrderId})
+                      </p>
+                      <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
+                      <div className="ticket-detail__control-row">
+                        <label htmlFor="active-work-order-assignee">Work-order assignee</label>
+                        <select
+                          id="active-work-order-assignee"
+                          className="ticket-detail__control-select"
+                          value={workOrderAssignee}
+                          onChange={(event) => setWorkOrderAssignee(event.target.value)}
+                          disabled={isMutatingWorkOrder}
+                        >
+                          <option value="">Unassigned</option>
+                          {workers
+                            .filter((worker) => worker.active)
+                            .map((worker) => (
+                              <option key={worker.workerId} value={`worker:${worker.workerId}`}>
+                                Worker: {worker.displayName}
+                              </option>
+                            ))}
+                          {teams
+                            .filter((team) => team.active)
+                            .map((team) => (
+                              <option key={team.teamId} value={`team:${team.teamId}`}>
+                                Team: {team.displayName}
+                              </option>
+                            ))}
+                        </select>
+                        <div className="ticket-detail__control-buttons">
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                            disabled={isMutatingWorkOrder}
+                            onClick={() =>
+                              void runWorkOrderMutation(
+                                () =>
+                                  assignWorkOrder(
+                                    activeWorkOrder.workOrderId,
+                                    workOrderAssignee === ''
+                                      ? { clear: true }
+                                      : workOrderAssignee.startsWith('team:')
+                                        ? { teamId: workOrderAssignee.slice('team:'.length) }
+                                        : { workerId: workOrderAssignee.slice('worker:'.length) },
+                                  ),
+                                'Work order assignment updated.',
+                              )
+                            }
+                          >
+                            Save work-order assignment
+                          </button>
+                        </div>
+                      </div>
+                      <div className="ticket-detail__control-buttons">
+                        {activeWorkOrder.state !== 'IN_PROGRESS' && (
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button"
+                            disabled={isMutatingWorkOrder}
+                            onClick={() =>
+                              void runWorkOrderMutation(
+                                () => startWorkOrder(activeWorkOrder.workOrderId),
+                                'Work order started.',
+                              )
+                            }
+                          >
+                            Start work
+                          </button>
+                        )}
+                        {activeWorkOrder.state === 'IN_PROGRESS' && (
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button"
+                            disabled={isMutatingWorkOrder}
+                            onClick={() =>
+                              void runWorkOrderMutation(
+                                () => completeWorkOrder(activeWorkOrder.workOrderId, workOrderNote),
+                                'Work order completed. Resolve the ticket separately.',
+                              )
+                            }
+                          >
+                            Complete work
+                          </button>
+                        )}
+                      </div>
+                      <div className="ticket-detail__control-row">
+                        <label htmlFor="work-order-cancel-reason">Cancel reason</label>
+                        <select
+                          id="work-order-cancel-reason"
+                          className="ticket-detail__control-select"
+                          value={workOrderCancelReason}
+                          onChange={(event) => setWorkOrderCancelReason(event.target.value)}
+                          disabled={isMutatingWorkOrder}
+                        >
+                          <option value="">Select a cancel reason</option>
+                          {WORK_ORDER_CANCEL_REASONS.map((reason) => (
+                            <option key={reason.code} value={reason.code}>
+                              {reason.label}
+                            </option>
+                          ))}
+                        </select>
+                        <label htmlFor="work-order-note">Private note (optional)</label>
+                        <input
+                          id="work-order-note"
+                          className="ticket-detail__control-select"
+                          value={workOrderNote}
+                          maxLength={500}
+                          onChange={(event) => setWorkOrderNote(event.target.value)}
+                          disabled={isMutatingWorkOrder}
+                        />
+                        <div className="ticket-detail__control-buttons">
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                            disabled={isMutatingWorkOrder || !workOrderCancelReason}
+                            onClick={() =>
+                              void runWorkOrderMutation(
+                                () =>
+                                  cancelWorkOrder(
+                                    activeWorkOrder.workOrderId,
+                                    workOrderCancelReason,
+                                    workOrderNote,
+                                  ),
+                                'Work order cancelled.',
+                              )
+                            }
+                          >
+                            Cancel work order
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="ticket-detail__action-group">
+                      <div className="ticket-detail__control-row">
+                        <label htmlFor="work-order-summary">Summary</label>
+                        <input
+                          id="work-order-summary"
+                          className="ticket-detail__control-select"
+                          value={workOrderSummary}
+                          maxLength={500}
+                          placeholder="Optional operational summary"
+                          onChange={(event) => setWorkOrderSummary(event.target.value)}
+                          disabled={isMutatingWorkOrder}
+                        />
+                        <label htmlFor="work-order-assignee">Assign worker or team</label>
+                        <select
+                          id="work-order-assignee"
+                          className="ticket-detail__control-select"
+                          value={workOrderAssignee}
+                          onChange={(event) => setWorkOrderAssignee(event.target.value)}
+                          disabled={isMutatingWorkOrder}
+                        >
+                          <option value="">Unassigned</option>
+                          {workers
+                            .filter((worker) => worker.active)
+                            .map((worker) => (
+                              <option key={worker.workerId} value={`worker:${worker.workerId}`}>
+                                Worker: {worker.displayName}
+                              </option>
+                            ))}
+                          {teams
+                            .filter((team) => team.active)
+                            .map((team) => (
+                              <option key={team.teamId} value={`team:${team.teamId}`}>
+                                Team: {team.displayName}
+                              </option>
+                            ))}
+                        </select>
+                        <div className="ticket-detail__control-buttons">
+                          <button
+                            type="button"
+                            className="ticket-detail__review-button"
+                            disabled={isMutatingWorkOrder}
+                            onClick={() => void handleCreateWorkOrder()}
+                          >
+                            {isMutatingWorkOrder ? 'Saving work order...' : 'Create work order'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {workOrders.length > 1 && (
+                    <p className="ticket-detail__card-hint">
+                      {workOrders.length} work orders on this ticket. Previous completed or
+                      cancelled records stay in the activity timeline.
+                    </p>
+                  )}
+                  {workOrderSuccess && (
+                    <p className="ticket-detail__status-message" role="status">
+                      {workOrderSuccess}
+                    </p>
+                  )}
+                  {workOrderError && (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {workOrderError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="ticket-detail__card">

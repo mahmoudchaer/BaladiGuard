@@ -423,8 +423,9 @@ Shared HTTP rate limits apply (`staff-password-reset-confirm`).
 ## Staff audit boundaries (issues #143 / #181)
 
 **Ticket audit (`auditHistory` on staff ticket responses)** covers status, category, department, public content,
-duplicate-merge, staff comments, and workforce assignment mutations. Entries store action type, target ticket, timestamp, summary,
-previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal.
+duplicate-merge, staff comments, workforce assignment, and work-order mutations. Entries store action type, target ticket, timestamp, summary,
+previous/new values, plus verified `actorId` / `actorRole` from the authenticated principal. See
+[work-orders.md](./work-orders.md) for the work-order HTTP surface and structured outcome reasons.
 
 **Account audit** is a separate store (`account-audit`) for Sprint 6 staff-account events:
 create/role/scope/activation changes, password-reset completion, and session revoke/logout.
@@ -859,22 +860,24 @@ Updates a ticket's workflow status using the strict transition rules documented 
 {
   "status": "UNDER_REVIEW",
   "updatedBy": "staff-1",
-  "note": "Queued for review."
+  "note": "Queued for review.",
+  "reasonCode": "WORK_COMPLETED"
 }
 ```
 
 ### Request fields
 
-| Field       | Type           | Required | Notes                                                                                                   |
-| ----------- | -------------- | -------: | ------------------------------------------------------------------------------------------------------- |
-| `status`    | `TicketStatus` |      Yes | Target status. Invalid enum values are rejected with `400` (`VALIDATION_ERROR`).                        |
-| `updatedBy` | string         |       No | Ignored for trust decisions; audit/history actor identity is derived from the verified staff principal. |
-| `note`      | string         |       No | Optional human-readable note (max 500 characters).                                                      |
+| Field        | Type           | Required | Notes                                                                                                   |
+| ------------ | -------------- | -------: | ------------------------------------------------------------------------------------------------------- |
+| `status`     | `TicketStatus` |      Yes | Target status. Invalid enum values are rejected with `400` (`VALIDATION_ERROR`).                        |
+| `updatedBy`  | string         |       No | Ignored for trust decisions; audit/history actor identity is derived from the verified staff principal. |
+| `note`       | string         |       No | Optional private staff note (max 500 characters). Never returned on citizen or public reads.            |
+| `reasonCode` | string         | Conditional | Required for `IN_PROGRESS` → `RESOLVED`, `SUBMITTED`/`UNDER_REVIEW` → `CLOSED`, and `RESOLVED` → `CLOSED`. See [work-orders.md](./work-orders.md). |
 
 ### Response `200`
 
-Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, `statusHistory`, and
-`auditHistory` (staff audit complements status history).
+Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, `statusHistory`,
+`auditHistory`, and staff-only `outcome` when a structured reason was recorded.
 
 ### Status update error codes
 
@@ -883,6 +886,8 @@ Returns the updated `TicketResponse`, including `updatedAt`, `updatedBy`, `statu
 | `UNAUTHORIZED`              |    401 | Missing, invalid, or expired staff Bearer token.                  |
 | `TICKET_NOT_FOUND`          |    404 | Ticket ID does not exist.                                         |
 | `INVALID_STATUS_TRANSITION` |    400 | Requested status is not allowed from the ticket's current status. |
+| `OUTCOME_REASON_REQUIRED`   |    400 | A structured reason is required for this terminal transition.     |
+| `INVALID_OUTCOME_REASON`    |    400 | `reasonCode` is not allowed for this transition kind.             |
 
 ## `PATCH /v1/tickets/{ticketId}/category`
 
@@ -1132,6 +1137,24 @@ scope; either miss returns `404 TICKET_NOT_FOUND`.
 | ------------------ | -----: | ------------------------------------------------------------------------------ |
 | `UNAUTHORIZED`     |    401 | Missing, invalid, or expired staff Bearer token.                               |
 | `TICKET_NOT_FOUND` |    404 | Source or candidate ticket does not exist or is outside the staff scope.       |
+
+## Work orders (issue #247)
+
+Staff-only maintenance execution records. The ticket remains the citizen-facing case.
+Full transition, assignment, and reason rules are in [work-orders.md](./work-orders.md).
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/v1/tickets/{ticketId}/work-orders` | Create. An existing active work order is returned as `200` (idempotent retry). |
+| `GET` | `/v1/tickets/{ticketId}/work-orders` | Ticket work-order history plus `activeWorkOrderId`. |
+| `GET` | `/v1/work-orders/{workOrderId}` | Single work order. |
+| `POST` | `/v1/work-orders/{workOrderId}/assign` | `#245` worker XOR team XOR `clear`. |
+| `POST` | `/v1/work-orders/{workOrderId}/start` | Moves work to `IN_PROGRESS` and syncs the ticket forward only along allowed status transitions. |
+| `POST` | `/v1/work-orders/{workOrderId}/complete` | Completes work. Does not resolve the citizen ticket. |
+| `POST` | `/v1/work-orders/{workOrderId}/cancel` | Requires a structured `reasonCode`. |
+
+Missing or out-of-scope tickets return `404 TICKET_NOT_FOUND`. Citizen tracking may include
+`outcomeMessage` only; reason codes and private notes stay on staff responses.
 
 ## `POST /v1/tickets/merge`
 
@@ -1539,7 +1562,7 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `statusHistory[].changedBy`             | string         | Actor identifier when available.                                                                                                                   |
 | `statusHistory[].note`                  | string         | Human-readable note when available.                                                                                                                |
 | `auditHistory`                          | array          | Staff-only ticket mutation audit trail from issue #143 (empty array when none or when audit storage is temporarily unavailable). Not returned on citizen track responses. |
-| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, or `PUBLIC_CONTENT_UPDATE`.                                         |
+| `auditHistory[].actionType`             | enum           | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, `PUBLIC_CONTENT_UPDATE`, `STAFF_COMMENT`, `WORKFORCE_ASSIGN`, `WORK_ORDER_CREATE`, `WORK_ORDER_ASSIGN`, `WORK_ORDER_START`, `WORK_ORDER_COMPLETE`, or `WORK_ORDER_CANCEL`. |
 | `auditHistory[].actorId`                | string         | Verified staff actor id from the authenticated principal (client actor fields are not trusted).                                                   |
 | `auditHistory[].actorRole`              | enum           | Verified actor role: `municipal_staff` or `administrator` (issue #181).                                                                           |
 | `auditHistory[].summary`                | string         | Concise change summary.                                                                                                                            |
@@ -1558,6 +1581,14 @@ Frontend TypeScript type: `mobile/src/types/ticket.ts`
 | `duplicateSuggestions[].category`       | string         | Effective category used for matching, including AI-suggested categories before staff review.                                                       |
 | `duplicateSuggestions[].score`          | number         | Optional duplicate confidence score from `0` to `1`.                                                                                               |
 | `duplicateSuggestions[].categoryMatch`  | string         | Optional category relationship, either `same` or `similar`.                                                                                        |
+| `activeWorkOrderId`                     | string or null | Current active maintenance work order (`wo_…`) when one exists.                                                                                    |
+| `outcome`                               | object or null | Staff-only structured resolution/closure record. Null on legacy tickets that have no reason. Private notes never appear on citizen reads.          |
+| `outcome.resolutionReasonCode`          | string         | Structured resolution code when the ticket was resolved.                                                                                           |
+| `outcome.resolutionCitizenMessage`      | string         | Citizen-safe wording for the resolution code.                                                                                                      |
+| `outcome.resolutionNote`                | string         | Private staff note. Never returned on citizen or public reads.                                                                                     |
+| `outcome.closureReasonCode`             | string         | Structured rejection or post-resolution closure code.                                                                                              |
+| `outcome.closureCitizenMessage`         | string         | Citizen-safe wording for the closure/rejection code.                                                                                               |
+| `outcome.closureNote`                   | string         | Private staff note. Never returned on citizen or public reads.                                                                                     |
 
 ### Image reference fields
 
