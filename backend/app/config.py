@@ -39,6 +39,11 @@ class Settings:
         endpoint = os.getenv("DYNAMODB_ENDPOINT_URL", "").strip()
         self.dynamodb_endpoint_url = endpoint or None
         self.dynamodb_table_prefix = os.getenv("DYNAMODB_TABLE_PREFIX", "baladiguard-").strip()
+        # Sparse ticketTimeline-index reads hide rows that lack timelineKey.
+        # Keep the compatibility path until create GSI → backfill → verify → cutover.
+        self.activity_timeline_use_gsi = (
+            os.getenv("ACTIVITY_TIMELINE_USE_GSI", "false").strip().lower() == "true"
+        )
         self.seed_sample_tickets = (
             os.getenv("SEED_SAMPLE_TICKETS", "false").strip().lower() == "true"
         )

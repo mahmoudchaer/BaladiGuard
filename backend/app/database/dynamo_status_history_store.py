@@ -1,6 +1,7 @@
 from boto3.dynamodb.conditions import Key
 
 from app.config import Settings, get_settings
+from app.database.activity_timeline import build_timeline_key, list_ticket_timeline_page
 from app.database.dynamodb import create_dynamodb_resource
 from app.database.dynamodb_tables import build_table_name
 from app.database.status_history_serialization import item_to_status_history, status_history_to_item
@@ -15,14 +16,37 @@ class DynamoStatusHistoryStore:
         self._table = self._resource.Table(build_table_name(prefix, "ticket-status-history"))
 
     def append(self, entry: StoredStatusHistory) -> None:
-        self._table.put_item(Item=status_history_to_item(entry))
+        item = status_history_to_item(entry)
+        item["timelineKey"] = build_timeline_key("status", entry.history_id, entry.created_at)
+        self._table.put_item(Item=item)
+
+    def list_by_ticket_id_page(
+        self, ticket_id: str, *, limit: int, exclusive_start_key: dict | None = None
+    ) -> tuple[list[StoredStatusHistory], dict | None]:
+        return list_ticket_timeline_page(
+            self._table,
+            ticket_id=ticket_id,
+            limit=limit,
+            exclusive_start_key=exclusive_start_key,
+            kind="status",
+            id_field="historyId",
+            from_item=item_to_status_history,
+            use_gsi=self._settings.activity_timeline_use_gsi,
+        )
 
     def list_by_ticket_id(self, ticket_id: str) -> list[StoredStatusHistory]:
-        response = self._table.query(
-            IndexName="ticketId-index",
-            KeyConditionExpression=Key("ticketId").eq(ticket_id),
-        )
-        entries = [item_to_status_history(item) for item in response.get("Items", [])]
+        entries = []
+        query_kwargs = {
+            "IndexName": "ticketId-index",
+            "KeyConditionExpression": Key("ticketId").eq(ticket_id),
+        }
+        while True:
+            response = self._table.query(**query_kwargs)
+            entries.extend(item_to_status_history(item) for item in response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            query_kwargs["ExclusiveStartKey"] = last_key
         return sorted(entries, key=lambda entry: entry.created_at)
 
     def clear(self) -> None:

@@ -1,4 +1,4 @@
-.PHONY: lint format format-check typecheck test test-ai-regression eval-ai-intake quality ai-worker ai-worker-once ai-worker-drain db-up db-down db-migrate db-seed db-reset
+.PHONY: lint format format-check typecheck test test-ai-regression eval-ai-intake quality ai-worker ai-worker-once ai-worker-drain db-up db-down db-migrate db-seed db-reset db-backfill-activity-timeline
 
 lint:
 	cd mobile && npm run lint
@@ -49,6 +49,9 @@ db-down:
 
 db-migrate:
 	cd backend && python scripts/db/migrate.py
+
+db-backfill-activity-timeline:
+	cd backend && python scripts/db/backfill_activity_timeline_keys.py --checkpoint-file .activity-timeline-backfill.checkpoint.json
 
 db-seed:
 	cd backend && python scripts/db/seed.py
