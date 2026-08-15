@@ -12,4 +12,12 @@ describe('citizen return routes', () => {
     expect(sanitizeReturnTo('//evil.example/path')).toBe('/');
     expect(sanitizeReturnTo('/login?returnTo=/login')).toBe('/');
   });
+
+  it('allows notification deep links and rejects traversal', () => {
+    expect(sanitizeReturnTo('/t/ABC234')).toBe('/t/ABC234');
+    expect(sanitizeReturnTo('/t/ab23cd')).toBe('/t/ab23cd');
+    expect(sanitizeReturnTo('/t/../admin')).toBe('/');
+    expect(sanitizeReturnTo('/ticket/tkt_1')).toBe('/');
+    expect(loginPath('/t/ABC234')).toBe('/login?returnTo=%2Ft%2FABC234');
+  });
 });

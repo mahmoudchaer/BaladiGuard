@@ -99,6 +99,11 @@ export function TrackPage() {
               Department: {result.department.name}
             </p>
           ) : null}
+          {result.outcomeMessage ? (
+            <p data-testid="track-outcome" style={{ margin: 0 }}>
+              {result.outcomeMessage}
+            </p>
+          ) : null}
           <div>
             <h3 style={{ margin: '0 0 0.5rem' }}>Timeline</h3>
             <ol style={{ margin: 0, paddingLeft: '1.2rem' }}>
