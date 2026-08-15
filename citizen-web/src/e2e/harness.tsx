@@ -8,6 +8,7 @@ import {
   publicListFixture,
   publicMapFixture,
   publicTicketFixture,
+  leakedResolvedTrackPayload,
   submitFixture,
   trackFixture,
 } from '@/contracts/fixtures';
@@ -72,6 +73,9 @@ export function installControlledBackend(authenticated = false) {
     }
     if (path === '/v1/tickets/track/ABC234' && method === 'GET') {
       return new Response(JSON.stringify(trackFixture), { status: 200 });
+    }
+    if (path === '/v1/tickets/track/RES234' && method === 'GET') {
+      return new Response(JSON.stringify(leakedResolvedTrackPayload), { status: 200 });
     }
     if (path === '/v1/locations/validate' && method === 'POST') {
       return new Response(

@@ -30,6 +30,11 @@ export const FORBIDDEN_TRACK_KEYS = [
   'imageUrl',
   'publicImageObjectKey',
   'auditHistory',
+  'resolutionReasonCode',
+  'resolutionNote',
+  'closureReasonCode',
+  'closureNote',
+  'outcome',
 ] as const;
 
 export const publicTicketFixture: PublicTicketResponse = {
@@ -87,6 +92,37 @@ export const trackFixture: CitizenTicketResponse = {
     { status: 'SUBMITTED', changedAt: '2026-08-01T10:00:00Z' },
     { status: 'IN_PROGRESS', changedAt: '2026-08-02T12:00:00Z' },
   ],
+  outcomeMessage: null,
+};
+
+/** Resolved tracking payload with the current backend citizen-safe outcome message. */
+export const resolvedTrackFixture: CitizenTicketResponse = {
+  ticketNumber: 'BG-100003',
+  trackingCode: 'RES234',
+  status: 'RESOLVED',
+  category: 'road_damage',
+  location: { addressText: 'Near AUB Main Gate, Beirut' },
+  department: { name: 'Roads' },
+  createdAt: '2026-08-01T10:00:00Z',
+  updatedAt: '2026-08-04T12:00:00Z',
+  lastUpdatedAt: '2026-08-04T12:00:00Z',
+  timeline: [
+    { status: 'SUBMITTED', changedAt: '2026-08-01T10:00:00Z' },
+    { status: 'IN_PROGRESS', changedAt: '2026-08-02T12:00:00Z' },
+    { status: 'RESOLVED', changedAt: '2026-08-04T12:00:00Z' },
+  ],
+  outcomeMessage: 'The reported issue has been resolved.',
+};
+
+/** Staff-only fields the current tracking API must never expose to citizens. */
+export const leakedResolvedTrackPayload = {
+  ...resolvedTrackFixture,
+  ticketId: 'secret-ticket-id',
+  resolutionReasonCode: 'WORK_COMPLETED',
+  resolutionNote: 'Used the private crew address.',
+  closureReasonCode: 'CONFIRMED_COMPLETE',
+  closureNote: 'Internal close note',
+  outcome: { code: 'WORK_COMPLETED', privateNote: 'do not show' },
 };
 
 export const historyFixture: CitizenTicketHistoryResponse = {

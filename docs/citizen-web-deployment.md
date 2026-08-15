@@ -44,8 +44,10 @@ bundle verification with the env vars above.
 
 ## Hosting requirements
 
-Authoritative edge config lives in `citizen-web/infra/cloudfront-spa.json` and
-`citizen-web/public/_headers`.
+Authoritative edge config is the CloudFormation template
+`citizen-web/infra/cloudfront-spa.json`. `citizen-web/public/_headers` is only
+a local/preview hint — CloudFront does not read it. CI validates the template
+with `npm run check:cloudfront`.
 
 | Requirement | How it is met |
 | --- | --- |
@@ -59,6 +61,26 @@ Authoritative edge config lives in `citizen-web/infra/cloudfront-spa.json` and
 
 Do not cache `Set-Cookie` responses or `/v1/citizen/me*` at CloudFront. The SPA
 is static; private data comes from the API with credentials included.
+
+### Deploy the edge stack
+
+The template creates a private S3 origin, origin access control, a CloudFront
+distribution (`redirect-to-https`, SPA 403/404 → `/index.html`), managed cache
+policies, and `AWS::CloudFront::ResponseHeadersPolicy` resources (HSTS, CSP,
+`DENY` framing). It does not proxy `/v1/citizen/*`.
+
+```bash
+cd citizen-web
+npm run check:cloudfront
+aws cloudformation deploy --template-file infra/cloudfront-spa.json --stack-name baladiguard-citizen-web --parameter-overrides HostingBucketName=baladiguard-citizen-web-prod ApiOrigin=https://api.example.test AliasDomainName=citizen.example AcmCertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/ID --capabilities CAPABILITY_IAM
+aws s3 sync dist/ s3://baladiguard-citizen-web-prod/ --delete
+aws cloudfront create-invalidation --distribution-id DISTRIBUTION_ID --paths /index.html /t/*
+```
+
+Leave `AliasDomainName` and `AcmCertificateArn` empty to use the default
+`*.cloudfront.net` certificate. ACM certificates for custom aliases must be in
+`us-east-1`. After HTML deploys, invalidate `/index.html` only — hashed
+`/assets/*` are immutable.
 
 ## Rollback
 
@@ -96,8 +118,9 @@ Known limitations:
 - A selected local photo may need to be chosen again after a browser restart
   (drafts store the uploaded object key, not the File).
 - Maps stay LTR in Arabic; numbers and ticket codes stay Latin.
-- Playwright is not the CI browser runner; the agreed subset is the Vitest
-  controlled-backend flows in `citizen-web/src/e2e/`.
+- Playwright Chromium is the CI browser runner (`npm run test:e2e`) against
+  `vite preview` and `e2e-browser/mock-api.mjs`. jsdom flows stay in
+  `citizen-web/src/e2e/` as `npm run test:integration`.
 
 ## Deep links
 

@@ -175,9 +175,21 @@ jobs:
         working-directory: citizen-web
         run: npm run build
 
+      - name: Validate citizen-web CloudFront template
+        working-directory: citizen-web
+        run: npm run check:cloudfront
+
       - name: Run citizen-web contract tests
         working-directory: citizen-web
         run: npm run test:contracts
+
+      - name: Run citizen-web integration flows
+        working-directory: citizen-web
+        run: npm run test:integration
+
+      - name: Install Playwright Chromium
+        working-directory: citizen-web
+        run: npx playwright install --with-deps chromium
 
       - name: Run citizen-web browser E2E subset
         working-directory: citizen-web

@@ -33,6 +33,19 @@ describe('guest browse and tracking E2E', () => {
     expect(screen.getAllByText(/IN PROGRESS/i).length).toBeGreaterThan(0);
   });
 
+  it('shows the citizen-safe outcome message and hides private resolution fields', async () => {
+    const user = userEvent.setup();
+    renderApp('/track');
+    await user.type(screen.getByLabelText('Tracking code'), 'RES234');
+    await user.click(screen.getByRole('button', { name: 'Look up' }));
+    expect(await screen.findByTestId('track-outcome')).toHaveTextContent(
+      'The reported issue has been resolved.',
+    );
+    expect(document.body.textContent).not.toMatch(
+      /WORK_COMPLETED|private crew address|Internal close note|secret-ticket-id/,
+    );
+  });
+
   it('offers track or sign-in on a notification deep link', async () => {
     renderApp('/t/ABC234');
     expect(await screen.findByTestId('notification-link-guest')).toBeInTheDocument();

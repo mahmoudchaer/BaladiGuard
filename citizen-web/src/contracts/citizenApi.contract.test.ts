@@ -9,6 +9,8 @@ import {
   publicListFixture,
   publicMapFixture,
   publicTicketFixture,
+  leakedResolvedTrackPayload,
+  resolvedTrackFixture,
   submitFixture,
   trackFixture,
 } from '@/contracts/fixtures';
@@ -83,6 +85,23 @@ describe('citizen API contracts', () => {
     const clean = sanitizeCitizenTicket(leaked);
     assertNoKeys(clean, FORBIDDEN_TRACK_KEYS);
     expect(clean.trackingCode).toBe('ABC234');
+    expect(clean.outcomeMessage).toBeNull();
+  });
+
+  it('keeps the citizen-safe outcome message and drops private resolution fields', () => {
+    expect(resolvedTrackFixture.status).toBe('RESOLVED');
+    expect(resolvedTrackFixture.outcomeMessage).toBe('The reported issue has been resolved.');
+    assertNoKeys(resolvedTrackFixture, FORBIDDEN_TRACK_KEYS);
+
+    const clean = sanitizeCitizenTicket(
+      leakedResolvedTrackPayload as CitizenTicketResponse & Record<string, unknown>,
+    );
+    expect(clean.outcomeMessage).toBe('The reported issue has been resolved.');
+    expect(clean.status).toBe('RESOLVED');
+    assertNoKeys(clean, FORBIDDEN_TRACK_KEYS);
+    expect(JSON.stringify(clean)).not.toMatch(
+      /WORK_COMPLETED|private crew address|Internal close note|do not show|secret-ticket-id/,
+    );
   });
 
   it('requires history, profile, and submit envelopes without copying backend rules', () => {

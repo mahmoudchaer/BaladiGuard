@@ -75,12 +75,39 @@ describe('sanitizeCitizenTicket', () => {
       timeline: [{ status: 'SUBMITTED' as const, changedAt: '2026-08-01T00:00:00Z' }],
       ticketId: 'secret-id',
       imageObjectKey: 'reports/photos/original.jpg',
+      outcomeMessage: { code: 'WORK_COMPLETED' },
+    };
+
+    const clean = sanitizeCitizenTicket(
+      dirty as unknown as Parameters<typeof sanitizeCitizenTicket>[0],
+    );
+    expect(clean.trackingCode).toBe('ABC234');
+    expect(clean.outcomeMessage).toBeNull();
+    expect(clean).not.toHaveProperty('ticketId');
+    expect(clean).not.toHaveProperty('imageObjectKey');
+  });
+
+  it('retains only a string outcomeMessage from a resolved tracking payload', () => {
+    const dirty = {
+      ticketNumber: 'BG-3',
+      trackingCode: 'RES234',
+      status: 'RESOLVED' as const,
+      category: 'road_damage',
+      location: { addressText: 'Hamra' },
+      department: { name: 'Roads' },
+      createdAt: '2026-08-01T00:00:00Z',
+      updatedAt: '2026-08-04T00:00:00Z',
+      lastUpdatedAt: '2026-08-04T00:00:00Z',
+      timeline: [{ status: 'RESOLVED' as const, changedAt: '2026-08-04T00:00:00Z' }],
+      outcomeMessage: 'The reported issue has been resolved.',
+      resolutionReasonCode: 'WORK_COMPLETED',
+      resolutionNote: 'private crew note',
     };
 
     const clean = sanitizeCitizenTicket(dirty as Parameters<typeof sanitizeCitizenTicket>[0]);
-    expect(clean.trackingCode).toBe('ABC234');
-    expect(clean).not.toHaveProperty('ticketId');
-    expect(clean).not.toHaveProperty('imageObjectKey');
+    expect(clean.outcomeMessage).toBe('The reported issue has been resolved.');
+    expect(clean).not.toHaveProperty('resolutionReasonCode');
+    expect(clean).not.toHaveProperty('resolutionNote');
   });
 });
 

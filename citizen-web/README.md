@@ -26,7 +26,9 @@ npm run format:check
 npm run typecheck
 npm test
 npm run test:contracts
+npm run test:integration
 npm run test:e2e
+npm run check:cloudfront
 npm run build
 npm run check:production-build
 ```

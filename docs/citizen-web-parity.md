@@ -7,10 +7,12 @@ validation copy are owned by [#259](https://github.com/mahmoudchaer/BaladiGuard/
 and does not fork catalogs.
 
 Agreed responsive widths: **phone 390px**, **tablet 768px**, **desktop 1024px**.
-Agreed browser E2E subset: Vitest + Testing Library against a **controlled
-(mocked) backend** covering guest browse/track and authenticated
-OTP / profile / report / history / logout. CI runs that subset as
-`npm run test:e2e` in `citizen-web/`.
+Agreed browser E2E subset: Playwright against the **built/served SPA** and a
+controlled backend (CORS + cookie session) covering guest browse/track,
+notification deep-link SPA fallback, the public map, authenticated OTP restore,
+and the 390 / 768 / 1024 viewports. CI runs that subset as
+`npm run test:e2e` in `citizen-web/`. Fast jsdom flows stay in
+`npm run test:integration`.
 
 ## Capability matrix
 

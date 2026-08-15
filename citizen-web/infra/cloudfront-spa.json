@@ -1,45 +1,280 @@
 {
-  "comment": "Citizen-web CloudFront SPA hosting for issue #265. Pair with public/_headers.",
-  "aliases": ["citizen.example"],
-  "viewerProtocolPolicy": "redirect-to-https",
-  "defaultRootObject": "index.html",
-  "customErrorResponses": [
-    {
-      "errorCode": 403,
-      "responseCode": 200,
-      "responsePagePath": "/index.html",
-      "errorCachingMinTTL": 0
-    },
-    {
-      "errorCode": 404,
-      "responseCode": 200,
-      "responsePagePath": "/index.html",
-      "errorCachingMinTTL": 0
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Deployable S3 + CloudFront SPA hosting for BaladiGuard citizen-web (#265). Provisions origin, OAC, TLS redirect, SPA error fallback, cache policies, and a real response-headers policy with CSP.",
+  "Metadata": {
+    "BaladiGuard": {
+      "managedCachePolicyIds": {
+        "CachingDisabled": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+        "CachingOptimized": "658327ea-f89d-4fab-a63d-7e88639e58f6"
+      }
     }
-  ],
-  "cacheBehaviors": [
-    {
-      "pathPattern": "/index.html",
-      "cachePolicy": "Managed-CachingDisabled",
-      "responseHeadersPolicy": "citizen-web-security-headers",
-      "compress": true
+  },
+  "Parameters": {
+    "HostingBucketName": {
+      "Type": "String",
+      "Description": "Globally unique S3 bucket name for the citizen-web dist/ upload."
     },
-    {
-      "pathPattern": "/t/*",
-      "cachePolicy": "Managed-CachingDisabled",
-      "responseHeadersPolicy": "citizen-web-security-headers",
-      "compress": true
+    "AliasDomainName": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional custom domain (example: citizen.example). Leave empty to use the CloudFront domain."
     },
-    {
-      "pathPattern": "/assets/*",
-      "cachePolicy": "Managed-CachingOptimized",
-      "cacheControl": "public, max-age=31536000, immutable",
-      "compress": true
+    "AcmCertificateArn": {
+      "Type": "String",
+      "Default": "",
+      "Description": "ACM certificate ARN in us-east-1. Required when AliasDomainName is set."
+    },
+    "ApiOrigin": {
+      "Type": "String",
+      "Default": "https://api.example.test",
+      "AllowedPattern": "^https://.+",
+      "Description": "HTTPS API origin allowed in CSP connect-src. Authenticated /v1/citizen/* stays on this origin and must send Cache-Control: no-store."
     }
-  ],
-  "doNotCache": [
-    "/v1/citizen/*",
-    "Set-Cookie",
-    "authenticated API responses — configure on the API origin, not this SPA distribution"
-  ]
+  },
+  "Conditions": {
+    "HasCustomDomain": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "AliasDomainName" }, ""] }]
+    }
+  },
+  "Resources": {
+    "HostingBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": { "Ref": "HostingBucketName" },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": { "SSEAlgorithm": "AES256" }
+            }
+          ]
+        }
+      }
+    },
+    "CitizenWebOriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-citizen-web-oac" },
+          "Description": "Sign CloudFront requests to the citizen-web S3 origin.",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "CitizenWebSecurityHeadersPolicy": {
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-citizen-web-security-headers" },
+          "Comment": "HSTS, framing, referrer, permissions, and CSP for the citizen SPA.",
+          "SecurityHeadersConfig": {
+            "StrictTransportSecurity": {
+              "AccessControlMaxAgeSec": 31536000,
+              "IncludeSubdomains": true,
+              "Override": true,
+              "Preload": true
+            },
+            "ContentTypeOptions": { "Override": true },
+            "FrameOptions": { "FrameOption": "DENY", "Override": true },
+            "ReferrerPolicy": {
+              "ReferrerPolicy": "strict-origin-when-cross-origin",
+              "Override": true
+            },
+            "ContentSecurityPolicy": {
+              "ContentSecurityPolicy": {
+                "Fn::Sub": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self' ${ApiOrigin}; worker-src 'self' blob:"
+              },
+              "Override": true
+            },
+            "XSSProtection": {
+              "ModeBlock": true,
+              "Override": true,
+              "Protection": true
+            }
+          },
+          "CustomHeadersConfig": {
+            "Items": [
+              {
+                "Header": "Permissions-Policy",
+                "Value": "camera=(), microphone=(), geolocation=(self)",
+                "Override": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "CitizenWebHtmlHeadersPolicy": {
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-citizen-web-html-headers" },
+          "Comment": "Security headers plus no-store for the HTML shell and SPA routes.",
+          "SecurityHeadersConfig": {
+            "StrictTransportSecurity": {
+              "AccessControlMaxAgeSec": 31536000,
+              "IncludeSubdomains": true,
+              "Override": true,
+              "Preload": true
+            },
+            "ContentTypeOptions": { "Override": true },
+            "FrameOptions": { "FrameOption": "DENY", "Override": true },
+            "ReferrerPolicy": {
+              "ReferrerPolicy": "strict-origin-when-cross-origin",
+              "Override": true
+            },
+            "ContentSecurityPolicy": {
+              "ContentSecurityPolicy": {
+                "Fn::Sub": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self' ${ApiOrigin}; worker-src 'self' blob:"
+              },
+              "Override": true
+            },
+            "XSSProtection": {
+              "ModeBlock": true,
+              "Override": true,
+              "Protection": true
+            }
+          },
+          "CustomHeadersConfig": {
+            "Items": [
+              {
+                "Header": "Permissions-Policy",
+                "Value": "camera=(), microphone=(), geolocation=(self)",
+                "Override": true
+              },
+              {
+                "Header": "Cache-Control",
+                "Value": "no-store",
+                "Override": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    "CitizenWebDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Comment": "BaladiGuard citizen-web SPA",
+          "HttpVersion": "http2",
+          "IPV6Enabled": true,
+          "DefaultRootObject": "index.html",
+          "PriceClass": "PriceClass_100",
+          "Aliases": {
+            "Fn::If": ["HasCustomDomain", [{ "Ref": "AliasDomainName" }], { "Ref": "AWS::NoValue" }]
+          },
+          "ViewerCertificate": {
+            "Fn::If": [
+              "HasCustomDomain",
+              {
+                "AcmCertificateArn": { "Ref": "AcmCertificateArn" },
+                "SslSupportMethod": "sni-only",
+                "MinimumProtocolVersion": "TLSv1.2_2021"
+              },
+              {
+                "CloudFrontDefaultCertificate": true
+              }
+            ]
+          },
+          "Origins": [
+            {
+              "Id": "citizen-web-s3",
+              "DomainName": { "Fn::GetAtt": ["HostingBucket", "RegionalDomainName"] },
+              "OriginAccessControlId": { "Fn::GetAtt": ["CitizenWebOriginAccessControl", "Id"] },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": ""
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "citizen-web-s3",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+            "CachedMethods": ["GET", "HEAD"],
+            "Compress": true,
+            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+            "ResponseHeadersPolicyId": { "Ref": "CitizenWebHtmlHeadersPolicy" }
+          },
+          "CacheBehaviors": [
+            {
+              "PathPattern": "/assets/*",
+              "TargetOriginId": "citizen-web-s3",
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+              "CachedMethods": ["GET", "HEAD"],
+              "Compress": true,
+              "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+              "ResponseHeadersPolicyId": { "Ref": "CitizenWebSecurityHeadersPolicy" }
+            }
+          ],
+          "CustomErrorResponses": [
+            {
+              "ErrorCode": 403,
+              "ResponseCode": 200,
+              "ResponsePagePath": "/index.html",
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 404,
+              "ResponseCode": 200,
+              "ResponsePagePath": "/index.html",
+              "ErrorCachingMinTTL": 0
+            }
+          ]
+        }
+      }
+    },
+    "HostingBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "HostingBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowCloudFrontReadViaOAC",
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "s3:GetObject",
+              "Resource": { "Fn::Sub": "${HostingBucket.Arn}/*" },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CitizenWebDistribution}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "DistributionId": {
+      "Description": "CloudFront distribution id. Invalidate /index.html after HTML deploys.",
+      "Value": { "Ref": "CitizenWebDistribution" }
+    },
+    "DistributionDomainName": {
+      "Description": "CloudFront domain for the citizen SPA.",
+      "Value": { "Fn::GetAtt": ["CitizenWebDistribution", "DomainName"] }
+    },
+    "HostingBucketName": {
+      "Description": "Upload citizen-web/dist here (aws s3 sync --delete).",
+      "Value": { "Ref": "HostingBucket" }
+    },
+    "ResponseHeadersPolicyId": {
+      "Description": "Attached HTML response-headers policy id.",
+      "Value": { "Ref": "CitizenWebHtmlHeadersPolicy" }
+    }
+  }
 }
