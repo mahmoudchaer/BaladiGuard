@@ -88,6 +88,8 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `RATE_LIMIT_UPLOAD_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `60` | Report photo upload (stricter) |
 | `RATE_LIMIT_LOCATION_VALIDATE_LIMIT` / `_WINDOW_SECONDS` | No | `30` / `60` | Location validate |
 | `RATE_LIMIT_STAFF_LOGIN_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `300` | Staff login |
+| `RATE_LIMIT_STAFF_ASSISTANT_LIMIT` / `_WINDOW_SECONDS` | No | `30` / `60` | Staff assistant questions (#42) |
+| `RATE_LIMIT_STAFF_SEARCH_LIMIT` / `_WINDOW_SECONDS` | No | `40` / `60` | Staff global search (#42 / #260) |
 | `RATE_LIMIT_CITIZEN_OTP_REQUEST_*` / `RATE_LIMIT_CITIZEN_OTP_VERIFY_*` | No | `5`/`300`, `10`/`300` | Reserved for citizen OTP HTTP (#170) |
 | `RATE_LIMIT_SMOKE_BYPASS_TOKEN` | No | empty | Optional smoke header token; never a global disable |
 | `RATE_LIMIT_SMOKE_LIMIT` | No | `1000` | Higher still-enforced quota for smoke token clients |

@@ -655,6 +655,10 @@ class TicketService:
         cursor: str | None = None,
     ) -> TicketListPageResponse:
         page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
+        if filters is not None and filters.ticket_ids:
+            return self._list_tickets_by_ids(
+                filters, staff_principal=staff_principal, page_size=page_size
+            )
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
         store_filters = filters
         workforce_post_filter = bool(
@@ -747,6 +751,31 @@ class TicketService:
             freshnessHintSeconds=30,
         )
 
+    def _list_tickets_by_ids(
+        self,
+        filters: TicketListFilters,
+        *,
+        staff_principal: StaffPrincipal,
+        page_size: int,
+    ) -> TicketListPageResponse:
+        collected: list[StoredTicket] = []
+        for ticket_id in filters.ticket_ids or ():
+            ticket = self._store.get(ticket_id)
+            if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+                continue
+            if not ticket_matches_filters(ticket, filters):
+                continue
+            collected.append(ticket)
+        return TicketListPageResponse(
+            items=[map_ticket_to_list_item(ticket) for ticket in collected[:page_size]],
+            nextCursor=None,
+            previousCursor=None,
+            limit=page_size,
+            scannedCount=len(filters.ticket_ids or ()),
+            approximateTotal=len(collected),
+            freshnessHintSeconds=30,
+        )
+
     def list_tickets(
         self,
         filters: TicketListFilters | None = None,
@@ -777,13 +806,23 @@ class TicketService:
     ) -> TicketMapViewportResponse:
         result_limit = min(max(limit, 1), STAFF_MAP_MAX_LIMIT)
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
-        candidates = self._collect_staff_candidates(
-            browse_mode=browse_mode,
-            municipality_id=municipality_id,
-            department_ids=department_ids,
-            filters=filters,
-            budget=STAFF_MAP_CANDIDATE_BUDGET,
-        )
+        if filters is not None and filters.ticket_ids:
+            candidates = []
+            for ticket_id in filters.ticket_ids:
+                ticket = self._store.get(ticket_id)
+                if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+                    continue
+                if not ticket_matches_filters(ticket, filters):
+                    continue
+                candidates.append(ticket)
+        else:
+            candidates = self._collect_staff_candidates(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                filters=filters,
+                budget=STAFF_MAP_CANDIDATE_BUDGET,
+            )
         in_bounds = [
             ticket
             for ticket in candidates
@@ -879,6 +918,31 @@ class TicketService:
                 return collected
             cursor = page.next_cursor
 
+    def collect_staff_tickets_bounded(
+        self, staff_principal: StaffPrincipal, *, budget: int
+    ) -> tuple[list[StoredTicket], bool]:
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        collected: list[StoredTicket] = []
+        cursor: str | None = None
+        truncated = False
+        page_size = min(100, max(budget, 1))
+        while len(collected) < budget:
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=min(page_size, budget - len(collected)),
+                cursor=cursor,
+            )
+            collected.extend(page.items)
+            if not page.next_cursor:
+                return collected[:budget], False
+            if len(collected) >= budget:
+                truncated = True
+                break
+            cursor = page.next_cursor
+        return collected[:budget], truncated or len(collected) >= budget
+
     def _collect_staff_candidates(
         self,
         *,
@@ -920,17 +984,13 @@ class TicketService:
                 category=None if filters is None else filters.category,
                 urgency=None if filters is None else filters.urgency,
                 department_id=None if filters is None else filters.department_id,
+                open_only=False if filters is None else filters.open_only,
             )
             items = page.items
-            if filters is not None and filters.sla_state is not None:
-                items = [
-                    ticket
-                    for ticket in items
-                    if ticket_matches_filters(
-                        ticket,
-                        TicketListFilters(sla_state=filters.sla_state),
-                    )
-                ]
+            if filters is not None and (
+                filters.sla_state is not None or filters.ticket_ids is not None
+            ):
+                items = [ticket for ticket in items if ticket_matches_filters(ticket, filters)]
             collected.extend(items)
             if not page.next_cursor:
                 return collected, False

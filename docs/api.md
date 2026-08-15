@@ -15,6 +15,7 @@ BaladiGuard API contracts and verification notes are maintained under `docs/`. T
 | [workforce.md](./workforce.md) | Municipality workers, teams, ticket assignment, and workload (#245) |
 | [work-orders.md](./work-orders.md) | Maintenance work orders and structured resolution/rejection reasons (#247) |
 | [staff-assistant.md](./staff-assistant.md) | Permission-scoped high-priority and repeated-area summaries (#43) |
+| [staff-search.md](./staff-search.md) | Staff global search and safe dashboard drill-down filters (#42 / #260) |
 
 ## Interactive OpenAPI
 
