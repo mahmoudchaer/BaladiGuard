@@ -76,9 +76,7 @@ def test_activity_projects_operational_audits_safely_and_paginates_by_event_key(
         )
 
     headers = _headers(anonymous_client)
-    first = anonymous_client.get(
-        f"/v1/tickets/{ticket_id}/activity?limit=2", headers=headers
-    )
+    first = anonymous_client.get(f"/v1/tickets/{ticket_id}/activity?limit=2", headers=headers)
     assert first.status_code == 200, first.text
     assert len(first.json()["events"]) == 2
     projected = next(

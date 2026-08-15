@@ -81,8 +81,10 @@ def _decode_cursor(cursor: str | None) -> tuple[str, str, str] | None:
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
         value = json.loads(base64.urlsafe_b64decode(padded).decode())
-        if not isinstance(value, list) or len(value) != 3 or not all(
-            isinstance(item, str) for item in value
+        if (
+            not isinstance(value, list)
+            or len(value) != 3
+            or not all(isinstance(item, str) for item in value)
         ):
             raise ValueError
         return value[0], value[1], value[2]
