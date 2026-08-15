@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PublicPhoto } from '@/components/PublicPhoto';
 import { PUBLIC_TICKETS_NETWORK_MESSAGE, getPublicTickets } from '@/services/tickets';
 import type { PublicTicketResponse } from '@/types/ticket';
+import { t } from '@/i18n';
 
 const PAGE_SIZE = 6;
 const CATEGORIES = [
@@ -115,7 +116,7 @@ export function PublicReportsPage() {
       <div className="directory-heading">
         <div>
           <span className="eyebrow">COMMUNITY ACTIVITY</span>
-          <h1>Public reports</h1>
+          <h1>{t('public.title')}</h1>
           <p className="lede">Browse approved, privacy-safe reports shared across the community.</p>
         </div>
         <div className="button-row">
@@ -259,7 +260,7 @@ export function PublicReportsPage() {
             disabled={!canGoNext}
             onClick={() => void loadPage(page + 1)}
           >
-            Next →
+            {t('public.next')}
           </button>
         </nav>
       ) : null}

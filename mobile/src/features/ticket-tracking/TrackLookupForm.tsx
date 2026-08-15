@@ -18,6 +18,7 @@ import {
   getTicketByTrackingCode,
   submitCitizenResolutionFeedback,
 } from '@/services/api/tickets';
+import { t } from '@/i18n';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { describeStatusMeaning, formatCategoryLabel } from '@/theme/labels';
 import type { CitizenResolutionFeedback, CitizenTicketResponse } from '@/types/ticket';
@@ -87,8 +88,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
           }
         }
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+        const message = error instanceof Error ? error.message : t('errors.generic');
         setLookupError(message);
       } finally {
         requestInFlight.current = false;
@@ -124,11 +124,10 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <Text variant="headlineMedium" style={styles.title}>
-          Track a report
+          {t('track.title')}
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Enter the 6-character tracking code from your submission confirmation. We look it up
-          directly on the BaladiGuard API — no staff login required.
+          {t('track.subtitle')}
         </Text>
       </View>
 
@@ -147,7 +146,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
               textColor={colors.brandDark}
               testID="track-lookup-retry"
             >
-              Try again
+              {t('track.tryAgain')}
             </Button>
           ) : null}
         </View>
@@ -159,7 +158,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
         render={({ field: { onChange, onBlur, value } }) => (
           <View>
             <TextInput
-              label="Tracking code"
+              label={t('track.codeLabel')}
               mode="outlined"
               autoCapitalize="characters"
               autoCorrect={false}
@@ -177,7 +176,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
               maxLength={12}
               outlineColor={colors.border}
               activeOutlineColor={colors.brand}
-              accessibilityLabel="Tracking code"
+              accessibilityLabel={t('track.codeLabel')}
               testID="tracking-code-input"
             />
             <HelperText type="error" visible={Boolean(errors.trackingCode)}>
@@ -200,14 +199,14 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
         textColor={colors.textInverse}
         testID="track-lookup-submit"
       >
-        {isSubmitting ? 'Looking up...' : 'Look up report'}
+        {isSubmitting ? t('track.lookingUp') : t('track.lookUp')}
       </Button>
 
       {isSubmitting ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Looking up your report...
+            {t('track.lookingUpLong')}
           </Text>
         </View>
       ) : null}
@@ -215,7 +214,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
       {!result && !isSubmitting && !lookupError ? (
         <View style={styles.emptyHint}>
           <Text variant="bodySmall" style={styles.emptyHintText}>
-            Your tracking code was shown on the confirmation screen when you submitted a report.
+            {t('track.hint')}
           </Text>
         </View>
       ) : null}
@@ -223,13 +222,13 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
       {result ? (
         <View style={styles.resultBlock} testID="track-lookup-result">
           <Text variant="titleLarge" style={styles.resultTitle}>
-            Report found
+            {t('track.found')}
           </Text>
 
           <View style={styles.resultHeader}>
             <View style={styles.resultHeaderText}>
               <Text variant="labelLarge" style={styles.rowLabel}>
-                Tracking code
+                {t('track.codeLabel')}
               </Text>
               <Text variant="titleMedium" style={styles.rowValueStrong}>
                 {result.trackingCode}
@@ -245,7 +244,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
 
           <View style={styles.meaningBlock}>
             <Text variant="labelLarge" style={styles.rowLabel}>
-              What this means
+              {t('track.whatThisMeans')}
             </Text>
             <Text variant="bodyMedium" style={styles.rowValue}>
               {describeStatusMeaning(result.status)}
@@ -256,7 +255,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
             {result.category ? (
               <View style={styles.row}>
                 <Text variant="labelLarge" style={styles.rowLabel}>
-                  Category
+                  {t('track.category')}
                 </Text>
                 <Text variant="bodyLarge" style={styles.rowValue}>
                   {formatCategoryLabel(result.category)}
@@ -266,7 +265,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
             {result.location?.addressText ? (
               <View style={styles.row}>
                 <Text variant="labelLarge" style={styles.rowLabel}>
-                  Location
+                  {t('track.location')}
                 </Text>
                 <Text variant="bodyLarge" style={styles.rowValue}>
                   {result.location.addressText}
@@ -275,7 +274,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
             ) : null}
             <View style={styles.row}>
               <Text variant="labelLarge" style={styles.rowLabel}>
-                Submitted
+                {t('track.submitted')}
               </Text>
               <Text variant="bodyMedium" style={styles.rowValue}>
                 {formatDisplayDate(result.createdAt)}
@@ -283,7 +282,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
             </View>
             <View style={styles.row}>
               <Text variant="labelLarge" style={styles.rowLabel}>
-                Last updated
+                {t('track.lastUpdated')}
               </Text>
               <Text variant="bodyMedium" style={styles.rowValue}>
                 {formatDisplayDate(result.lastUpdatedAt)}
@@ -292,7 +291,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
             {result.department?.name ? (
               <View style={styles.row}>
                 <Text variant="labelLarge" style={styles.rowLabel}>
-                  Department
+                  {t('track.department')}
                 </Text>
                 <Text variant="bodyLarge" style={styles.rowValue}>
                   {result.department.name}

@@ -1,0 +1,169 @@
+{
+  "appName": "BaladiGuard",
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "save": "Save",
+    "close": "Close",
+    "loading": "Loading…",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "language": "Language",
+    "required": "Required"
+  },
+  "language": {
+    "en": "English",
+    "ar": "Arabic",
+    "fr": "French",
+    "chooser": "Choose language",
+    "hint": "This changes the app language on this device. Report text you write is not translated."
+  },
+  "tabs": {
+    "home": "Home",
+    "history": "My Reports",
+    "report": "Report",
+    "reportHint": "Opens the new report form",
+    "explore": "Explore",
+    "more": "More"
+  },
+  "screens": {
+    "newReport": "New report",
+    "track": "Track a report",
+    "reportLink": "Report link",
+    "signIn": "Sign in",
+    "profile": "Profile",
+    "privacy": "Privacy notice",
+    "publicReport": "Public report"
+  },
+  "auth": {
+    "continueTitle": "Continue with your phone",
+    "continueSubtitle": "We’ll sign you back into the account linked to this number. If it’s your first time, an account is created automatically — no password required.",
+    "phoneTitle": "Sign in with phone",
+    "phoneSubtitle": "Enter your mobile number to receive a one-time verification code by SMS. No password needed.",
+    "sendCode": "Send verification code",
+    "nationalPlaceholder": "National number",
+    "invalidPhone": "Enter a valid phone number.",
+    "sendFailed": "Unable to send a code.",
+    "otpTitle": "Enter verification code",
+    "otpSubtitle": "We sent a 6-digit code by SMS.",
+    "verify": "Verify code",
+    "resend": "Resend code"
+  },
+  "more": {
+    "title": "More",
+    "yourProfile": "Your profile",
+    "manageAccount": "Manage your account",
+    "account": "ACCOUNT",
+    "profileNotifications": "Profile and notifications",
+    "privacy": "Privacy",
+    "privacyDetail": "How your information is protected",
+    "reports": "REPORTS",
+    "trackCode": "Track with a code",
+    "communityMap": "Community map",
+    "signOutTitle": "Sign out?",
+    "signOutBody": "Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.",
+    "keepDraft": "Keep draft & sign out",
+    "clearDraft": "Clear draft & sign out",
+    "version": "BaladiGuard · Citizen services"
+  },
+  "profile": {
+    "loading": "Loading profile…",
+    "empty": "No profile is available for this session.",
+    "unableLoad": "Unable to load your profile. Please sign in again.",
+    "unableRefresh": "Unable to refresh your profile right now.",
+    "offlineSuffix": "Showing the last saved profile on this device.",
+    "refreshing": "Refreshing…",
+    "refresh": "Refresh profile",
+    "phoneUpdated": "Phone updated to {phone}."
+  },
+  "status": {
+    "SUBMITTED": "Submitted",
+    "UNDER_REVIEW": "Under Review",
+    "ASSIGNED": "Assigned",
+    "IN_PROGRESS": "In Progress",
+    "RESOLVED": "Resolved",
+    "CLOSED": "Closed",
+    "pendingCategory": "Category pending"
+  },
+  "statusMeaning": {
+    "SUBMITTED": "Your report was received and is in the queue for review.",
+    "UNDER_REVIEW": "A staff member is reviewing the report before it is routed.",
+    "ASSIGNED": "A department has taken ownership of this report.",
+    "IN_PROGRESS": "The assigned team is actively working on the issue.",
+    "RESOLVED": "The issue has been marked resolved.",
+    "CLOSED": "This report has been closed.",
+    "unknown": "Status details are not available right now."
+  },
+  "category": {
+    "road_damage": "Road Damage",
+    "waste": "Waste",
+    "street_lighting": "Street Lighting",
+    "water_leak": "Water Leak",
+    "noise": "Noise",
+    "sidewalk_damage": "Sidewalk Damage",
+    "traffic_signal": "Traffic Signal",
+    "drainage": "Drainage",
+    "public_facilities": "Public Facilities"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "You appear to be offline. Check your connection and try again.",
+    "notFound": "We could not find that report.",
+    "validation": "Please correct the highlighted fields."
+  },
+  "report": {
+    "stepDetails": "Report an issue",
+    "stepPhoto": "Add a photo",
+    "stepLocation": "Where is it?",
+    "stepReview": "Review your report",
+    "stepDetailsSubtitle": "Tell us about an infrastructure problem in your area. It only takes a minute.",
+    "stepPhotoSubtitle": "A clear photo helps crews confirm and prioritize the issue.",
+    "stepLocationSubtitle": "We use this to route your report to the right department.",
+    "stepReviewSubtitle": "Make sure everything looks right, then send it in.",
+    "continue": "Continue",
+    "submit": "Submit report",
+    "retrySubmit": "Retry submit",
+    "backToReview": "Back to review",
+    "uploadingPhoto": "Uploading photo...",
+    "submittingReport": "Submitting report..."
+  },
+  "track": {
+    "title": "Track a report",
+    "subtitle": "Enter the 6-character tracking code from your submission confirmation. We look it up directly on the BaladiGuard API — no staff login required.",
+    "codeLabel": "Tracking code",
+    "lookUp": "Look up report",
+    "lookingUp": "Looking up...",
+    "lookingUpLong": "Looking up your report...",
+    "tryAgain": "Try again",
+    "found": "Report found",
+    "whatThisMeans": "What this means",
+    "category": "Category",
+    "location": "Location",
+    "submitted": "Submitted",
+    "lastUpdated": "Last updated",
+    "department": "Department",
+    "hint": "Your tracking code was shown on the confirmation screen when you submitted a report."
+  },
+  "nextAction": {
+    "SUBMITTED": "Your report was received and will be reviewed by municipal staff.",
+    "UNDER_REVIEW": "Municipal staff are reviewing the report details and category.",
+    "ASSIGNED": "The responsible department has been assigned and will plan the next step.",
+    "IN_PROGRESS": "The assigned team is working on the issue and will update the status when done.",
+    "RESOLVED": "The issue has been marked resolved. No further action is expected right now.",
+    "CLOSED": "This report is closed and kept for your records.",
+    "unknown": "Check back later for the next status update."
+  },
+  "explore": {
+    "title": "Explore",
+    "empty": "Public reports will appear here after privacy review.",
+    "emptyMap": "No mappable locations in the current public results. Use the list below."
+  },
+  "a11y": {
+    "goBack": "Go back",
+    "openProfile": "Open profile",
+    "languageGroup": "Application language",
+    "statusWithLabel": "Status: {status}",
+    "urgencyWithLabel": "Urgency: {urgency}"
+  }
+}

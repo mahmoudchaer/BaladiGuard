@@ -10,6 +10,7 @@ import {
   rejectImageRedaction,
   reprocessImageRedaction,
 } from '@/services/tickets';
+import { t } from '@/i18n';
 import './ImageRedactionReview.css';
 
 type Props = {
@@ -83,7 +84,7 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
     return <p className="image-redaction-review__error">{loadError}</p>;
   }
   if (!review) {
-    return <p className="image-redaction-review__hint">Loading image privacy review…</p>;
+    return <p className="image-redaction-review__hint">{t('redaction.loading')}</p>;
   }
 
   return (
@@ -99,24 +100,26 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
           }}
         />
         {review.reasonCode ? (
-          <span className="image-redaction-review__reason">Reason: {review.reasonCode}</span>
+          <span className="image-redaction-review__reason">
+            {t('redaction.reason', { code: review.reasonCode })}
+          </span>
         ) : null}
       </div>
 
       <div className="image-redaction-review__pair">
         <div>
-          <p className="image-redaction-review__label">Original (staff only)</p>
+          <p className="image-redaction-review__label">{t('redaction.original')}</p>
           <TicketPhoto
             category={category}
-            alt="Original private report photo"
+            alt={t('redaction.originalAlt')}
             imageUrl={review.originalImageUrl ?? undefined}
           />
         </div>
         <div>
-          <p className="image-redaction-review__label">Redacted candidate</p>
+          <p className="image-redaction-review__label">{t('redaction.candidate')}</p>
           <TicketPhoto
             category={category}
-            alt="Redacted candidate photo"
+            alt={t('redaction.candidateAlt')}
             imageUrl={review.candidateImageUrl ?? undefined}
           />
         </div>
@@ -135,7 +138,7 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
             )
           }
         >
-          Approve public derivative
+          {t('redaction.approve')}
         </button>
         <button
           type="button"
@@ -147,7 +150,7 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
             )
           }
         >
-          Keep private only
+          {t('redaction.reject')}
         </button>
         <button
           type="button"
@@ -155,7 +158,7 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
           disabled={busy || !review.canReprocess}
           onClick={() => void runAction(() => reprocessImageRedaction(ticketId))}
         >
-          Reprocess automatically
+          {t('redaction.reprocess')}
         </button>
       </div>
 

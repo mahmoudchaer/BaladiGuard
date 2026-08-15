@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import { Link, type Href } from 'expo-router';
 
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenProfile } from '@/types/citizen';
 
@@ -130,6 +131,8 @@ export function ProfileSummary({
           />
         </View>
       </View>
+
+      <LanguageSwitcher />
 
       <View style={styles.actions}>
         <Button

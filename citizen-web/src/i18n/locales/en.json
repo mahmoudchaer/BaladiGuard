@@ -1,0 +1,133 @@
+{
+  "appName": "BaladiGuard",
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "save": "Save",
+    "close": "Close",
+    "loading": "Loading…",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "language": "Language",
+    "required": "Required",
+    "lookUp": "Look up",
+    "lookingUp": "Looking up…"
+  },
+  "language": {
+    "en": "English",
+    "ar": "Arabic",
+    "fr": "French",
+    "chooser": "Choose language",
+    "hint": "This changes the site language on this device. Report text you write is not translated."
+  },
+  "shell": {
+    "subtitle": "Citizen reports",
+    "home": "Home",
+    "explore": "Explore",
+    "myReports": "My reports",
+    "newReport": "New report",
+    "openProfile": "Open profile",
+    "mainNav": "Main",
+    "homeAria": "BaladiGuard home",
+    "platform": "Platform",
+    "publicReports": "Public reports",
+    "reportMap": "Report map",
+    "takeAction": "Take action",
+    "reportIssue": "Report an issue",
+    "trackCode": "Track with a code",
+    "about": "About",
+    "privacy": "Privacy",
+    "yourProfile": "Your profile",
+    "citizenSignIn": "Citizen sign in",
+    "footerTagline": "Built for clearer, safer civic reporting.",
+    "footerLegal": "Verified-phone accounts · Privacy-safe public data"
+  },
+  "home": {
+    "heroLine1": "Your city,",
+    "heroLine2": "within reach.",
+    "browsePublic": "Browse public reports →"
+  },
+  "auth": {
+    "hero": "Private by design",
+    "eyebrow": "CITIZEN ACCESS",
+    "phoneTitle": "Your city, within reach.",
+    "otpTitle": "Check your phone.",
+    "phoneLede": "Sign in or create an account with a verified phone number. No password required.",
+    "otpLede": "We sent a six-digit code to {phone}.",
+    "country": "Country",
+    "phone": "Phone number",
+    "continue": "Continue",
+    "sending": "Sending…",
+    "code": "Verification code",
+    "verify": "Verify and continue",
+    "verifying": "Verifying…",
+    "changeNumber": "Change number",
+    "resend": "Resend code",
+    "invalidPhone": "Enter a valid phone number.",
+    "invalidCode": "Enter the six-digit verification code.",
+    "sendFailed": "Unable to send a code.",
+    "incorrect": "That code is incorrect. Try again.",
+    "expired": "That code expired. Request a new one.",
+    "verifyFailed": "Unable to verify that code.",
+    "privacyNote": "Your phone verifies account ownership. Your name and email stay optional."
+  },
+  "track": {
+    "title": "Track a report",
+    "subtitle": "Enter the 6-character tracking code from your submission confirmation. We look it up without requiring an account.",
+    "codeLabel": "Tracking code",
+    "hint": "Your tracking code was shown on the confirmation screen when you submitted a report.",
+    "codeValue": "Tracking code: {code}"
+  },
+  "report": {
+    "signInAtSubmit": "Sign in at submit",
+    "privateSubmission": "Private submission",
+    "title": "What needs attention?"
+  },
+  "history": {
+    "title": "My reports",
+    "eyebrow": "YOUR ACTIVITY"
+  },
+  "profile": {
+    "title": "Profile",
+    "eyebrow": "YOUR ACCOUNT"
+  },
+  "public": {
+    "title": "Public reports",
+    "next": "Next →",
+    "viewAsList": "View as list"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "browse": "Browse public reports"
+  },
+  "status": {
+    "SUBMITTED": "Submitted",
+    "UNDER_REVIEW": "Under Review",
+    "ASSIGNED": "Assigned",
+    "IN_PROGRESS": "In Progress",
+    "RESOLVED": "Resolved",
+    "CLOSED": "Closed"
+  },
+  "category": {
+    "road_damage": "Road Damage",
+    "waste": "Waste",
+    "street_lighting": "Street Lighting",
+    "water_leak": "Water Leak",
+    "noise": "Noise",
+    "sidewalk_damage": "Sidewalk Damage",
+    "traffic_signal": "Traffic Signal",
+    "drainage": "Drainage",
+    "public_facilities": "Public Facilities"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "notFound": "We could not find that report.",
+    "validation": "Please correct the highlighted fields."
+  },
+  "a11y": {
+    "languageGroup": "Application language",
+    "statusWithLabel": "Status: {status}",
+    "urgencyWithLabel": "Urgency: {urgency}"
+  }
+}

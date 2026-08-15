@@ -1,20 +1,21 @@
+import { t } from '@/i18n';
 import type { TicketStatus } from '@/types/ticket';
 
 export function getCitizenNextAction(status: TicketStatus): string {
   switch (status) {
     case 'SUBMITTED':
-      return 'Your report was received and will be reviewed by municipal staff.';
+      return t('nextAction.SUBMITTED');
     case 'UNDER_REVIEW':
-      return 'Municipal staff are reviewing the report details and category.';
+      return t('nextAction.UNDER_REVIEW');
     case 'ASSIGNED':
-      return 'The responsible department has been assigned and will plan the next step.';
+      return t('nextAction.ASSIGNED');
     case 'IN_PROGRESS':
-      return 'The assigned team is working on the issue and will update the status when done.';
+      return t('nextAction.IN_PROGRESS');
     case 'RESOLVED':
-      return 'The issue has been marked resolved. No further action is expected right now.';
+      return t('nextAction.RESOLVED');
     case 'CLOSED':
-      return 'This report is closed and kept for your records.';
+      return t('nextAction.CLOSED');
     default:
-      return 'Check back later for the next status update.';
+      return t('nextAction.unknown');
   }
 }

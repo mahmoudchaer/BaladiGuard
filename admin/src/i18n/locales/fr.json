@@ -1,0 +1,118 @@
+{
+  "appName": "BaladiGuard",
+  "common": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "loading": "Chargement…",
+    "signIn": "Connexion",
+    "signOut": "Déconnexion",
+    "language": "Langue",
+    "required": "Obligatoire",
+    "tryAgain": "Réessayer"
+  },
+  "language": {
+    "en": "Anglais",
+    "ar": "Arabe",
+    "fr": "Français",
+    "chooser": "Choisir la langue",
+    "hint": "Cela change la langue du tableau de bord sur cet appareil. Le texte rédigé par le citoyen n’est pas traduit."
+  },
+  "login": {
+    "eyebrow": "Portail du personnel municipal",
+    "title": "Connexion du personnel BaladiGuard",
+    "username": "Nom d’utilisateur",
+    "password": "Mot de passe",
+    "show": "Afficher",
+    "hide": "Masquer",
+    "submit": "Connexion",
+    "submitting": "Connexion…",
+    "missingCredentials": "Entrez votre nom d’utilisateur et votre mot de passe.",
+    "forgotPassword": "Mot de passe oublié ?"
+  },
+  "nav": {
+    "tickets": "Tickets",
+    "map": "Carte",
+    "workforce": "Effectifs",
+    "primaryModules": "Modules principaux",
+    "mainNav": "Navigation principale",
+    "home": "Accueil BaladiGuard"
+  },
+  "topbar": {
+    "product": "BaladiGuard",
+    "context": "Bureau municipal",
+    "assistant": "Assistant",
+    "mockData": "Données fictives",
+    "logout": "Déconnexion"
+  },
+  "layout": {
+    "title": "Tableau des tickets",
+    "subtitle": "Suivre et gérer les signalements d’infrastructure des citoyens"
+  },
+  "assistant": {
+    "title": "Assistant du personnel",
+    "subtitle": "Posez des questions sur les tickets urgents ou les zones à problèmes répétés. Les réponses restent fondées sur vos dossiers visibles.",
+    "askLabel": "Poser une question prise en charge",
+    "suggestions": "Questions suggérées"
+  },
+  "status": {
+    "SUBMITTED": "Soumis",
+    "UNDER_REVIEW": "En examen",
+    "ASSIGNED": "Assigné",
+    "IN_PROGRESS": "En cours",
+    "RESOLVED": "Résolu",
+    "CLOSED": "Clôturé"
+  },
+  "priority": {
+    "low": "Faible",
+    "medium": "Moyenne",
+    "high": "Élevée",
+    "critical": "Critique",
+    "unrated": "Non notée"
+  },
+  "category": {
+    "road_damage": "Dégâts routiers",
+    "waste": "Déchets",
+    "street_lighting": "Éclairage public",
+    "water_leak": "Fuite d’eau",
+    "noise": "Bruit",
+    "sidewalk_damage": "Dégâts de trottoir",
+    "traffic_signal": "Feu de circulation",
+    "drainage": "Drainage",
+    "public_facilities": "Équipements publics",
+    "PENDING_CLASSIFICATION": "Classification en attente"
+  },
+  "redaction": {
+    "pending": "En attente du traitement de confidentialité",
+    "processing": "Traitement de confidentialité en cours",
+    "completed": "Le dérivé public respecte la vie privée",
+    "failed": "Échec du traitement — l’original reste privé",
+    "review_required": "Revue requise — l’original reste privé",
+    "private_only": "Privé uniquement — aucun dérivé public",
+    "facesPlates": "{faces} visage(s) et {plates} plaque(s) masqué(s)",
+    "original": "Original (personnel uniquement)",
+    "candidate": "Candidat masqué",
+    "approve": "Approuver le dérivé public",
+    "reject": "Garder privé uniquement",
+    "reprocess": "Retraiter automatiquement",
+    "loading": "Chargement de la revue de confidentialité…",
+    "reason": "Motif : {code}",
+    "originalAlt": "Photo originale privée du signalement",
+    "candidateAlt": "Photo candidate masquée"
+  },
+  "workforce": {
+    "unassigned": "Non assigné",
+    "saveWorker": "Enregistrer l’agent",
+    "saveTeam": "Enregistrer l’équipe"
+  },
+  "errors": {
+    "generic": "Une erreur s’est produite. Veuillez réessayer."
+  },
+  "a11y": {
+    "languageGroup": "Langue de l’application",
+    "statusWithLabel": "Statut : {status}",
+    "urgencyWithLabel": "Urgence : {urgency}"
+  }
+}

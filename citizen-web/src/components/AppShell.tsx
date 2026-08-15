@@ -1,35 +1,36 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useI18n } from '@/i18n/LocaleProvider';
 import './AppShell.css';
-
-const publicLinks = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/reports', label: 'Explore' },
-];
 
 export function AppShell() {
   const auth = useCitizenAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const links = auth.isAuthenticated
     ? [
-        { to: '/', label: 'Home', end: true },
-        { to: '/history', label: 'My reports' },
-        { to: '/report', label: 'New report' },
+        { to: '/', label: t('shell.home'), end: true },
+        { to: '/history', label: t('shell.myReports'), end: false },
+        { to: '/report', label: t('shell.newReport'), end: false },
       ]
-    : publicLinks;
+    : [
+        { to: '/', label: t('shell.home'), end: true },
+        { to: '/reports', label: t('shell.explore'), end: false },
+      ];
   return (
     <div className="shell">
       <header className="shell-header">
-        <NavLink className="shell-brand" to="/" aria-label="BaladiGuard home">
+        <NavLink className="shell-brand" to="/" aria-label={t('shell.homeAria')}>
           <span className="shell-mark" aria-hidden>
             <span>⌖</span>
           </span>
           <div>
             <p className="shell-title">BaladiGuard</p>
-            <p className="shell-subtitle">Citizen reports</p>
+            <p className="shell-subtitle">{t('shell.subtitle')}</p>
           </div>
         </NavLink>
-        <nav className="shell-nav" aria-label="Main">
+        <nav className="shell-nav" aria-label={t('shell.mainNav')}>
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -45,16 +46,17 @@ export function AppShell() {
           {auth.isAuthenticated ? (
             <button
               className="nav-avatar tactile"
-              aria-label="Open profile"
+              aria-label={t('shell.openProfile')}
               onClick={() => navigate('/profile')}
             >
               {auth.profile?.fullName?.[0]?.toUpperCase() || 'B'}
             </button>
           ) : (
             <NavLink className="button nav-sign-in" to="/login">
-              Sign in
+              {t('common.signIn')}
             </NavLink>
           )}
+          <LanguageSwitcher compact />
         </nav>
       </header>
       <main className="shell-main">
@@ -67,31 +69,31 @@ export function AppShell() {
           </span>
           <div>
             <strong>BaladiGuard</strong>
-            <p>Built for clearer, safer civic reporting.</p>
+            <p>{t('shell.footerTagline')}</p>
           </div>
         </div>
         <div className="footer-links">
           <div>
-            <strong>Platform</strong>
-            <NavLink to="/reports">Public reports</NavLink>
-            <NavLink to="/map">Report map</NavLink>
+            <strong>{t('shell.platform')}</strong>
+            <NavLink to="/reports">{t('shell.publicReports')}</NavLink>
+            <NavLink to="/map">{t('shell.reportMap')}</NavLink>
           </div>
           <div>
-            <strong>Take action</strong>
-            <NavLink to="/report">Report an issue</NavLink>
-            <NavLink to="/track">Track with a code</NavLink>
+            <strong>{t('shell.takeAction')}</strong>
+            <NavLink to="/report">{t('shell.reportIssue')}</NavLink>
+            <NavLink to="/track">{t('shell.trackCode')}</NavLink>
           </div>
           <div>
-            <strong>About</strong>
-            <NavLink to="/privacy">Privacy</NavLink>
+            <strong>{t('shell.about')}</strong>
+            <NavLink to="/privacy">{t('shell.privacy')}</NavLink>
             <NavLink to={auth.isAuthenticated ? '/profile' : '/login'}>
-              {auth.isAuthenticated ? 'Your profile' : 'Citizen sign in'}
+              {auth.isAuthenticated ? t('shell.yourProfile') : t('shell.citizenSignIn')}
             </NavLink>
           </div>
         </div>
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} BaladiGuard</span>
-          <span>Verified-phone accounts · Privacy-safe public data</span>
+          <span>{t('shell.footerLegal')}</span>
         </div>
       </footer>
     </div>

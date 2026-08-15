@@ -12,6 +12,7 @@ import {
   type PhoneOtpRequestValues,
 } from '@/schemas/citizenOtpSchema';
 import { CitizenAuthApiError, requestCitizenOtp } from '@/services/api/citizenAuth';
+import { t } from '@/i18n';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose } from '@/types/citizen';
 import { findCountryDialingOption, listCountryDialingOptions } from '@/utils/countryDialing';
@@ -35,10 +36,13 @@ type PhoneEntryFormProps = {
 export function PhoneEntryForm({
   onSuccess,
   purpose = 'LOGIN_OR_SIGNUP',
-  title = 'Sign in with phone',
-  subtitle = 'Enter your mobile number to receive a one-time verification code by SMS. No password needed.',
-  submitLabel = 'Send verification code',
+  title,
+  subtitle,
+  submitLabel,
 }: PhoneEntryFormProps) {
+  const resolvedTitle = title ?? t('auth.phoneTitle');
+  const resolvedSubtitle = subtitle ?? t('auth.phoneSubtitle');
+  const resolvedSubmit = submitLabel ?? t('auth.sendCode');
   const [formError, setFormError] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(null);
   const requestInFlight = useRef(false);
@@ -103,10 +107,10 @@ export function PhoneEntryForm({
   return (
     <View style={styles.container}>
       <Text variant="titleLarge" style={styles.title}>
-        {title}
+        {resolvedTitle}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        {subtitle}
+        {resolvedSubtitle}
       </Text>
 
       {formError ? (
@@ -177,7 +181,7 @@ export function PhoneEntryForm({
         textColor={colors.textInverse}
         testID="request-otp-button"
       >
-        {submitLabel}
+        {resolvedSubmit}
       </Button>
     </View>
   );

@@ -15,6 +15,7 @@ import {
   requestCitizenOtp,
   verifyCitizenOtp,
 } from '@/services/api/citizenAuth';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose, CitizenOtpVerifyResponse } from '@/types/citizen';
 
@@ -48,6 +49,7 @@ export function OtpVerifyForm({
   const [secondsLeft, setSecondsLeft] = useState(expiresIn);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  const { t } = useI18n();
   const requestInFlight = useRef(false);
 
   useEffect(() => {
@@ -144,11 +146,10 @@ export function OtpVerifyForm({
   return (
     <View style={styles.container}>
       <Text variant="titleLarge" style={styles.title}>
-        Enter verification code
+        {t('auth.otpTitle')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        We sent a 6-digit code by SMS to {phone}. Enter it below to continue — it expires in{' '}
-        {formatCountdown(secondsLeft)}.
+        {t('auth.otpSubtitle')} {phone} · {formatCountdown(secondsLeft)}
       </Text>
 
       {formError ? (
@@ -195,7 +196,7 @@ export function OtpVerifyForm({
         textColor={colors.textInverse}
         testID="verify-otp-button"
       >
-        Verify code
+        {t('auth.verify')}
       </Button>
 
       <Button
@@ -208,7 +209,7 @@ export function OtpVerifyForm({
         textColor={colors.brandDark}
         testID="resend-otp-button"
       >
-        {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+        {resendCooldown > 0 ? `${t('auth.resend')} (${resendCooldown}s)` : t('auth.resend')}
       </Button>
     </View>
   );

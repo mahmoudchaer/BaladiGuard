@@ -35,6 +35,11 @@ BaladiGuard provides a centralized platform where citizens can submit reports us
 - Internal staff comments and normalized activity timeline (see `docs/staff-comments-and-activity.md`)
 - Assign and update tickets
 - Monitor complaint locations on a map
+- Arabic, English, and French product UI with RTL support (see `docs/localization.md`)
+
+## Localization
+
+Citizen and staff product chrome can be switched between English, Arabic, and French. Preference is stored on-device (`baladiguard.locale`) and sanitized to those three codes. Citizen-written report text is never translated. Details, ownership, and CI catalog checks are in `docs/localization.md`.
 
 ## Repository Structure
 

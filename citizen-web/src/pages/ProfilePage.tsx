@@ -4,6 +4,8 @@ import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { requestOtp } from '@/services/citizenAuth';
 import { clearDraft, loadDraft } from '@/services/reportDraft';
 import type { TicketUpdatesPreference } from '@/types/citizen';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { t } from '@/i18n';
 
 export function ProfilePage() {
   const auth = useCitizenAuth();
@@ -97,13 +99,15 @@ export function ProfilePage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">YOUR ACCOUNT</span>
-          <h1>Profile</h1>
+          <h1>{t('profile.title')}</h1>
           <p className="lede">Control what you share and how the municipality reaches you.</p>
         </div>
         <div className="avatar-large" aria-hidden>
           {profile.fullName?.[0]?.toUpperCase() || 'B'}
         </div>
       </div>
+      <LanguageSwitcher />
+
       {message ? (
         <div className="notice notice-success" role="status">
           {message}

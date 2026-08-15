@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getHistory, submitResolutionFeedback } from '@/services/contributions';
 import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
+import { t } from '@/i18n';
 
 function label(value: string | null): string {
   if (!value) return 'General report';
@@ -62,7 +63,7 @@ export function HistoryPage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">YOUR ACTIVITY</span>
-          <h1>My reports</h1>
+          <h1>{t('history.title')}</h1>
           <p className="lede">Follow every issue you have shared with the municipality.</p>
         </div>
         <Link className="button" to="/report">

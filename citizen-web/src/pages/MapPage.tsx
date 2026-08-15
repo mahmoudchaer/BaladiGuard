@@ -7,6 +7,7 @@ import {
   type PublicMapViewport,
 } from '@/services/tickets';
 import type { PublicTicketMapViewportResponse } from '@/types/ticket';
+import { t } from '@/i18n';
 
 const CACHE_FRESH_MS = 30_000;
 const CACHE_MAX_ENTRIES = 40;
@@ -100,7 +101,7 @@ export function MapPage() {
         a list? Use the accessible list view.
       </p>
       <Link className="button button-secondary" to="/reports">
-        View as list
+        {t('public.viewAsList')}
       </Link>
 
       {error ? (

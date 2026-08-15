@@ -17,6 +17,7 @@ import {
   saveDraft,
 } from '@/services/reportDraft';
 import type { SubmitTicketResponse } from '@/types/ticket';
+import { t } from '@/i18n';
 
 type Phase = 'idle' | 'validating' | 'uploading' | 'submitting';
 
@@ -261,12 +262,14 @@ export function ReportPage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">NEW REPORT</span>
-          <h1>What needs attention?</h1>
+          <h1>{t('report.title')}</h1>
           <p className="lede">
             A clear photo, location, and short description help the municipality act faster.
           </p>
         </div>
-        <span className="step-chip">{profile ? 'Private submission' : 'Sign in at submit'}</span>
+        <span className="step-chip">
+          {profile ? t('report.privateSubmission') : t('report.signInAtSubmit')}
+        </span>
       </div>
       {restored ? (
         <div className="notice notice-info">

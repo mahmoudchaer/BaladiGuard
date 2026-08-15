@@ -1,0 +1,169 @@
+{
+  "appName": "BaladiGuard",
+  "common": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "loading": "Chargement…",
+    "signIn": "Connexion",
+    "signOut": "Déconnexion",
+    "language": "Langue",
+    "required": "Obligatoire"
+  },
+  "language": {
+    "en": "Anglais",
+    "ar": "Arabe",
+    "fr": "Français",
+    "chooser": "Choisir la langue",
+    "hint": "Cela change la langue de l’application sur cet appareil. Le texte de signalement que vous écrivez n’est pas traduit."
+  },
+  "tabs": {
+    "home": "Accueil",
+    "history": "Mes signalements",
+    "report": "Signaler",
+    "reportHint": "Ouvre le formulaire de nouveau signalement",
+    "explore": "Explorer",
+    "more": "Plus"
+  },
+  "screens": {
+    "newReport": "Nouveau signalement",
+    "track": "Suivre un signalement",
+    "reportLink": "Lien du signalement",
+    "signIn": "Connexion",
+    "profile": "Profil",
+    "privacy": "Avis de confidentialité",
+    "publicReport": "Signalement public"
+  },
+  "auth": {
+    "continueTitle": "Continuer avec votre téléphone",
+    "continueSubtitle": "Nous vous reconnecterons au compte lié à ce numéro. Si c’est votre première fois, un compte est créé automatiquement — aucun mot de passe.",
+    "phoneTitle": "Connexion par téléphone",
+    "phoneSubtitle": "Entrez votre numéro mobile pour recevoir un code de vérification unique par SMS. Aucun mot de passe n’est requis.",
+    "sendCode": "Envoyer le code",
+    "nationalPlaceholder": "Numéro national",
+    "invalidPhone": "Entrez un numéro de téléphone valide.",
+    "sendFailed": "Impossible d’envoyer un code.",
+    "otpTitle": "Entrez le code de vérification",
+    "otpSubtitle": "Nous avons envoyé un code à 6 chiffres par SMS.",
+    "verify": "Vérifier le code",
+    "resend": "Renvoyer le code"
+  },
+  "more": {
+    "title": "Plus",
+    "yourProfile": "Votre profil",
+    "manageAccount": "Gérer votre compte",
+    "account": "COMPTE",
+    "profileNotifications": "Profil et notifications",
+    "privacy": "Confidentialité",
+    "privacyDetail": "Comment vos informations sont protégées",
+    "reports": "SIGNALEMENTS",
+    "trackCode": "Suivre avec un code",
+    "communityMap": "Carte communautaire",
+    "signOutTitle": "Se déconnecter ?",
+    "signOutBody": "Effacer le brouillon de signalement sur cet appareil, ou le conserver pour la prochaine connexion avec ce compte.",
+    "keepDraft": "Garder le brouillon et se déconnecter",
+    "clearDraft": "Effacer le brouillon et se déconnecter",
+    "version": "BaladiGuard · Services citoyens"
+  },
+  "profile": {
+    "loading": "Chargement du profil…",
+    "empty": "Aucun profil n’est disponible pour cette session.",
+    "unableLoad": "Impossible de charger votre profil. Veuillez vous reconnecter.",
+    "unableRefresh": "Impossible d’actualiser votre profil pour le moment.",
+    "offlineSuffix": "Affichage du dernier profil enregistré sur cet appareil.",
+    "refreshing": "Actualisation…",
+    "refresh": "Actualiser le profil",
+    "phoneUpdated": "Téléphone mis à jour : {phone}."
+  },
+  "status": {
+    "SUBMITTED": "Soumis",
+    "UNDER_REVIEW": "En examen",
+    "ASSIGNED": "Assigné",
+    "IN_PROGRESS": "En cours",
+    "RESOLVED": "Résolu",
+    "CLOSED": "Clôturé",
+    "pendingCategory": "Catégorie en attente"
+  },
+  "statusMeaning": {
+    "SUBMITTED": "Votre signalement a été reçu et est en file d’examen.",
+    "UNDER_REVIEW": "Un agent examine le signalement avant de l’orienter.",
+    "ASSIGNED": "Un service a pris en charge ce signalement.",
+    "IN_PROGRESS": "L’équipe assignée travaille sur le problème.",
+    "RESOLVED": "Le problème a été marqué comme résolu.",
+    "CLOSED": "Ce signalement a été clôturé.",
+    "unknown": "Les détails du statut ne sont pas disponibles."
+  },
+  "category": {
+    "road_damage": "Dégâts routiers",
+    "waste": "Déchets",
+    "street_lighting": "Éclairage public",
+    "water_leak": "Fuite d’eau",
+    "noise": "Bruit",
+    "sidewalk_damage": "Dégâts de trottoir",
+    "traffic_signal": "Feu de circulation",
+    "drainage": "Drainage",
+    "public_facilities": "Équipements publics"
+  },
+  "errors": {
+    "generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "network": "Vous semblez hors ligne. Vérifiez la connexion et réessayez.",
+    "notFound": "Nous n’avons pas trouvé ce signalement.",
+    "validation": "Veuillez corriger les champs indiqués."
+  },
+  "report": {
+    "stepDetails": "Signaler un problème",
+    "stepPhoto": "Ajouter une photo",
+    "stepLocation": "Où est-ce ?",
+    "stepReview": "Vérifiez votre signalement",
+    "stepDetailsSubtitle": "Décrivez un problème d’infrastructure dans votre quartier. Cela ne prend qu’une minute.",
+    "stepPhotoSubtitle": "Une photo nette aide les équipes à confirmer et prioriser le problème.",
+    "stepLocationSubtitle": "Nous l’utilisons pour orienter votre signalement vers le bon service.",
+    "stepReviewSubtitle": "Vérifiez que tout est correct, puis envoyez.",
+    "continue": "Continuer",
+    "submit": "Envoyer le signalement",
+    "retrySubmit": "Réessayer l’envoi",
+    "backToReview": "Retour à la vérification",
+    "uploadingPhoto": "Envoi de la photo...",
+    "submittingReport": "Envoi du signalement..."
+  },
+  "track": {
+    "title": "Suivre un signalement",
+    "subtitle": "Entrez le code de suivi à 6 caractères de votre confirmation. Nous le recherchons directement, sans connexion du personnel.",
+    "codeLabel": "Code de suivi",
+    "lookUp": "Rechercher le signalement",
+    "lookingUp": "Recherche...",
+    "lookingUpLong": "Recherche de votre signalement...",
+    "tryAgain": "Réessayer",
+    "found": "Signalement trouvé",
+    "whatThisMeans": "Ce que cela signifie",
+    "category": "Catégorie",
+    "location": "Lieu",
+    "submitted": "Soumis",
+    "lastUpdated": "Dernière mise à jour",
+    "department": "Service",
+    "hint": "Votre code de suivi a été affiché sur l’écran de confirmation lors de l’envoi."
+  },
+  "nextAction": {
+    "SUBMITTED": "Votre signalement a été reçu et sera examiné par le personnel municipal.",
+    "UNDER_REVIEW": "Le personnel examine les détails et la catégorie du signalement.",
+    "ASSIGNED": "Le service responsable a été assigné et planifiera la suite.",
+    "IN_PROGRESS": "L’équipe assignée travaille sur le problème et mettra à jour le statut.",
+    "RESOLVED": "Le problème a été marqué comme résolu. Aucune autre action n’est attendue.",
+    "CLOSED": "Ce signalement est clôturé et conservé dans vos dossiers.",
+    "unknown": "Revenez plus tard pour la prochaine mise à jour."
+  },
+  "explore": {
+    "title": "Explorer",
+    "empty": "Les signalements publics apparaîtront ici après l’examen de confidentialité.",
+    "emptyMap": "Aucun emplacement cartographiable dans les résultats actuels. Utilisez la liste ci-dessous."
+  },
+  "a11y": {
+    "goBack": "Retour",
+    "openProfile": "Ouvrir le profil",
+    "languageGroup": "Langue de l’application",
+    "statusWithLabel": "Statut : {status}",
+    "urgencyWithLabel": "Urgence : {urgency}"
+  }
+}

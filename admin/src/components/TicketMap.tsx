@@ -237,7 +237,7 @@ function DetailTicketMap({ tickets }: { tickets: Ticket[] }) {
 
   if (tickets.length === 0) {
     return (
-      <div className="ticket-map ticket-map--empty" data-testid="ticket-map">
+      <div className="ticket-map ticket-map--empty ltr-isolate" dir="ltr" data-testid="ticket-map">
         <p className="ticket-map__empty-message">
           No tickets with map coordinates to display right now.
         </p>
@@ -246,7 +246,7 @@ function DetailTicketMap({ tickets }: { tickets: Ticket[] }) {
   }
 
   return (
-    <div className="ticket-map ticket-map--detail" data-testid="ticket-map">
+    <div className="ticket-map ticket-map--detail ltr-isolate" dir="ltr" data-testid="ticket-map">
       <MapContainer
         center={[BEIRUT_CENTER.latitude, BEIRUT_CENTER.longitude]}
         zoom={singleZoom}
@@ -331,7 +331,7 @@ function OverviewTicketMap({
   const hasContent = markers.length > 0 || clusters.length > 0;
 
   return (
-    <div className="ticket-map" data-testid="ticket-map">
+    <div className="ticket-map ltr-isolate" dir="ltr" data-testid="ticket-map">
       <div className="ticket-map__legend" aria-label="Map legend">
         <p className="ticket-map__legend-title">Map layers</p>
         <div className="ticket-map__legend-toggle" role="group" aria-label="Color pins by">

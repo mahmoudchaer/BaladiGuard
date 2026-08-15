@@ -5,6 +5,7 @@ import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
 import { PublicReportFilters } from '@/features/public-browse/PublicReportFilters';
@@ -27,6 +28,7 @@ const DEFAULT_FILTERS: PublicBrowseFilters = { status: 'ALL', category: 'ALL' };
 
 export default function ExploreScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const { isAuthenticated } = useCitizenAuth();
   const [reports, setReports] = useState<PublicTicketResponse[]>([]);
   const [filters, setFilters] = useState<PublicBrowseFilters>(DEFAULT_FILTERS);
@@ -83,7 +85,7 @@ export default function ExploreScreen() {
         <View style={styles.header}>
           <Text style={styles.overline}>COMMUNITY</Text>
           <Text style={styles.title} accessibilityRole="header">
-            Explore
+            {t('explore.title')}
           </Text>
           <Text style={styles.subtitle}>
             See what your community has reported and how the municipality is responding.
@@ -122,7 +124,7 @@ export default function ExploreScreen() {
         {!loading && !error && reports.length === 0 ? (
           <View style={styles.empty} testID="explore-empty">
             <Text style={styles.emptyTitle}>No published reports yet</Text>
-            <Text style={styles.muted}>Public reports will appear here after privacy review.</Text>
+            <Text style={styles.muted}>{t('explore.empty')}</Text>
           </View>
         ) : null}
         {!loading && !error && reports.length > 0 ? (

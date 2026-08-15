@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { t } from '@/i18n';
 import { LoadingState } from '@/components/LoadingState';
 import { DEPARTMENT_NAMES } from '@/data/departments';
 import { useStaffAuth } from '@/auth/useStaffAuth';
@@ -355,7 +356,7 @@ export function WorkforcePage() {
                               onChange={setEditWorkerDepartments}
                             />
                             <div className="workforce-form__actions">
-                              <button type="submit">Save worker</button>
+                              <button type="submit">{t('workforce.saveWorker')}</button>
                               <button type="button" onClick={() => setEditingWorkerId(null)}>
                                 Cancel
                               </button>
@@ -479,7 +480,7 @@ export function WorkforcePage() {
                               ))}
                             </fieldset>
                             <div className="workforce-form__actions">
-                              <button type="submit">Save team</button>
+                              <button type="submit">{t('workforce.saveTeam')}</button>
                               <button type="button" onClick={() => setEditingTeamId(null)}>
                                 Cancel
                               </button>
@@ -520,7 +521,7 @@ export function WorkforcePage() {
         {loadState === 'ready' && tab === 'workload' && workload && (
           <div className="workforce-page__grid">
             <section className="workforce-card">
-              <h2>Unassigned</h2>
+              <h2>{t('workforce.unassigned')}</h2>
               <p>{countLine(workload.unassigned)}</p>
               <ul>
                 {workload.unassignedTickets.map((ticket) => (

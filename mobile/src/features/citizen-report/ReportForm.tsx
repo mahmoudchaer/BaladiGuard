@@ -36,13 +36,13 @@ import {
   type ReportDraftSubmissionState,
 } from '@/services/reportDraft';
 import { checkLocalPhotoUri, PHOTO_REFERENCE_EXPIRED_MESSAGE } from '@/services/photoReference';
+import { t } from '@/i18n';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
-const submitPhaseLabels: Record<SubmitReportPhase, string> = {
-  'uploading-photo': 'Uploading photo...',
-  'submitting-report': 'Submitting report...',
-};
+function submitPhaseLabel(phase: SubmitReportPhase): string {
+  return phase === 'submitting-report' ? t('report.submittingReport') : t('report.uploadingPhoto');
+}
 
 /** Fields validated before a step is allowed to advance. */
 const STEP_FIELDS: Record<ReportWizardStepKey, Array<keyof ReportFormValues>> = {
@@ -52,18 +52,18 @@ const STEP_FIELDS: Record<ReportWizardStepKey, Array<keyof ReportFormValues>> = 
   review: [],
 };
 
-const STEP_TITLES: Record<ReportWizardStepKey, string> = {
-  details: 'Report an issue',
-  photo: 'Add a photo',
-  location: 'Where is it?',
-  review: 'Review your report',
+const STEP_TITLE_KEYS: Record<ReportWizardStepKey, string> = {
+  details: 'report.stepDetails',
+  photo: 'report.stepPhoto',
+  location: 'report.stepLocation',
+  review: 'report.stepReview',
 };
 
-const STEP_SUBTITLES: Record<ReportWizardStepKey, string> = {
-  details: 'Tell us about an infrastructure problem in your area. It only takes a minute.',
-  photo: 'A clear photo helps crews confirm and prioritize the issue.',
-  location: 'We use this to route your report to the right department.',
-  review: 'Make sure everything looks right, then send it in.',
+const STEP_SUBTITLE_KEYS: Record<ReportWizardStepKey, string> = {
+  details: 'report.stepDetailsSubtitle',
+  photo: 'report.stepPhotoSubtitle',
+  location: 'report.stepLocationSubtitle',
+  review: 'report.stepReviewSubtitle',
 };
 
 const DRAFT_SAVE_DEBOUNCE_MS = 450;
@@ -407,10 +407,10 @@ export function ReportForm() {
     <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <Text variant="headlineMedium" style={styles.title}>
-          {STEP_TITLES[step]}
+          {t(STEP_TITLE_KEYS[step])}
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          {STEP_SUBTITLES[step]}
+          {t(STEP_SUBTITLE_KEYS[step])}
         </Text>
       </View>
 
@@ -532,7 +532,7 @@ export function ReportForm() {
             contentStyle={styles.navButtonContent}
             textColor={colors.brandDark}
           >
-            Back
+            {t('common.back')}
           </Button>
         ) : null}
 
@@ -549,13 +549,13 @@ export function ReportForm() {
               <View style={styles.submittingContent}>
                 <ActivityIndicator animating color={colors.textInverse} />
                 <Text style={styles.submittingText}>
-                  {submitPhaseLabels[submitPhase ?? 'uploading-photo']}
+                  {submitPhaseLabel(submitPhase ?? 'uploading-photo')}
                 </Text>
               </View>
             ) : submitError ? (
-              'Retry submit'
+              t('report.retrySubmit')
             ) : (
-              'Submit report'
+              t('report.submit')
             )}
           </Button>
         ) : (
@@ -568,7 +568,7 @@ export function ReportForm() {
             style={[styles.navButton, styles.primaryNavButton]}
             contentStyle={styles.navButtonContent}
           >
-            {returnToReview ? 'Back to review' : 'Continue'}
+            {returnToReview ? t('report.backToReview') : t('report.continue')}
           </Button>
         )}
       </View>

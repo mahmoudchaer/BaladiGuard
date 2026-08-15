@@ -31,6 +31,17 @@ body {
   font-optical-sizing: auto;
 }
 
+html[dir='rtl'] body {
+  text-align: start;
+}
+
+.ltr-isolate,
+.leaflet-container,
+.map-frame {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 a {
   color: var(--brand-dark);
 }

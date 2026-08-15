@@ -1,0 +1,133 @@
+{
+  "appName": "BaladiGuard",
+  "common": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "loading": "Chargement…",
+    "signIn": "Connexion",
+    "signOut": "Déconnexion",
+    "language": "Langue",
+    "required": "Obligatoire",
+    "lookUp": "Rechercher",
+    "lookingUp": "Recherche…"
+  },
+  "language": {
+    "en": "Anglais",
+    "ar": "Arabe",
+    "fr": "Français",
+    "chooser": "Choisir la langue",
+    "hint": "Cela change la langue du site sur cet appareil. Le texte de signalement que vous écrivez n’est pas traduit."
+  },
+  "shell": {
+    "subtitle": "Signalements citoyens",
+    "home": "Accueil",
+    "explore": "Explorer",
+    "myReports": "Mes signalements",
+    "newReport": "Nouveau signalement",
+    "openProfile": "Ouvrir le profil",
+    "mainNav": "Principal",
+    "homeAria": "Accueil BaladiGuard",
+    "platform": "Plateforme",
+    "publicReports": "Signalements publics",
+    "reportMap": "Carte des signalements",
+    "takeAction": "Agir",
+    "reportIssue": "Signaler un problème",
+    "trackCode": "Suivre avec un code",
+    "about": "À propos",
+    "privacy": "Confidentialité",
+    "yourProfile": "Votre profil",
+    "citizenSignIn": "Connexion citoyen",
+    "footerTagline": "Conçu pour un signalement civique plus clair et plus sûr.",
+    "footerLegal": "Comptes à téléphone vérifié · Données publiques respectueuses de la vie privée"
+  },
+  "home": {
+    "heroLine1": "Votre ville,",
+    "heroLine2": "à portée de main.",
+    "browsePublic": "Parcourir les signalements publics →"
+  },
+  "auth": {
+    "hero": "Privé par conception",
+    "eyebrow": "ACCÈS CITOYEN",
+    "phoneTitle": "Votre ville, à portée de main.",
+    "otpTitle": "Vérifiez votre téléphone.",
+    "phoneLede": "Connectez-vous ou créez un compte avec un numéro vérifié. Aucun mot de passe.",
+    "otpLede": "Nous avons envoyé un code à six chiffres à {phone}.",
+    "country": "Pays",
+    "phone": "Numéro de téléphone",
+    "continue": "Continuer",
+    "sending": "Envoi…",
+    "code": "Code de vérification",
+    "verify": "Vérifier et continuer",
+    "verifying": "Vérification…",
+    "changeNumber": "Changer de numéro",
+    "resend": "Renvoyer le code",
+    "invalidPhone": "Entrez un numéro de téléphone valide.",
+    "invalidCode": "Entrez le code de vérification à six chiffres.",
+    "sendFailed": "Impossible d’envoyer un code.",
+    "incorrect": "Ce code est incorrect. Réessayez.",
+    "expired": "Ce code a expiré. Demandez-en un nouveau.",
+    "verifyFailed": "Impossible de vérifier ce code.",
+    "privacyNote": "Votre téléphone confirme la propriété du compte. Le nom et l’e-mail restent facultatifs."
+  },
+  "track": {
+    "title": "Suivre un signalement",
+    "subtitle": "Entrez le code de suivi à 6 caractères de votre confirmation. Nous le recherchons sans compte.",
+    "codeLabel": "Code de suivi",
+    "hint": "Votre code de suivi a été affiché sur l’écran de confirmation lors de l’envoi.",
+    "codeValue": "Code de suivi : {code}"
+  },
+  "report": {
+    "signInAtSubmit": "Connexion à l’envoi",
+    "privateSubmission": "Envoi privé",
+    "title": "Que faut-il signaler ?"
+  },
+  "history": {
+    "title": "Mes signalements",
+    "eyebrow": "VOTRE ACTIVITÉ"
+  },
+  "profile": {
+    "title": "Profil",
+    "eyebrow": "VOTRE COMPTE"
+  },
+  "public": {
+    "title": "Signalements publics",
+    "next": "Suivant →",
+    "viewAsList": "Voir en liste"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "browse": "Parcourir les signalements publics"
+  },
+  "status": {
+    "SUBMITTED": "Soumis",
+    "UNDER_REVIEW": "En examen",
+    "ASSIGNED": "Assigné",
+    "IN_PROGRESS": "En cours",
+    "RESOLVED": "Résolu",
+    "CLOSED": "Clôturé"
+  },
+  "category": {
+    "road_damage": "Dégâts routiers",
+    "waste": "Déchets",
+    "street_lighting": "Éclairage public",
+    "water_leak": "Fuite d’eau",
+    "noise": "Bruit",
+    "sidewalk_damage": "Dégâts de trottoir",
+    "traffic_signal": "Feu de circulation",
+    "drainage": "Drainage",
+    "public_facilities": "Équipements publics"
+  },
+  "errors": {
+    "generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "notFound": "Nous n’avons pas trouvé ce signalement.",
+    "validation": "Veuillez corriger les champs indiqués."
+  },
+  "a11y": {
+    "languageGroup": "Langue de l’application",
+    "statusWithLabel": "Statut : {status}",
+    "urgencyWithLabel": "Urgence : {urgency}"
+  }
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
+import { t } from '@/i18n';
 import { getHistory } from '@/services/contributions';
 import type { CitizenTicketHistoryItem } from '@/types/ticket';
 
@@ -112,9 +113,9 @@ function PublicHome() {
         <div>
           <span className="eyebrow">WELCOME TO BALADIGUARD</span>
           <h1>
-            Your city,
+            {t('home.heroLine1')}
             <br />
-            within reach.
+            {t('home.heroLine2')}
           </h1>
           <p className="lede">
             Report what needs attention and follow the municipality’s response from one place.
@@ -164,7 +165,7 @@ function PublicHome() {
         </div>
         <div className="button-row">
           <Link className="button" to="/reports">
-            Browse public reports →
+            {t('home.browsePublic')}
           </Link>
           <Link className="button button-secondary" to="/map">
             Open the map

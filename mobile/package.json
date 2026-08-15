@@ -13,7 +13,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales",
+    "test": "npm run check:i18n && vitest run"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -8,6 +8,7 @@ import { sanitizeReturnTo } from '@/auth/returnTo';
 import { BrandMark, BrandStripe } from '@/components/BrandMark';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, spacing } from '@/theme';
 import type { CitizenOtpVerifyResponse } from '@/types/citizen';
 
@@ -17,6 +18,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = useMemo(() => sanitizeReturnTo(params.returnTo), [params.returnTo]);
+  const { t } = useI18n();
   const { applyVerifyResponse, contributionReady, isAuthenticated, isLoading } = useCitizenAuth();
 
   const [challenge, setChallenge] = useState<ChallengeState>(null);
@@ -65,8 +67,8 @@ export default function LoginScreen() {
           ) : (
             <PhoneEntryForm
               onSuccess={setChallenge}
-              title="Continue with your phone"
-              subtitle="We’ll sign you back into the account linked to this number. If it’s your first time, an account is created automatically — no password required."
+              title={t('auth.continueTitle')}
+              subtitle={t('auth.continueSubtitle')}
             />
           )}
         </View>

@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View, Text as RNText } from '
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { Button, Text } from 'react-native-paper';
 
+import { t } from '@/i18n';
 import { StatusChip } from '@/components/StatusChip';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
@@ -90,7 +91,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
     return (
       <View style={styles.emptyMap} testID="public-map-empty">
         <Text variant="bodyMedium" style={styles.emptyMapText}>
-          No mappable locations in the current public results. Use the list below.
+          {t('explore.emptyMap')}
         </Text>
       </View>
     );
@@ -218,6 +219,8 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
 
 const styles = StyleSheet.create({
   mapWrap: {
+    // Keep geographic orientation LTR even when the app chrome is RTL (#259).
+    direction: 'ltr',
     borderRadius: radii.lg,
     overflow: 'hidden',
     backgroundColor: colors.surface,

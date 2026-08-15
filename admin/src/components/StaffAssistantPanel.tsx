@@ -15,6 +15,7 @@ import {
   buildTicketListPath,
 } from '@/utils/dashboardNavigation';
 import type { TicketPriority, TicketStatus } from '@/types/ticket';
+import { t } from '@/i18n';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import './StaffAssistantPanel.css';
 
@@ -178,15 +179,12 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
       <header className="staff-assistant-panel__header">
         <div>
           <h2 id={titleId} className="staff-assistant-panel__title">
-            Staff assistant
+            {t('assistant.title')}
           </h2>
-          <p className="staff-assistant-panel__subtitle">
-            Ask about urgent tickets or repeated problem areas. Answers stay grounded in your
-            visible records.
-          </p>
+          <p className="staff-assistant-panel__subtitle">{t('assistant.subtitle')}</p>
         </div>
         <button type="button" className="staff-assistant-panel__close" onClick={onClose}>
-          Close
+          {t('common.close')}
         </button>
       </header>
 
@@ -198,7 +196,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
           }}
         >
           <label className="staff-assistant-panel__label" htmlFor={inputId}>
-            Ask a supported question
+            {t('assistant.askLabel')}
           </label>
           <input
             ref={inputRef}
@@ -214,7 +212,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
         <div
           className="staff-assistant-panel__suggestions"
           role="group"
-          aria-label="Suggested questions"
+          aria-label={t('assistant.suggestions')}
         >
           {SUGGESTIONS.map((suggestion) => (
             <button
@@ -242,7 +240,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
               className="staff-assistant-panel__retry"
               onClick={() => void ask(question)}
             >
-              Try again
+              {t('common.tryAgain')}
             </button>
           </div>
         )}

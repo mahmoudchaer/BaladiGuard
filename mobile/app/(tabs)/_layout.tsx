@@ -3,10 +3,12 @@ import { Icon, Text } from 'react-native-paper';
 import { Tabs, useRouter, type Href } from 'expo-router';
 
 import { useCitizenAuth } from '@/auth';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors } from '@/theme';
 
 export default function CitizenTabsLayout() {
   const router = useRouter();
+  const { t } = useI18n();
   const { isAuthenticated, isLoading } = useCitizenAuth();
   const showTabs = !isLoading && isAuthenticated;
 
@@ -25,16 +27,16 @@ export default function CitizenTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarAccessibilityLabel: 'Home',
+          title: t('tabs.home'),
+          tabBarAccessibilityLabel: t('tabs.home'),
           tabBarIcon: ({ color }) => <Icon source="home-outline" size={23} color={String(color)} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'My Reports',
-          tabBarAccessibilityLabel: 'My Reports',
+          title: t('tabs.history'),
+          tabBarAccessibilityLabel: t('tabs.history'),
           tabBarIcon: ({ color }) => (
             <Icon source="text-box-outline" size={23} color={String(color)} />
           ),
@@ -43,20 +45,20 @@ export default function CitizenTabsLayout() {
       <Tabs.Screen
         name="report-action"
         options={{
-          title: 'Report',
-          tabBarAccessibilityLabel: 'Report',
+          title: t('tabs.report'),
+          tabBarAccessibilityLabel: t('tabs.report'),
           tabBarButton: () => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Report"
-              accessibilityHint="Opens the new report form"
+              accessibilityLabel={t('tabs.report')}
+              accessibilityHint={t('tabs.reportHint')}
               onPress={() => router.push('/report' as Href)}
               style={({ pressed }) => [styles.reportButton, pressed && styles.reportPressed]}
             >
               <View style={styles.reportIcon}>
                 <Icon source="plus" size={18} color={colors.textInverse} />
               </View>
-              <Text style={styles.reportLabel}>Report</Text>
+              <Text style={styles.reportLabel}>{t('tabs.report')}</Text>
             </Pressable>
           ),
         }}
@@ -64,16 +66,16 @@ export default function CitizenTabsLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Explore',
-          tabBarAccessibilityLabel: 'Explore',
+          title: t('tabs.explore'),
+          tabBarAccessibilityLabel: t('tabs.explore'),
           tabBarIcon: ({ color }) => <Icon source="map-outline" size={23} color={String(color)} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
-          title: 'More',
-          tabBarAccessibilityLabel: 'More',
+          title: t('tabs.more'),
+          tabBarAccessibilityLabel: t('tabs.more'),
           tabBarIcon: ({ color }) => (
             <Icon source="dots-horizontal" size={23} color={String(color)} />
           ),

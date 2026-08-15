@@ -50,7 +50,7 @@ function clusterIcon(count: number) {
 
 export function PublicReportsMap({ data, onViewportChange }: PublicReportsMapProps) {
   return (
-    <div className="map-frame" data-testid="public-map">
+    <div className="map-frame ltr-isolate" dir="ltr" data-testid="public-map">
       <MapContainer
         center={[DEFAULT_PUBLIC_MAP_REGION.latitude, DEFAULT_PUBLIC_MAP_REGION.longitude]}
         zoom={12}
