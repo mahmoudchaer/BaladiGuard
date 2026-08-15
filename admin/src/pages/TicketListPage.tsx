@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket } from '@/types/ticket';
 import type { TicketAggregates } from '@/types/ticketCollection';
 import {
@@ -151,7 +151,7 @@ export function TicketListPage() {
   const requestGeneration = useRef(0);
   const cursorHistoryRef = useRef<(string | null)[]>([]);
 
-  const applyNavigationFilters = useCallback((filters: DashboardNavigationFilters) => {
+  function applyNavigationFilters(filters: DashboardNavigationFilters) {
     setStatusFilter((filters.status as StatusFilter) ?? 'ALL');
     setCategoryFilter(filters.category ?? 'ALL');
     setUrgencyFilter(
@@ -171,7 +171,7 @@ export function TicketListPage() {
     setCursor(null);
     cursorHistoryRef.current = [];
     setCanGoPrevious(false);
-  }, []);
+  }
 
   const stateFilters = useMemo(
     () => ({

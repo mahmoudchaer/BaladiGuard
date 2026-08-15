@@ -22,7 +22,10 @@ export function useDashboardLocationSync(
   const prevLocationRef = useRef(locationKey);
   const selfWriteRef = useRef(false);
   const applyRef = useRef(applyFilters);
-  applyRef.current = applyFilters;
+
+  useEffect(() => {
+    applyRef.current = applyFilters;
+  }, [applyFilters]);
 
   useEffect(() => {
     const locationChanged = prevLocationRef.current !== locationKey;

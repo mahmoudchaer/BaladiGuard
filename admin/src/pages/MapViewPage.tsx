@@ -87,7 +87,7 @@ export function MapViewPage() {
   const hasLoaded = useRef(false);
   const requestGeneration = useRef(0);
 
-  const applyNavigationFilters = useCallback((filters: DashboardNavigationFilters) => {
+  function applyNavigationFilters(filters: DashboardNavigationFilters) {
     setStatusFilter((filters.status as StatusFilter) ?? 'ALL');
     setCategoryFilter(filters.category ?? 'ALL');
     setUrgencyFilter(
@@ -111,7 +111,7 @@ export function MapViewPage() {
     } else {
       setPersistBounds(false);
     }
-  }, []);
+  }
 
   const stateFilters = useMemo(
     () => ({
