@@ -174,4 +174,5 @@ def test_citizen_ticket_response_serializes_only_public_tracking_fields():
             {"status": "SUBMITTED", "changedAt": "2026-08-12T09:30:00Z"},
             {"status": "IN_PROGRESS", "changedAt": "2026-08-12T11:30:00Z"},
         ],
+        "outcomeMessage": None,
     }
