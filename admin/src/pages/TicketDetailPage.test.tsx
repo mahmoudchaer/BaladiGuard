@@ -15,6 +15,7 @@ import {
   fetchTicketById,
   mergeDuplicateTickets,
   updateTicketStatus,
+  fetchImageRedactionReview,
 } from '@/services/tickets';
 import { createTicketWorkOrder, listTicketWorkOrders } from '@/services/workOrders';
 import { renderWithProviders } from '@/test/render';
@@ -39,6 +40,7 @@ vi.mock('@/services/tickets', () => ({
   createTicketComment: vi.fn(),
   fetchTicketActivity: vi.fn(),
   fetchTicketComments: vi.fn(),
+  fetchImageRedactionReview: vi.fn(),
 }));
 
 vi.mock('@/services/workforce', () => ({
@@ -184,6 +186,7 @@ beforeEach(() => {
   vi.mocked(fetchDuplicateComparison).mockResolvedValue(buildComparison());
   vi.mocked(fetchTicketActivity).mockResolvedValue({ events: [], nextCursor: null });
   vi.mocked(fetchTicketComments).mockResolvedValue([]);
+  vi.mocked(fetchImageRedactionReview).mockResolvedValue(null);
 });
 
 describe('TicketDetailPage states', () => {

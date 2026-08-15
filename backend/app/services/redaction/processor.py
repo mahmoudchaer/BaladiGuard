@@ -40,6 +40,7 @@ class ProcessingResult:
     plate_count: int
     minimum_confidence: float | None
     reason_code: str | None = None
+    regions: tuple[dict[str, object], ...] = ()
 
 
 class ImageRedactionProcessor:
@@ -85,9 +86,85 @@ class ImageRedactionProcessor:
         low_confidence = any(
             d.confidence < self.settings.image_redaction_auto_confidence for d in valid
         )
-        blurred = _blur(
+        derivative_key = self._write_derivative(
             image,
             valid,
+            ticket_id=ticket_id,
+            generation=generation,
+            fingerprint=fingerprint,
+            approval_state="review-required" if low_confidence else "approved",
+        )
+        return ProcessingResult(
+            status="review_required" if low_confidence else "completed",
+            derivative_key=derivative_key,
+            source_fingerprint=fingerprint,
+            detector=self.detector.name,
+            detector_version=self.detector.version,
+            face_count=sum(d.kind == "face" for d in valid),
+            plate_count=sum(d.kind == "plate" for d in valid),
+            minimum_confidence=minimum,
+            reason_code="LOW_CONFIDENCE" if low_confidence else None,
+            regions=tuple(_region_payload(item) for item in valid),
+        )
+
+    def apply_manual_regions(
+        self,
+        *,
+        ticket_id: str,
+        source_key: str,
+        generation: int,
+        regions: list[Detection],
+    ) -> ProcessingResult:
+        """Blur the original with auto + staff regions; never mutates the original object."""
+        if not regions:
+            raise InvalidSourceImageError("MANUAL_REGIONS_REQUIRED")
+        bucket = self.settings.aws_s3_bucket
+        if not bucket:
+            raise RedactionStorageError("STORAGE_NOT_CONFIGURED")
+        self._verify_ticket_binding(bucket, source_key, ticket_id)
+        try:
+            source = self.s3.get_object(Bucket=bucket, Key=source_key)["Body"].read()
+        except (BotoCoreError, ClientError, KeyError, AttributeError) as exc:
+            raise RedactionStorageError("ORIGINAL_READ_FAILED") from exc
+        fingerprint = hashlib.sha256(source).hexdigest()
+        image, _detector_bytes = _normalize(source)
+        if not all(_valid_detection(detection) for detection in regions):
+            raise InvalidSourceImageError("INVALID_MANUAL_REGION")
+        derivative_key = self._write_derivative(
+            image,
+            regions,
+            ticket_id=ticket_id,
+            generation=generation,
+            fingerprint=fingerprint,
+            approval_state="review-required",
+        )
+        return ProcessingResult(
+            status="review_required",
+            derivative_key=derivative_key,
+            source_fingerprint=fingerprint,
+            detector="staff-manual",
+            detector_version="v1",
+            face_count=sum(d.kind == "face" for d in regions),
+            plate_count=sum(d.kind == "plate" for d in regions),
+            minimum_confidence=min((d.confidence for d in regions), default=None),
+            reason_code="MANUAL_CORRECTION",
+            regions=tuple(_region_payload(item) for item in regions),
+        )
+
+    def _write_derivative(
+        self,
+        image: Image.Image,
+        detections: list[Detection],
+        *,
+        ticket_id: str,
+        generation: int,
+        fingerprint: str,
+        approval_state: str,
+    ) -> str:
+        bucket = self.settings.aws_s3_bucket
+        blurred = _blur(
+            image,
+            detections,
             padding=self.settings.image_redaction_box_padding,
             radius=self.settings.image_redaction_blur_radius,
         )
@@ -109,25 +186,14 @@ class ImageRedactionProcessor:
                         "asset-class": "redacted-derivative",
                         "ticket-scope": PhotoUploadService.ticket_scope(ticket_id),
                         "generation": str(generation),
-                        "approval-state": "review-required" if low_confidence else "approved",
+                        "approval-state": approval_state,
                     }
                 ),
                 Metadata={"metadata-stripped": "true", "source-sha256": fingerprint},
             )
         except (BotoCoreError, ClientError) as exc:
             raise RedactionStorageError("DERIVATIVE_WRITE_FAILED") from exc
-
-        return ProcessingResult(
-            status="review_required" if low_confidence else "completed",
-            derivative_key=derivative_key,
-            source_fingerprint=fingerprint,
-            detector=self.detector.name,
-            detector_version=self.detector.version,
-            face_count=sum(d.kind == "face" for d in valid),
-            plate_count=sum(d.kind == "plate" for d in valid),
-            minimum_confidence=minimum,
-            reason_code="LOW_CONFIDENCE" if low_confidence else None,
-        )
+        return derivative_key
 
     def _verify_ticket_binding(self, bucket: str, source_key: str, ticket_id: str) -> None:
         if not source_key.startswith("reports/photos/v2/"):
@@ -176,7 +242,7 @@ def _valid_detection(detection: Detection) -> bool:
         box = detection.box
         values = (detection.confidence, box.left, box.top, box.width, box.height)
         return (
-            detection.kind in {"face", "plate"}
+            detection.kind in {"face", "plate", "manual"}
             and all(math.isfinite(value) for value in values)
             and 0 <= detection.confidence <= 100
             and box.width > 0
@@ -207,6 +273,17 @@ def _blur(image: Image.Image, detections: list[Detection], *, padding: float, ra
         effective_radius = max(radius, min(region.size) / 5)
         result.paste(region.filter(ImageFilter.GaussianBlur(effective_radius)), (left, top))
     return result
+
+
+def _region_payload(detection: Detection) -> dict[str, object]:
+    return {
+        "kind": detection.kind,
+        "confidence": detection.confidence,
+        "left": detection.box.left,
+        "top": detection.box.top,
+        "width": detection.box.width,
+        "height": detection.box.height,
+    }
 
 
 def _metadata_free_jpeg(image: Image.Image) -> bytes:

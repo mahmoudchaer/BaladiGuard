@@ -26,7 +26,7 @@ class TicketListFilters:
 
     status: TicketStatus | None = None
     category: str | None = None
-    urgency: ReportPriority | None = None
+    urgency: tuple[ReportPriority, ...] | None = None
     department_id: str | None = None
     sla_state: str | None = None
     assignment_state: Literal["assigned", "unassigned"] | None = None
@@ -66,7 +66,7 @@ def parse_ticket_list_filters(
     errors: list[TicketListFilterValidationError] = []
     parsed_status: TicketStatus | None = None
     parsed_category: str | None = None
-    parsed_urgency: ReportPriority | None = None
+    parsed_urgency: tuple[ReportPriority, ...] | None = None
     parsed_department_id: str | None = None
     parsed_sla_state: str | None = None
     parsed_assignment_state: Literal["assigned", "unassigned"] | None = None
@@ -115,24 +115,36 @@ def parse_ticket_list_filters(
             parsed_category = normalized_category
 
     if urgency is not None:
-        normalized_urgency = urgency.strip().lower()
-        if not normalized_urgency:
+        parts = [part.strip().lower() for part in urgency.split(",")]
+        if not urgency.strip() or any(not part for part in parts):
             errors.append(
                 TicketListFilterValidationError(
                     field="urgency",
                     message="Urgency filter must not be empty.",
                 )
             )
-        elif normalized_urgency not in URGENCY_LEVELS:
-            supported = ", ".join(URGENCY_LEVELS)
-            errors.append(
-                TicketListFilterValidationError(
-                    field="urgency",
-                    message=f"Urgency must be one of: {supported}.",
-                )
-            )
         else:
-            parsed_urgency = cast(ReportPriority, normalized_urgency)
+            unique: list[ReportPriority] = []
+            unknown = False
+            for part in parts:
+                if part not in URGENCY_LEVELS:
+                    unknown = True
+                    continue
+                level = cast(ReportPriority, part)
+                if level not in unique:
+                    unique.append(level)
+            if unknown:
+                supported = ", ".join(URGENCY_LEVELS)
+                errors.append(
+                    TicketListFilterValidationError(
+                        field="urgency",
+                        message=(
+                            f"Urgency must be one of: {supported}, or a comma-separated subset."
+                        ),
+                    )
+                )
+            else:
+                parsed_urgency = tuple(sorted(unique, key=URGENCY_LEVELS.index))
 
     if department_id is not None:
         normalized_department_id = department_id.strip()
@@ -260,7 +272,7 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
         return False
     if filters.category is not None and ticket.category != filters.category:
         return False
-    if filters.urgency is not None and ticket.priority != filters.urgency:
+    if filters.urgency is not None and ticket.priority not in filters.urgency:
         return False
     if filters.department_id is not None and ticket.department_id != filters.department_id:
         return False

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -28,6 +29,8 @@ from app.database.serialization import (
     ticket_to_item,
 )
 from app.database.ticket_patch import (
+    append_redaction_review_condition,
+    append_ticket_access_scope_condition,
     append_ticket_assignment_scope_condition,
     build_update_expression,
 )
@@ -74,7 +77,10 @@ class DynamoTicketStore:
         self._tickets_table.put_item(Item=ticket_to_item(ticket))
 
     def get(self, ticket_id: str) -> StoredTicket | None:
-        response = self._tickets_table.get_item(Key={"ticketId": ticket_id})
+        response = self._tickets_table.get_item(
+            Key={"ticketId": ticket_id},
+            ConsistentRead=True,
+        )
         item = response.get("Item")
         if not item:
             return None
@@ -127,7 +133,7 @@ class DynamoTicketStore:
         cursor: str | None,
         status: str | None = None,
         category: str | None = None,
-        urgency: str | None = None,
+        urgency: str | Sequence[str] | None = None,
         department_id: str | None = None,
         assignment_state: Literal["assigned", "unassigned"] | None = None,
         q: str | None = None,
@@ -609,22 +615,90 @@ class DynamoTicketStore:
                 return None
             raise
 
-    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+    def start_image_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+    ) -> StoredTicket | None:
+        names: dict[str, str] = {}
+        values: dict[str, Any] = {
+            ":pending": "pending",
+            ":updated": updated_at,
+            ":one": 1,
+            ":zero": 0,
+        }
+        scope = append_ticket_access_scope_condition(
+            names,
+            values,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=(
                     "SET imageRedactionStatus=:pending, updatedAt=:updated, "
-                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one "
+                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one, "
+                    "imageRedactionCandidateRevision=:zero "
                     "REMOVE imageRedactionClaimToken, imageRedactionCompletedAt, "
-                    "imageRedactionReasonCode"
+                    "imageRedactionReasonCode, imageRedactionCandidateObjectKey, "
+                    "imageRedactionRegions"
                 ),
-                ConditionExpression="attribute_exists(ticketId)",
-                ExpressionAttributeValues={
-                    ":pending": "pending",
-                    ":updated": updated_at,
-                    ":one": 1,
-                },
+                ConditionExpression=f"attribute_exists(ticketId) AND {scope}",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_candidate_revision: int,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        patch_fields = dict(fields)
+        if copy_candidate_to_public:
+            patch_fields.pop("public_image_object_key", None)
+        expression, names, values = build_update_expression(patch_fields)
+        condition = append_redaction_review_condition(
+            names,
+            values,
+            expected_status=expected_status,
+            expected_generation=expected_generation,
+            expected_candidate_revision=expected_candidate_revision,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
+        if copy_candidate_to_public:
+            names["#pub"] = "publicImageObjectKey"
+            names["#cand"] = "imageRedactionCandidateObjectKey"
+            if expression.startswith("SET "):
+                expression = "SET #pub = #cand, " + expression[4:]
+            elif expression:
+                expression = "SET #pub = #cand " + expression
+            else:
+                expression = "SET #pub = #cand"
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression=condition,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
             return item_to_ticket(response["Attributes"])
@@ -775,11 +849,19 @@ def _staff_query_target(
     return STAFF_SCOPE_INDEX, STAFF_SCOPE_KEY, municipality_id
 
 
+def _priority_filter_values(urgency: str | Sequence[str] | None) -> list[str]:
+    if urgency is None:
+        return []
+    if isinstance(urgency, str):
+        return [urgency]
+    return list(urgency)
+
+
 def _staff_filter_expression(
     *,
     status: str | None,
     category: str | None,
-    urgency: str | None,
+    urgency: str | Sequence[str] | None,
     department_id: str | None,
     department_ids: list[str] | None,
     assignment_state: Literal["assigned", "unassigned"] | None = None,
@@ -794,8 +876,11 @@ def _staff_filter_expression(
     if category is not None:
         clause = Attr("category").eq(category)
         expression = clause if expression is None else expression & clause
-    if urgency is not None:
-        clause = Attr("priority").eq(urgency)
+    levels = _priority_filter_values(urgency)
+    if levels:
+        clause = (
+            Attr("priority").is_in(levels) if len(levels) > 1 else Attr("priority").eq(levels[0])
+        )
         expression = clause if expression is None else expression & clause
     if assignment_state == "unassigned":
         clause = Attr("departmentId").not_exists()

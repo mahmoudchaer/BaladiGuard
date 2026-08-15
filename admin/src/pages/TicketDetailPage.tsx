@@ -35,6 +35,7 @@ import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
 import { TicketPhoto } from '@/components/TicketPhoto';
 import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
+import { ImageRedactionReviewPanel } from '@/components/ImageRedactionReview';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
@@ -1334,6 +1335,25 @@ export function TicketDetailPage() {
                   AI-assisted fields are decision support only. Staff must verify them before
                   acting.
                 </p>
+
+                <div className="ticket-detail__card">
+                  <h4 className="ticket-detail__card-title">Image privacy review</h4>
+                  <p className="ticket-detail__card-hint">
+                    Originals stay private. Approve a redacted candidate before it can appear
+                    publicly.
+                  </p>
+                  <ImageRedactionReviewPanel
+                    ticketId={ticket.ticketId}
+                    category={effectiveCategory ?? ticket.category}
+                    onChanged={() => {
+                      void fetchTicketById(ticket.ticketId).then((next) => {
+                        if (next) {
+                          setTicket(next);
+                        }
+                      });
+                    }}
+                  />
+                </div>
 
                 <div className="ticket-detail__card">
                   <h4 className="ticket-detail__card-title">Municipal actions</h4>

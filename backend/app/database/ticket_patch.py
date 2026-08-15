@@ -33,6 +33,9 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "image_redaction_completed_at": "imageRedactionCompletedAt",
     "image_redaction_reason_code": "imageRedactionReasonCode",
     "image_redaction_history": "imageRedactionHistory",
+    "image_redaction_candidate_object_key": "imageRedactionCandidateObjectKey",
+    "image_redaction_candidate_revision": "imageRedactionCandidateRevision",
+    "image_redaction_regions": "imageRedactionRegions",
     "duplicate_group_id": "duplicateGroupId",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",
@@ -89,6 +92,75 @@ def build_update_expression(fields: dict[str, Any]) -> tuple[str, dict[str, str]
     if not clauses:
         raise ValueError("At least one field is required for a ticket patch.")
     return " ".join(clauses), names, values
+
+
+def append_ticket_access_scope_condition(
+    names: dict[str, str],
+    values: dict[str, Any],
+    *,
+    expected_municipality_id: str | None,
+    expected_department_id: str | None,
+) -> str:
+    """AND-able Dynamo condition for the municipality/department used at authorization."""
+    parts: list[str] = []
+    for alias, attr, expected in (
+        ("#rsm", "municipalityId", expected_municipality_id),
+        ("#rsd", "departmentId", expected_department_id),
+    ):
+        names[alias] = attr
+        if expected is None:
+            parts.append(f"attribute_not_exists({alias})")
+            continue
+        value_key = f":{alias[1:]}"
+        values[value_key] = expected
+        parts.append(f"{alias} = {value_key}")
+    return " AND ".join(parts)
+
+
+def append_redaction_review_condition(
+    names: dict[str, str],
+    values: dict[str, Any],
+    *,
+    expected_status: str,
+    expected_generation: int,
+    expected_candidate_revision: int,
+    expected_municipality_id: str | None,
+    expected_department_id: str | None,
+) -> str:
+    """Conditional write for a staff redaction decision against one candidate snapshot."""
+    names.update(
+        {
+            "#rs": "imageRedactionStatus",
+            "#rg": "imageRedactionGeneration",
+            "#rev": "imageRedactionCandidateRevision",
+        }
+    )
+    values.update(
+        {
+            ":expectedStatus": expected_status,
+            ":generation": expected_generation,
+            ":revision": expected_candidate_revision,
+        }
+    )
+    revision_clause = (
+        "(attribute_not_exists(#rev) OR #rev = :revision)"
+        if expected_candidate_revision == 0
+        else "#rev = :revision"
+    )
+    scope_clause = append_ticket_access_scope_condition(
+        names,
+        values,
+        expected_municipality_id=expected_municipality_id,
+        expected_department_id=expected_department_id,
+    )
+    return " AND ".join(
+        (
+            "#rs = :expectedStatus",
+            "#rg = :generation",
+            revision_clause,
+            scope_clause,
+        )
+    )
 
 
 def append_ticket_assignment_scope_condition(

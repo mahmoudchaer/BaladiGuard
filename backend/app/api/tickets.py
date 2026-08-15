@@ -9,7 +9,11 @@ from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
-from app.schemas.image_redaction import ReprocessImageResponse
+from app.schemas.image_redaction import (
+    ImageRedactionDecisionRequest,
+    ImageRedactionReviewResponse,
+    ReprocessImageResponse,
+)
 from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
 from app.schemas.staff_comment import (
     ActivityTimelineResponse,
@@ -63,6 +67,10 @@ from app.services.complaints.ticket_service import (
     ticket_service,
 )
 from app.services.redaction.queue import image_redaction_queue
+from app.services.redaction.review import (
+    ImageRedactionReviewConflictError,
+    ImageRedactionReviewError,
+)
 from app.services.staff.assistant import staff_assistant_service
 from app.services.staff.comments import StaffCommentError, staff_comment_service
 from app.services.work_orders.reasons import OutcomeReasonError
@@ -214,8 +222,111 @@ def reprocess_ticket_image(
             request_id=get_request_id(request),
             status_code=404,
         )
+    except ImageRedactionReviewConflictError as exc:
+        return _redaction_review_error(request, exc)
     image_redaction_queue.enqueue(ticket_id, generation)
     return ReprocessImageResponse(ticketId=ticket_id, generation=generation)
+
+
+def _redaction_review_error(request: Request, exc: ImageRedactionReviewError) -> JSONResponse:
+    status = 409 if isinstance(exc, ImageRedactionReviewConflictError) else 400
+    return build_error_response(
+        code=exc.code,
+        message=str(exc),
+        request_id=get_request_id(request),
+        status_code=status,
+    )
+
+
+@router.get(
+    "/tickets/{ticket_id}/image-redaction/review",
+    response_model=ImageRedactionReviewResponse,
+)
+def get_image_redaction_review(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.get_image_redaction_review(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/approve",
+    response_model=ImageRedactionReviewResponse,
+)
+def approve_image_redaction(
+    ticket_id: str,
+    payload: ImageRedactionDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.approve_image_redaction(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ImageRedactionReviewError as exc:
+        return _redaction_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/reject",
+    response_model=ImageRedactionReviewResponse,
+)
+def reject_image_redaction(
+    ticket_id: str,
+    payload: ImageRedactionDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.reject_image_redaction(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ImageRedactionReviewError as exc:
+        return _redaction_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/manual-regions",
+    response_model=ImageRedactionReviewResponse,
+)
+def apply_manual_image_redaction(
+    ticket_id: str,
+    payload: ImageRedactionDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.apply_manual_image_redaction(
+            ticket_id, payload, staff_principal=principal
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ImageRedactionReviewError as exc:
+        return _redaction_review_error(request, exc)
 
 
 @router.get("/tickets", response_model=TicketListPageResponse)

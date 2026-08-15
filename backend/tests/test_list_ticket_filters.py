@@ -63,7 +63,7 @@ def test_parse_ticket_list_filters_accepts_valid_values():
     assert filters == TicketListFilters(
         status="IN_PROGRESS",
         category="waste",
-        urgency="high",
+        urgency=("high",),
         department_id=WASTE_MANAGEMENT,
     )
 
@@ -109,11 +109,18 @@ def test_filter_stored_tickets_and_combines_fields(client):
     filters = TicketListFilters(
         status="IN_PROGRESS",
         category="waste",
-        urgency="high",
+        urgency=("high",),
         department_id=WASTE_MANAGEMENT,
     )
     matched = filter_stored_tickets(ticket_store.list(), filters)
     assert [ticket.ticket_id for ticket in matched] == [matching["ticketId"]]
+
+
+def test_parse_ticket_list_filters_accepts_comma_separated_urgency():
+    filters, errors = parse_ticket_list_filters(urgency="critical, high,critical")
+    assert errors == []
+    assert filters is not None
+    assert filters.urgency == ("high", "critical")
 
 
 def test_list_tickets_filters_by_urgency(client):
@@ -137,6 +144,31 @@ def test_list_tickets_filters_by_urgency(client):
     body = response.json()["items"]
     assert [ticket["ticketId"] for ticket in body] == [high["ticketId"]]
     assert all(ticket["priority"] == "high" for ticket in body)
+
+
+def test_list_tickets_filters_by_comma_separated_urgency(client):
+    high = _seed_ticket(
+        client,
+        description="High urgency pothole near a busy intersection.",
+        priority="high",
+    )
+    critical = _seed_ticket(
+        client,
+        description="Critical collapsed manhole blocking a school gate.",
+        priority="critical",
+    )
+    _seed_ticket(
+        client,
+        description="Low urgency faded paint on a quiet street.",
+        priority="low",
+    )
+
+    response = client.get("/v1/tickets", params={"urgency": "high,critical"})
+
+    assert response.status_code == 200
+    body = response.json()["items"]
+    assert {ticket["ticketId"] for ticket in body} == {high["ticketId"], critical["ticketId"]}
+    assert {ticket["priority"] for ticket in body} == {"high", "critical"}
 
 
 def test_list_tickets_filters_by_department(client):

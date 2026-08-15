@@ -56,13 +56,13 @@ projection. This intentionally favors privacy over reducing the review queue;
 for example, a weak candidate might be a small or distant real plate rather than
 model noise.
 
-`IMAGE_REDACTION_REVIEW_CONFIDENCE` records the operational review boundary for
-follow-up manual correction controls in issue #255; issue #253 does not silently
-discard candidates below it. Provider errors,
-malformed detector output, invalid images, unbound keys, storage failures, and
-exhausted retries never expose the original. A provider/configuration failure
-either retries or ends in `failed`/`review_required` while public clients receive
-no new photo.
+`IMAGE_REDACTION_REVIEW_CONFIDENCE` records the operational review boundary used
+by staff correction controls in issue #255; candidates below automatic
+confidence are not discarded and remain `review_required` until a staff
+decision. Provider errors, malformed detector output, invalid images, unbound
+keys, storage failures, and exhausted retries never expose the original. A
+provider/configuration failure either retries or ends in `failed` /
+`review_required` while public clients receive no new photo.
 
 The current model is a general plate detector. It is not guaranteed to find
 every tiny, obscured, unusual, or severely rotated plate. Threshold changes and
@@ -74,10 +74,12 @@ Ticket records keep these concepts separate:
 
 - `imageObjectKey`: private original; staff-only projection.
 - `publicImageObjectKey`: currently approved redacted derivative.
-- `imageRedactionStatus`: `pending`, `processing`, `completed`, `failed`, or
-  `review_required`.
+- `imageRedactionStatus`: `pending`, `processing`, `completed`, `failed`,
+  `review_required`, or `private_only`.
+- `imageRedactionCandidateObjectKey`: latest non-public derivative awaiting
+  staff approval. Never projected to public clients.
 - generation, detector/version, face/plate counts, completion time, reason code,
-  and a bounded provenance history.
+  persisted blur regions, and a bounded provenance history.
 
 Jobs live in the `image-redaction-jobs` DynamoDB table. Claims are conditional
 and have a timeout, retries use bounded exponential backoff, and stale claims
@@ -157,10 +159,33 @@ Operational recovery:
 - transient provider/storage error: bounded retry with exponential backoff.
 - exhausted retries: inspect the safe reason code, repair configuration or the
   provider, then use the scoped reprocess endpoint.
-- suspected bad automatic result: remove/unpublish the public photo through the
-  existing staff workflow, preserve the private original, and reprocess only
-  after the threshold/model issue is understood. Manual correction controls
-  belong to follow-up issue #255.
+- suspected bad automatic result: authorized staff use the ticket Image privacy
+  review workspace (issue #255) to approve, reject as private-only, reprocess,
+  or add bounded manual blur regions. The original is never edited.
+
+## Staff review controls (issue #255)
+
+Authorized staff who can already access the ticket may:
+
+- `GET /v1/tickets/{ticketId}/image-redaction/review` — original + candidate
+  URLs, status, and decision flags. Out-of-scope staff receive `404`.
+- `POST /v1/tickets/{ticketId}/image-redaction/approve` — promote the current
+  candidate to `publicImageObjectKey` when `expectedGeneration` and
+  `expectedCandidateRevision` match. The public key is copied from the stored
+  candidate in the same conditional write.
+- `POST /v1/tickets/{ticketId}/image-redaction/reject` — mark `private_only`
+  without publishing the candidate.
+- `POST /v1/tickets/{ticketId}/image-redaction/manual-regions` — validate
+  boxes that lie fully inside the image (`0 <= left/top`, positive size,
+  `left+width <= 1`, `top+height <= 1`), blur the original plus prior regions,
+  and write a **new** derivative with an incremented candidate revision.
+  Status stays `review_required` until approve.
+- Existing `POST /v1/tickets/{ticketId}/image-redaction/reprocess`.
+
+All four decisions record the authenticated actor, role, timestamp, processor
+version, and action in ticket audit history. Concurrent decisions for a stale
+generation or candidate revision return `409 REDACTION_REVIEW_CONFLICT`. Public
+clients still receive a photo only after an approved derivative key is recorded.
 
 Do not log images, image bytes, citizen data, presigned URLs, credentials, or
 provider payloads while diagnosing. Logs use opaque ticket/job ids and bounded
@@ -176,6 +201,7 @@ and `reports/redacted/` objects. Restores must use isolated table names and the
 Relevant automated coverage is in:
 
 - `backend/tests/test_image_redaction.py`
+- `backend/tests/test_image_redaction_review.py`
 - `backend/tests/test_image_redaction_dynamodb.py`
 - `backend/tests/test_public_ticket_browsing.py`
 - `backend/tests/test_update_ticket_public_content.py`

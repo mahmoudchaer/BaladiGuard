@@ -17,6 +17,7 @@
 }
 
 .image-privacy--failed .image-privacy__label,
-.image-privacy--review_required .image-privacy__label {
+.image-privacy--review_required .image-privacy__label,
+.image-privacy--private_only .image-privacy__label {
   color: var(--color-warning, #b45309);
 }

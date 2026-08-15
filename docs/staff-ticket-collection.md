@@ -74,7 +74,7 @@ instead of treating the response as end-of-results.
 
 | Param | Notes |
 | --- | --- |
-| `status`, `category`, `urgency`, `departmentId` | Persist-field FilterExpression |
+| `status`, `category`, `urgency`, `departmentId` | Persist-field FilterExpression. `urgency` accepts one level or a comma-separated subset (`high,critical`). |
 | `assignmentState` | `assigned` / `unassigned` |
 | `q` | Bounded contains match on ticket number/id/description/address |
 | `slaState` | Derived; continue-fetch across source pages until filled |
