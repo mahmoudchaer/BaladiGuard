@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TicketPreviewPanel } from '@/components/TicketPreviewPanel';
 import { resetLocaleForTests, setLocale, t, type AppLocale } from '@/i18n';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { TicketListPage } from '@/pages/TicketListPage';
 import { WorkforcePage } from '@/pages/WorkforcePage';
 import {
@@ -126,6 +128,44 @@ describe('critical flow accessibility', () => {
       expect(screen.getByLabelText(t('filters.search'))).toBeInTheDocument();
       expect(screen.getByLabelText(t('filters.category'))).toBeInTheDocument();
       expect(screen.getByText(t('ticket.preview.selectReport'))).toBeInTheDocument();
+    }
+  });
+
+  it('localizes staff password recovery chrome in en, ar, and fr', async () => {
+    renderWithProviders(<ForgotPasswordPage />);
+    expect(
+      await screen.findByRole('heading', { name: t('login.forgotTitle') }),
+    ).toBeInTheDocument();
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      expect(screen.getByRole('heading', { name: t('login.forgotTitle') })).toBeInTheDocument();
+      expect(screen.getByText(t('login.forgotHint'))).toBeInTheDocument();
+      expect(screen.getByLabelText(t('login.username'))).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: t('login.requestCode') })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: t('login.haveCode') })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: t('login.backToSignIn') })).toBeInTheDocument();
+    }
+  });
+
+  it('localizes staff reset-password chrome in en, ar, and fr', async () => {
+    renderWithProviders(<ResetPasswordPage />);
+    expect(await screen.findByRole('heading', { name: t('login.resetTitle') })).toBeInTheDocument();
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      expect(screen.getByRole('heading', { name: t('login.resetTitle') })).toBeInTheDocument();
+      expect(screen.getByText(t('login.resetHint'))).toBeInTheDocument();
+      expect(screen.getByLabelText(t('login.username'))).toBeInTheDocument();
+      expect(screen.getByLabelText(t('login.resetCode'))).toBeInTheDocument();
+      expect(screen.getByLabelText(t('login.newPassword'))).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: t('login.updatePassword') })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: t('login.requestNewCode') })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: t('login.backToSignIn') })).toBeInTheDocument();
     }
   });
 

@@ -8,6 +8,8 @@ import LoginScreen from '../../app/login';
 import ProfileScreen from '../../app/profile';
 import PublicReportDetailScreen from '../../app/public/[ticketNumber]';
 import NotificationTicketDeepLinkScreen from '../../app/t/[code]';
+import { CountryDialingCodeSelector } from '@/components/CountryDialingCodeSelector';
+import { OtpCodeInput } from '@/components/OtpCodeInput';
 import { PhoneEntryForm } from '@/features/citizen-auth/PhoneEntryForm';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { ReportForm } from '@/features/citizen-report/ReportForm';
@@ -310,7 +312,51 @@ describe('mobile critical-flow localization', () => {
       expect(hasText(screen, t('auth.phoneTitle'))).toBe(true);
       expect(hasText(screen, t('auth.sendCode'))).toBe(true);
       expect(screen.root.findByProps({ label: t('auth.phoneLabel') })).toBeTruthy();
+      expect(hasA11yLabel(screen, t('auth.country'))).toBe(true);
     }
+  });
+
+  it('localizes the country selector and OTP input in Arabic and French', async () => {
+    const selector = renderWithProviders(
+      <CountryDialingCodeSelector value="LB" onChange={() => undefined} />,
+    );
+    const otp = renderWithProviders(
+      <OtpCodeInput value="" onChangeText={() => undefined} testID="otp-code" />,
+    );
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      expect(hasA11yLabel(selector, t('auth.country'))).toBe(true);
+      expect(hasText(selector, t('auth.country'))).toBe(true);
+      expect(hasA11yLabel(otp, t('auth.verificationCode'))).toBe(true);
+    }
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    await act(async () => {
+      selector.root
+        .findAll(
+          (node) =>
+            node.props.testID === 'country-dialing-selector' &&
+            typeof node.props.onPress === 'function',
+        )[0]
+        ?.props.onPress();
+    });
+    expect(hasText(selector, t('auth.selectCountry'))).toBe(true);
+    expect(hasText(selector, t('auth.selectCountryHint'))).toBe(true);
+    expect(hasA11yLabel(selector, t('auth.searchCountries'))).toBe(true);
+    expect(hasA11yLabel(selector, t('auth.closeCountryList'))).toBe(true);
+    expect(hasText(selector, t('common.close'))).toBe(true);
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    expect(hasText(selector, t('auth.selectCountry'))).toBe(true);
+    expect(hasA11yLabel(selector, t('auth.searchCountries'))).toBe(true);
+    expect(hasA11yLabel(otp, t('auth.verificationCode'))).toBe(true);
   });
 
   it('localizes the profile phone-change flow in Arabic and French', async () => {

@@ -59,7 +59,16 @@
     "nationalHelper": "Entrez le numéro mobile national pour {name} (sans le préfixe +{code}), ou un numéro E.164 complet comme +{code}70123456.",
     "nationalHelperFallback": "Entrez un numéro mobile national pour le pays sélectionné, ou un numéro E.164 complet comme +96170123456.",
     "phoneHint": "Numéro national pour {name}, ou numéro international complet",
-    "phoneHintFallback": "Numéro national ou international complet"
+    "phoneHintFallback": "Numéro national ou international complet",
+    "country": "Pays",
+    "countryHint": "Ouvre la liste des pays et des indicatifs",
+    "selectCountry": "Sélectionner un pays",
+    "selectCountryHint": "Recherchez par nom de pays, code ISO ou indicatif. Chaque pays conserve son code ISO même lorsque les indicatifs sont partagés.",
+    "searchCountries": "Rechercher des pays",
+    "searchCountriesPlaceholder": "Liban, LB ou 961",
+    "noCountries": "Aucun pays ne correspond à cette recherche.",
+    "closeCountryList": "Fermer la liste des pays",
+    "verificationCode": "Code de vérification"
   },
   "more": {
     "title": "Plus",

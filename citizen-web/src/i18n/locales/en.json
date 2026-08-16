@@ -272,6 +272,8 @@
     "mapLede": "Published reports with map locations appear below. Nearby pins cluster at wider zoom. Prefer a list? Use the accessible list view.",
     "updating": "Updating visible reports…",
     "grouped": "Some reports are grouped. Zoom in to see more detail.",
+    "clusterNearby": "{count} reports nearby",
+    "zoomReports": "Zoom in to see individual reports.",
     "detailTitle": "Report detail",
     "back": "← Back to reports",
     "loadingDetail": "Loading report…",

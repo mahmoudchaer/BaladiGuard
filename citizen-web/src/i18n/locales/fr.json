@@ -272,6 +272,8 @@
     "mapLede": "Les signalements publiés avec un emplacement apparaissent ci-dessous. Les épingles proches se regroupent au zoom éloigné. Vous préférez une liste ? Utilisez la vue liste accessible.",
     "updating": "Mise à jour des signalements visibles…",
     "grouped": "Certains signalements sont regroupés. Zoomez pour plus de détails.",
+    "clusterNearby": "{count} signalements à proximité",
+    "zoomReports": "Zoomez pour voir les signalements individuels.",
     "detailTitle": "Détail du signalement",
     "back": "← Retour aux signalements",
     "loadingDetail": "Chargement du signalement…",

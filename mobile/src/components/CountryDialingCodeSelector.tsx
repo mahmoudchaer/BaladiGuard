@@ -12,6 +12,7 @@ import {
 import { Button, Text, TextInput } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import {
   filterCountryDialingOptions,
@@ -37,18 +38,20 @@ export function CountryDialingCodeSelector({
   onBlur,
   disabled = false,
   error = false,
-  locale = 'en',
+  locale,
   testID = 'country-dialing-selector',
 }: CountryDialingCodeSelectorProps) {
+  const { t, locale: appLocale } = useI18n();
+  const resolvedLocale = locale || appLocale;
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const catalog = useMemo(() => listCountryDialingOptions(locale), [locale]);
+  const catalog = useMemo(() => listCountryDialingOptions(resolvedLocale), [resolvedLocale]);
   const selected =
-    findCountryDialingOption(value, locale, catalog) ??
-    findCountryDialingOption('LB', locale, catalog);
+    findCountryDialingOption(value, resolvedLocale, catalog) ??
+    findCountryDialingOption('LB', resolvedLocale, catalog);
   const filtered = useMemo(() => filterCountryDialingOptions(catalog, query), [catalog, query]);
 
   const openMenu = () => {
@@ -78,12 +81,12 @@ export function CountryDialingCodeSelector({
   return (
     <View style={styles.wrap}>
       <Text variant="labelLarge" style={styles.fieldLabel} accessibilityRole="text">
-        Country
+        {t('auth.country')}
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Country"
-        accessibilityHint="Opens the list of countries and dialing codes"
+        accessibilityLabel={t('auth.country')}
+        accessibilityHint={t('auth.countryHint')}
         accessibilityState={{ disabled, expanded: open }}
         accessibilityValue={{ text: selected?.label ?? value }}
         disabled={disabled}
@@ -131,16 +134,15 @@ export function CountryDialingCodeSelector({
               accessibilityViewIsModal
             >
               <Text variant="titleMedium" style={styles.sheetTitle} accessibilityRole="header">
-                Select country
+                {t('auth.selectCountry')}
               </Text>
               <Text variant="bodySmall" style={styles.sheetSubtitle}>
-                Search by country name, ISO code, or dialing code. Each country keeps its own ISO
-                region even when dialing codes are shared.
+                {t('auth.selectCountryHint')}
               </Text>
               <TextInput
                 mode="outlined"
-                label="Search countries"
-                placeholder="Lebanon, LB, or 961"
+                label={t('auth.searchCountries')}
+                placeholder={t('auth.searchCountriesPlaceholder')}
                 value={query}
                 onChangeText={setQuery}
                 autoCapitalize="none"
@@ -149,7 +151,7 @@ export function CountryDialingCodeSelector({
                 activeOutlineColor={colors.brand}
                 style={styles.searchInput}
                 testID={`${testID}-search`}
-                accessibilityLabel="Search countries"
+                accessibilityLabel={t('auth.searchCountries')}
               />
               <FlatList
                 data={filtered}
@@ -160,7 +162,7 @@ export function CountryDialingCodeSelector({
                 testID={`${testID}-list`}
                 ListEmptyComponent={
                   <Text style={styles.empty} testID={`${testID}-empty`}>
-                    No countries match that search.
+                    {t('auth.noCountries')}
                   </Text>
                 }
                 renderItem={({ item }) => {
@@ -191,9 +193,9 @@ export function CountryDialingCodeSelector({
                 contentStyle={styles.closeContent}
                 textColor={colors.textSecondary}
                 testID={`${testID}-close`}
-                accessibilityLabel="Close country list"
+                accessibilityLabel={t('auth.closeCountryList')}
               >
-                Close
+                {t('common.close')}
               </Button>
             </View>
           </KeyboardAvoidingView>

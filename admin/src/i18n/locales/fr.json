@@ -30,7 +30,20 @@
     "submit": "Connexion",
     "submitting": "Connexion…",
     "missingCredentials": "Entrez votre nom d’utilisateur et votre mot de passe.",
-    "forgotPassword": "Mot de passe oublié ?"
+    "forgotPassword": "Mot de passe oublié ?",
+    "forgotTitle": "Mot de passe oublié",
+    "forgotHint": "Entrez votre nom d’utilisateur du personnel. Si un compte existe, nous enverrons un code de réinitialisation via le canal de récupération de votre organisation.",
+    "requestCode": "Demander un code de réinitialisation",
+    "sending": "Envoi…",
+    "haveCode": "J’ai déjà un code de réinitialisation",
+    "backToSignIn": "Retour à la connexion",
+    "resetTitle": "Réinitialiser le mot de passe",
+    "resetHint": "Entrez le code de réinitialisation reçu, puis choisissez un nouveau mot de passe (au moins 8 caractères).",
+    "resetCode": "Code de réinitialisation",
+    "newPassword": "Nouveau mot de passe",
+    "updating": "Mise à jour…",
+    "updatePassword": "Mettre à jour le mot de passe",
+    "requestNewCode": "Demander un nouveau code"
   },
   "nav": {
     "tickets": "Tickets",
@@ -210,7 +223,20 @@
     "noPins": "Aucun ticket individuel dans la vue actuelle.",
     "clusters": "{count} groupes · ~{total} signalements",
     "pins": "{count} épingles",
-    "truncated": " · tronqué"
+    "truncated": " · tronqué",
+    "clusterReports": "{count} signalements",
+    "zoomTickets": "Zoomez pour voir les tickets individuels",
+    "emptyCoordinates": "Aucun ticket avec des coordonnées de carte à afficher pour le moment.",
+    "urgencySuffix": " · urgence {priority}",
+    "legend": "Légende de la carte",
+    "layers": "Couches de la carte",
+    "colorBy": "Colorer les épingles par",
+    "status": "Statut",
+    "urgency": "Urgence",
+    "truncatedSample": "Échantillon limité pour cette vue",
+    "viewTicket": "Voir le ticket",
+    "openMaps": "Ouvrir dans Maps",
+    "emptyOverlay": "Déplacez ou zoomez pour charger les signalements de cette zone."
   },
   "filters": {
     "search": "Rechercher des tickets",

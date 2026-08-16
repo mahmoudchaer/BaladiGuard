@@ -59,7 +59,16 @@
     "nationalHelper": "Enter the national mobile number for {name} (without the +{code} prefix), or a full E.164 number like +{code}70123456.",
     "nationalHelperFallback": "Enter a national mobile number for the selected country, or a full E.164 number like +96170123456.",
     "phoneHint": "National number for {name}, or full international number",
-    "phoneHintFallback": "National or full international phone number"
+    "phoneHintFallback": "National or full international phone number",
+    "country": "Country",
+    "countryHint": "Opens the list of countries and dialing codes",
+    "selectCountry": "Select country",
+    "selectCountryHint": "Search by country name, ISO code, or dialing code. Each country keeps its own ISO region even when dialing codes are shared.",
+    "searchCountries": "Search countries",
+    "searchCountriesPlaceholder": "Lebanon, LB, or 961",
+    "noCountries": "No countries match that search.",
+    "closeCountryList": "Close country list",
+    "verificationCode": "Verification code"
   },
   "more": {
     "title": "More",

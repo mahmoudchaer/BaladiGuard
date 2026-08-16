@@ -22,6 +22,8 @@ const TARGETS = {
     'app/t/[code].tsx',
     'src/features/citizen-auth/OtpVerifyForm.tsx',
     'src/features/citizen-auth/PhoneEntryForm.tsx',
+    'src/components/CountryDialingCodeSelector.tsx',
+    'src/components/OtpCodeInput.tsx',
     'src/features/citizen-report/ReportForm.tsx',
     'src/features/citizen-report/components/DetailsStep.tsx',
     'src/features/citizen-report/components/LocationFields.tsx',
@@ -38,6 +40,8 @@ const TARGETS = {
   ],
   admin: [
     'pages/LoginPage.tsx',
+    'pages/ForgotPasswordPage.tsx',
+    'pages/ResetPasswordPage.tsx',
     'pages/TicketListPage.tsx',
     'pages/TicketDetailPage.tsx',
     'pages/MapViewPage.tsx',
@@ -45,6 +49,7 @@ const TARGETS = {
     'components/ImageRedactionReview.tsx',
     'components/StaffAssistantPanel.tsx',
     'components/TicketPreviewPanel.tsx',
+    'components/TicketMap.tsx',
   ],
   'citizen-web': [
     'pages/HomePage.tsx',
@@ -60,6 +65,7 @@ const TARGETS = {
     'pages/NotFoundPage.tsx',
     'pages/NotificationLinkPage.tsx',
     'components/PublicPhoto.tsx',
+    'components/PublicReportsMap.tsx',
   ],
 };
 
@@ -81,6 +87,8 @@ const ALERT = /Alert\.alert\(\s*['"]([A-Za-z][^'"]+)['"]/g;
 const TEXT = />([A-Za-z][^<{]{2,})</g;
 const ALLOWED = new Set([
   'BaladiGuard',
+  'OpenStreetMap',
+  'CARTO',
   'B',
   'SMS',
   'GET',

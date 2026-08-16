@@ -59,7 +59,16 @@
     "nationalHelper": "أدخل رقم الجوال الوطني لـ {name} (بدون بادئة +{code})، أو رقماً دولياً كاملاً مثل +{code}70123456.",
     "nationalHelperFallback": "أدخل رقم جوال وطنياً للدولة المحددة، أو رقماً دولياً كاملاً مثل +96170123456.",
     "phoneHint": "الرقم الوطني لـ {name}، أو الرقم الدولي الكامل",
-    "phoneHintFallback": "رقم وطني أو دولي كامل"
+    "phoneHintFallback": "رقم وطني أو دولي كامل",
+    "country": "الدولة",
+    "countryHint": "يفتح قائمة الدول ورموز الاتصال",
+    "selectCountry": "اختر الدولة",
+    "selectCountryHint": "ابحث باسم الدولة أو رمز ISO أو رمز الاتصال. تحتفظ كل دولة برمز ISO الخاص بها حتى عند اشتراك رمز الاتصال.",
+    "searchCountries": "البحث عن الدول",
+    "searchCountriesPlaceholder": "لبنان، LB، أو 961",
+    "noCountries": "لا توجد دول تطابق هذا البحث.",
+    "closeCountryList": "إغلاق قائمة الدول",
+    "verificationCode": "رمز التحقق"
   },
   "more": {
     "title": "المزيد",

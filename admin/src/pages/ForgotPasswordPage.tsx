@@ -1,11 +1,13 @@
 import { type FormEvent, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { requestStaffPasswordReset } from '@/services/auth';
 import '@/components/BrandMark.css';
 import './LoginPage.css';
 
 export function ForgotPasswordPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -42,19 +44,16 @@ export function ForgotPasswordPage() {
             <BrandMark size={24} />
           </span>
           <div>
-            <p className="login-panel__eyebrow">Municipal Staff Portal</p>
-            <h1 id="forgot-title">Forgot password</h1>
+            <p className="login-panel__eyebrow">{t('login.eyebrow')}</p>
+            <h1 id="forgot-title">{t('login.forgotTitle')}</h1>
           </div>
         </div>
 
-        <p className="login-form__hint">
-          Enter your staff username. If an account exists, we will send a reset code through your
-          organization’s recovery channel.
-        </p>
+        <p className="login-form__hint">{t('login.forgotHint')}</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-form__field">
-            <span>Username</span>
+            <span>{t('login.username')}</span>
             <input
               autoComplete="username"
               name="username"
@@ -80,14 +79,14 @@ export function ForgotPasswordPage() {
           )}
 
           <button className="login-form__submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Sending…' : 'Request reset code'}
+            {isSubmitting ? t('login.sending') : t('login.requestCode')}
           </button>
         </form>
 
         <p className="login-form__footer">
-          <Link to="/reset-password">I already have a reset code</Link>
+          <Link to="/reset-password">{t('login.haveCode')}</Link>
           {' · '}
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t('login.backToSignIn')}</Link>
         </p>
       </section>
     </main>

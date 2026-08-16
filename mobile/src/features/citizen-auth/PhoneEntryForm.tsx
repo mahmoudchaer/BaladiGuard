@@ -40,7 +40,7 @@ export function PhoneEntryForm({
   subtitle,
   submitLabel,
 }: PhoneEntryFormProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const resolvedTitle = title ?? t('auth.phoneTitle');
   const resolvedSubtitle = subtitle ?? t('auth.phoneSubtitle');
   const resolvedSubmit = submitLabel ?? t('auth.sendCode');
@@ -130,6 +130,7 @@ export function PhoneEntryForm({
               onChange={onChange}
               onBlur={onBlur}
               error={Boolean(errors.region)}
+              locale={locale}
               testID="country-dialing-selector"
             />
           )}

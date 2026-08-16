@@ -30,7 +30,20 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "missingCredentials": "Enter your username and password.",
-    "forgotPassword": "Forgot password?"
+    "forgotPassword": "Forgot password?",
+    "forgotTitle": "Forgot password",
+    "forgotHint": "Enter your staff username. If an account exists, we will send a reset code through your organization’s recovery channel.",
+    "requestCode": "Request reset code",
+    "sending": "Sending…",
+    "haveCode": "I already have a reset code",
+    "backToSignIn": "Back to sign in",
+    "resetTitle": "Reset password",
+    "resetHint": "Enter the reset code you received, then choose a new password (at least 8 characters).",
+    "resetCode": "Reset code",
+    "newPassword": "New password",
+    "updating": "Updating…",
+    "updatePassword": "Update password",
+    "requestNewCode": "Request a new code"
   },
   "nav": {
     "tickets": "Tickets",
@@ -210,7 +223,20 @@
     "noPins": "No individual tickets in the current viewport.",
     "clusters": "{count} clusters · ~{total} reports",
     "pins": "{count} pins",
-    "truncated": " · truncated"
+    "truncated": " · truncated",
+    "clusterReports": "{count} reports",
+    "zoomTickets": "Zoom in to see individual tickets",
+    "emptyCoordinates": "No tickets with map coordinates to display right now.",
+    "urgencySuffix": " · {priority} urgency",
+    "legend": "Map legend",
+    "layers": "Map layers",
+    "colorBy": "Color pins by",
+    "status": "Status",
+    "urgency": "Urgency",
+    "truncatedSample": "Showing a bounded sample for this viewport",
+    "viewTicket": "View ticket",
+    "openMaps": "Open in Maps",
+    "emptyOverlay": "Pan or zoom to load reports in this area."
   },
   "filters": {
     "search": "Search tickets",
