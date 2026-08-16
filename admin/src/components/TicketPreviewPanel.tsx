@@ -30,6 +30,8 @@ type TicketPreviewPanelProps = {
   ticket: Ticket | null;
   onClose?: () => void;
   onTicketUpdated?: (ticket: Ticket) => void;
+  loadError?: string | null;
+  onRetry?: () => void;
 };
 
 type ActionNotice = { tone: 'error' | 'success'; key: string } | { tone: 'error'; text: string };
@@ -38,7 +40,13 @@ function actionNoticeText(notice: ActionNotice, translate: (key: string) => stri
   return 'key' in notice ? translate(notice.key) : notice.text;
 }
 
-export function TicketPreviewPanel({ ticket, onClose, onTicketUpdated }: TicketPreviewPanelProps) {
+export function TicketPreviewPanel({
+  ticket,
+  onClose,
+  onTicketUpdated,
+  loadError = null,
+  onRetry,
+}: TicketPreviewPanelProps) {
   const { t } = useI18n();
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -82,6 +90,36 @@ export function TicketPreviewPanel({ ticket, onClose, onTicketUpdated }: TicketP
   }, [ticket]);
 
   if (!ticket) {
+    if (onClose && loadError) {
+      return (
+        <aside
+          className="ticket-preview ticket-preview--drawer"
+          aria-label={t('ticket.preview.a11y')}
+        >
+          <header className="ticket-preview__header">
+            <p className="ticket-preview__empty-title">{t('ticket.unableLoad')}</p>
+            <button
+              type="button"
+              className="ticket-preview__close"
+              onClick={onClose}
+              aria-label={t('ticket.preview.closePreview')}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+          <div className="ticket-preview__empty">
+            <p className="ticket-preview__error" role="alert">
+              {loadError}
+            </p>
+            {onRetry ? (
+              <button type="button" className="ticket-preview__btn" onClick={onRetry}>
+                {t('common.retry')}
+              </button>
+            ) : null}
+          </div>
+        </aside>
+      );
+    }
     if (onClose) {
       return (
         <aside

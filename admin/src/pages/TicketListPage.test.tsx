@@ -763,7 +763,9 @@ describe('TicketListPage', () => {
     await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
 
     const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
-    expect(within(preview).getByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+    expect(
+      await within(preview).findByRole('heading', { name: 'BG-2026-0001' }),
+    ).toBeInTheDocument();
     expect(within(preview).getAllByRole('link', { name: 'Open' })[0]).toHaveAttribute(
       'href',
       '/tickets/tkt_road',
@@ -792,8 +794,74 @@ describe('TicketListPage', () => {
     await screen.findByText('BG-2026-0001');
     await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
     const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    await within(preview).findByRole('heading', { name: 'BG-2026-0001' });
     await user.click(within(preview).getAllByRole('link', { name: 'Open' })[0]);
 
     expect(window.location.pathname).toBe('/tickets/tkt_road');
+  });
+
+  it('keeps preview mutations disabled until the full ticket loads', async () => {
+    const user = userEvent.setup();
+    let resolvePreview: (ticket: Ticket) => void = () => undefined;
+    vi.mocked(fetchTicketById).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve;
+        }),
+    );
+
+    renderWithProviders(<TicketListPage />);
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
+
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(within(preview).getByText('Loading…')).toBeInTheDocument();
+    expect(within(preview).queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
+    expect(
+      within(preview).queryByRole('button', { name: 'Save final category' }),
+    ).not.toBeInTheDocument();
+
+    resolvePreview(tickets[0]);
+    expect(
+      await within(preview).findByRole('heading', { name: 'BG-2026-0001' }),
+    ).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+  });
+
+  it('does not keep list-projection Publish or Save controls after fetchTicketById fails', async () => {
+    const user = userEvent.setup();
+    const listProjection: Ticket = {
+      ...tickets[0],
+      imageObjectKey: 'unavailable',
+      imageUrl: undefined,
+      ai: undefined,
+      public: undefined,
+    };
+    vi.mocked(fetchTicketsPage).mockResolvedValue(pageFromTickets([listProjection]));
+    vi.mocked(fetchTicketById)
+      .mockRejectedValueOnce(new Error('Unable to reach backend.'))
+      .mockResolvedValueOnce(tickets[0]);
+
+    renderWithProviders(<TicketListPage />);
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
+
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(await within(preview).findByRole('alert')).toHaveTextContent('Unable to reach backend.');
+    expect(within(preview).queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
+    expect(
+      within(preview).queryByRole('button', { name: 'Save final category' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(preview).queryByRole('button', { name: 'Save department' }),
+    ).not.toBeInTheDocument();
+    expect(within(preview).queryByRole('img', { name: /BG-2026-0001/i })).not.toBeInTheDocument();
+
+    await user.click(within(preview).getByRole('button', { name: 'Retry' }));
+    expect(
+      await within(preview).findByRole('heading', { name: 'BG-2026-0001' }),
+    ).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+    expect(fetchTicketById).toHaveBeenCalledTimes(2);
   });
 });

@@ -147,6 +147,9 @@ export function TicketListPage() {
     initialFilters.focusTicket ?? null,
   );
   const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
+  const [previewForId, setPreviewForId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewRetry, setPreviewRetry] = useState(0);
   const [cursor, setCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [canGoPrevious, setCanGoPrevious] = useState(false);
@@ -388,19 +391,9 @@ export function TicketListPage() {
     approximateTotal ??
     (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
-  const selectedListTicket = useMemo(() => {
-    if (!selectedTicketId) {
-      return null;
-    }
-    return (
-      pageTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      baselineTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      null
-    );
-  }, [baselineTickets, selectedTicketId, pageTickets]);
-
-  const displayedPreview =
-    previewTicket?.ticketId === selectedTicketId ? previewTicket : selectedListTicket;
+  const previewMatchesSelection = previewForId === selectedTicketId;
+  const displayedPreview = previewMatchesSelection ? previewTicket : null;
+  const displayedPreviewError = previewMatchesSelection ? previewError : null;
 
   useEffect(() => {
     if (selectedTicketId && !pageTickets.some((ticket) => ticket.ticketId === selectedTicketId)) {
@@ -411,22 +404,44 @@ export function TicketListPage() {
   useEffect(() => {
     if (!selectedTicketId) {
       setPreviewTicket(null);
+      setPreviewForId(null);
+      setPreviewError(null);
       return;
     }
 
     let cancelled = false;
+    setPreviewForId(null);
+    setPreviewTicket(null);
+    setPreviewError(null);
+
     void fetchTicketById(selectedTicketId)
       .then((ticket) => {
-        if (!cancelled && ticket) {
-          setPreviewTicket(ticket);
+        if (cancelled) {
+          return;
         }
+        if (!ticket) {
+          setPreviewTicket(null);
+          setPreviewError(t('ticket.unableLoad'));
+          setPreviewForId(selectedTicketId);
+          return;
+        }
+        setPreviewTicket(ticket);
+        setPreviewError(null);
+        setPreviewForId(selectedTicketId);
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setPreviewTicket(null);
+        setPreviewError(error instanceof Error ? error.message : t('ticket.unableLoad'));
+        setPreviewForId(selectedTicketId);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [selectedTicketId]);
+  }, [previewRetry, selectedTicketId, t]);
 
   function ticketMatchesActiveServerFilters(ticket: Ticket): boolean {
     if (
@@ -703,6 +718,12 @@ export function TicketListPage() {
           {selectedTicketId ? (
             <TicketPreviewPanel
               ticket={displayedPreview}
+              loadError={displayedPreviewError}
+              onRetry={() => {
+                setPreviewForId(null);
+                setPreviewError(null);
+                setPreviewRetry((current) => current + 1);
+              }}
               onClose={() => setSelectedTicketId(null)}
               onTicketUpdated={handleTicketUpdated}
             />
