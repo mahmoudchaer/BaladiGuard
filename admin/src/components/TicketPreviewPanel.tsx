@@ -33,6 +33,10 @@ type TicketPreviewPanelProps = {
 
 type ActionNotice = { tone: 'error' | 'success'; key: string } | { tone: 'error'; text: string };
 
+function actionNoticeText(notice: ActionNotice, translate: (key: string) => string): string {
+  return 'key' in notice ? translate(notice.key) : notice.text;
+}
+
 export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPanelProps) {
   const { t } = useI18n();
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
@@ -460,12 +464,12 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
 
         {actionNotice?.tone === 'error' ? (
           <p className="ticket-preview__error" role="alert">
-            {'key' in actionNotice ? t(actionNotice.key) : actionNotice.text}
+            {actionNoticeText(actionNotice, t)}
           </p>
         ) : null}
         {actionNotice?.tone === 'success' ? (
           <p className="ticket-preview__success" role="status">
-            {'key' in actionNotice ? t(actionNotice.key) : actionNotice.text}
+            {actionNoticeText(actionNotice, t)}
           </p>
         ) : null}
       </div>
