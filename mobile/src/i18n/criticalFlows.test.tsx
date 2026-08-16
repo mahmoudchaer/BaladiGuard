@@ -14,7 +14,11 @@ import { ProfileSummary } from '@/features/profile/ProfileSummary';
 import { TrackLookupForm } from '@/features/ticket-tracking/TrackLookupForm';
 import { resetLocaleForTests, setLocale, t, type AppLocale } from '@/i18n';
 import { getCitizenMe } from '@/services/api/citizenAuth';
-import { getPublicTickets, getPublicTicketByNumber, getTicketByTrackingCode } from '@/services/api/tickets';
+import {
+  getPublicTickets,
+  getPublicTicketByNumber,
+  getTicketByTrackingCode,
+} from '@/services/api/tickets';
 import { buildCitizenSession, saveCitizenSession } from '@/services/citizenSession';
 import { __setSearchParams } from '@/test/mocks/expo-router';
 import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';

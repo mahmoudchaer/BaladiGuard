@@ -63,7 +63,7 @@ export default function PublicReportDetailScreen() {
 
   const error = !selectedTicketNumber
     ? t('public.unableOpen')
-    : errorMessage ?? (usedLoadFallback ? t('public.unableLoad') : null);
+    : (errorMessage ?? (usedLoadFallback ? t('public.unableLoad') : null));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>

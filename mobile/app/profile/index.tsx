@@ -195,9 +195,7 @@ export default function ProfileScreen() {
 
           {loadError ? (
             <Banner visible icon="alert-circle" style={styles.banner} testID="profile-load-error">
-              {isOfflineCached
-                ? `${loadError} ${t('profile.offlineSuffix')}`
-                : loadError}
+              {isOfflineCached ? `${loadError} ${t('profile.offlineSuffix')}` : loadError}
             </Banner>
           ) : null}
 
