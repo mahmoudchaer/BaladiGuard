@@ -12,7 +12,6 @@ import {
   fetchTicketAggregates,
   fetchTicketsPage,
   reviewTicketCategory,
-  updateTicketStatus,
 } from '@/services/tickets';
 import { fetchWorkload, listTeams, listWorkers } from '@/services/workforce';
 import { renderWithProviders } from '@/test/render';
@@ -25,7 +24,6 @@ vi.mock('@/services/tickets', async () => {
     fetchTicketsPage: vi.fn(),
     fetchTicketAggregates: vi.fn(),
     reviewTicketCategory: vi.fn(),
-    updateTicketStatus: vi.fn(),
     assignTicketDepartment: vi.fn(),
   };
 });
