@@ -57,9 +57,10 @@ export function TicketPreviewPanel({ ticket, onClose, onTicketUpdated }: TicketP
     if (!onClose) {
       return;
     }
+    const closePreview = onClose;
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        onClose();
+        closePreview();
       }
     }
     window.addEventListener('keydown', onKey);

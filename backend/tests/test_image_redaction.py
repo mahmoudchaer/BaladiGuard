@@ -449,9 +449,7 @@ def test_worker_skips_unenrolled_tickets_and_processes_oldest_redactable(monkeyp
     tickets = InMemoryTicketStore()
     jobs = InMemoryRedactionJobStore()
     processor = ResultProcessor()
-    tickets.save(
-        _ticket("tkt_legacy_old").model_copy(update={"image_redaction_enrolled": False})
-    )
+    tickets.save(_ticket("tkt_legacy_old").model_copy(update={"image_redaction_enrolled": False}))
     tickets.save(_ticket("tkt_ready_new"))
     queue = ImageRedactionQueue(jobs, tickets, processor)
     jobs.enqueue("tkt_legacy_old", 1, 10)
