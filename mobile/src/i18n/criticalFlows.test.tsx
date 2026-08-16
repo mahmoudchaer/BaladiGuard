@@ -12,6 +12,7 @@ import { PhoneEntryForm } from '@/features/citizen-auth/PhoneEntryForm';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { ReportForm } from '@/features/citizen-report/ReportForm';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
+import { ChangePhoneFlow } from '@/features/profile/ChangePhoneFlow';
 import { TrackLookupForm } from '@/features/ticket-tracking/TrackLookupForm';
 import { resetLocaleForTests, setLocale, t, type AppLocale } from '@/i18n';
 import { getCitizenMe } from '@/services/api/citizenAuth';
@@ -288,6 +289,26 @@ describe('mobile critical-flow localization', () => {
       expect(hasText(screen, t('auth.phoneTitle'))).toBe(true);
       expect(hasText(screen, t('auth.sendCode'))).toBe(true);
       expect(screen.root.findByProps({ label: t('auth.phoneLabel') })).toBeTruthy();
+    }
+  });
+
+  it('localizes the profile phone-change flow in Arabic and French', async () => {
+    const screen = renderWithProviders(
+      <ChangePhoneFlow
+        currentPhone="+96170123456"
+        onVerified={async () => undefined}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      expect(hasText(screen, t('profile.changePhone'))).toBe(true);
+      expect(hasText(screen, t('profile.newPhone'))).toBe(true);
+      expect(hasText(screen, t('profile.sendVerification'))).toBe(true);
+      expect(hasText(screen, t('common.cancel'))).toBe(true);
     }
   });
 

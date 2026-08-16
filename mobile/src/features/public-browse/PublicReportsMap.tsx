@@ -187,7 +187,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
                   onPress={() => pickReport(report.ticketNumber)}
                   testID={`public-map-cluster-pick-${report.ticketNumber}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open public report ${report.ticketNumber}`}
+                  accessibilityLabel={t('explore.openReport', {
+                    ticketNumber: report.ticketNumber,
+                  })}
                 >
                   <View style={styles.pickerRowTop}>
                     <Text variant="titleSmall" style={styles.pickerTicket}>
@@ -197,7 +199,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
                   </View>
                   <Text variant="bodySmall" style={styles.pickerMeta} numberOfLines={2}>
                     {formatCategoryLabel(report.category)} ·{' '}
-                    {report.location.addressText || report.mapLocation?.addressText || 'Location'}
+                    {report.location.addressText ||
+                      report.mapLocation?.addressText ||
+                      t('report.location')}
                   </Text>
                 </Pressable>
               ))}
@@ -206,9 +210,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
               mode="outlined"
               onPress={closeClusterPicker}
               testID="public-map-cluster-picker-close"
-              accessibilityLabel="Close location report list"
+              accessibilityLabel={t('explore.closeLocationList')}
             >
-              Close
+              {t('common.close')}
             </Button>
           </View>
         </View>

@@ -130,7 +130,17 @@
     "timeline": "Chronologie",
     "invalid": "Ce code de suivi n’est pas valide. Utilisez le code à 6 caractères de votre confirmation.",
     "notFound": "Nous n’avons pas trouvé de signalement avec ce code. Vérifiez-le et réessayez.",
-    "network": "Impossible de rechercher ce signalement pour le moment. Veuillez réessayer."
+    "network": "Impossible de rechercher ce signalement pour le moment. Veuillez réessayer.",
+    "openingA11y": "Ouverture du signalement",
+    "opening": "Ouverture de l’état du signalement…",
+    "restoring": "Restauration de votre session…",
+    "invalidLinkTitle": "Lien inutilisable",
+    "invalidLinkBody": "Ce lien ne contient pas de code de suivi valide. Vous pouvez rechercher un signalement avec le code de votre reçu ou SMS, ou revenir à l’accueil.",
+    "continueTitle": "Continuer avec ce signalement",
+    "optionalSignIn": "La connexion est facultative. Le suivi nécessite seulement un code valide reçu dans votre notification. L’état est partagé lorsque le code est valide, comme sur l’écran de suivi.",
+    "codeFromLink": "Code de suivi du lien : {code}. Choisissez comment continuer.",
+    "trackWithCode": "Suivre avec ce code",
+    "signInToContinue": "Se connecter pour continuer"
   },
   "report": {
     "signInAtSubmit": "Connexion à l’envoi",

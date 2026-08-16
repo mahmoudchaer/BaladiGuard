@@ -130,7 +130,17 @@
     "timeline": "Timeline",
     "invalid": "That tracking code is not valid. Use the 6-character code from your submission confirmation.",
     "notFound": "We couldn't find a report with that tracking code. Check the code and try again.",
-    "network": "Unable to look up that report right now. Please try again."
+    "network": "Unable to look up that report right now. Please try again.",
+    "openingA11y": "Opening report",
+    "opening": "Opening report status…",
+    "restoring": "Restoring your session…",
+    "invalidLinkTitle": "Link cannot be used",
+    "invalidLinkBody": "This link is missing a valid tracking code. You can still look up a report with a code from your receipt or SMS, or return home.",
+    "continueTitle": "Continue with this report",
+    "optionalSignIn": "Sign in is optional. Tracking only needs a valid code from your notification. Status is shared when the code is valid—same as the track screen.",
+    "codeFromLink": "Tracking code from the link: {code}. Choose how to continue.",
+    "trackWithCode": "Track with this code",
+    "signInToContinue": "Sign in to continue"
   },
   "report": {
     "signInAtSubmit": "Sign in at submit",

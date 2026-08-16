@@ -155,7 +155,13 @@
     "none": "Aucune",
     "sms": "SMS",
     "emailOption": "E-mail",
-    "smsAndEmail": "SMS + e-mail"
+    "smsAndEmail": "SMS + e-mail",
+    "phoneChangeSuccess": "Le numéro a été remplacé par {phone}. Votre session a été actualisée.",
+    "changePhoneBody": "Votre numéro vérifié actuel est {phone}. Saisissez un nouveau numéro et vérifiez-le avec un code à usage unique. Si ce numéro appartient déjà à un autre citoyen, la modification sera refusée.",
+    "newPhone": "Nouveau numéro de téléphone",
+    "newPhoneHint": "Nous enverrons un code de vérification au nouveau numéro. Les codes et jetons de session ne sont jamais affichés ici.",
+    "sendVerification": "Envoyer le code de vérification",
+    "backToProfile": "Retour au profil"
   },
   "status": {
     "SUBMITTED": "Soumis",
@@ -353,7 +359,8 @@
     "allStatuses": "Tous les statuts",
     "allCategories": "Toutes les catégories",
     "filterStatus": "Filtrer le statut {label}",
-    "filterCategory": "Filtrer la catégorie {label}"
+    "filterCategory": "Filtrer la catégorie {label}",
+    "closeLocationList": "Fermer la liste des signalements à cet emplacement"
   },
   "public": {
     "unableOpen": "Impossible d’ouvrir ce signalement public.",

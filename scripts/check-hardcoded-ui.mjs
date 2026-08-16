@@ -31,8 +31,10 @@ const TARGETS = {
     'src/features/citizen-report/components/StepProgress.tsx',
     'src/features/profile/ProfileSummary.tsx',
     'src/features/profile/ProfileEditForm.tsx',
+    'src/features/profile/ChangePhoneFlow.tsx',
     'src/features/ticket-tracking/TrackLookupForm.tsx',
     'src/features/public-browse/PublicReportFilters.tsx',
+    'src/features/public-browse/PublicReportsMap.tsx',
   ],
   admin: [
     'pages/LoginPage.tsx',
@@ -42,6 +44,7 @@ const TARGETS = {
     'pages/WorkforcePage.tsx',
     'components/ImageRedactionReview.tsx',
     'components/StaffAssistantPanel.tsx',
+    'components/TicketPreviewPanel.tsx',
   ],
   'citizen-web': [
     'pages/HomePage.tsx',
@@ -55,6 +58,7 @@ const TARGETS = {
     'pages/MapPage.tsx',
     'pages/PrivacyPage.tsx',
     'pages/NotFoundPage.tsx',
+    'pages/NotificationLinkPage.tsx',
     'components/PublicPhoto.tsx',
   ],
 };

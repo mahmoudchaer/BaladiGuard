@@ -86,6 +86,7 @@ describe('critical flow accessibility', () => {
       ).toBeInTheDocument();
       expect(screen.getByLabelText(t('filters.search'))).toBeInTheDocument();
       expect(screen.getByLabelText(t('filters.category'))).toBeInTheDocument();
+      expect(screen.getByText(t('ticket.preview.selectReport'))).toBeInTheDocument();
     }
   });
 

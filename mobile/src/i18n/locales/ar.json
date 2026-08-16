@@ -155,7 +155,13 @@
     "none": "لا شيء",
     "sms": "رسائل SMS",
     "emailOption": "البريد",
-    "smsAndEmail": "رسائل SMS والبريد"
+    "smsAndEmail": "رسائل SMS والبريد",
+    "phoneChangeSuccess": "تم تحديث رقم الهاتف إلى {phone} وتجديد جلستك.",
+    "changePhoneBody": "رقم هاتفك الموثّق الحالي هو {phone}. أدخل رقماً جديداً وتحقّق منه برمز لمرة واحدة. سيُرفض التغيير إذا كان الرقم مرتبطاً بمواطن آخر.",
+    "newPhone": "رقم الهاتف الجديد",
+    "newPhoneHint": "سنرسل رمز تحقق إلى الرقم الجديد. لا تُعرض الرموز أو رموز الجلسة هنا.",
+    "sendVerification": "إرسال رمز التحقق",
+    "backToProfile": "العودة إلى الملف الشخصي"
   },
   "status": {
     "SUBMITTED": "مُقدَّم",
@@ -353,7 +359,8 @@
     "allStatuses": "كل الحالات",
     "allCategories": "كل التصنيفات",
     "filterStatus": "تصفية الحالة {label}",
-    "filterCategory": "تصفية التصنيف {label}"
+    "filterCategory": "تصفية التصنيف {label}",
+    "closeLocationList": "إغلاق قائمة البلاغات في الموقع"
   },
   "public": {
     "unableOpen": "تعذّر فتح ذلك البلاغ العام.",

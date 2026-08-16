@@ -155,7 +155,13 @@
     "none": "None",
     "sms": "SMS",
     "emailOption": "Email",
-    "smsAndEmail": "SMS + Email"
+    "smsAndEmail": "SMS + Email",
+    "phoneChangeSuccess": "Phone updated to {phone}. Your session was refreshed.",
+    "changePhoneBody": "Your current verified phone is {phone}. Enter a new number and verify it with a one-time code. If that number already belongs to another citizen, the change will be rejected.",
+    "newPhone": "New phone number",
+    "newPhoneHint": "We will send a verification code to the new number. Codes and session tokens are never shown here.",
+    "sendVerification": "Send verification code",
+    "backToProfile": "Back to profile"
   },
   "status": {
     "SUBMITTED": "Submitted",
@@ -353,7 +359,8 @@
     "allStatuses": "All statuses",
     "allCategories": "All categories",
     "filterStatus": "Filter status {label}",
-    "filterCategory": "Filter category {label}"
+    "filterCategory": "Filter category {label}",
+    "closeLocationList": "Close location report list"
   },
   "public": {
     "unableOpen": "Unable to open that public report.",
