@@ -3,20 +3,38 @@ import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ExploreScreen from '../../app/(tabs)/explore';
+import HomeScreen from '../../app/(tabs)';
 import LoginScreen from '../../app/login';
+import ProfileScreen from '../../app/profile';
+import PublicReportDetailScreen from '../../app/public/[ticketNumber]';
 import { PhoneEntryForm } from '@/features/citizen-auth/PhoneEntryForm';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { ReportForm } from '@/features/citizen-report/ReportForm';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
 import { TrackLookupForm } from '@/features/ticket-tracking/TrackLookupForm';
 import { resetLocaleForTests, setLocale, t, type AppLocale } from '@/i18n';
-import { getPublicTickets, getTicketByTrackingCode } from '@/services/api/tickets';
+import { getCitizenMe } from '@/services/api/citizenAuth';
+import { getPublicTickets, getPublicTicketByNumber, getTicketByTrackingCode } from '@/services/api/tickets';
+import { buildCitizenSession, saveCitizenSession } from '@/services/citizenSession';
+import { __setSearchParams } from '@/test/mocks/expo-router';
+import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
 import type { CitizenProfile } from '@/types/citizen';
 import type { CitizenTicketResponse } from '@/types/ticket';
 
+vi.mock('@/services/api/citizenAuth', async () => {
+  const actual = await vi.importActual<typeof import('@/services/api/citizenAuth')>(
+    '@/services/api/citizenAuth',
+  );
+  return {
+    ...actual,
+    getCitizenMe: vi.fn(),
+  };
+});
+
 vi.mock('@/services/api/tickets', () => ({
   getPublicTickets: vi.fn(),
+  getPublicTicketByNumber: vi.fn(),
   getTicketByTrackingCode: vi.fn(),
   getCitizenTicketHistory: vi.fn(),
   getCitizenResolutionFeedback: vi.fn(),
@@ -128,11 +146,74 @@ describe('mobile critical-flow localization', () => {
       limit: 50,
     });
     vi.mocked(getTicketByTrackingCode).mockResolvedValue(citizenTicket);
+    vi.mocked(getPublicTicketByNumber).mockRejectedValue(new Error('network'));
+    __resetSecureStoreMock();
   });
 
   afterEach(() => {
     setLocale('en');
     resetLocaleForTests();
+    __setSearchParams({});
+  });
+
+  it('localizes the Home welcome route in Arabic and French', async () => {
+    const screen = await renderWithProvidersAsync(<HomeScreen />);
+    expect(hasText(screen, t('home.signInCreate'))).toBe(true);
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      expect(hasText(screen, t('home.signInCreate'))).toBe(true);
+      expect(hasText(screen, t('home.continueGuest'))).toBe(true);
+      expect(hasText(screen, t('home.trackCode'))).toBe(true);
+      expect(hasText(screen, t('home.privacy'))).toBe(true);
+    }
+  });
+
+  it('localizes the profile route chrome in Arabic and French', async () => {
+    await saveCitizenSession(buildCitizenSession('tok_1', 3600, readyProfile));
+    vi.mocked(getCitizenMe).mockResolvedValue(readyProfile);
+
+    const screen = await renderWithProvidersAsync(<ProfileScreen />);
+    await flush();
+    expect(hasText(screen, t('profile.title'))).toBe(true);
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      await flush();
+      expect(hasText(screen, t('profile.title'))).toBe(true);
+      expect(hasText(screen, t('profile.edit'))).toBe(true);
+      expect(hasText(screen, t('profile.refresh'))).toBe(true);
+      expect(hasText(screen, t('common.signOut'))).toBe(true);
+    }
+  });
+
+  it('localizes public-detail error chrome in Arabic and French', async () => {
+    __setSearchParams({});
+    const missing = await renderWithProvidersAsync(<PublicReportDetailScreen />);
+    await flush();
+    expect(hasText(missing, t('public.unableOpen'))).toBe(true);
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    await flush();
+    expect(hasText(missing, t('public.unableOpen'))).toBe(true);
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    await flush();
+    expect(hasText(missing, t('public.unableOpen'))).toBe(true);
+
+    __setSearchParams({ ticketNumber: 'BG-MISSING' });
+    vi.mocked(getPublicTicketByNumber).mockRejectedValue('offline');
+    const failed = await renderWithProvidersAsync(<PublicReportDetailScreen />);
+    await flush();
+    expect(hasText(failed, t('public.unableLoad'))).toBe(true);
   });
 
   it('localizes Explore and public-browse filter chrome in Arabic and French', async () => {

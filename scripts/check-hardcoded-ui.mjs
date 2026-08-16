@@ -4,7 +4,7 @@
  * Usage: node scripts/check-hardcoded-ui.mjs <app-src-dir>
  */
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] || '');
 if (!root) {
@@ -12,40 +12,63 @@ if (!root) {
   process.exit(1);
 }
 
-const TARGETS = [
-  'pages/HomePage.tsx',
-  'pages/LoginPage.tsx',
-  'pages/ReportPage.tsx',
-  'pages/ProfilePage.tsx',
-  'pages/HistoryPage.tsx',
-  'pages/TrackPage.tsx',
-  'pages/PublicReportsPage.tsx',
-  'pages/PublicDetailPage.tsx',
-  'pages/MapPage.tsx',
-  'pages/PrivacyPage.tsx',
-  'pages/NotFoundPage.tsx',
-  'pages/TicketListPage.tsx',
-  'pages/TicketDetailPage.tsx',
-  'pages/MapViewPage.tsx',
-  'pages/WorkforcePage.tsx',
-  'components/PublicPhoto.tsx',
-  'components/ImageRedactionReview.tsx',
-  'components/StaffAssistantPanel.tsx',
-  'app/(tabs)/explore.tsx',
-  'app/(tabs)/history.tsx',
-  'src/features/citizen-auth/OtpVerifyForm.tsx',
-  'src/features/citizen-auth/PhoneEntryForm.tsx',
-  'src/features/citizen-report/ReportForm.tsx',
-  'src/features/citizen-report/components/DetailsStep.tsx',
-  'src/features/citizen-report/components/LocationFields.tsx',
-  'src/features/citizen-report/components/PhotoPickerField.tsx',
-  'src/features/citizen-report/components/ReviewSummary.tsx',
-  'src/features/citizen-report/components/ReportSuccess.tsx',
-  'src/features/citizen-report/components/StepProgress.tsx',
-  'src/features/profile/ProfileSummary.tsx',
-  'src/features/ticket-tracking/TrackLookupForm.tsx',
-  'src/features/public-browse/PublicReportFilters.tsx',
-];
+const TARGETS = {
+  mobile: [
+    'app/(tabs)/index.tsx',
+    'app/(tabs)/explore.tsx',
+    'app/(tabs)/history.tsx',
+    'app/profile/index.tsx',
+    'app/public/[ticketNumber].tsx',
+    'src/features/citizen-auth/OtpVerifyForm.tsx',
+    'src/features/citizen-auth/PhoneEntryForm.tsx',
+    'src/features/citizen-report/ReportForm.tsx',
+    'src/features/citizen-report/components/DetailsStep.tsx',
+    'src/features/citizen-report/components/LocationFields.tsx',
+    'src/features/citizen-report/components/PhotoPickerField.tsx',
+    'src/features/citizen-report/components/ReviewSummary.tsx',
+    'src/features/citizen-report/components/ReportSuccess.tsx',
+    'src/features/citizen-report/components/StepProgress.tsx',
+    'src/features/profile/ProfileSummary.tsx',
+    'src/features/profile/ProfileEditForm.tsx',
+    'src/features/ticket-tracking/TrackLookupForm.tsx',
+    'src/features/public-browse/PublicReportFilters.tsx',
+  ],
+  admin: [
+    'pages/LoginPage.tsx',
+    'pages/TicketListPage.tsx',
+    'pages/TicketDetailPage.tsx',
+    'pages/MapViewPage.tsx',
+    'pages/WorkforcePage.tsx',
+    'components/ImageRedactionReview.tsx',
+    'components/StaffAssistantPanel.tsx',
+  ],
+  'citizen-web': [
+    'pages/HomePage.tsx',
+    'pages/LoginPage.tsx',
+    'pages/ReportPage.tsx',
+    'pages/ProfilePage.tsx',
+    'pages/HistoryPage.tsx',
+    'pages/TrackPage.tsx',
+    'pages/PublicReportsPage.tsx',
+    'pages/PublicDetailPage.tsx',
+    'pages/MapPage.tsx',
+    'pages/PrivacyPage.tsx',
+    'pages/NotFoundPage.tsx',
+    'components/PublicPhoto.tsx',
+  ],
+};
+
+function appIdFromRoot(dir) {
+  const name = basename(dir);
+  return name === 'src' ? basename(dirname(dir)) : name;
+}
+
+const appId = appIdFromRoot(root);
+const targets = TARGETS[appId];
+if (!targets) {
+  console.error(`Unknown app root for hard-coded UI check: ${root}`);
+  process.exit(1);
+}
 
 const ATTR =
   /(aria-label|title|placeholder|alt|label|accessibilityLabel|accessibilityHint)=["']([A-Za-z][^"']{2,})["']/g;
@@ -78,12 +101,13 @@ function isAllowed(value) {
 }
 
 const findings = [];
-for (const relative of TARGETS) {
+for (const relative of targets) {
   const file = join(root, relative);
   let source;
   try {
     source = readFileSync(file, 'utf8');
   } catch {
+    findings.push(`${relative}: missing file`);
     continue;
   }
   for (const match of source.matchAll(ATTR)) {
