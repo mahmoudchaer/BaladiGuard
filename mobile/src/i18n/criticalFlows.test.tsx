@@ -7,6 +7,7 @@ import HomeScreen from '../../app/(tabs)';
 import LoginScreen from '../../app/login';
 import ProfileScreen from '../../app/profile';
 import PublicReportDetailScreen from '../../app/public/[ticketNumber]';
+import NotificationTicketDeepLinkScreen from '../../app/t/[code]';
 import { PhoneEntryForm } from '@/features/citizen-auth/PhoneEntryForm';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { ReportForm } from '@/features/citizen-report/ReportForm';
@@ -218,6 +219,44 @@ describe('mobile critical-flow localization', () => {
     const failed = await renderWithProvidersAsync(<PublicReportDetailScreen />);
     await flush();
     expect(hasText(failed, t('public.unableLoad'))).toBe(true);
+  });
+
+  it('localizes the notification deep-link landing in Arabic and French', async () => {
+    __setSearchParams({ code: '!!' });
+    const invalid = await renderWithProvidersAsync(<NotificationTicketDeepLinkScreen />);
+    await flush();
+    expect(hasText(invalid, t('track.invalidTitle'))).toBe(true);
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      await flush();
+      expect(hasText(invalid, t('track.invalidTitle'))).toBe(true);
+      expect(hasText(invalid, t('track.title'))).toBe(true);
+      expect(hasText(invalid, t('tabs.home'))).toBe(true);
+    }
+
+    __setSearchParams({ code: 'AB23CD' });
+    const signedOut = await renderWithProvidersAsync(<NotificationTicketDeepLinkScreen />);
+    await flush();
+    expect(hasText(signedOut, t('track.continueTitle'))).toBe(true);
+    expect(hasText(signedOut, t('track.trackWithCode'))).toBe(true);
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    await flush();
+    expect(hasText(signedOut, t('track.continueTitle'))).toBe(true);
+    expect(hasText(signedOut, t('track.trackWithCode'))).toBe(true);
+    expect(hasText(signedOut, t('common.signIn'))).toBe(true);
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    await flush();
+    expect(hasText(signedOut, t('track.continueTitle'))).toBe(true);
+    expect(hasText(signedOut, t('track.trackWithCode'))).toBe(true);
   });
 
   it('localizes Explore and public-browse filter chrome in Arabic and French', async () => {

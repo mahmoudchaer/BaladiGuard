@@ -306,7 +306,16 @@
     "timeline": "Timeline",
     "lookUpAnother": "Look up another code",
     "emptyTimeline": "No status updates are available for this report yet.",
-    "feedbackFailed": "Unable to submit resolution feedback."
+    "feedbackFailed": "Unable to submit resolution feedback.",
+    "openingA11y": "Opening report",
+    "opening": "Opening report status…",
+    "invalidTitle": "Link cannot be used",
+    "invalidBody": "This link is missing a valid tracking code. You can still look up a report with a code from your receipt or SMS, or return home.",
+    "continueTitle": "Continue with this report",
+    "optionalSignIn": "Sign in is optional. Tracking only needs a valid code from your notification. Status is shared when the code is valid—same as the track screen.",
+    "codeFromLink": "Tracking code from the link: {code}. Choose how to continue.",
+    "trackWithCode": "Track with this code",
+    "signInToContinue": "Sign in to continue"
   },
   "nextAction": {
     "SUBMITTED": "Your report was received and will be reviewed by municipal staff.",

@@ -306,7 +306,16 @@
     "timeline": "Chronologie",
     "lookUpAnother": "Rechercher un autre code",
     "emptyTimeline": "Aucune mise à jour de statut n’est encore disponible pour ce signalement.",
-    "feedbackFailed": "Impossible d’envoyer le retour de résolution."
+    "feedbackFailed": "Impossible d’envoyer le retour de résolution.",
+    "openingA11y": "Ouverture du signalement",
+    "opening": "Ouverture de l’état du signalement…",
+    "invalidTitle": "Lien inutilisable",
+    "invalidBody": "Ce lien n’a pas de code de suivi valide. Vous pouvez toujours rechercher un signalement avec un code de votre reçu ou SMS, ou revenir à l’accueil.",
+    "continueTitle": "Continuer avec ce signalement",
+    "optionalSignIn": "La connexion est facultative. Le suivi n’exige qu’un code valide de votre notification. L’état est partagé lorsque le code est valide — comme sur l’écran de suivi.",
+    "codeFromLink": "Code de suivi du lien : {code}. Choisissez comment continuer.",
+    "trackWithCode": "Suivre avec ce code",
+    "signInToContinue": "Se connecter pour continuer"
   },
   "nextAction": {
     "SUBMITTED": "Votre signalement a été reçu et sera examiné par le personnel municipal.",

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, spacing, typography } from '@/theme';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
 
@@ -26,6 +27,7 @@ function paramToString(value: string | string[] | undefined): string {
 }
 
 export default function NotificationTicketDeepLinkScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const { code } = useLocalSearchParams<{ code?: string | string[] }>();
   const rawCode = paramToString(code);
@@ -46,9 +48,9 @@ export default function NotificationTicketDeepLinkScreen() {
   if (isLoading || (valid && isAuthenticated)) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-        <View style={styles.centered} accessibilityLabel="Opening report">
+        <View style={styles.centered} accessibilityLabel={t('track.openingA11y')}>
           <ActivityIndicator color={colors.brand} />
-          {valid ? <Text style={styles.openingHint}>Opening report status…</Text> : null}
+          {valid ? <Text style={styles.openingHint}>{t('track.opening')}</Text> : null}
         </View>
       </SafeAreaView>
     );
@@ -59,22 +61,19 @@ export default function NotificationTicketDeepLinkScreen() {
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <View style={styles.container}>
           <Text variant="titleLarge" style={styles.title}>
-            Link cannot be used
+            {t('track.invalidTitle')}
           </Text>
-          <Text style={styles.body}>
-            This link is missing a valid tracking code. You can still look up a report with a code
-            from your receipt or SMS, or return home.
-          </Text>
+          <Text style={styles.body}>{t('track.invalidBody')}</Text>
           <Button
             mode="contained"
             onPress={() => router.replace('/track' as Href)}
             style={styles.button}
-            accessibilityLabel="Track a report"
+            accessibilityLabel={t('track.title')}
           >
-            Track a report
+            {t('track.title')}
           </Button>
           <Button mode="outlined" onPress={() => router.replace('/' as Href)} style={styles.button}>
-            Home
+            {t('tabs.home')}
           </Button>
         </View>
       </SafeAreaView>
@@ -87,30 +86,27 @@ export default function NotificationTicketDeepLinkScreen() {
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <View style={styles.container}>
         <Text variant="titleLarge" style={styles.title}>
-          Continue with this report
+          {t('track.continueTitle')}
         </Text>
         <Banner visible icon="information-outline" style={styles.banner}>
-          Sign in is optional. Tracking only needs a valid code from your notification. Status is
-          shared when the code is valid—same as the track screen.
+          {t('track.optionalSignIn')}
         </Banner>
-        <Text style={styles.body}>
-          Tracking code from the link: {normalized}. Choose how to continue.
-        </Text>
+        <Text style={styles.body}>{t('track.codeFromLink', { code: normalized })}</Text>
         <Button
           mode="contained"
           onPress={() => router.replace(trackHref)}
           style={styles.button}
-          accessibilityLabel="Track with this code"
+          accessibilityLabel={t('track.trackWithCode')}
         >
-          Track with this code
+          {t('track.trackWithCode')}
         </Button>
         <Button
           mode="outlined"
           onPress={() => router.push(buildLoginHref(deepPath) as Href)}
           style={styles.button}
-          accessibilityLabel="Sign in to continue"
+          accessibilityLabel={t('track.signInToContinue')}
         >
-          Sign in
+          {t('common.signIn')}
         </Button>
       </View>
     </SafeAreaView>

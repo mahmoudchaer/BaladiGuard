@@ -19,6 +19,7 @@ const TARGETS = {
     'app/(tabs)/history.tsx',
     'app/profile/index.tsx',
     'app/public/[ticketNumber].tsx',
+    'app/t/[code].tsx',
     'src/features/citizen-auth/OtpVerifyForm.tsx',
     'src/features/citizen-auth/PhoneEntryForm.tsx',
     'src/features/citizen-report/ReportForm.tsx',
