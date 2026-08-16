@@ -3,6 +3,7 @@ import { HelperText, Text, TextInput } from 'react-native-paper';
 import type { Control, FieldErrors } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, spacing } from '@/theme';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
@@ -12,14 +13,14 @@ type DetailsStepProps = {
 };
 
 export function DetailsStep({ control, errors }: DetailsStepProps) {
+  const { t } = useI18n();
   return (
     <View style={styles.container}>
       <Text variant="titleMedium" style={styles.label}>
-        What&apos;s the problem?
+        {t('report.whatsTheProblem')}
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        Describe the issue in plain language — a pothole, broken streetlight, waste pile, water
-        leak, and so on.
+        {t('report.describeHelper')}
       </Text>
       <Controller
         control={control}
@@ -27,8 +28,8 @@ export function DetailsStep({ control, errors }: DetailsStepProps) {
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
             mode="outlined"
-            label="Describe the issue"
-            placeholder="e.g. Large pothole blocking the right lane near the school gate."
+            label={t('report.describeLabel')}
+            placeholder={t('report.describePlaceholder')}
             value={value}
             onChangeText={onChange}
             onBlur={onBlur}

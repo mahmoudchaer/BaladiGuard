@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
 import { BrandMark } from '@/components/BrandMark';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { StatusChip } from '@/components/StatusChip';
 import { TactilePressable } from '@/components/TactilePressable';
 import { getCitizenTicketHistory } from '@/services/api/tickets';
@@ -47,6 +48,7 @@ function Action({ icon, label, detail, onPress, primary = false, testID }: Actio
 }
 
 export default function HomeScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const { accessToken, isAuthenticated, isLoading, profile } = useCitizenAuth();
   const [reports, setReports] = useState<CitizenTicketHistoryItem[]>([]);
@@ -94,11 +96,9 @@ export default function HomeScreen() {
 
           <View style={styles.welcomeHero}>
             <Text style={styles.heroTitle} accessibilityRole="header">
-              Your city, within reach.
+              {t('home.heroTitle')}
             </Text>
-            <Text style={styles.heroBody}>
-              Report what needs attention and follow the municipality’s response from one place.
-            </Text>
+            <Text style={styles.heroBody}>{t('home.heroBody')}</Text>
           </View>
 
           <View style={styles.heroSymbol} accessibilityElementsHidden>
@@ -108,7 +108,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.heroStatus}>
               <View style={styles.liveDot} />
-              <Text style={styles.heroStatusText}>Built for your community</Text>
+              <Text style={styles.heroStatusText}>{t('home.builtFor')}</Text>
             </View>
           </View>
 
@@ -119,7 +119,7 @@ export default function HomeScreen() {
                 testID="sign-in-button"
                 style={styles.signInButton}
               >
-                <Text style={styles.signInText}>Sign in or create an account</Text>
+                <Text style={styles.signInText}>{t('home.signInCreate')}</Text>
                 <Icon source="arrow-right" size={21} color={colors.textInverse} />
               </TactilePressable>
             </Link>
@@ -130,7 +130,7 @@ export default function HomeScreen() {
                 style={styles.guestButton}
               >
                 <Icon source="compass-outline" size={21} color={colors.brandDark} />
-                <Text style={styles.guestText}>Continue as guest</Text>
+                <Text style={styles.guestText}>{t('home.continueGuest')}</Text>
               </TactilePressable>
             </Link>
           </View>
@@ -138,19 +138,17 @@ export default function HomeScreen() {
           <View style={styles.welcomeFooter}>
             <Link href={'/track' as Href} asChild>
               <TactilePressable style={styles.footerLink} accessibilityRole="button">
-                <Text style={styles.footerLinkText}>Track with a code</Text>
+                <Text style={styles.footerLinkText}>{t('home.trackCode')}</Text>
               </TactilePressable>
             </Link>
             <View style={styles.footerDot} />
             <Link href={'/privacy' as Href} asChild>
               <TactilePressable style={styles.footerLink} accessibilityRole="button">
-                <Text style={styles.footerLinkText}>Privacy notice</Text>
+                <Text style={styles.footerLinkText}>{t('home.privacy')}</Text>
               </TactilePressable>
             </Link>
           </View>
-          <Text style={styles.accountNote}>
-            A verified phone number is only needed when you submit.
-          </Text>
+          <Text style={styles.accountNote}>{t('home.phoneHint')}</Text>
         </ScrollView>
       </SafeAreaView>
     );
@@ -166,12 +164,14 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.home} showsVerticalScrollIndicator={false}>
         <View style={styles.homeHeader}>
           <View>
-            <Text style={styles.overline}>{greeting()}</Text>
-            <Text style={styles.homeTitle}>{firstName ? `Hello, ${firstName}` : 'Hello'}</Text>
+            <Text style={styles.overline}>{greeting(t)}</Text>
+            <Text style={styles.homeTitle}>
+              {firstName ? t('home.helloName', { name: firstName }) : t('home.hello')}
+            </Text>
           </View>
           <TactilePressable
             accessibilityRole="button"
-            accessibilityLabel="Open profile"
+            accessibilityLabel={t('a11y.openProfile')}
             onPress={() => router.push('/profile' as Href)}
             style={styles.avatar}
           >
@@ -182,8 +182,8 @@ export default function HomeScreen() {
         <Action
           primary
           icon="plus"
-          label="Report an issue"
-          detail="Photo, location, and a few details"
+          label={t('home.reportIssue')}
+          detail={t('home.reportHint')}
           onPress={() => router.push('/report' as Href)}
         />
 
@@ -196,8 +196,8 @@ export default function HomeScreen() {
             <View style={styles.quickIcon}>
               <Icon source="barcode-scan" size={23} color={colors.brandDark} />
             </View>
-            <Text style={styles.quickTitle}>Track a code</Text>
-            <Text style={styles.quickDetail}>Open a private report</Text>
+            <Text style={styles.quickTitle}>{t('home.trackCode')}</Text>
+            <Text style={styles.quickDetail}>{t('home.trackHint')}</Text>
           </TactilePressable>
           <TactilePressable
             onPress={() => router.push('/explore' as Href)}
@@ -207,20 +207,20 @@ export default function HomeScreen() {
             <View style={styles.quickIcon}>
               <Icon source="map-outline" size={23} color={colors.brandDark} />
             </View>
-            <Text style={styles.quickTitle}>Nearby</Text>
-            <Text style={styles.quickDetail}>Browse public reports</Text>
+            <Text style={styles.quickTitle}>{t('home.nearby')}</Text>
+            <Text style={styles.quickDetail}>{t('home.browseReports')}</Text>
           </TactilePressable>
         </View>
 
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>Your reports</Text>
+            <Text style={styles.sectionTitle}>{t('home.yourReports')}</Text>
             <Text style={styles.sectionHint}>
               {summaryLoading
-                ? 'Checking for updates…'
+                ? t('home.checkingUpdates')
                 : reports.length
-                  ? `${activeCount} active`
-                  : 'Your activity'}
+                  ? t('home.activeCount', { count: activeCount })
+                  : t('home.yourActivity')}
             </Text>
           </View>
           <TactilePressable
@@ -228,7 +228,7 @@ export default function HomeScreen() {
             style={styles.seeAll}
             accessibilityRole="button"
           >
-            <Text style={styles.seeAllText}>View all</Text>
+            <Text style={styles.seeAllText}>{t('home.viewAll')}</Text>
           </TactilePressable>
         </View>
 
@@ -238,13 +238,11 @@ export default function HomeScreen() {
               <Icon source="wifi-alert" size={24} color={colors.warning} />
             </View>
             <View style={styles.stateCopy}>
-              <Text style={styles.stateTitle}>Couldn’t refresh</Text>
-              <Text style={styles.stateBody}>
-                Your reports are safe. Try again when you’re connected.
-              </Text>
+              <Text style={styles.stateTitle}>{t('home.refreshFailedTitle')}</Text>
+              <Text style={styles.stateBody}>{t('home.refreshFailedBody')}</Text>
             </View>
             <TactilePressable onPress={() => void loadSummary()}>
-              <Text style={styles.retryText}>Retry</Text>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TactilePressable>
           </View>
         ) : null}
@@ -254,10 +252,8 @@ export default function HomeScreen() {
             <View style={styles.emptyIcon}>
               <Icon source="check-circle-outline" size={28} color={colors.brand} />
             </View>
-            <Text style={styles.emptyTitle}>Nothing to follow yet</Text>
-            <Text style={styles.emptyBody}>
-              When you report an issue, its progress will appear here.
-            </Text>
+            <Text style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
+            <Text style={styles.emptyBody}>{t('home.emptyBody')}</Text>
           </View>
         ) : null}
 
@@ -267,7 +263,7 @@ export default function HomeScreen() {
               <TactilePressable
                 key={report.trackingCode}
                 accessibilityRole="button"
-                accessibilityLabel={`Open report ${report.trackingCode}`}
+                accessibilityLabel={t('home.openReport', { code: report.trackingCode })}
                 onPress={() =>
                   router.push({ pathname: '/track', params: { trackingCode: report.trackingCode } })
                 }
@@ -298,11 +294,11 @@ export default function HomeScreen() {
   );
 }
 
-function greeting() {
+function greeting(translate: (key: string) => string) {
   const hour = new Date().getHours();
-  if (hour < 12) return 'GOOD MORNING';
-  if (hour < 18) return 'GOOD AFTERNOON';
-  return 'GOOD EVENING';
+  if (hour < 12) return translate('home.morning');
+  if (hour < 18) return translate('home.afternoon');
+  return translate('home.evening');
 }
 
 const styles = StyleSheet.create({

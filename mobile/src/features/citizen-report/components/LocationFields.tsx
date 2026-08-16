@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
 
 import { PLACEHOLDER_LOCATIONS } from '@/constants/locations';
+import { useI18n } from '@/i18n/LocaleProvider';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 import { getCurrentDeviceLocation } from '@/services/deviceLocation';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
@@ -30,6 +31,7 @@ export function LocationFields({
   selectedPlaceholderId,
   onSelectPlaceholder,
 }: LocationFieldsProps) {
+  const { t } = useI18n();
   const [isValidating, setIsValidating] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -102,11 +104,11 @@ export function LocationFields({
         applyValidatedLocation({
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
-          addressText: 'Current location',
+          addressText: t('report.currentLocation'),
           source: 'GPS',
         });
       }
-      setGpsHint('Using your current location. You can move the pin or look up another address.');
+      setGpsHint(t('report.gpsHint'));
     } catch {
       if (!shouldApplyGpsResult(requestId)) {
         return;
@@ -114,10 +116,10 @@ export function LocationFields({
       applyValidatedLocation({
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
-        addressText: 'Current location',
+        addressText: t('report.currentLocation'),
         source: 'GPS',
       });
-      setGpsHint('Using your current GPS coordinates. You can adjust the pin if needed.');
+      setGpsHint(t('report.gpsHintCoords'));
     } finally {
       setIsValidating(false);
     }
@@ -165,7 +167,7 @@ export function LocationFields({
   const handleLookupAddress = async () => {
     const query = addressText?.trim() ?? '';
     if (query.length < 3) {
-      setLocationError('Enter at least 3 characters before looking up an address.');
+      setLocationError(t('report.addressTooShort'));
       return;
     }
 
@@ -176,7 +178,7 @@ export function LocationFields({
     try {
       const result = await validateLocation({ addressText: query });
       if (!result.success || !result.location) {
-        throw new Error(result.message ?? 'Unable to validate that location.');
+        throw new Error(result.message ?? t('report.validateFailed'));
       }
       onSelectPlaceholder('');
       applyValidatedLocation({
@@ -184,9 +186,7 @@ export function LocationFields({
         source: 'MANUAL',
       });
     } catch (error) {
-      setLocationError(
-        error instanceof Error ? error.message : 'Unable to validate that location.',
-      );
+      setLocationError(error instanceof Error ? error.message : t('report.validateFailed'));
       setValue('latitude', undefined, { shouldValidate: true });
       setValue('longitude', undefined, { shouldValidate: true });
     } finally {
@@ -208,16 +208,14 @@ export function LocationFields({
         longitude: coordinate.longitude,
       });
       if (!result.success || !result.location) {
-        throw new Error(result.message ?? 'Unable to validate that map point.');
+        throw new Error(result.message ?? t('report.validateMapFailed'));
       }
       applyValidatedLocation({
         ...result.location,
         source: locationSourceForMapPin(locationSource),
       });
     } catch (error) {
-      setLocationError(
-        error instanceof Error ? error.message : 'Unable to validate that map point.',
-      );
+      setLocationError(error instanceof Error ? error.message : t('report.validateMapFailed'));
       setValue('latitude', undefined, { shouldValidate: true });
       setValue('longitude', undefined, { shouldValidate: true });
     } finally {
@@ -230,11 +228,10 @@ export function LocationFields({
   return (
     <View style={styles.container}>
       <Text variant="titleMedium" style={styles.label}>
-        Location
+        {t('report.location')}
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        We try to find your current location automatically. Confirm it on the map, or enter an
-        address if that&apos;s easier.
+        {t('report.locationHelper')}
       </Text>
 
       <Button
@@ -247,14 +244,14 @@ export function LocationFields({
         style={styles.gpsButton}
         contentStyle={styles.gpsButtonContent}
       >
-        {isDetectingGps ? 'Detecting location…' : 'Use my current location'}
+        {isDetectingGps ? t('report.detecting') : t('report.useCurrent')}
       </Button>
 
       {isBusy ? (
         <View style={styles.validatingRow}>
           <ActivityIndicator animating color={colors.brand} />
           <Text variant="bodySmall" style={styles.validatingText}>
-            {isDetectingGps ? 'Detecting your current location…' : 'Checking location…'}
+            {isDetectingGps ? t('report.detectingLong') : t('report.checkingLocation')}
           </Text>
         </View>
       ) : null}
@@ -269,10 +266,9 @@ export function LocationFields({
         <View style={styles.confirmedBlock}>
           {Platform.OS === 'web' ? (
             <View style={styles.mapPlaceholder}>
-              <Text variant="labelLarge">Map picker</Text>
+              <Text variant="labelLarge">{t('report.mapPicker')}</Text>
               <Text variant="bodySmall" style={styles.mapText}>
-                Interactive map pins are available in the iOS/Android app. On web, use current
-                location, address lookup, or a sample location.
+                {t('report.mapWebHint')}
               </Text>
             </View>
           ) : (
@@ -290,19 +286,19 @@ export function LocationFields({
                     latitude: latitude as number,
                     longitude: longitude as number,
                   }}
-                  title="Report location"
+                  title={t('report.reportLocation')}
                   description={addressText}
                 />
               </MapView>
               <Text variant="bodySmall" style={styles.mapHint}>
-                Tap the map to move the pin.
+                {t('report.tapMap')}
               </Text>
             </View>
           )}
 
           <View style={styles.confirmedRow}>
             <Text variant="bodyMedium" style={styles.confirmedText}>
-              Pinned near {addressText || 'the selected point'}
+              {t('report.pinnedNear', { address: addressText || t('report.selectedPoint') })}
             </Text>
             <Button
               mode="text"
@@ -310,7 +306,7 @@ export function LocationFields({
               textColor={colors.brandDark}
               onPress={() => setManualOpen(true)}
             >
-              Change
+              {t('common.change')}
             </Button>
           </View>
         </View>
@@ -324,8 +320,8 @@ export function LocationFields({
             render={({ field: { value, onChange, onBlur } }) => (
               <TextInput
                 mode="outlined"
-                label="Address or landmark"
-                placeholder="e.g. Near AUB Main Gate, Hamra"
+                label={t('report.addressLabel')}
+                placeholder={t('report.addressPlaceholder')}
                 value={value}
                 onChangeText={(text) => {
                   markUserAdjusted();
@@ -355,11 +351,11 @@ export function LocationFields({
             style={styles.lookupButton}
             contentStyle={styles.lookupButtonContent}
           >
-            {isValidating && !isDetectingGps ? 'Validating…' : 'Look up address'}
+            {isValidating && !isDetectingGps ? t('report.validating') : t('report.lookUpAddress')}
           </Button>
 
           <Text variant="bodySmall" style={styles.helper}>
-            Or pick a sample Beirut location:
+            {t('report.orSample')}
           </Text>
           <View style={styles.chipRow}>
             {PLACEHOLDER_LOCATIONS.map((location) => (
@@ -402,7 +398,10 @@ export function LocationFields({
 
       {hasPin ? (
         <HelperText type="info" visible>
-          Coordinates ready ({latitude?.toFixed(5)}, {longitude?.toFixed(5)})
+          {t('report.coordinatesReady', {
+            lat: latitude?.toFixed(5) ?? '',
+            lng: longitude?.toFixed(5) ?? '',
+          })}
         </HelperText>
       ) : null}
     </View>

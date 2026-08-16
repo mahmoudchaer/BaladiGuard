@@ -17,10 +17,12 @@ import {
   saveDraft,
 } from '@/services/reportDraft';
 import type { SubmitTicketResponse } from '@/types/ticket';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 type Phase = 'idle' | 'validating' | 'uploading' | 'submitting';
 
 export function ReportPage() {
+  const { t } = useI18n();
   const { profile, logout } = useCitizenAuth();
   const navigate = useNavigate();
   const authenticatedUserId = profile?.userId;
@@ -99,7 +101,7 @@ export function ReportPage() {
       photo
         ? `${photo.name} · ${(photo.size / 1024 / 1024).toFixed(1)} MB`
         : uploadedKey
-          ? 'Previously uploaded photo ready'
+          ? t('report.photoReady')
           : '',
     [photo, uploadedKey],
   );
@@ -108,7 +110,7 @@ export function ReportPage() {
     setError(null);
     setPhase('validating');
     if (!navigator.geolocation) {
-      setError('Location services are not available in this browser.');
+      setError(t('report.locationUnavailable'));
       setPhase('idle');
       return;
     }
@@ -123,11 +125,11 @@ export function ReportPage() {
             setAddress(next.addressText);
           })
           .catch((err: unknown) =>
-            setError(err instanceof Error ? err.message : 'Unable to validate your location.'),
+            setError(err instanceof Error ? err.message : t('report.validateFailed')),
           )
           .finally(() => setPhase('idle')),
       () => {
-        setError('We could not access your location. Enter an address instead.');
+        setError(t('report.locationDenied'));
         setPhase('idle');
       },
       { enableHighAccuracy: true, timeout: 12000 },
@@ -136,7 +138,7 @@ export function ReportPage() {
 
   async function validateAddress() {
     if (addressText.trim().length < 3) {
-      setError('Enter at least three characters for the location.');
+      setError(t('report.locationTooShort'));
       return;
     }
     setPhase('validating');
@@ -147,7 +149,7 @@ export function ReportPage() {
       setAddress(next.addressText);
     } catch (err) {
       setLocation(null);
-      setError(err instanceof Error ? err.message : 'Unable to validate that location.');
+      setError(err instanceof Error ? err.message : t('report.addressFailed'));
     } finally {
       setPhase('idle');
     }
@@ -157,15 +159,15 @@ export function ReportPage() {
     event.preventDefault();
     setError(null);
     if (description.trim().length < 10) {
-      setError('Describe the issue in at least 10 characters.');
+      setError(t('report.descriptionShort'));
       return;
     }
     if (description.trim().length > 2000) {
-      setError('Description must be 2,000 characters or fewer.');
+      setError(t('report.descriptionLong'));
       return;
     }
     if (!location) {
-      setError('Validate the report location before continuing.');
+      setError(t('report.needLocation'));
       return;
     }
     if (!profile) {
@@ -181,7 +183,7 @@ export function ReportPage() {
       return;
     }
     if (!photo && !uploadedKey) {
-      setError('Choose a photo of the issue.');
+      setError(t('report.needPhoto'));
       return;
     }
     try {
@@ -212,7 +214,7 @@ export function ReportPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) await logout();
       setError(
-        `${err instanceof Error ? err.message : 'Unable to submit your report.'} Your draft is saved; retrying will not create a duplicate.`,
+        `${err instanceof Error ? err.message : t('report.submitFailed')} ${t('report.draftSaved')}`,
       );
     } finally {
       setPhase('idle');
@@ -236,21 +238,21 @@ export function ReportPage() {
     return (
       <section className="success-page page-enter">
         <div className="success-mark">✓</div>
-        <span className="eyebrow">REPORT RECEIVED</span>
-        <h1>Thank you for speaking up.</h1>
-        <p>The municipality can now review your report.</p>
+        <span className="eyebrow">{t('report.received')}</span>
+        <h1>{t('report.thanks')}</h1>
+        <p>{t('report.municipalityReview')}</p>
         <div className="receipt-card">
-          <span>Report</span>
+          <span>{t('report.reportLabel')}</span>
           <strong>{result.ticketNumber}</strong>
-          <span>Tracking code</span>
+          <span>{t('report.trackingCode')}</span>
           <strong className="tracking-code">{result.trackingCode}</strong>
         </div>
         <div className="button-row">
           <Link className="button" to={`/track?trackingCode=${result.trackingCode}`}>
-            View report
+            {t('report.viewReport')}
           </Link>
           <Link className="button button-secondary" to="/history">
-            My reports
+            {t('report.myReports')}
           </Link>
         </div>
       </section>
@@ -260,19 +262,15 @@ export function ReportPage() {
     <section className="page page-enter report-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">NEW REPORT</span>
-          <h1>What needs attention?</h1>
-          <p className="lede">
-            A clear photo, location, and short description help the municipality act faster.
-          </p>
+          <span className="eyebrow">{t('report.eyebrow')}</span>
+          <h1>{t('report.title')}</h1>
+          <p className="lede">{t('report.lede')}</p>
         </div>
-        <span className="step-chip">{profile ? 'Private submission' : 'Sign in at submit'}</span>
+        <span className="step-chip">
+          {profile ? t('report.privateSubmission') : t('report.signInAtSubmit')}
+        </span>
       </div>
-      {restored ? (
-        <div className="notice notice-info">
-          Your saved draft was restored. Select the photo again if it was not already uploaded.
-        </div>
-      ) : null}
+      {restored ? <div className="notice notice-info">{t('report.draftRestored')}</div> : null}
       {error ? (
         <div className="notice notice-error" role="alert">
           {error}
@@ -283,35 +281,35 @@ export function ReportPage() {
           <div style={{ width: `${progress}%` }} />
           <span>
             {phase === 'validating'
-              ? 'Validating location…'
+              ? t('report.validating')
               : phase === 'uploading'
-                ? 'Uploading photo…'
-                : 'Submitting securely…'}
+                ? t('report.uploading')
+                : t('report.submitting')}
           </span>
         </div>
       ) : null}
       <form className="report-grid" onSubmit={(event) => void submit(event)}>
         <div className="report-main settings-card">
           <label className="field-label" htmlFor="description">
-            Describe the issue
+            {t('report.describe')}
           </label>
           <textarea
             id="description"
             className="input textarea"
             maxLength={2000}
-            placeholder="What happened? Include useful landmarks or safety concerns."
+            placeholder={t('report.describePlaceholder')}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
           <span className="character-count">{description.length} / 2,000</span>
           <label className="field-label" htmlFor="address">
-            Location
+            {t('report.location')}
           </label>
           <div className="location-row">
             <input
               id="address"
               className="input"
-              placeholder="Street, landmark, or neighborhood"
+              placeholder={t('report.locationPlaceholder')}
               value={addressText}
               onChange={(e) => {
                 setAddress(e.target.value);
@@ -324,7 +322,7 @@ export function ReportPage() {
               type="button"
               onClick={() => void validateAddress()}
             >
-              Check
+              {t('report.check')}
             </button>
           </div>
           <button
@@ -335,15 +333,15 @@ export function ReportPage() {
           >
             <span aria-hidden>⌖</span>
             <span>
-              <strong>Use my current location</strong>
-              <small>Asked only when you choose this option</small>
+              <strong>{t('report.useCurrent')}</strong>
+              <small>{t('report.useCurrentHint')}</small>
             </span>
           </button>
           {location ? (
             <div className="validated-location">
               <span>✓</span>
               <div>
-                <strong>Location confirmed</strong>
+                <strong>{t('report.locationConfirmed')}</strong>
                 <small>{location.addressText}</small>
               </div>
             </div>
@@ -351,16 +349,16 @@ export function ReportPage() {
         </div>
         <aside className="report-side settings-card">
           <label className="field-label" htmlFor="photo">
-            Photo
+            {t('report.photo')}
           </label>
           <label className="photo-drop" htmlFor="photo">
             {preview ? (
-              <img src={preview} alt="Selected report preview" />
+              <img src={preview} alt={t('report.photoAlt')} />
             ) : (
               <>
                 <span className="photo-icon">＋</span>
-                <strong>Choose a photo</strong>
-                <small>JPEG, PNG, or WebP · up to 5 MB</small>
+                <strong>{t('report.choosePhoto')}</strong>
+                <small>{t('report.photoHint')}</small>
               </>
             )}
           </label>
@@ -372,7 +370,7 @@ export function ReportPage() {
             onChange={(e) => {
               const file = e.target.files?.[0] ?? null;
               if (file && file.size > 5 * 1024 * 1024) {
-                setError('Photo must be 5 MB or smaller.');
+                setError(t('report.photoTooLarge'));
                 return;
               }
               setPhoto(file);
@@ -385,14 +383,13 @@ export function ReportPage() {
           <div className="privacy-callout">
             <span aria-hidden>◉</span>
             <p>
-              <strong>Protected upload</strong>
+              <strong>{t('report.protected')}</strong>
               <br />
-              Staff receive the private original. Public views only receive an approved redacted
-              version.
+              {t('report.protectedBody')}
             </p>
           </div>
           <button className="button button-large" disabled={busy} type="submit">
-            {busy ? 'Please wait…' : 'Submit report'} <span aria-hidden>→</span>
+            {busy ? t('report.pleaseWait') : t('report.submit')} <span aria-hidden>→</span>
           </button>
           <button
             className="text-button"
@@ -400,7 +397,7 @@ export function ReportPage() {
             type="button"
             onClick={() => void discard()}
           >
-            Discard draft
+            {t('report.discard')}
           </button>
         </aside>
       </form>

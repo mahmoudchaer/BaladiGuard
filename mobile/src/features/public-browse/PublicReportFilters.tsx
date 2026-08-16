@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 
 import { TactilePressable } from '@/components/TactilePressable';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel, formatStatusLabel } from '@/theme/labels';
 import type { TicketStatus } from '@/types/ticket';
@@ -24,17 +25,18 @@ type PublicReportFiltersProps = {
 };
 
 export function PublicReportFilters({ filters, categories, onChange }: PublicReportFiltersProps) {
+  const { t } = useI18n();
   return (
     <View style={styles.wrap} testID="public-report-filters">
       <View style={styles.headingRow}>
         <View>
-          <Text style={styles.heading}>Refine results</Text>
-          <Text style={styles.hint}>Map and list update together</Text>
+          <Text style={styles.heading}>{t('explore.refine')}</Text>
+          <Text style={styles.hint}>{t('explore.refineHint')}</Text>
         </View>
         <Icon source="tune-variant" size={20} color={colors.textMuted} />
       </View>
 
-      <Text style={styles.groupLabel}>STATUS</Text>
+      <Text style={styles.groupLabel}>{t('explore.status')}</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -43,7 +45,7 @@ export function PublicReportFilters({ filters, categories, onChange }: PublicRep
       >
         {STATUS_OPTIONS.map((status) => {
           const selected = filters.status === status;
-          const label = status === 'ALL' ? 'All statuses' : formatStatusLabel(status);
+          const label = status === 'ALL' ? t('explore.allStatuses') : formatStatusLabel(status);
           return (
             <TactilePressable
               key={status}
@@ -52,7 +54,7 @@ export function PublicReportFilters({ filters, categories, onChange }: PublicRep
               testID={`public-filter-status-${status}`}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`Filter status ${label}`}
+              accessibilityLabel={t('explore.filterStatus', { label })}
             >
               <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
             </TactilePressable>
@@ -60,7 +62,7 @@ export function PublicReportFilters({ filters, categories, onChange }: PublicRep
         })}
       </ScrollView>
 
-      <Text style={styles.groupLabel}>CATEGORY</Text>
+      <Text style={styles.groupLabel}>{t('explore.category')}</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -73,10 +75,10 @@ export function PublicReportFilters({ filters, categories, onChange }: PublicRep
           testID="public-filter-category-ALL"
           accessibilityRole="button"
           accessibilityState={{ selected: filters.category === 'ALL' }}
-          accessibilityLabel="Filter category All categories"
+          accessibilityLabel={t('explore.filterCategory', { label: t('explore.allCategories') })}
         >
           <Text style={[styles.chipLabel, filters.category === 'ALL' && styles.chipLabelSelected]}>
-            All categories
+            {t('explore.allCategories')}
           </Text>
         </TactilePressable>
         {categories.map((category) => {
@@ -89,7 +91,9 @@ export function PublicReportFilters({ filters, categories, onChange }: PublicRep
               testID={`public-filter-category-${category}`}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`Filter category ${formatCategoryLabel(category)}`}
+              accessibilityLabel={t('explore.filterCategory', {
+                label: formatCategoryLabel(category),
+              })}
             >
               <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
                 {formatCategoryLabel(category)}

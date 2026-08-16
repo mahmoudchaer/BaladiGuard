@@ -7,6 +7,7 @@ import { TicketMap } from '@/components/TicketMap';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { useDashboardLocationSync } from '@/hooks/useDashboardLocationSync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
@@ -47,6 +48,7 @@ const FILTER_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 300;
 const VIEWPORT_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 350;
 
 export function MapViewPage() {
+  const { t } = useI18n();
   const initialFilters = parseDashboardSearchParams(new URLSearchParams(window.location.search));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [viewport, setViewport] = useState<TicketMapViewport | null>(null);
@@ -198,7 +200,7 @@ export function MapViewPage() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
+        setErrorMessage(error instanceof Error ? error.message : t('errors.loadTickets'));
         if (isInitialLoad) {
           setLoadState('error');
         }
@@ -215,6 +217,7 @@ export function MapViewPage() {
     debouncedStatus,
     mapUrgency,
     openOnly,
+    t,
     ticketIds,
   ]);
 
@@ -262,29 +265,26 @@ export function MapViewPage() {
           createdAt: new Date().toISOString(),
           updatedAt: null,
         })),
+        t,
       ),
-    [markers],
+    [markers, t],
   );
 
   const pinSummary = useMemo(() => {
     if (clusters.length > 0 && markers.length === 0) {
       const total = clusters.reduce((sum, cluster) => sum + cluster.count, 0);
-      return `${clusters.length} clusters · ~${total} reports`;
+      return t('map.clusters', { count: clusters.length, total });
     }
-    const truncatedNote = viewport?.truncated ? ' · truncated' : '';
-    return `${markers.length} pins${truncatedNote}`;
-  }, [clusters, markers.length, viewport?.truncated]);
+    return `${t('map.pins', { count: markers.length })}${viewport?.truncated ? t('map.truncated') : ''}`;
+  }, [clusters, markers.length, t, viewport?.truncated]);
 
   return (
-    <DashboardLayout
-      title="Map View"
-      subtitle="See where citizen infrastructure reports are located"
-    >
+    <DashboardLayout title={t('map.title')} subtitle={t('map.subtitle')}>
       {loadState === 'loading' && <LoadingState />}
 
       {loadState === 'error' && (
         <div className="map-view-page__error" role="alert">
-          <h3>Unable to load tickets</h3>
+          <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
         </div>
       )}
@@ -320,30 +320,21 @@ export function MapViewPage() {
 
           {errorMessage && !isRefreshing && (
             <div className="map-view-page__error" role="alert">
-              <h3>Unable to update tickets</h3>
+              <h3>{t('tickets.unableUpdate')}</h3>
               <p>{errorMessage}</p>
             </div>
           )}
 
           {markers.length === 0 && clusters.length === 0 && !hasActiveFilters && (
-            <EmptyState
-              title="No reports in this area"
-              message="Pan or zoom the map, or clear filters, to find citizen reports."
-            />
+            <EmptyState title={t('map.emptyAreaTitle')} message={t('map.emptyAreaBody')} />
           )}
 
           {hasActiveFilters && markers.length === 0 && clusters.length === 0 && (
             <EmptyState
               title={
-                ticketIds.length > 0
-                  ? 'These tickets are no longer available'
-                  : 'No matching tickets'
+                ticketIds.length > 0 ? t('tickets.emptyGoneTitle') : t('tickets.emptyMatchTitle')
               }
-              message={
-                ticketIds.length > 0
-                  ? 'The referenced tickets are outside this view, were removed, or you no longer have access.'
-                  : 'Try adjusting your search, status, category, urgency, or department filters to find tickets.'
-              }
+              message={ticketIds.length > 0 ? t('map.emptyGoneBody') : t('tickets.emptyMatchBody')}
             />
           )}
 
@@ -369,13 +360,11 @@ export function MapViewPage() {
             />
           </div>
 
-          <section className="map-view-page__list" aria-label="Accessible ticket list for map">
-            <h2 className="map-view-page__list-title">Tickets in view</h2>
+          <section className="map-view-page__list" aria-label={t('map.listA11y')}>
+            <h2 className="map-view-page__list-title">{t('map.listTitle')}</h2>
             {markers.length === 0 ? (
               <p className="map-view-page__list-empty">
-                {clusters.length > 0
-                  ? 'Zoom into a cluster to list individual tickets.'
-                  : 'No individual tickets in the current viewport.'}
+                {clusters.length > 0 ? t('map.zoomCluster') : t('map.noPins')}
               </p>
             ) : (
               <ul className="map-view-page__list-items">

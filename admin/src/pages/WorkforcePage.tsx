@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { LoadingState } from '@/components/LoadingState';
 import { DEPARTMENT_NAMES } from '@/data/departments';
 import { useStaffAuth } from '@/auth/useStaffAuth';
@@ -16,6 +17,8 @@ import {
   updateWorker,
 } from '@/services/workforce';
 import type { WorkforceTeam, WorkforceWorker, WorkloadSnapshot } from '@/types/workforce';
+import { formatStatus } from '@/utils/labels';
+import type { TicketStatus } from '@/types/ticket';
 import './WorkforcePage.css';
 
 const BEIRUT_MUNICIPALITY_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -27,8 +30,17 @@ function formatDepartments(ids: string[]): string {
   return ids.map((id) => DEPARTMENT_NAMES[id] ?? id).join(', ');
 }
 
-function countLine(counts: WorkloadSnapshot['unassigned']): string {
-  return `${counts.queued} queued · ${counts.assigned} assigned · ${counts.inProgress} in progress · ${counts.dueSoon} due soon · ${counts.overdue} overdue`;
+function countLine(
+  counts: WorkloadSnapshot['unassigned'],
+  translate: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  return translate('workforce.countLine', {
+    queued: counts.queued,
+    assigned: counts.assigned,
+    inProgress: counts.inProgress,
+    dueSoon: counts.dueSoon,
+    overdue: counts.overdue,
+  });
 }
 
 function toggleValue(values: string[], value: string): string[] {
@@ -42,9 +54,10 @@ function DepartmentChecklist({
   selected: string[];
   onChange: (next: string[]) => void;
 }) {
+  const { t } = useI18n();
   return (
     <fieldset className="workforce-checklist">
-      <legend>Departments</legend>
+      <legend>{t('workforce.departments')}</legend>
       {DEPARTMENT_OPTIONS.map(([id, name]) => (
         <label key={id}>
           <input
@@ -60,6 +73,7 @@ function DepartmentChecklist({
 }
 
 export function WorkforcePage() {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const focusWorkerId = searchParams.get('workerId');
   const focusTeamId = searchParams.get('teamId');
@@ -98,7 +112,7 @@ export function WorkforcePage() {
       setWorkload(nextWorkload);
       setLoadState('ready');
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load workforce.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.loadError'));
       setLoadState('error');
     }
   }
@@ -152,7 +166,7 @@ export function WorkforcePage() {
       setWorkerName('');
       await reload();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to create worker.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.createWorkerError'));
     }
   }
 
@@ -170,7 +184,7 @@ export function WorkforcePage() {
       setTeamName('');
       await reload();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to create team.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.createTeamError'));
     }
   }
 
@@ -187,7 +201,7 @@ export function WorkforcePage() {
       setEditingWorkerId(null);
       await reload();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to update worker.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.updateWorkerError'));
     }
   }
 
@@ -205,7 +219,7 @@ export function WorkforcePage() {
       setEditingTeamId(null);
       await reload();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to update team.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.updateTeamError'));
     }
   }
 
@@ -215,7 +229,7 @@ export function WorkforcePage() {
       await setWorkerActive(workerId, active);
       await reload();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to update worker.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.updateWorkerError'));
     }
   }
 
@@ -225,17 +239,14 @@ export function WorkforcePage() {
       await setTeamActive(teamId, active);
       await reload();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to update team.');
+      setErrorMessage(error instanceof Error ? error.message : t('workforce.updateTeamError'));
     }
   }
 
   return (
-    <DashboardLayout
-      title="Workforce"
-      subtitle="Municipality workers, teams, and active ticket workload"
-    >
+    <DashboardLayout title={t('workforce.title')} subtitle={t('workforce.subtitle')}>
       <div className="workforce-page">
-        <div className="workforce-page__tabs" role="tablist" aria-label="Workforce views">
+        <div className="workforce-page__tabs" role="tablist" aria-label={t('workforce.viewsA11y')}>
           <button
             type="button"
             role="tab"
@@ -243,7 +254,7 @@ export function WorkforcePage() {
             className={`workforce-page__tab${tab === 'workload' ? ' workforce-page__tab--active' : ''}`}
             onClick={() => setTab('workload')}
           >
-            Workload
+            {t('workforce.workload')}
           </button>
           <button
             type="button"
@@ -252,7 +263,7 @@ export function WorkforcePage() {
             className={`workforce-page__tab${tab === 'directory' ? ' workforce-page__tab--active' : ''}`}
             onClick={() => setTab('directory')}
           >
-            Directory
+            {t('workforce.directory')}
           </button>
         </div>
 
@@ -261,14 +272,14 @@ export function WorkforcePage() {
             {errorMessage}
           </p>
         )}
-        {loadState === 'loading' && <LoadingState message="Loading workforce…" />}
+        {loadState === 'loading' && <LoadingState message={t('workforce.loading')} />}
 
         {loadState === 'ready' &&
         tab === 'directory' &&
         focusWorkerId &&
         !workers.some((item) => item.workerId === focusWorkerId) ? (
           <p className="workforce-page__error" role="status">
-            That worker is no longer available or you no longer have access.
+            {t('workforce.workerGone')}
           </p>
         ) : null}
         {loadState === 'ready' &&
@@ -276,13 +287,13 @@ export function WorkforcePage() {
         focusTeamId &&
         !teams.some((item) => item.teamId === focusTeamId) ? (
           <p className="workforce-page__error" role="status">
-            That team is no longer available or you no longer have access.
+            {t('workforce.teamGone')}
           </p>
         ) : null}
         {loadState === 'ready' && tab === 'directory' && (
           <div className="workforce-page__grid">
             <section className="workforce-card">
-              <h2>Workers</h2>
+              <h2>{t('workforce.workers')}</h2>
               {isAdmin && (
                 <form
                   className="workforce-form"
@@ -292,15 +303,15 @@ export function WorkforcePage() {
                   }}
                 >
                   <label>
-                    Display name
+                    {t('workforce.displayName')}
                     <input
                       value={workerName}
                       onChange={(event) => setWorkerName(event.target.value)}
-                      placeholder="Field worker name"
+                      placeholder={t('workforce.workerNamePlaceholder')}
                     />
                   </label>
                   <label>
-                    Department
+                    {t('workforce.department')}
                     <select
                       value={workerDepartment}
                       onChange={(event) => setWorkerDepartment(event.target.value)}
@@ -312,16 +323,16 @@ export function WorkforcePage() {
                       ))}
                     </select>
                   </label>
-                  <button type="submit">Add worker</button>
+                  <button type="submit">{t('workforce.addWorker')}</button>
                 </form>
               )}
               <table className="workforce-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Departments</th>
-                    <th>Status</th>
-                    {isAdmin ? <th>Actions</th> : null}
+                    <th>{t('workforce.name')}</th>
+                    <th>{t('workforce.departments')}</th>
+                    <th>{t('workforce.status')}</th>
+                    {isAdmin ? <th>{t('workforce.actions')}</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -343,9 +354,9 @@ export function WorkforcePage() {
                             }}
                           >
                             <label>
-                              Display name
+                              {t('workforce.displayName')}
                               <input
-                                aria-label="Edit worker name"
+                                aria-label={t('workforce.editWorkerName')}
                                 value={editWorkerName}
                                 onChange={(event) => setEditWorkerName(event.target.value)}
                               />
@@ -355,9 +366,9 @@ export function WorkforcePage() {
                               onChange={setEditWorkerDepartments}
                             />
                             <div className="workforce-form__actions">
-                              <button type="submit">Save worker</button>
+                              <button type="submit">{t('workforce.saveWorker')}</button>
                               <button type="button" onClick={() => setEditingWorkerId(null)}>
-                                Cancel
+                                {t('common.cancel')}
                               </button>
                             </div>
                           </form>
@@ -366,11 +377,11 @@ export function WorkforcePage() {
                         <>
                           <td>{worker.displayName}</td>
                           <td>{formatDepartments(worker.departmentIds)}</td>
-                          <td>{worker.active ? 'Active' : 'Inactive'}</td>
+                          <td>{worker.active ? t('workforce.active') : t('workforce.inactive')}</td>
                           {isAdmin ? (
                             <td>
                               <button type="button" onClick={() => startEditWorker(worker)}>
-                                Edit
+                                {t('workforce.edit')}
                               </button>
                               <button
                                 type="button"
@@ -378,7 +389,9 @@ export function WorkforcePage() {
                                   void handleToggleWorker(worker.workerId, !worker.active)
                                 }
                               >
-                                {worker.active ? 'Deactivate' : 'Reactivate'}
+                                {worker.active
+                                  ? t('workforce.deactivate')
+                                  : t('workforce.reactivate')}
                               </button>
                             </td>
                           ) : null}
@@ -391,7 +404,7 @@ export function WorkforcePage() {
             </section>
 
             <section className="workforce-card">
-              <h2>Teams</h2>
+              <h2>{t('workforce.teams')}</h2>
               {isAdmin && (
                 <form
                   className="workforce-form"
@@ -401,15 +414,15 @@ export function WorkforcePage() {
                   }}
                 >
                   <label>
-                    Display name
+                    {t('workforce.displayName')}
                     <input
                       value={teamName}
                       onChange={(event) => setTeamName(event.target.value)}
-                      placeholder="Team name"
+                      placeholder={t('workforce.teamNamePlaceholder')}
                     />
                   </label>
                   <label>
-                    Department
+                    {t('workforce.department')}
                     <select
                       value={teamDepartment}
                       onChange={(event) => setTeamDepartment(event.target.value)}
@@ -421,16 +434,16 @@ export function WorkforcePage() {
                       ))}
                     </select>
                   </label>
-                  <button type="submit">Add team</button>
+                  <button type="submit">{t('workforce.addTeam')}</button>
                 </form>
               )}
               <table className="workforce-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Members</th>
-                    <th>Status</th>
-                    {isAdmin ? <th>Actions</th> : null}
+                    <th>{t('workforce.name')}</th>
+                    <th>{t('workforce.members')}</th>
+                    <th>{t('workforce.status')}</th>
+                    {isAdmin ? <th>{t('workforce.actions')}</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -450,9 +463,9 @@ export function WorkforcePage() {
                             }}
                           >
                             <label>
-                              Display name
+                              {t('workforce.displayName')}
                               <input
-                                aria-label="Edit team name"
+                                aria-label={t('workforce.editTeamName')}
                                 value={editTeamName}
                                 onChange={(event) => setEditTeamName(event.target.value)}
                               />
@@ -462,7 +475,7 @@ export function WorkforcePage() {
                               onChange={setEditTeamDepartments}
                             />
                             <fieldset className="workforce-checklist">
-                              <legend>Members</legend>
+                              <legend>{t('workforce.members')}</legend>
                               {workers.map((worker) => (
                                 <label key={worker.workerId}>
                                   <input
@@ -479,9 +492,9 @@ export function WorkforcePage() {
                               ))}
                             </fieldset>
                             <div className="workforce-form__actions">
-                              <button type="submit">Save team</button>
+                              <button type="submit">{t('workforce.saveTeam')}</button>
                               <button type="button" onClick={() => setEditingTeamId(null)}>
-                                Cancel
+                                {t('common.cancel')}
                               </button>
                             </div>
                           </form>
@@ -491,19 +504,21 @@ export function WorkforcePage() {
                           <td>{team.displayName}</td>
                           <td>
                             {team.workerIds.map((id) => workerLookup[id] ?? id).join(', ') ||
-                              'None'}
+                              t('workforce.none')}
                           </td>
-                          <td>{team.active ? 'Active' : 'Inactive'}</td>
+                          <td>{team.active ? t('workforce.active') : t('workforce.inactive')}</td>
                           {isAdmin ? (
                             <td>
                               <button type="button" onClick={() => startEditTeam(team)}>
-                                Edit
+                                {t('workforce.edit')}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void handleToggleTeam(team.teamId, !team.active)}
                               >
-                                {team.active ? 'Deactivate' : 'Reactivate'}
+                                {team.active
+                                  ? t('workforce.deactivate')
+                                  : t('workforce.reactivate')}
                               </button>
                             </td>
                           ) : null}
@@ -520,13 +535,13 @@ export function WorkforcePage() {
         {loadState === 'ready' && tab === 'workload' && workload && (
           <div className="workforce-page__grid">
             <section className="workforce-card">
-              <h2>Unassigned</h2>
-              <p>{countLine(workload.unassigned)}</p>
+              <h2>{t('workforce.unassigned')}</h2>
+              <p>{countLine(workload.unassigned, t)}</p>
               <ul>
                 {workload.unassignedTickets.map((ticket) => (
                   <li key={ticket.ticketId}>
                     <Link to={`/tickets/${ticket.ticketId}`}>{ticket.ticketNumber}</Link>
-                    {` · ${ticket.status}`}
+                    {` · ${formatStatus(ticket.status as TicketStatus)}`}
                   </li>
                 ))}
               </ul>
@@ -536,16 +551,16 @@ export function WorkforcePage() {
                 <h3>
                   {subject.displayName}{' '}
                   <small>
-                    ({subject.kind}
-                    {subject.active ? '' : ', inactive'})
+                    ({subject.kind === 'team' ? t('workforce.kindTeam') : t('workforce.kindWorker')}
+                    {subject.active ? '' : t('workforce.inactiveParen')})
                   </small>
                 </h3>
                 <ul className="workforce-counts">
-                  <li>Queued {subject.counts.queued}</li>
-                  <li>Assigned {subject.counts.assigned}</li>
-                  <li>In progress {subject.counts.inProgress}</li>
-                  <li>Due soon {subject.counts.dueSoon}</li>
-                  <li>Overdue {subject.counts.overdue}</li>
+                  <li>{t('workforce.queued', { count: subject.counts.queued })}</li>
+                  <li>{t('workforce.assigned', { count: subject.counts.assigned })}</li>
+                  <li>{t('workforce.inProgress', { count: subject.counts.inProgress })}</li>
+                  <li>{t('workforce.dueSoon', { count: subject.counts.dueSoon })}</li>
+                  <li>{t('workforce.overdue', { count: subject.counts.overdue })}</li>
                 </ul>
                 <table className="workforce-table">
                   <tbody>
@@ -554,7 +569,7 @@ export function WorkforcePage() {
                         <td>
                           <Link to={`/tickets/${ticket.ticketId}`}>{ticket.ticketNumber}</Link>
                         </td>
-                        <td>{ticket.status}</td>
+                        <td>{formatStatus(ticket.status as TicketStatus)}</td>
                         <td>{ticket.slaState ?? '—'}</td>
                       </tr>
                     ))}

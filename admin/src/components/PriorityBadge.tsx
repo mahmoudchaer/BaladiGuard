@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import type { TicketPriority } from '@/types/ticket';
 import { formatPriority } from '@/utils/labels';
 import './PriorityBadge.css';
@@ -18,5 +19,10 @@ export function PriorityBadge({ priority }: PriorityBadgeProps) {
     ? `priority-badge ${PRIORITY_CLASS[priority]}`
     : 'priority-badge priority-badge--unset';
 
-  return <span className={className}>{formatPriority(priority)}</span>;
+  const label = formatPriority(priority);
+  return (
+    <span className={className} aria-label={t('a11y.urgencyWithLabel', { urgency: label })}>
+      {label}
+    </span>
+  );
 }

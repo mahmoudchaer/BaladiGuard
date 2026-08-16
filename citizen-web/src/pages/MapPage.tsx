@@ -7,6 +7,7 @@ import {
   type PublicMapViewport,
 } from '@/services/tickets';
 import type { PublicTicketMapViewportResponse } from '@/types/ticket';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 const CACHE_FRESH_MS = 30_000;
 const CACHE_MAX_ENTRIES = 40;
@@ -38,6 +39,7 @@ function viewportKey(viewport: PublicMapViewport) {
 }
 
 export function MapPage() {
+  const { t } = useI18n();
   const [data, setData] = useState<PublicTicketMapViewportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +71,11 @@ export function MapPage() {
       setData(result);
     } catch (caught) {
       if (controller.signal.aborted || requestId !== requestRef.current) return;
-      setError(caught instanceof Error ? caught.message : PUBLIC_TICKETS_NETWORK_MESSAGE);
+      setError(
+        caught instanceof Error && caught.message !== PUBLIC_TICKETS_NETWORK_MESSAGE
+          ? caught.message
+          : t('public.network'),
+      );
     } finally {
       if (requestId === requestRef.current) setLoading(false);
     }
@@ -94,13 +100,10 @@ export function MapPage() {
 
   return (
     <div className="page">
-      <h1>Public map</h1>
-      <p className="lede">
-        Published reports with map locations appear below. Nearby pins cluster at wider zoom. Prefer
-        a list? Use the accessible list view.
-      </p>
+      <h1>{t('public.mapTitle')}</h1>
+      <p className="lede">{t('public.mapLede')}</p>
       <Link className="button button-secondary" to="/reports">
-        View as list
+        {t('public.viewAsList')}
       </Link>
 
       {error ? (
@@ -111,7 +114,7 @@ export function MapPage() {
             className="button"
             onClick={() => viewportRef.current && void load(viewportRef.current, true)}
           >
-            Try again
+            {t('common.tryAgain')}
           </button>
         </div>
       ) : null}
@@ -120,12 +123,10 @@ export function MapPage() {
         <PublicReportsMap data={data} onViewportChange={handleViewportChange} />
         {loading ? (
           <p className="muted" role="status">
-            Updating visible reports…
+            {t('public.updating')}
           </p>
         ) : null}
-        {data?.truncated ? (
-          <p className="muted">Some reports are grouped. Zoom in to see more detail.</p>
-        ) : null}
+        {data?.truncated ? <p className="muted">{t('public.grouped')}</p> : null}
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import {
 } from '@/services/api/tickets';
 import { __getRouterMockState, __resetExpoRouterMock } from '@/test/mocks/expo-router';
 import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
+import { setLocale, t } from '@/i18n';
 import { renderWithProvidersAsync } from '@/test/render';
 import type { CitizenProfile } from '@/types/citizen';
 import type { CitizenTicketHistoryResponse } from '@/types/ticket';
@@ -240,6 +241,30 @@ describe('HistoryScreen', () => {
 
     expect(screen.root.findByProps({ testID: 'history-error' })).toBeTruthy();
     await expect(loadCitizenSession()).resolves.not.toBeNull();
+  });
+
+  it('switches the history route chrome into Arabic and French', async () => {
+    await seedSession();
+    vi.mocked(getCitizenTicketHistory).mockResolvedValue(firstPage);
+
+    const screen = await renderWithProvidersAsync(<HistoryScreen />);
+    await flush();
+    expect(screen.root.findByProps({ children: 'My Reports' })).toBeTruthy();
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    await flush();
+    expect(screen.root.findByProps({ children: t('history.title') })).toBeTruthy();
+    expect(screen.root.findByProps({ children: t('history.subtitle') })).toBeTruthy();
+    expect(screen.root.findByProps({ children: t('status.IN_PROGRESS') })).toBeTruthy();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    await flush();
+    expect(screen.root.findByProps({ children: t('history.title') })).toBeTruthy();
+    expect(screen.root.findByProps({ children: t('history.loadMore') })).toBeTruthy();
   });
 
   it('clears an expired or revoked session after an unauthorized history response', async () => {

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import type { TicketStatus } from '@/types/ticket';
 import { formatStatus } from '@/utils/labels';
 import './StatusBadge.css';
@@ -16,5 +17,13 @@ const STATUS_CLASS: Record<TicketStatus, string> = {
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  return <span className={`status-badge ${STATUS_CLASS[status]}`}>{formatStatus(status)}</span>;
+  const label = formatStatus(status);
+  return (
+    <span
+      className={`status-badge ${STATUS_CLASS[status]}`}
+      aria-label={t('a11y.statusWithLabel', { status: label })}
+    >
+      {label}
+    </span>
+  );
 }

@@ -15,15 +15,17 @@ import {
   buildTicketListPath,
 } from '@/utils/dashboardNavigation';
 import type { TicketPriority, TicketStatus } from '@/types/ticket';
+import { getLocale } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import './StaffAssistantPanel.css';
 
-const SUGGESTIONS = [
-  'Show high-priority tickets',
-  'Where are repeated problems?',
-  'Quels tickets urgents?',
-  'وين المشاكل المتكررة؟',
-];
+const SUGGESTION_KEYS = [
+  'assistant.suggestionHighPriority',
+  'assistant.suggestionRepeated',
+  'assistant.suggestionUrgentFr',
+  'assistant.suggestionRepeatedAr',
+] as const;
 
 type StaffAssistantPanelProps = {
   open: boolean;
@@ -51,7 +53,7 @@ function formatAsOf(value: string): string {
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(getLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(parsed);
@@ -77,6 +79,7 @@ function clusterMapFilters(cluster: StaffAssistantAreaCluster) {
 }
 
 export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps) {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const titleId = useId();
   const inputId = useId();
@@ -151,9 +154,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
       setLoadState('success');
     } catch (error) {
       setAnswer(null);
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to ask the staff assistant.',
-      );
+      setErrorMessage(error instanceof Error ? error.message : t('assistant.errorFallback'));
       setLoadState('error');
     }
   }
@@ -178,15 +179,12 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
       <header className="staff-assistant-panel__header">
         <div>
           <h2 id={titleId} className="staff-assistant-panel__title">
-            Staff assistant
+            {t('assistant.title')}
           </h2>
-          <p className="staff-assistant-panel__subtitle">
-            Ask about urgent tickets or repeated problem areas. Answers stay grounded in your
-            visible records.
-          </p>
+          <p className="staff-assistant-panel__subtitle">{t('assistant.subtitle')}</p>
         </div>
         <button type="button" className="staff-assistant-panel__close" onClick={onClose}>
-          Close
+          {t('common.close')}
         </button>
       </header>
 
@@ -198,7 +196,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
           }}
         >
           <label className="staff-assistant-panel__label" htmlFor={inputId}>
-            Ask a supported question
+            {t('assistant.askLabel')}
           </label>
           <input
             ref={inputRef}
@@ -214,23 +212,23 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
         <div
           className="staff-assistant-panel__suggestions"
           role="group"
-          aria-label="Suggested questions"
+          aria-label={t('assistant.suggestions')}
         >
-          {SUGGESTIONS.map((suggestion) => (
+          {SUGGESTION_KEYS.map((key) => (
             <button
-              key={suggestion}
+              key={key}
               type="button"
               className="staff-assistant-panel__suggestion"
-              onClick={() => void ask(suggestion)}
+              onClick={() => void ask(t(key))}
             >
-              {suggestion}
+              {t(key)}
             </button>
           ))}
         </div>
 
         {loadState === 'loading' && (
           <p className="staff-assistant-panel__status" role="status">
-            Checking current operational records…
+            {t('assistant.loading')}
           </p>
         )}
 
@@ -242,7 +240,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
               className="staff-assistant-panel__retry"
               onClick={() => void ask(question)}
             >
-              Try again
+              {t('common.tryAgain')}
             </button>
           </div>
         )}
@@ -251,26 +249,31 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
           <div className="staff-assistant-panel__answer">
             <p className="staff-assistant-panel__message">{answer.message}</p>
             <p className="staff-assistant-panel__meta">
-              {answer.count} matching record{answer.count === 1 ? '' : 's'} · as of{' '}
-              {formatAsOf(answer.asOf)}
+              {t(answer.count === 1 ? 'assistant.matchingRecord' : 'assistant.matchingRecords', {
+                count: answer.count,
+                asOf: formatAsOf(answer.asOf),
+              })}
             </p>
             {answer.incompleteCount > 0 ? (
               <p className="staff-assistant-panel__limit">
-                {answer.incompleteCount} still pending classification.
+                {t('assistant.pendingClassification', { count: answer.incompleteCount })}
               </p>
             ) : null}
             {answer.unlocatedCount > 0 ? (
               <p className="staff-assistant-panel__limit">
-                {answer.unlocatedCount} omitted because coordinates are unusable.
+                {t('assistant.omittedUnlocated', { count: answer.unlocatedCount })}
               </p>
             ) : null}
             {answer.areaClustersTruncated ? (
               <p className="staff-assistant-panel__limit">
-                Showing the top {answer.areaClusters.length} of {answer.areaClusterTotal} areas.
+                {t('assistant.topAreas', {
+                  shown: answer.areaClusters.length,
+                  total: answer.areaClusterTotal,
+                })}
               </p>
             ) : null}
             {answer.count === 0 ? (
-              <p className="staff-assistant-panel__empty">No matching operational records.</p>
+              <p className="staff-assistant-panel__empty">{t('assistant.empty')}</p>
             ) : null}
 
             {canViewTickets ? (
@@ -283,7 +286,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                     onClose();
                   }}
                 >
-                  View matching tickets
+                  {t('assistant.viewTickets')}
                 </button>
                 <button
                   type="button"
@@ -293,7 +296,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                     onClose();
                   }}
                 >
-                  View on map
+                  {t('assistant.viewMap')}
                 </button>
               </div>
             ) : null}
@@ -306,9 +309,11 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                     <li key={cluster.cellId} className="staff-assistant-panel__cluster">
                       <p className="staff-assistant-panel__cluster-title">{cluster.label}</p>
                       <p className="staff-assistant-panel__cluster-meta">
-                        {cluster.distinctReportCount} distinct reports · {cluster.ticketCount}{' '}
-                        tickets
-                        {cluster.ticketIdsTruncated ? ' · sample truncated' : ''}
+                        {t('assistant.clusterMeta', {
+                          reports: cluster.distinctReportCount,
+                          tickets: cluster.ticketCount,
+                        })}
+                        {cluster.ticketIdsTruncated ? t('assistant.clusterTruncated') : ''}
                       </p>
                       <div className="staff-assistant-panel__actions">
                         <button
@@ -324,7 +329,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                             onClose();
                           }}
                         >
-                          View matching tickets
+                          {t('assistant.viewTickets')}
                         </button>
                         {mapFilters ? (
                           <button
@@ -335,7 +340,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                               onClose();
                             }}
                           >
-                            View on map
+                            {t('assistant.viewMap')}
                           </button>
                         ) : null}
                       </div>
@@ -365,7 +370,7 @@ export function StaffAssistantPanel({ open, onClose }: StaffAssistantPanelProps)
                         onClose();
                       }}
                     >
-                      Open ticket
+                      {t('assistant.openTicket')}
                     </button>
                   </li>
                 ))}

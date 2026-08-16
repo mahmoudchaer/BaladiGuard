@@ -31,6 +31,7 @@ import type {
   DuplicateComparison,
   Ticket,
 } from '@/types/ticket';
+import { setLocale, t } from '@/i18n';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
 import { listWorkers } from '@/services/workforce';
 
@@ -250,6 +251,59 @@ describe('TicketDetailPage summary header', () => {
     expect(screen.getByText('Road Maintenance')).toBeInTheDocument();
     expect(screen.getAllByText('Road Damage').length).toBeGreaterThan(0);
     expect(screen.getByText('Age')).toBeInTheDocument();
+  });
+
+  it('localizes ticket detail chrome and workspace tabs for Arabic and French', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Ticket Details' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    expect(screen.getByRole('heading', { name: t('ticket.details') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('ticket.section.overview') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('ticket.section.review') })).toBeInTheDocument();
+    expect(screen.getByText(t('ticket.age'))).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    expect(screen.getByRole('heading', { name: t('ticket.details') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('ticket.section.overview') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t('ticket.reviewUpdate') })).toBeInTheDocument();
+  });
+
+  it('localizes review, duplicates, and activity workflow chrome for Arabic and French', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+
+    async function assertWorkflowChrome() {
+      await user.click(screen.getByRole('tab', { name: t('ticket.section.review') }));
+      expect(screen.getByRole('heading', { name: t('ticket.review.heading') })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: t('ticket.review.applyStatus') }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(t('ticket.review.assignedDepartment'))).toBeInTheDocument();
+      expect(screen.getByLabelText(t('ticket.review.finalCategory'))).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: t('ticket.section.duplicates') }));
+      expect(screen.getByLabelText(t('ticket.duplicates.search'))).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: t('ticket.section.activity') }));
+      expect(screen.getByLabelText(t('ticket.comments.add'))).toBeInTheDocument();
+    }
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    await assertWorkflowChrome();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    await assertWorkflowChrome();
   });
 
   it('keeps technical identifiers inside a collapsed technical disclosure', async () => {

@@ -15,6 +15,7 @@ import { DepartmentSummary } from '@/components/DepartmentSummary';
 import { TicketFilters, type SlaFilter } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { useDashboardLocationSync } from '@/hooks/useDashboardLocationSync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
@@ -107,6 +108,7 @@ function queueViewFromNavigation(filters: DashboardNavigationFilters): QueueView
 }
 
 export function TicketListPage() {
+  const { t } = useI18n();
   const initialFilters = parseDashboardSearchParams(new URLSearchParams(window.location.search));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageTickets, setPageTickets] = useState<Ticket[]>([]);
@@ -340,7 +342,7 @@ export function TicketListPage() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
+        setErrorMessage(error instanceof Error ? error.message : t('errors.loadTickets'));
         if (isInitialLoad) {
           setLoadState('error');
         }
@@ -353,7 +355,7 @@ export function TicketListPage() {
     return () => {
       controller.abort();
     };
-  }, [cursor, hasActiveServerFilters, serverFilters]);
+  }, [cursor, hasActiveServerFilters, serverFilters, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -375,8 +377,8 @@ export function TicketListPage() {
 
   const attentionStats = useMemo(() => aggregatesToAttentionStats(aggregates), [aggregates]);
   const categoryOptions = useMemo(
-    () => getCategoryFilterOptions(baselineTickets.length > 0 ? baselineTickets : pageTickets),
-    [baselineTickets, pageTickets],
+    () => getCategoryFilterOptions(baselineTickets.length > 0 ? baselineTickets : pageTickets, t),
+    [baselineTickets, pageTickets, t],
   );
   const highCount = aggregates?.highCount ?? 0;
   const totalCount =
@@ -468,7 +470,7 @@ export function TicketListPage() {
     });
   }
 
-  const queueTitle = hasActiveFilters ? 'Matching reports' : 'Citizen reports';
+  const queueTitle = hasActiveFilters ? t('tickets.matchingReports') : t('tickets.citizenReports');
 
   function clearFilters() {
     setSearchQuery('');
@@ -539,11 +541,7 @@ export function TicketListPage() {
   }
 
   return (
-    <DashboardLayout
-      title="Work queue"
-      subtitle="Triage citizen infrastructure reports by urgency, ownership, and age"
-      flush
-    >
+    <DashboardLayout title={t('tickets.queueTitle')} subtitle={t('tickets.queueSubtitle')} flush>
       {loadState === 'loading' && (
         <div className="ticket-list-page__loading">
           <LoadingState />
@@ -552,7 +550,7 @@ export function TicketListPage() {
 
       {loadState === 'error' && (
         <div className="ticket-list-page__error ticket-list-page__error--padded" role="alert">
-          <h3>Unable to load tickets</h3>
+          <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
         </div>
       )}
@@ -568,7 +566,7 @@ export function TicketListPage() {
             onViewChange={handleViewChange}
           />
 
-          <section className="helpdesk-desk__list" aria-label="Work queue list">
+          <section className="helpdesk-desk__list" aria-label={t('tickets.queueList')}>
             <TicketFilters
               searchQuery={searchQuery}
               statusFilter={statusFilter}
@@ -607,7 +605,7 @@ export function TicketListPage() {
 
             {errorMessage && !isRefreshing && (
               <div className="ticket-list-page__error" role="alert">
-                <h3>Unable to update tickets</h3>
+                <h3>{t('tickets.unableUpdate')}</h3>
                 <p>{errorMessage}</p>
               </div>
             )}
@@ -617,14 +615,10 @@ export function TicketListPage() {
             {hasActiveFilters && pageTickets.length === 0 && (
               <EmptyState
                 title={
-                  ticketIds.length > 0
-                    ? 'These tickets are no longer available'
-                    : 'No matching tickets'
+                  ticketIds.length > 0 ? t('tickets.emptyGoneTitle') : t('tickets.emptyMatchTitle')
                 }
                 message={
-                  ticketIds.length > 0
-                    ? 'The referenced tickets were removed, closed out of this filter, or you no longer have access.'
-                    : 'Try adjusting your search, status, category, urgency, or department filters to find tickets.'
+                  ticketIds.length > 0 ? t('tickets.emptyGoneBody') : t('tickets.emptyMatchBody')
                 }
               />
             )}
@@ -639,14 +633,14 @@ export function TicketListPage() {
             )}
 
             {(nextCursor || canGoPrevious) && (
-              <nav className="ticket-list-page__pagination" aria-label="Ticket pages">
+              <nav className="ticket-list-page__pagination" aria-label={t('tickets.pages')}>
                 <button
                   type="button"
                   className="ticket-list-page__page-btn"
                   disabled={!canGoPrevious || isRefreshing}
                   onClick={goToPreviousPage}
                 >
-                  Previous
+                  {t('tickets.previous')}
                 </button>
                 <button
                   type="button"
@@ -654,17 +648,15 @@ export function TicketListPage() {
                   disabled={!nextCursor || isRefreshing}
                   onClick={goToNextPage}
                 >
-                  Next
+                  {t('tickets.next')}
                 </button>
               </nav>
             )}
 
             <details className="ticket-list-page__insights">
               <summary className="ticket-list-page__insights-summary">
-                Operational insights
-                <span className="ticket-list-page__insights-note">
-                  Secondary — category & workload
-                </span>
+                {t('tickets.insights')}
+                <span className="ticket-list-page__insights-note">{t('tickets.insightsNote')}</span>
               </summary>
               <div className="ticket-list-page__insights-body">
                 <CategoryDistributionChart

@@ -2,13 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getHistory, submitResolutionFeedback } from '@/services/contributions';
 import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
+import { translateCategory, translateStatus } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 
-function label(value: string | null): string {
-  if (!value) return 'General report';
-  return value.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+function label(value: string | null, fallback: string): string {
+  if (!value) return fallback;
+  return translateCategory(value);
 }
 
 export function HistoryPage() {
+  const { t, locale } = useI18n();
   const [items, setItems] = useState<CitizenTicketHistoryItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +27,7 @@ export function HistoryPage() {
       setItems((current) => (next ? [...current, ...page.items] : page.items));
       setCursor(page.nextCursor);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load your reports.');
+      setError(err instanceof Error ? err.message : t('history.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -51,7 +54,7 @@ export function HistoryPage() {
         ),
       );
     } catch (err) {
-      setFeedbackError(err instanceof Error ? err.message : 'Unable to submit feedback.');
+      setFeedbackError(err instanceof Error ? err.message : t('history.feedbackFailed'));
     } finally {
       setSubmittingCode(null);
     }
@@ -61,29 +64,29 @@ export function HistoryPage() {
     <section className="page page-enter narrow-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">YOUR ACTIVITY</span>
-          <h1>My reports</h1>
-          <p className="lede">Follow every issue you have shared with the municipality.</p>
+          <span className="eyebrow">{t('history.eyebrow')}</span>
+          <h1>{t('history.title')}</h1>
+          <p className="lede">{t('history.lede')}</p>
         </div>
         <Link className="button" to="/report">
-          ＋ New report
+          {t('history.newReport')}
         </Link>
       </div>
       {error ? (
         <div className="notice notice-error" role="alert">
           {error}
           <button className="text-button" onClick={() => void load()}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       ) : null}
       {!loading && !error && items.length === 0 ? (
         <div className="empty-state">
           <span>✓</span>
-          <h2>Nothing to follow yet</h2>
-          <p>When you submit a report, its progress will appear here.</p>
+          <h2>{t('history.emptyTitle')}</h2>
+          <p>{t('history.emptyBody')}</p>
           <Link className="button" to="/report">
-            Report an issue
+            {t('history.reportIssue')}
           </Link>
         </div>
       ) : null}
@@ -94,12 +97,12 @@ export function HistoryPage() {
               <Link className="history-row tactile" to={`/track?trackingCode=${item.trackingCode}`}>
                 <span className="history-glyph">⌖</span>
                 <div className="history-copy">
-                  <strong>{label(item.category)}</strong>
+                  <strong>{label(item.category, t('history.generalReport'))}</strong>
                   <span>{item.locationAddress}</span>
-                  <small>{new Date(item.submittedAt).toLocaleDateString()}</small>
+                  <small>{new Date(item.submittedAt).toLocaleDateString(locale)}</small>
                 </div>
                 <span className={`status status-${item.status.toLowerCase().replace('_', '-')}`}>
-                  {item.status.replaceAll('_', ' ')}
+                  {translateStatus(item.status)}
                 </span>
                 <span aria-hidden>›</span>
               </Link>
@@ -107,10 +110,10 @@ export function HistoryPage() {
                 <div className="history-feedback">
                   <p>
                     {item.resolutionFeedbackStatus === 'CONFIRMED_FIXED'
-                      ? 'You confirmed this report was fixed.'
+                      ? t('history.confirmed')
                       : item.resolutionFeedbackStatus === 'STILL_UNRESOLVED'
-                        ? 'You told the municipality this is still unresolved.'
-                        : 'Was this issue fixed?'}
+                        ? t('history.unresolved')
+                        : t('history.askFixed')}
                   </p>
                   <button
                     type="button"
@@ -118,7 +121,7 @@ export function HistoryPage() {
                     disabled={submittingCode === item.trackingCode}
                     onClick={() => void handleFeedback(item.trackingCode, 'CONFIRMED_FIXED')}
                   >
-                    Confirmed fixed
+                    {t('history.confirmedFixed')}
                   </button>
                   <button
                     type="button"
@@ -126,7 +129,7 @@ export function HistoryPage() {
                     disabled={submittingCode === item.trackingCode}
                     onClick={() => void handleFeedback(item.trackingCode, 'STILL_UNRESOLVED')}
                   >
-                    Still unresolved
+                    {t('history.stillUnresolved')}
                   </button>
                 </div>
               ) : null}
@@ -141,12 +144,12 @@ export function HistoryPage() {
       ) : null}
       {loading ? (
         <div className="loading-state" role="status">
-          Loading your reports…
+          {t('history.loading')}
         </div>
       ) : null}
       {cursor && !loading ? (
         <button className="button button-secondary load-more" onClick={() => void load(cursor)}>
-          Load more
+          {t('history.loadMore')}
         </button>
       ) : null}
     </section>

@@ -13,6 +13,7 @@ import { ReportPage } from '@/pages/ReportPage';
 import { HistoryPage } from '@/pages/HistoryPage';
 import { ProtectedRoute } from '@/auth/ProtectedRoute';
 import { CitizenAuthProvider } from '@/auth/CitizenAuthContext';
+import { LocaleProvider } from '@/i18n/LocaleProvider';
 import { NotificationLinkPage } from '@/pages/NotificationLinkPage';
 import '@/components/AppShell.css';
 import '@/a11y.css';
@@ -59,9 +60,11 @@ function RouteTree() {
 
 export function AppRoutes() {
   return (
-    <CitizenAuthProvider>
-      <RouteTree />
-    </CitizenAuthProvider>
+    <LocaleProvider>
+      <CitizenAuthProvider>
+        <RouteTree />
+      </CitizenAuthProvider>
+    </LocaleProvider>
   );
 }
 

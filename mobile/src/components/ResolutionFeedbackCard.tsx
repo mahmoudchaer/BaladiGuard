@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text, TextInput } from 'react-native-paper';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import type { CitizenResolutionFeedback, ResolutionFeedbackStatus } from '@/types/ticket';
 import { colors, radii, spacing, touchTargetMin } from '@/theme';
 
@@ -20,6 +21,7 @@ export function ResolutionFeedbackCard({
   errorMessage,
   onSubmit,
 }: ResolutionFeedbackCardProps) {
+  const { t } = useI18n();
   const [note, setNote] = useState('');
 
   if (!feedback.canSubmit && !feedback.status) {
@@ -29,24 +31,21 @@ export function ResolutionFeedbackCard({
   return (
     <View style={styles.card} testID={`resolution-feedback-${trackingCode}`}>
       <Text variant="titleSmall" style={styles.title}>
-        Was this issue fixed?
+        {t('feedback.title')}
       </Text>
       {feedback.status ? (
         <Text style={styles.body} testID={`resolution-feedback-submitted-${trackingCode}`}>
           {feedback.status === 'CONFIRMED_FIXED'
-            ? 'You confirmed this report was fixed.'
-            : 'You told the municipality this is still unresolved.'}
+            ? t('feedback.confirmed')
+            : t('feedback.unresolved')}
         </Text>
       ) : (
-        <Text style={styles.body}>
-          Tell the municipality whether the reported issue is actually fixed. Your optional note
-          stays private.
-        </Text>
+        <Text style={styles.body}>{t('feedback.prompt')}</Text>
       )}
       {feedback.canSubmit || feedback.status ? (
         <TextInput
           mode="outlined"
-          label="Private note (optional)"
+          label={t('feedback.note')}
           value={note}
           onChangeText={setNote}
           maxLength={500}
@@ -63,7 +62,7 @@ export function ResolutionFeedbackCard({
           disabled={submitting}
           testID={`resolution-feedback-fixed-${trackingCode}`}
         >
-          Confirmed fixed
+          {t('feedback.confirmedFixed')}
         </Button>
         <Button
           mode="outlined"
@@ -71,7 +70,7 @@ export function ResolutionFeedbackCard({
           disabled={submitting}
           testID={`resolution-feedback-unresolved-${trackingCode}`}
         >
-          Still unresolved
+          {t('feedback.stillUnresolved')}
         </Button>
       </View>
       {errorMessage ? (

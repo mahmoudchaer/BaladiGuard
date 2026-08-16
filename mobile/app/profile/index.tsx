@@ -9,6 +9,7 @@ import { buildLoginHref } from '@/auth/returnTo';
 import { ChangePhoneFlow } from '@/features/profile/ChangePhoneFlow';
 import { ProfileEditForm } from '@/features/profile/ProfileEditForm';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
+import { useI18n } from '@/i18n/LocaleProvider';
 import {
   CitizenAuthApiError,
   OTP_NETWORK_MESSAGE,
@@ -21,6 +22,7 @@ import type { CitizenOtpVerifyResponse, CitizenProfileUpdatePayload } from '@/ty
 type ProfileMode = 'view' | 'edit' | 'changePhone';
 
 export default function ProfileScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const {
     applyVerifyResponse,
@@ -35,28 +37,30 @@ export default function ProfileScreen() {
   const [mode, setMode] = useState<ProfileMode>('view');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadErrorKey, setLoadErrorKey] = useState<'unableLoad' | 'unableRefresh' | null>(null);
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isOfflineCached, setIsOfflineCached] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const didInitialRefresh = useRef(false);
 
   const reload = useCallback(async () => {
     setIsRefreshing(true);
-    setLoadError(null);
+    setLoadErrorKey(null);
+    setLoadErrorMessage(null);
     setIsOfflineCached(false);
     try {
       const next = await refreshProfile();
       if (!next) {
-        setLoadError('Unable to load your profile. Please sign in again.');
+        setLoadErrorKey('unableLoad');
       }
     } catch (error) {
       if (error instanceof CitizenAuthApiError && error.code === 'NETWORK_ERROR') {
         setIsOfflineCached(true);
-        setLoadError(OTP_NETWORK_MESSAGE);
+        setLoadErrorMessage(OTP_NETWORK_MESSAGE);
       } else if (error instanceof CitizenAuthApiError) {
-        setLoadError(error.message);
+        setLoadErrorMessage(error.message);
       } else {
-        setLoadError('Unable to refresh your profile right now.');
+        setLoadErrorKey('unableRefresh');
       }
     } finally {
       setIsRefreshing(false);
@@ -88,26 +92,22 @@ export default function ProfileScreen() {
         await finishLogout(false);
         return;
       }
-      Alert.alert(
-        'Sign out?',
-        'Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Keep draft & sign out',
-            onPress: () => {
-              void finishLogout(true);
-            },
+      Alert.alert(t('more.signOutTitle'), t('more.signOutBody'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('more.keepDraft'),
+          onPress: () => {
+            void finishLogout(true);
           },
-          {
-            text: 'Clear draft & sign out',
-            style: 'destructive',
-            onPress: () => {
-              void finishLogout(false);
-            },
+        },
+        {
+          text: t('more.clearDraft'),
+          style: 'destructive',
+          onPress: () => {
+            void finishLogout(false);
           },
-        ],
-      );
+        },
+      ]);
     })();
   };
 
@@ -120,9 +120,17 @@ export default function ProfileScreen() {
 
   const handlePhoneVerified = async (response: CitizenOtpVerifyResponse) => {
     await applyVerifyResponse(response);
-    setSuccessMessage(`Phone updated to ${response.phone}.`);
+    setSuccessMessage(t('profile.phoneUpdated', { phone: response.phone }));
     setMode('view');
   };
+
+  const loadError =
+    loadErrorMessage ??
+    (loadErrorKey === 'unableLoad'
+      ? t('profile.unableLoad')
+      : loadErrorKey === 'unableRefresh'
+        ? t('profile.unableRefresh')
+        : null);
 
   if (isLoading) {
     return (
@@ -130,7 +138,7 @@ export default function ProfileScreen() {
         <View style={styles.centered} testID="profile-loading">
           <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
-            Loading profile…
+            {t('profile.loading')}
           </Text>
         </View>
       </SafeAreaView>
@@ -146,7 +154,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <View style={styles.container} testID="profile-empty">
           <Banner visible icon="account-alert" style={styles.banner}>
-            No profile is available for this session.
+            {t('profile.empty')}
           </Banner>
           <Button
             mode="contained"
@@ -155,7 +163,7 @@ export default function ProfileScreen() {
             textColor={colors.textInverse}
             testID="retry-profile-button"
           >
-            Retry
+            {t('common.retry')}
           </Button>
           <Button
             mode="text"
@@ -163,7 +171,7 @@ export default function ProfileScreen() {
             textColor={colors.textSecondary}
             testID="profile-logout-button"
           >
-            Sign out
+            {t('common.signOut')}
           </Button>
         </View>
       </SafeAreaView>
@@ -187,9 +195,7 @@ export default function ProfileScreen() {
 
           {loadError ? (
             <Banner visible icon="alert-circle" style={styles.banner} testID="profile-load-error">
-              {isOfflineCached
-                ? `${loadError} Showing the last saved profile on this device.`
-                : loadError}
+              {isOfflineCached ? `${loadError} ${t('profile.offlineSuffix')}` : loadError}
             </Banner>
           ) : null}
 
@@ -197,7 +203,7 @@ export default function ProfileScreen() {
             <View style={styles.refreshRow} testID="profile-refreshing">
               <ActivityIndicator color={colors.brand} />
               <Text variant="bodySmall" style={styles.muted}>
-                Refreshing…
+                {t('profile.refreshing')}
               </Text>
             </View>
           ) : null}
@@ -238,7 +244,7 @@ export default function ProfileScreen() {
               textColor={colors.brandDark}
               testID="refresh-profile-button"
             >
-              Refresh profile
+              {t('profile.refresh')}
             </Button>
           ) : null}
         </View>

@@ -15,6 +15,7 @@ import {
   requestCitizenOtp,
   verifyCitizenOtp,
 } from '@/services/api/citizenAuth';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose, CitizenOtpVerifyResponse } from '@/types/citizen';
 
@@ -48,6 +49,7 @@ export function OtpVerifyForm({
   const [secondsLeft, setSecondsLeft] = useState(expiresIn);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  const { t } = useI18n();
   const requestInFlight = useRef(false);
 
   useEffect(() => {
@@ -81,14 +83,17 @@ export function OtpVerifyForm({
     mode: 'onBlur',
   });
 
-  const mapError = useCallback((error: unknown) => {
-    if (error instanceof CitizenAuthApiError) {
-      setFormError(error.message);
-      setRetryAfterSeconds(error.retryAfterSeconds);
-      return;
-    }
-    setFormError('Something went wrong. Please try again.');
-  }, []);
+  const mapError = useCallback(
+    (error: unknown) => {
+      if (error instanceof CitizenAuthApiError) {
+        setFormError(error.message);
+        setRetryAfterSeconds(error.retryAfterSeconds);
+        return;
+      }
+      setFormError(t('errors.generic'));
+    },
+    [t],
+  );
 
   const onSubmit = async (values: OtpVerifyValues) => {
     if (requestInFlight.current) {
@@ -144,22 +149,21 @@ export function OtpVerifyForm({
   return (
     <View style={styles.container}>
       <Text variant="titleLarge" style={styles.title}>
-        Enter verification code
+        {t('auth.otpTitle')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        We sent a 6-digit code by SMS to {phone}. Enter it below to continue — it expires in{' '}
-        {formatCountdown(secondsLeft)}.
+        {t('auth.otpSubtitle')} {phone} · {formatCountdown(secondsLeft)}
       </Text>
 
       {formError ? (
         <Banner visible icon="alert-circle" style={styles.banner}>
-          {`${formError}${retryAfterSeconds ? ` Try again in about ${retryAfterSeconds}s.` : ''}`}
+          {`${formError}${retryAfterSeconds ? ` ${t('auth.retryAfter', { seconds: retryAfterSeconds })}` : ''}`}
         </Banner>
       ) : null}
 
       {expired ? (
         <Banner visible icon="clock-outline" style={styles.banner}>
-          This code has expired. Request a new one to continue.
+          {t('auth.otpExpired')}
         </Banner>
       ) : null}
 
@@ -195,7 +199,7 @@ export function OtpVerifyForm({
         textColor={colors.textInverse}
         testID="verify-otp-button"
       >
-        Verify code
+        {t('auth.verify')}
       </Button>
 
       <Button
@@ -208,7 +212,7 @@ export function OtpVerifyForm({
         textColor={colors.brandDark}
         testID="resend-otp-button"
       >
-        {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+        {resendCooldown > 0 ? `${t('auth.resend')} (${resendCooldown}s)` : t('auth.resend')}
       </Button>
     </View>
   );

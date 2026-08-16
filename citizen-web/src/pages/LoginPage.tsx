@@ -4,6 +4,7 @@ import { sanitizeReturnTo } from '@/auth/returnTo';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { ApiError } from '@/services/api';
 import { requestOtp } from '@/services/citizenAuth';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 type Step = 'phone' | 'code';
 
@@ -21,6 +22,7 @@ export function LoginPage() {
   const [now, setNow] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (step !== 'code') return;
@@ -36,7 +38,7 @@ export function LoginPage() {
   async function sendCode(event?: FormEvent) {
     event?.preventDefault();
     if (phone.trim().length < 6) {
-      setError('Enter a valid phone number.');
+      setError(t('auth.invalidPhone'));
       return;
     }
     setBusy(true);
@@ -49,7 +51,7 @@ export function LoginPage() {
       setStep('code');
       setCode('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send a code.');
+      setError(err instanceof Error ? err.message : t('auth.sendFailed'));
     } finally {
       setBusy(false);
     }
@@ -58,7 +60,7 @@ export function LoginPage() {
   async function verify(event: FormEvent) {
     event.preventDefault();
     if (!/^\d{6}$/.test(code)) {
-      setError('Enter the six-digit verification code.');
+      setError(t('auth.invalidCode'));
       return;
     }
     setBusy(true);
@@ -68,9 +70,9 @@ export function LoginPage() {
       navigate(returnTo, { replace: true });
     } catch (err) {
       const api = err instanceof ApiError ? err : null;
-      if (api?.code === 'INVALID_OTP') setError('That code is incorrect. Try again.');
-      else if (api?.code === 'OTP_EXPIRED') setError('That code expired. Request a new one.');
-      else setError(err instanceof Error ? err.message : 'Unable to verify that code.');
+      if (api?.code === 'INVALID_OTP') setError(t('auth.incorrect'));
+      else if (api?.code === 'OTP_EXPIRED') setError(t('auth.expired'));
+      else setError(err instanceof Error ? err.message : t('auth.verifyFailed'));
     } finally {
       setBusy(false);
     }
@@ -84,17 +86,15 @@ export function LoginPage() {
         <div className="hero-orbit">
           <span>✓</span>
         </div>
-        <p>Private by design</p>
+        <p>{t('auth.hero')}</p>
       </div>
       <div className="auth-card glass-card">
-        <span className="eyebrow">CITIZEN ACCESS</span>
-        <h1 aria-label={step === 'phone' ? 'Sign in' : undefined}>
-          {step === 'phone' ? 'Your city, within reach.' : 'Check your phone.'}
+        <span className="eyebrow">{t('auth.eyebrow')}</span>
+        <h1 aria-label={step === 'phone' ? t('common.signIn') : undefined}>
+          {step === 'phone' ? t('auth.phoneTitle') : t('auth.otpTitle')}
         </h1>
         <p className="lede">
-          {step === 'phone'
-            ? 'Sign in or create an account with a verified phone number. No password required.'
-            : `We sent a six-digit code to ${phone}.`}
+          {step === 'phone' ? t('auth.phoneLede') : t('auth.otpLede', { phone })}
         </p>
 
         {error ? (
@@ -106,7 +106,7 @@ export function LoginPage() {
         {step === 'phone' ? (
           <form className="form-stack" onSubmit={(event) => void sendCode(event)}>
             <label className="field-label" htmlFor="region">
-              Country
+              {t('auth.country')}
             </label>
             <select
               id="region"
@@ -114,32 +114,32 @@ export function LoginPage() {
               value={region}
               onChange={(e) => setRegion(e.target.value)}
             >
-              <option value="LB">Lebanon (+961)</option>
-              <option value="US">United States (+1)</option>
-              <option value="FR">France (+33)</option>
-              <option value="GB">United Kingdom (+44)</option>
+              <option value="LB">{t('auth.lebanon')}</option>
+              <option value="US">{t('auth.unitedStates')}</option>
+              <option value="FR">{t('auth.france')}</option>
+              <option value="GB">{t('auth.unitedKingdom')}</option>
             </select>
             <label className="field-label" htmlFor="phone">
-              Phone number
+              {t('auth.phone')}
             </label>
             <input
               id="phone"
               className="input"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="70 123 456"
+              placeholder={t('auth.phonePlaceholder')}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               autoFocus
             />
             <button className="button button-large" disabled={busy} type="submit">
-              {busy ? 'Sending…' : 'Continue'} <span aria-hidden>→</span>
+              {busy ? t('auth.sending') : t('auth.continue')} <span aria-hidden>→</span>
             </button>
           </form>
         ) : (
           <form className="form-stack" onSubmit={(event) => void verify(event)}>
             <label className="field-label" htmlFor="otp">
-              Verification code
+              {t('auth.code')}
             </label>
             <input
               id="otp"
@@ -156,11 +156,11 @@ export function LoginPage() {
               disabled={busy || code.length !== 6}
               type="submit"
             >
-              {busy ? 'Verifying…' : 'Verify and continue'}
+              {busy ? t('auth.verifying') : t('auth.verify')}
             </button>
             <div className="inline-actions">
               <button className="text-button" type="button" onClick={() => setStep('phone')}>
-                Change number
+                {t('auth.changeNumber')}
               </button>
               <button
                 className="text-button"
@@ -168,14 +168,12 @@ export function LoginPage() {
                 disabled={busy || remaining > 0}
                 onClick={() => void sendCode()}
               >
-                {remaining > 0 ? `Resend in ${remaining}s` : 'Resend code'}
+                {remaining > 0 ? t('auth.resendIn', { seconds: remaining }) : t('auth.resend')}
               </button>
             </div>
           </form>
         )}
-        <p className="privacy-note">
-          Your phone verifies account ownership. Your name and email stay optional.
-        </p>
+        <p className="privacy-note">{t('auth.privacyNote')}</p>
       </div>
     </section>
   );

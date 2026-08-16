@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { useI18n } from '@/i18n/LocaleProvider';
 import type { PublicMapViewport } from '@/services/tickets';
 import type { PublicTicketMapViewportResponse } from '@/types/ticket';
 import { DEFAULT_PUBLIC_MAP_REGION } from '@/utils/publicMapClustering';
@@ -50,7 +51,7 @@ function clusterIcon(count: number) {
 
 export function PublicReportsMap({ data, onViewportChange }: PublicReportsMapProps) {
   return (
-    <div className="map-frame" data-testid="public-map">
+    <div className="map-frame ltr-isolate" dir="ltr" data-testid="public-map">
       <MapContainer
         center={[DEFAULT_PUBLIC_MAP_REGION.latitude, DEFAULT_PUBLIC_MAP_REGION.longitude]}
         zoom={12}
@@ -69,6 +70,7 @@ export function PublicReportsMap({ data, onViewportChange }: PublicReportsMapPro
 }
 
 function MapFeatures({ data }: { data: PublicTicketMapViewportResponse | null }) {
+  const { t } = useI18n();
   const map = useMap();
   return (
     <>
@@ -94,8 +96,8 @@ function MapFeatures({ data }: { data: PublicTicketMapViewportResponse | null })
           }}
         >
           <Popup>
-            <strong>{cluster.count} reports nearby</strong>
-            <div>Zoom in to see individual reports.</div>
+            <strong>{t('public.clusterNearby', { count: cluster.count })}</strong>
+            <div>{t('public.zoomReports')}</div>
           </Popup>
         </Marker>
       ))}

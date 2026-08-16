@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { TactilePressable } from '@/components/TactilePressable';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { draftHasRestorableContent, loadReportDraft } from '@/services/reportDraft';
 import { colors, radii, spacing } from '@/theme';
 
@@ -20,6 +22,7 @@ type MenuRowProps = {
 };
 
 function MenuRow({ icon, label, detail, onPress, destructive, divider, testID }: MenuRowProps) {
+  const { isRtl } = useI18n();
   const tint = destructive ? colors.danger : colors.brandDark;
   return (
     <TactilePressable
@@ -37,13 +40,20 @@ function MenuRow({ icon, label, detail, onPress, destructive, divider, testID }:
         <Text style={[styles.rowTitle, destructive && styles.destructiveText]}>{label}</Text>
         {detail ? <Text style={styles.detail}>{detail}</Text> : null}
       </View>
-      {!destructive ? <Icon source="chevron-right" size={20} color={colors.textMuted} /> : null}
+      {!destructive ? (
+        <Icon
+          source={isRtl ? 'chevron-left' : 'chevron-right'}
+          size={20}
+          color={colors.textMuted}
+        />
+      ) : null}
     </TactilePressable>
   );
 }
 
 export default function MoreScreen() {
   const router = useRouter();
+  const { t, isRtl } = useI18n();
   const { isAuthenticated, isLoading, logout, profile } = useCitizenAuth();
   if (isLoading) return null;
   if (!isAuthenticated) return <Redirect href={buildLoginHref('/more') as Href} />;
@@ -69,22 +79,18 @@ export default function MoreScreen() {
         await finishLogout(false);
         return;
       }
-      Alert.alert(
-        'Sign out?',
-        'Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Keep draft & sign out',
-            onPress: () => void finishLogout(true),
-          },
-          {
-            text: 'Clear draft & sign out',
-            style: 'destructive',
-            onPress: () => void finishLogout(false),
-          },
-        ],
-      );
+      Alert.alert(t('more.signOutTitle'), t('more.signOutBody'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('more.keepDraft'),
+          onPress: () => void finishLogout(true),
+        },
+        {
+          text: t('more.clearDraft'),
+          style: 'destructive',
+          onPress: () => void finishLogout(false),
+        },
+      ]);
     })();
   };
 
@@ -92,7 +98,7 @@ export default function MoreScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title} accessibilityRole="header">
-          More
+          {t('more.title')}
         </Text>
 
         <TactilePressable
@@ -104,42 +110,46 @@ export default function MoreScreen() {
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.profileCopy}>
-            <Text style={styles.profileName}>{profile?.fullName || 'Your profile'}</Text>
-            <Text style={styles.phone}>{profile?.phone || 'Manage your account'}</Text>
+            <Text style={styles.profileName}>{profile?.fullName || t('more.yourProfile')}</Text>
+            <Text style={styles.phone}>{profile?.phone || t('more.manageAccount')}</Text>
           </View>
-          <Icon source="chevron-right" size={22} color={colors.textMuted} />
+          <Icon
+            source={isRtl ? 'chevron-left' : 'chevron-right'}
+            size={22}
+            color={colors.textMuted}
+          />
         </TactilePressable>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ACCOUNT</Text>
+          <Text style={styles.sectionLabel}>{t('more.account')}</Text>
           <View style={styles.group}>
             <MenuRow
               icon="account-outline"
-              label="Profile and notifications"
+              label={t('more.profileNotifications')}
               onPress={() => router.push('/profile' as Href)}
             />
             <MenuRow
               divider
               icon="shield-check-outline"
-              label="Privacy"
-              detail="How your information is protected"
+              label={t('more.privacy')}
+              detail={t('more.privacyDetail')}
               onPress={() => router.push('/privacy' as Href)}
             />
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>REPORTS</Text>
+          <Text style={styles.sectionLabel}>{t('more.reports')}</Text>
           <View style={styles.group}>
             <MenuRow
               icon="barcode-scan"
-              label="Track with a code"
+              label={t('more.trackCode')}
               onPress={() => router.push('/track' as Href)}
             />
             <MenuRow
               divider
               icon="map-outline"
-              label="Community map"
+              label={t('more.communityMap')}
               onPress={() => router.push('/explore' as Href)}
             />
           </View>
@@ -149,13 +159,17 @@ export default function MoreScreen() {
           <MenuRow
             testID="logout-button"
             icon="logout"
-            label="Sign out"
+            label={t('common.signOut')}
             destructive
             onPress={handleLogout}
           />
         </View>
 
-        <Text style={styles.version}>BaladiGuard · Citizen services</Text>
+        <View style={styles.section}>
+          <LanguageSwitcher />
+        </View>
+
+        <Text style={styles.version}>{t('more.version')}</Text>
       </ScrollView>
     </SafeAreaView>
   );

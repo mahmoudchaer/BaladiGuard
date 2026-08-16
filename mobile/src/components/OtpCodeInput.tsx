@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput as RNTextInput, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 
 type OtpCodeInputProps = {
@@ -27,6 +28,7 @@ export function OtpCodeInput({
   disabled = false,
   testID,
 }: OtpCodeInputProps) {
+  const { t } = useI18n();
   const inputRef = useRef<RNTextInput>(null);
   const digits = Array.from({ length }, (_, index) => value[index] ?? '');
 
@@ -83,7 +85,7 @@ export function OtpCodeInput({
         autoComplete="sms-otp"
         importantForAutofill="yes"
         testID={testID}
-        accessibilityLabel="Verification code"
+        accessibilityLabel={t('auth.verificationCode')}
       />
     </Pressable>
   );

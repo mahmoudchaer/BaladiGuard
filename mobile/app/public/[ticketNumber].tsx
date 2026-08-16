@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { getPublicTicketByNumber } from '@/services/api/tickets';
 import { colors, radii, spacing, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
@@ -15,23 +16,25 @@ import { openInMapsApp } from '@/utils/openMaps';
 import { isValidMapCoordinate } from '@/utils/publicMapClustering';
 
 export default function PublicReportDetailScreen() {
+  const { t } = useI18n();
   const { ticketNumber } = useLocalSearchParams<{ ticketNumber?: string | string[] }>();
   const selectedTicketNumber = Array.isArray(ticketNumber) ? ticketNumber[0] : ticketNumber;
   const [report, setReport] = useState<PublicTicketResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(selectedTicketNumber));
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [usedLoadFallback, setUsedLoadFallback] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     async function loadReport() {
       if (!selectedTicketNumber) {
-        setError('Unable to open that public report.');
         setIsLoading(false);
         return;
       }
       setIsLoading(true);
-      setError(null);
+      setErrorMessage(null);
+      setUsedLoadFallback(false);
       try {
         const response = await getPublicTicketByNumber(selectedTicketNumber);
         if (active) {
@@ -39,11 +42,11 @@ export default function PublicReportDetailScreen() {
         }
       } catch (loadError) {
         if (active) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Unable to load that public report right now.',
-          );
+          if (loadError instanceof Error) {
+            setErrorMessage(loadError.message);
+          } else {
+            setUsedLoadFallback(true);
+          }
         }
       } finally {
         if (active) {
@@ -58,6 +61,10 @@ export default function PublicReportDetailScreen() {
     };
   }, [selectedTicketNumber]);
 
+  const error = !selectedTicketNumber
+    ? t('public.unableOpen')
+    : (errorMessage ?? (usedLoadFallback ? t('public.unableLoad') : null));
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -65,7 +72,7 @@ export default function PublicReportDetailScreen() {
           <View style={styles.loading} testID="public-report-detail-loading">
             <ActivityIndicator color={colors.brand} />
             <Text variant="bodyMedium" style={styles.loadingText}>
-              Loading public report...
+              {t('public.loading')}
             </Text>
           </View>
         ) : null}
@@ -87,7 +94,7 @@ export default function PublicReportDetailScreen() {
 
             <ReportPhoto
               uri={report.photoUrl}
-              accessibilityLabel={`Photo for report ${report.ticketNumber}`}
+              accessibilityLabel={t('public.photoAlt', { ticketNumber: report.ticketNumber })}
               testID="public-report-detail-photo"
               variant="hero"
             />
@@ -135,15 +142,15 @@ export default function PublicReportDetailScreen() {
                   });
                 }}
                 testID="public-report-detail-maps"
-                accessibilityLabel="Open this report location in maps"
+                accessibilityLabel={t('public.openMapsA11y')}
               >
-                Open in Maps
+                {t('public.openMaps')}
               </Button>
             </View>
 
             <View style={styles.card}>
               <Text variant="titleMedium" style={styles.cardTitle}>
-                Summary
+                {t('public.summary')}
               </Text>
               <Text variant="bodyMedium" style={styles.description}>
                 {report.description}
@@ -153,11 +160,11 @@ export default function PublicReportDetailScreen() {
               </Text>
               {report.department ? (
                 <Text variant="bodySmall" style={styles.metaText}>
-                  Assigned to {report.department.name}
+                  {t('public.assignedTo', { name: report.department.name })}
                 </Text>
               ) : null}
               <Text variant="bodySmall" style={styles.metaText}>
-                Reported by {report.attribution.displayName}
+                {t('public.reportedBy', { name: report.attribution.displayName })}
               </Text>
             </View>
           </View>

@@ -1,20 +1,5 @@
+import { getLocale, t } from '@/i18n';
 import type { TicketStatus, TicketPriority } from '@/types/ticket';
-
-const STATUS_LABELS: Record<TicketStatus, string> = {
-  SUBMITTED: 'Submitted',
-  UNDER_REVIEW: 'Under Review',
-  ASSIGNED: 'Assigned',
-  IN_PROGRESS: 'In Progress',
-  RESOLVED: 'Resolved',
-  CLOSED: 'Closed',
-};
-
-const PRIORITY_LABELS: Record<TicketPriority, string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  critical: 'Critical',
-};
 
 const CATEGORY_LABELS: Record<string, string> = {
   road_damage: 'Road Damage',
@@ -42,17 +27,23 @@ export const SUPPORTED_CATEGORY_OPTIONS = [
 ] as const;
 
 export function formatStatus(status: TicketStatus): string {
-  return STATUS_LABELS[status] ?? status;
+  const translated = t(`status.${status}`);
+  return translated !== `status.${status}` ? translated : status;
 }
 
 export function formatPriority(priority: TicketPriority | null): string {
   if (!priority) {
-    return 'Unrated';
+    return t('priority.unrated');
   }
-  return PRIORITY_LABELS[priority] ?? priority;
+  const translated = t(`priority.${priority}`);
+  return translated !== `priority.${priority}` ? translated : priority;
 }
 
 export function formatCategory(category: string): string {
+  const translated = t(`category.${category}`);
+  if (translated !== `category.${category}`) {
+    return translated;
+  }
   if (CATEGORY_LABELS[category]) {
     return CATEGORY_LABELS[category];
   }
@@ -63,7 +54,7 @@ export function formatCategory(category: string): string {
 }
 
 export function formatCreatedDate(isoDate: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(getLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
