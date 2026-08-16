@@ -255,3 +255,15 @@ def test_storage_cursor_rejects_tampering():
     )
     tampered = f"{cursor[:-1]}{'A' if cursor[-1] != 'A' else 'B'}"
     assert comments_module._decode_storage_cursor(tampered) is None
+
+
+def test_dynamo_staff_comment_store_keeps_settings_for_activity_gsi(
+    dynamodb_settings,
+) -> None:
+    from app.database.dynamo_staff_comment_store import DynamoStaffCommentStore
+
+    store = DynamoStaffCommentStore(dynamodb_settings)
+    assert store._settings is dynamodb_settings
+    items, cursor = store.list_by_ticket_id_page("tkt_missing_activity", limit=10)
+    assert items == []
+    assert cursor is None

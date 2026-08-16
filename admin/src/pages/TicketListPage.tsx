@@ -3,6 +3,7 @@ import type { Ticket } from '@/types/ticket';
 import type { TicketAggregates } from '@/types/ticketCollection';
 import {
   fetchTicketAggregates,
+  fetchTicketById,
   fetchTicketsPage,
   type FetchTicketsFilters,
 } from '@/services/tickets';
@@ -145,6 +146,10 @@ export function TicketListPage() {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
     initialFilters.focusTicket ?? null,
   );
+  const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
+  const [previewForId, setPreviewForId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewRetry, setPreviewRetry] = useState(0);
   const [cursor, setCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [canGoPrevious, setCanGoPrevious] = useState(false);
@@ -386,22 +391,57 @@ export function TicketListPage() {
     approximateTotal ??
     (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
-  const selectedTicket = useMemo(() => {
-    if (!selectedTicketId) {
-      return null;
-    }
-    return (
-      pageTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      baselineTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      null
-    );
-  }, [baselineTickets, selectedTicketId, pageTickets]);
+  const previewMatchesSelection = previewForId === selectedTicketId;
+  const displayedPreview = previewMatchesSelection ? previewTicket : null;
+  const displayedPreviewError = previewMatchesSelection ? previewError : null;
 
   useEffect(() => {
     if (selectedTicketId && !pageTickets.some((ticket) => ticket.ticketId === selectedTicketId)) {
       setSelectedTicketId(null);
     }
   }, [pageTickets, selectedTicketId]);
+
+  useEffect(() => {
+    if (!selectedTicketId) {
+      setPreviewTicket(null);
+      setPreviewForId(null);
+      setPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewForId(null);
+    setPreviewTicket(null);
+    setPreviewError(null);
+
+    void fetchTicketById(selectedTicketId)
+      .then((ticket) => {
+        if (cancelled) {
+          return;
+        }
+        if (!ticket) {
+          setPreviewTicket(null);
+          setPreviewError(t('ticket.unableLoad'));
+          setPreviewForId(selectedTicketId);
+          return;
+        }
+        setPreviewTicket(ticket);
+        setPreviewError(null);
+        setPreviewForId(selectedTicketId);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setPreviewTicket(null);
+        setPreviewError(error instanceof Error ? error.message : t('ticket.unableLoad'));
+        setPreviewForId(selectedTicketId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewRetry, selectedTicketId, t]);
 
   function ticketMatchesActiveServerFilters(ticket: Ticket): boolean {
     if (
@@ -449,6 +489,8 @@ export function TicketListPage() {
   }
 
   function handleTicketUpdated(updated: Ticket) {
+    setPreviewTicket((current) => (current?.ticketId === updated.ticketId ? updated : current));
+
     setBaselineTickets((current) => {
       const exists = current.some((ticket) => ticket.ticketId === updated.ticketId);
       if (!exists) {
@@ -556,7 +598,11 @@ export function TicketListPage() {
       )}
 
       {loadState === 'success' && (
-        <div className="helpdesk-desk">
+        <div
+          className={
+            selectedTicketId ? 'helpdesk-desk helpdesk-desk--preview-open' : 'helpdesk-desk'
+          }
+        >
           <QueueViewsSidebar
             activeView={queueView}
             stats={attentionStats}
@@ -627,7 +673,7 @@ export function TicketListPage() {
               <TicketTable
                 tickets={pageTickets}
                 title={queueTitle}
-                selectedTicketId={selectedTicket?.ticketId ?? null}
+                selectedTicketId={selectedTicketId}
                 onSelectTicket={setSelectedTicketId}
               />
             )}
@@ -669,7 +715,19 @@ export function TicketListPage() {
             </details>
           </section>
 
-          <TicketPreviewPanel ticket={selectedTicket} onTicketUpdated={handleTicketUpdated} />
+          {selectedTicketId ? (
+            <TicketPreviewPanel
+              ticket={displayedPreview}
+              loadError={displayedPreviewError}
+              onRetry={() => {
+                setPreviewForId(null);
+                setPreviewError(null);
+                setPreviewRetry((current) => current + 1);
+              }}
+              onClose={() => setSelectedTicketId(null)}
+              onTicketUpdated={handleTicketUpdated}
+            />
+          ) : null}
         </div>
       )}
     </DashboardLayout>

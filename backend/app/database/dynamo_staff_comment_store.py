@@ -10,6 +10,7 @@ from app.schemas.staff_comment import StoredStaffComment
 class DynamoStaffCommentStore:
     def __init__(self, settings: Settings | None = None) -> None:
         resolved = settings or get_settings()
+        self._settings = resolved
         self._resource = create_dynamodb_resource(resolved)
         self._table = self._resource.Table(
             build_table_name(resolved.dynamodb_table_prefix, "staff-comments")

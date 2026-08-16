@@ -21,6 +21,18 @@ from app.services.redaction.processor import (
 
 logger = logging.getLogger(__name__)
 
+_MAX_UNREDACTABLE_SKIPS_PER_POLL = 250
+
+
+def _ticket_can_be_redacted(ticket) -> bool:
+    """Legacy tickets default to pending in the model but were never enrolled."""
+    return bool(
+        ticket.image_redaction_enrolled
+        and ticket.image_redaction_status in {"pending", "processing"}
+        and ticket.image_object_key
+        and ticket.image_object_key != "unavailable"
+    )
+
 
 class ImageRedactionQueue:
     def __init__(self, jobs: RedactionJobStore, tickets: TicketStore, processor) -> None:
@@ -41,7 +53,7 @@ class ImageRedactionQueue:
         timestamp = now if now is not None else int(time.time())
         created = 0
         for ticket in self.tickets.list():
-            if ticket.image_redaction_status not in {"pending", "processing"}:
+            if not _ticket_can_be_redacted(ticket):
                 continue
             job_id = redaction_job_id(ticket.ticket_id, ticket.image_redaction_generation)
             if self.jobs.get(job_id) is None:
@@ -61,11 +73,20 @@ class ImageRedactionQueue:
                     _iso(timestamp),
                 )
         settings = get_settings()
-        job = self.jobs.claim_next(
-            now=timestamp, claim_ttl_seconds=settings.image_redaction_job_timeout_seconds
-        )
-        if job is None:
-            return "idle"
+        skipped = 0
+        while skipped < _MAX_UNREDACTABLE_SKIPS_PER_POLL:
+            job = self.jobs.claim_next(
+                now=timestamp, claim_ttl_seconds=settings.image_redaction_job_timeout_seconds
+            )
+            if job is None:
+                return "idle"
+            outcome = self._run_claimed_job(job, timestamp=timestamp, settings=settings)
+            if outcome != "skipped_unredactable":
+                return outcome
+            skipped += 1
+        return "idle"
+
+    def _run_claimed_job(self, job: StoredRedactionJob, *, timestamp: int, settings) -> str:
         token = job.claim_token
         assert token
         ticket = self.tickets.get(job.ticket_id)
@@ -74,6 +95,15 @@ class ImageRedactionQueue:
                 job.job_id, token, now=timestamp, reason="TICKET_MISSING"
             )
             return "dead_lettered" if transitioned else "claim_lost"
+        if not ticket.image_redaction_enrolled or ticket.image_object_key in {"", "unavailable"}:
+            logger.info(
+                "Skipping unredactable redaction job job_id=%s reason=REDACTION_NOT_ENROLLED",
+                job.job_id,
+            )
+            transitioned = self.jobs.dead_letter(
+                job.job_id, token, now=timestamp, reason="REDACTION_NOT_ENROLLED"
+            )
+            return "skipped_unredactable" if transitioned else "claim_lost"
         if ticket.image_redaction_generation != job.generation or ticket.image_redaction_status in {
             "completed",
             "review_required",

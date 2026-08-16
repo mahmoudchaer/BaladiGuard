@@ -1,8 +1,9 @@
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import type { Control } from 'react-hook-form';
 import { useWatch } from 'react-hook-form';
 
+import { ReportPhoto } from '@/components/ReportPhoto';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
@@ -66,7 +67,7 @@ export function ReviewSummary({ control, onEditStep, hasUploadedPhoto }: ReviewS
           </Button>
         </View>
         {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photo} />
+          <ReportPhoto uri={photoUri} accessibilityLabel={t('report.photo')} variant="hero" />
         ) : hasUploadedPhoto ? (
           <View style={styles.uploadedPhoto}>
             <Text variant="bodyMedium" style={styles.uploadedPhotoText}>
@@ -138,12 +139,6 @@ const styles = StyleSheet.create({
   },
   sectionText: {
     color: colors.text,
-  },
-  photo: {
-    width: '100%',
-    height: 180,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceSubtle,
   },
   uploadedPhoto: {
     minHeight: 72,
