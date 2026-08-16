@@ -13,6 +13,7 @@ import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { ReportForm } from '@/features/citizen-report/ReportForm';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
 import { ChangePhoneFlow } from '@/features/profile/ChangePhoneFlow';
+import { PublicReportsMap } from '@/features/public-browse/PublicReportsMap';
 import { TrackLookupForm } from '@/features/ticket-tracking/TrackLookupForm';
 import { resetLocaleForTests, setLocale, t, type AppLocale } from '@/i18n';
 import { getCitizenMe } from '@/services/api/citizenAuth';
@@ -26,7 +27,7 @@ import { __setSearchParams } from '@/test/mocks/expo-router';
 import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
 import type { CitizenProfile } from '@/types/citizen';
-import type { CitizenTicketResponse } from '@/types/ticket';
+import type { CitizenTicketResponse, PublicTicketResponse } from '@/types/ticket';
 
 vi.mock('@/services/api/citizenAuth', async () => {
   const actual = await vi.importActual<typeof import('@/services/api/citizenAuth')>(
@@ -127,6 +128,26 @@ async function flush() {
 
 function hasText(screen: ReturnType<typeof renderWithProviders>, text: string): boolean {
   return screen.root.findAll((node) => node.props.children === text).length > 0;
+}
+
+function hasA11yLabel(screen: ReturnType<typeof renderWithProviders>, label: string): boolean {
+  return screen.root.findAll((node) => node.props.accessibilityLabel === label).length > 0;
+}
+
+function makePublicReport(ticketNumber: string): PublicTicketResponse {
+  return {
+    ticketNumber,
+    status: 'IN_PROGRESS',
+    category: 'road_damage',
+    description: 'Synthetic public report for locale tests.',
+    location: { addressText: 'Hamra, Beirut' },
+    mapLocation: { addressText: 'Hamra, Beirut', latitude: 33.9, longitude: 35.5 },
+    department: { name: 'Road Maintenance' },
+    attribution: { displayName: 'Community member', isNamed: false },
+    photoUrl: null,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-01T00:00:00Z',
+  };
 }
 
 describe('mobile critical-flow localization', () => {
@@ -305,10 +326,47 @@ describe('mobile critical-flow localization', () => {
       await act(async () => {
         setLocale(locale);
       });
+      expect(hasA11yLabel(screen, t('profile.changePhone'))).toBe(true);
       expect(hasText(screen, t('profile.changePhone'))).toBe(true);
       expect(hasText(screen, t('profile.newPhone'))).toBe(true);
       expect(hasText(screen, t('profile.sendVerification'))).toBe(true);
       expect(hasText(screen, t('common.cancel'))).toBe(true);
+    }
+  });
+
+  it('localizes public-map cluster picker labels in Arabic and French', async () => {
+    const screen = renderWithProviders(
+      <PublicReportsMap
+        reports={[makePublicReport('BG-2026-0001'), makePublicReport('BG-2026-0002')]}
+        onOpenReport={vi.fn()}
+      />,
+    );
+
+    const cluster = screen.root
+      .findAll(
+        (node) =>
+          typeof node.props.testID === 'string' &&
+          String(node.props.testID).startsWith('public-map-cluster-') &&
+          typeof node.props.onPress === 'function',
+      )
+      .at(-1);
+    expect(cluster).toBeTruthy();
+    await act(async () => {
+      cluster?.props.onPress();
+    });
+
+    expect(hasA11yLabel(screen, t('explore.closeLocationList'))).toBe(true);
+
+    for (const locale of LOCALES) {
+      await act(async () => {
+        setLocale(locale);
+      });
+      expect(hasA11yLabel(screen, t('explore.closeLocationList'))).toBe(true);
+      expect(hasText(screen, t('explore.clusterTitle'))).toBe(true);
+      expect(hasText(screen, t('common.close'))).toBe(true);
+      expect(hasA11yLabel(screen, t('explore.openReport', { ticketNumber: 'BG-2026-0001' }))).toBe(
+        true,
+      );
     }
   });
 

@@ -508,7 +508,13 @@
       "noPublicPhoto": " · لا توجد صورة عامة",
       "publish": "نشر",
       "unpublish": "إلغاء النشر",
-      "openFull": "فتح التذكرة الكاملة"
+      "openFull": "فتح التذكرة الكاملة",
+      "suggestion": "اقتراح",
+      "saving": "جارٍ الحفظ…",
+      "applying": "جارٍ التطبيق…",
+      "unableSaveCategory": "تعذّر حفظ التصنيف.",
+      "unableUpdateStatus": "تعذّر تحديث الحالة.",
+      "unableSaveDepartment": "تعذّر حفظ القسم."
     },
     "comments": {
       "loading": "جارٍ تحميل التعليقات الداخلية…",

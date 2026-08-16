@@ -360,7 +360,13 @@
     "allCategories": "All categories",
     "filterStatus": "Filter status {label}",
     "filterCategory": "Filter category {label}",
-    "closeLocationList": "Close location report list"
+    "closeLocationList": "Close location report list",
+    "publicReportA11y": "Public report {ticketNumber}",
+    "clusterZoomA11y": "Cluster of {count} public reports. Activate to zoom in.",
+    "clusterPickA11y": "Cluster of {count} public reports at the same location. Activate to choose a report.",
+    "mapHint": "Prefer the report list below if the map is hard to use. Clusters show only public reports. Same-location clusters open a short list so you can still choose a report.",
+    "clusterTitle": "Reports at this location",
+    "clusterSubtitle": "These public reports share the same map pin. Choose one to open."
   },
   "public": {
     "unableOpen": "Unable to open that public report.",

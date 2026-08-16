@@ -17,14 +17,14 @@ type ChangePhoneFlowProps = {
 export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePhoneFlowProps) {
   const { t } = useI18n();
   const [challenge, setChallenge] = useState<PhoneEntrySuccess | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [updatedPhone, setUpdatedPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const handleVerified = async (response: CitizenOtpVerifyResponse) => {
     setBusy(true);
     try {
       await onVerified(response);
-      setSuccessMessage(t('profile.phoneChangeSuccess', { phone: response.phone }));
+      setUpdatedPhone(response.phone);
       setChallenge(null);
     } finally {
       setBusy(false);
@@ -33,16 +33,16 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
 
   return (
     <View style={styles.container} testID="change-phone-flow">
-      <Text variant="titleLarge" style={styles.title}>
+      <Text variant="titleLarge" style={styles.title} accessibilityLabel={t('profile.changePhone')}>
         {t('profile.changePhone')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
         {t('profile.changePhoneBody', { phone: currentPhone })}
       </Text>
 
-      {successMessage ? (
+      {updatedPhone ? (
         <Banner visible icon="check-circle" style={styles.banner} testID="phone-change-success">
-          {successMessage}
+          {t('profile.phoneChangeSuccess', { phone: updatedPhone })}
         </Banner>
       ) : null}
 
@@ -87,7 +87,7 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
         textColor={colors.textSecondary}
         testID="cancel-phone-change-button"
       >
-        {successMessage ? t('profile.backToProfile') : t('common.cancel')}
+        {updatedPhone ? t('profile.backToProfile') : t('common.cancel')}
       </Button>
     </View>
   );

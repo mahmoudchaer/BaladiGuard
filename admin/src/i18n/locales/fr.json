@@ -508,7 +508,13 @@
       "noPublicPhoto": " · aucune photo publique",
       "publish": "Publier",
       "unpublish": "Dépublier",
-      "openFull": "Ouvrir le ticket complet"
+      "openFull": "Ouvrir le ticket complet",
+      "suggestion": "Suggestion",
+      "saving": "Enregistrement…",
+      "applying": "Application…",
+      "unableSaveCategory": "Impossible d’enregistrer la catégorie.",
+      "unableUpdateStatus": "Impossible de mettre à jour le statut.",
+      "unableSaveDepartment": "Impossible d’enregistrer le service."
     },
     "comments": {
       "loading": "Chargement des commentaires internes…",

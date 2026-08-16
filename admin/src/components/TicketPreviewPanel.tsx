@@ -23,7 +23,7 @@ import {
 import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
 import { reasonsForKind, requiredOutcomeKind } from '@/utils/outcomeReasons';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 import './TicketPreviewPanel.css';
 
 type TicketPreviewPanelProps = {
@@ -31,7 +31,10 @@ type TicketPreviewPanelProps = {
   onTicketUpdated?: (ticket: Ticket) => void;
 };
 
+type ActionNotice = { tone: 'error' | 'success'; key: string } | { tone: 'error'; text: string };
+
 export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPanelProps) {
+  const { t } = useI18n();
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
@@ -41,8 +44,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
   const [isSavingPublic, setIsSavingPublic] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const [statusReasonCode, setStatusReasonCode] = useState('');
   const [statusPrivateNote, setStatusPrivateNote] = useState('');
 
@@ -55,8 +57,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setSelectedDepartmentId(ticket.departmentId ?? '');
     setPublicDescription(ticket.public?.description ?? '');
     setPublicLocationLabel(ticket.public?.locationLabel ?? '');
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     setStatusReasonCode('');
     setStatusPrivateNote('');
   }, [ticket]);
@@ -80,18 +81,21 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingCategory(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await reviewTicketCategory(ticket.ticketId, { finalCategory: suggestion });
       if (!updated) {
-        setActionError(t('ticket.preview.unableSaveAi'));
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableSaveAi' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess(t('ticket.preview.aiAccepted'));
+      setActionNotice({ tone: 'success', key: 'ticket.preview.aiAccepted' });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : t('ticket.preview.unableAcceptAi'));
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableAcceptAi' },
+      );
     } finally {
       setIsSavingCategory(false);
     }
@@ -102,21 +106,22 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingCategory(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await reviewTicketCategory(ticket.ticketId, {
         finalCategory: selectedCategory,
       });
       if (!updated) {
-        setActionError(t('ticket.review.unableSaveCategory'));
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableSaveCategory' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess(t('ticket.preview.categorySaved'));
+      setActionNotice({ tone: 'success', key: 'ticket.preview.categorySaved' });
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : t('ticket.review.unableSaveCategory'),
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableSaveCategory' },
       );
     } finally {
       setIsSavingCategory(false);
@@ -129,26 +134,27 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     }
     const outcomeKind = requiredOutcomeKind(ticket.status, pendingStatus);
     if (outcomeKind && !statusReasonCode) {
-      setActionError(t('ticket.review.selectReasonBeforeStatus'));
+      setActionNotice({ tone: 'error', key: 'ticket.review.selectReasonBeforeStatus' });
       return;
     }
     setIsUpdatingStatus(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await updateTicketStatus(ticket.ticketId, pendingStatus, {
         reasonCode: outcomeKind ? statusReasonCode : undefined,
         note: statusPrivateNote.trim() || undefined,
       });
       if (!updated) {
-        setActionError(t('ticket.review.unableUpdateStatus'));
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableUpdateStatus' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess(t('ticket.preview.statusUpdated'));
+      setActionNotice({ tone: 'success', key: 'ticket.preview.statusUpdated' });
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : t('ticket.review.unableUpdateStatus'),
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableUpdateStatus' },
       );
     } finally {
       setIsUpdatingStatus(false);
@@ -160,21 +166,22 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingDepartment(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await assignTicketDepartment(ticket.ticketId, {
         departmentId: selectedDepartmentId,
       });
       if (!updated) {
-        setActionError(t('ticket.review.unableUpdateDepartment'));
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableSaveDepartment' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess(t('ticket.preview.departmentAssigned'));
+      setActionNotice({ tone: 'success', key: 'ticket.preview.departmentAssigned' });
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : t('ticket.review.unableUpdateDepartment'),
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableSaveDepartment' },
       );
     } finally {
       setIsSavingDepartment(false);
@@ -186,8 +193,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingPublic(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await updateTicketPublicContent(ticket.ticketId, {
         publicStatus,
@@ -196,18 +202,20 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
         clearPublicPhoto: undefined,
       });
       if (!updated) {
-        setActionError(t('ticket.preview.unableUpdatePublic'));
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableUpdatePublic' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess(
-        publicStatus === 'PUBLISHED'
-          ? t('ticket.preview.published')
-          : t('ticket.preview.unpublished'),
-      );
+      setActionNotice({
+        tone: 'success',
+        key:
+          publicStatus === 'PUBLISHED' ? 'ticket.preview.published' : 'ticket.preview.unpublished',
+      });
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : t('ticket.preview.unableUpdatePublic'),
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableUpdatePublic' },
       );
     } finally {
       setIsSavingPublic(false);
@@ -251,7 +259,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
           {ticket.ai?.aiSuggestedCategory ? (
             <div className="ticket-preview__suggestion">
               <span className="ticket-preview__suggestion-label">
-                {t('ticket.review.aiSuggestion')}
+                {t('ticket.preview.suggestion')}
               </span>
               <CategoryBadge category={ticket.ai.aiSuggestedCategory} />
               {ticket.ai.aiCategoryExplanation ? (
@@ -308,9 +316,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
                 isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending' || !selectedCategory
               }
             >
-              {isSavingCategory
-                ? t('ticket.review.savingCategory')
-                : t('ticket.review.saveFinalCategory')}
+              {isSavingCategory ? t('ticket.preview.saving') : t('ticket.review.saveFinalCategory')}
             </button>
           </div>
         </section>
@@ -359,7 +365,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
             onClick={() => void handleApplyStatus()}
             disabled={isUpdatingStatus || !pendingStatus || pendingStatus === ticket.status}
           >
-            {isUpdatingStatus ? t('ticket.review.applying') : t('ticket.review.applyStatus')}
+            {isUpdatingStatus ? t('ticket.preview.applying') : t('ticket.review.applyStatus')}
           </button>
 
           <label className="ticket-preview__field">
@@ -387,7 +393,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               selectedDepartmentId === (ticket.departmentId ?? '')
             }
           >
-            {isSavingDepartment ? t('ticket.review.saving') : t('ticket.review.saveDepartment')}
+            {isSavingDepartment ? t('ticket.preview.saving') : t('ticket.review.saveDepartment')}
           </button>
         </section>
 
@@ -439,7 +445,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               onClick={() => void handleSavePublicContent('PUBLISHED')}
               disabled={isSavingPublic || !publicDescription.trim() || !publicLocationLabel.trim()}
             >
-              {isSavingPublic ? t('ticket.review.saving') : t('ticket.preview.publish')}
+              {isSavingPublic ? t('ticket.preview.saving') : t('ticket.preview.publish')}
             </button>
             <button
               type="button"
@@ -452,14 +458,14 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
           </div>
         </section>
 
-        {actionError ? (
+        {actionNotice?.tone === 'error' ? (
           <p className="ticket-preview__error" role="alert">
-            {actionError}
+            {'key' in actionNotice ? t(actionNotice.key) : actionNotice.text}
           </p>
         ) : null}
-        {actionSuccess ? (
+        {actionNotice?.tone === 'success' ? (
           <p className="ticket-preview__success" role="status">
-            {actionSuccess}
+            {'key' in actionNotice ? t(actionNotice.key) : actionNotice.text}
           </p>
         ) : null}
       </div>

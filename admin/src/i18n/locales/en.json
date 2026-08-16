@@ -508,7 +508,13 @@
       "noPublicPhoto": " · no public photo",
       "publish": "Publish",
       "unpublish": "Unpublish",
-      "openFull": "Open full ticket"
+      "openFull": "Open full ticket",
+      "suggestion": "Suggestion",
+      "saving": "Saving…",
+      "applying": "Applying…",
+      "unableSaveCategory": "Unable to save category.",
+      "unableUpdateStatus": "Unable to update status.",
+      "unableSaveDepartment": "Unable to save department."
     },
     "comments": {
       "loading": "Loading internal comments…",

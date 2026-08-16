@@ -360,7 +360,13 @@
     "allCategories": "Toutes les catégories",
     "filterStatus": "Filtrer le statut {label}",
     "filterCategory": "Filtrer la catégorie {label}",
-    "closeLocationList": "Fermer la liste des signalements à cet emplacement"
+    "closeLocationList": "Fermer la liste des signalements à cet emplacement",
+    "publicReportA11y": "Signalement public {ticketNumber}",
+    "clusterZoomA11y": "Groupe de {count} signalements publics. Activez pour zoomer.",
+    "clusterPickA11y": "Groupe de {count} signalements publics au même emplacement. Activez pour choisir un signalement.",
+    "mapHint": "Préférez la liste des signalements ci-dessous si la carte est difficile à utiliser. Les groupes n’affichent que les signalements publics. Les groupes au même emplacement ouvrent une courte liste pour choisir.",
+    "clusterTitle": "Signalements à cet emplacement",
+    "clusterSubtitle": "Ces signalements publics partagent le même point sur la carte. Choisissez-en un pour l’ouvrir."
   },
   "public": {
     "unableOpen": "Impossible d’ouvrir ce signalement public.",
