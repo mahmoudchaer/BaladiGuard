@@ -9,6 +9,7 @@ from PIL import Image
 from app.config import Settings
 from app.database.memory import InMemoryTicketStore
 from app.database.memory_redaction_job import InMemoryRedactionJobStore
+from app.database.serialization import item_to_ticket
 from app.schemas.stored_ticket import StoredTicket
 from app.services.redaction.detector import (
     AwsRekognitionDetector,
@@ -441,3 +442,70 @@ def test_reprocessing_preserves_old_approval_until_new_generation_completes(monk
     queue.enqueue("tkt_reprocess", 2, now=10)
     assert queue.run_once(now=10) == "succeeded"
     assert tickets.get("tkt_reprocess").image_redaction_generation == 2
+
+
+def test_worker_skips_unenrolled_tickets_and_processes_oldest_redactable(monkeypatch):
+    monkeypatch.setattr("app.services.redaction.queue.get_settings", _settings)
+    tickets = InMemoryTicketStore()
+    jobs = InMemoryRedactionJobStore()
+    processor = ResultProcessor()
+    tickets.save(
+        _ticket("tkt_legacy_old").model_copy(update={"image_redaction_enrolled": False})
+    )
+    tickets.save(_ticket("tkt_ready_new"))
+    queue = ImageRedactionQueue(jobs, tickets, processor)
+    jobs.enqueue("tkt_legacy_old", 1, 10)
+    jobs.enqueue("tkt_ready_new", 1, 20)
+
+    assert queue.run_once(now=30) == "succeeded"
+    assert jobs.get("redaction:tkt_legacy_old:g1").status == "dead_lettered"
+    assert jobs.get("redaction:tkt_legacy_old:g1").last_error_code == "REDACTION_NOT_ENROLLED"
+    assert jobs.get("redaction:tkt_ready_new:g1").status == "succeeded"
+    assert tickets.get("tkt_legacy_old").image_redaction_status == "pending"
+    assert tickets.get("tkt_ready_new").image_redaction_status == "completed"
+    assert processor.calls == 1
+
+
+def test_reconcile_does_not_enqueue_unenrolled_tickets(monkeypatch):
+    monkeypatch.setattr("app.services.redaction.queue.get_settings", _settings)
+    tickets = InMemoryTicketStore()
+    jobs = InMemoryRedactionJobStore()
+    tickets.save(
+        _ticket("tkt_legacy_reconcile").model_copy(update={"image_redaction_enrolled": False})
+    )
+    tickets.save(_ticket("tkt_enrolled_reconcile"))
+    queue = ImageRedactionQueue(jobs, tickets, ResultProcessor())
+
+    assert queue.reconcile(now=10) == 1
+    assert jobs.get("redaction:tkt_legacy_reconcile:g1") is None
+    assert jobs.get("redaction:tkt_enrolled_reconcile:g1") is not None
+
+
+def _legacy_dynamo_item() -> dict:
+    return {
+        "ticketId": "tkt_legacy_row",
+        "ticketNumber": "BG-2026-0002",
+        "trackingCode": "LEGACY1",
+        "description": "Old report without redaction fields.",
+        "contact": {"phone": "+96170123456"},
+        "location": {
+            "latitude": 33.89,
+            "longitude": 35.50,
+            "addressText": "Hamra, Beirut",
+            "source": "GPS",
+        },
+        "imageObjectKey": "reports/temp/old/photo.jpg",
+        "status": "SUBMITTED",
+        "createdAt": "2026-01-01T00:00:00Z",
+    }
+
+
+def test_item_to_ticket_marks_legacy_rows_unenrolled():
+    ticket = item_to_ticket(_legacy_dynamo_item())
+    assert ticket.image_redaction_enrolled is False
+    assert ticket.image_redaction_status == "pending"
+
+
+def test_item_to_ticket_marks_persisted_redaction_status_enrolled():
+    ticket = item_to_ticket({**_legacy_dynamo_item(), "imageRedactionStatus": "pending"})
+    assert ticket.image_redaction_enrolled is True

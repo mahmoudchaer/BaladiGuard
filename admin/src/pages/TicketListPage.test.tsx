@@ -8,6 +8,7 @@ import { queryStaffAssistant } from '@/services/staffAssistant';
 import {
   assignTicketDepartment,
   fetchTicketAggregates,
+  fetchTicketById,
   fetchTicketsPage,
   updateTicketStatus,
 } from '@/services/tickets';
@@ -26,12 +27,50 @@ vi.mock('@/services/tickets', async () => {
     ...actual,
     fetchTicketsPage: vi.fn(),
     fetchTicketAggregates: vi.fn(),
+    fetchTicketById: vi.fn(),
+    fetchTicketActivity: vi.fn(async () => ({ events: [], nextCursor: null })),
+    fetchTicketComments: vi.fn(async () => []),
+    fetchImageRedactionReview: vi.fn(async () => null),
     updateTicketStatus: vi.fn(),
     assignTicketDepartment: vi.fn(),
     acceptAiCategory: vi.fn(),
     updateTicketCategory: vi.fn(),
+    reviewTicketCategory: vi.fn(),
   };
 });
+
+vi.mock('@/services/workOrders', () => ({
+  listTicketWorkOrders: vi.fn(async () => ({ items: [], activeWorkOrderId: null })),
+  createTicketWorkOrder: vi.fn(),
+  assignWorkOrder: vi.fn(),
+  startWorkOrder: vi.fn(),
+  completeWorkOrder: vi.fn(),
+  cancelWorkOrder: vi.fn(),
+  uploadWorkOrderEvidence: vi.fn(),
+}));
+
+vi.mock('@/services/resolutionFeedback', () => ({
+  fetchResolutionFeedback: vi.fn(async () => ({
+    ticketId: 'tkt_road',
+    trackingCode: 'ROAD01',
+    ticketStatus: 'IN_PROGRESS',
+    status: null,
+    note: null,
+    submittedAt: null,
+    reviewStatus: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewAction: null,
+    needsReview: false,
+  })),
+  reviewResolutionFeedback: vi.fn(),
+}));
+
+vi.mock('@/services/workforce', () => ({
+  listWorkers: vi.fn(async () => []),
+  listTeams: vi.fn(async () => []),
+  fetchWorkload: vi.fn(),
+}));
 
 type FetchPageOptions = Parameters<typeof fetchTicketsPage>[0];
 
@@ -176,6 +215,9 @@ describe('TicketListPage', () => {
       pageFromTickets(applyFetchFilters(tickets, options)),
     );
     vi.mocked(fetchTicketAggregates).mockResolvedValue(defaultAggregates);
+    vi.mocked(fetchTicketById).mockImplementation(async (ticketId) => {
+      return tickets.find((ticket) => ticket.ticketId === ticketId) ?? null;
+    });
   });
 
   it('shows a loading state while tickets are being fetched', () => {
@@ -622,6 +664,7 @@ describe('TicketListPage', () => {
     vi.mocked(fetchTicketsPage).mockImplementation(async (options) =>
       pageFromTickets(applyFetchFilters([submitted, ...tickets], options)),
     );
+    vi.mocked(fetchTicketById).mockResolvedValue(submitted);
     vi.mocked(updateTicketStatus).mockResolvedValue({
       ...submitted,
       status: 'UNDER_REVIEW',
@@ -642,8 +685,10 @@ describe('TicketListPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0010' }));
     const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
-    expect(within(preview).getByRole('heading', { name: 'BG-2026-0010' })).toBeInTheDocument();
-    const statusSelect = within(preview).getByRole('combobox', { name: /^Status$/i });
+    expect(
+      await within(preview).findByRole('heading', { name: 'BG-2026-0010' }),
+    ).toBeInTheDocument();
+    const statusSelect = await within(preview).findByRole('combobox', { name: /^Status$/i });
     await user.selectOptions(statusSelect, 'UNDER_REVIEW');
     await user.click(within(preview).getByRole('button', { name: 'Apply status change' }));
 
@@ -665,6 +710,7 @@ describe('TicketListPage', () => {
       departmentName: undefined,
     };
     vi.mocked(fetchTicketsPage).mockResolvedValue(pageFromTickets([unassigned, ...tickets]));
+    vi.mocked(fetchTicketById).mockResolvedValue(unassigned);
     vi.mocked(assignTicketDepartment).mockResolvedValue({
       ...unassigned,
       departmentId: 'd1111111-1111-1111-1111-111111111111',
@@ -686,8 +732,12 @@ describe('TicketListPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0011' }));
     const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
-    expect(within(preview).getByRole('heading', { name: 'BG-2026-0011' })).toBeInTheDocument();
-    const departmentSelect = within(preview).getByRole('combobox', { name: /Department/i });
+    expect(
+      await within(preview).findByRole('heading', { name: 'BG-2026-0011' }),
+    ).toBeInTheDocument();
+    const departmentSelect = await within(preview).findByRole('combobox', {
+      name: /Department/i,
+    });
     await user.selectOptions(departmentSelect, 'd1111111-1111-1111-1111-111111111111');
     await user.click(within(preview).getByRole('button', { name: 'Save department' }));
 
@@ -695,5 +745,55 @@ describe('TicketListPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Select ticket BG-2026-0011' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('keeps the ticket list full width until a ticket is selected', async () => {
+    renderWithProviders(<TicketListPage />);
+
+    expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Ticket preview' })).not.toBeInTheDocument();
+    expect(document.querySelector('.helpdesk-desk--preview-open')).not.toBeInTheDocument();
+  });
+
+  it('opens a sliding preview drawer when a ticket is selected', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
+
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    expect(within(preview).getByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+    expect(within(preview).getAllByRole('link', { name: 'Open' })[0]).toHaveAttribute(
+      'href',
+      '/tickets/tkt_road',
+    );
+    expect(document.querySelector('.helpdesk-desk--preview-open')).toBeInTheDocument();
+    await waitFor(() => expect(fetchTicketById).toHaveBeenCalledWith('tkt_road'));
+  });
+
+  it('closes the preview drawer and restores the full-width list', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    await user.click(within(preview).getByRole('button', { name: 'Close preview' }));
+
+    expect(screen.queryByRole('complementary', { name: 'Ticket preview' })).not.toBeInTheDocument();
+    expect(document.querySelector('.helpdesk-desk--preview-open')).not.toBeInTheDocument();
+  });
+
+  it('opens the full ticket workspace from the preview Open button', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TicketListPage />);
+
+    await screen.findByText('BG-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Select ticket BG-2026-0001' }));
+    const preview = await screen.findByRole('complementary', { name: 'Ticket preview' });
+    await user.click(within(preview).getAllByRole('link', { name: 'Open' })[0]);
+
+    expect(window.location.pathname).toBe('/tickets/tkt_road');
   });
 });

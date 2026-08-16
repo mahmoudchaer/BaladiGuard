@@ -88,4 +88,5 @@ def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
 
 
 def item_to_ticket(item: dict[str, Any]) -> StoredTicket:
-    return StoredTicket.model_validate(convert_decimals(item))
+    ticket = StoredTicket.model_validate(convert_decimals(item))
+    return ticket.model_copy(update={"image_redaction_enrolled": "imageRedactionStatus" in item})

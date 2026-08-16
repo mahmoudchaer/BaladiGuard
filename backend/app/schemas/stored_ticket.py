@@ -46,6 +46,9 @@ class StoredTicket(BaseModel):
     image_redaction_status: ImageRedactionStatus = Field(
         default="pending", alias="imageRedactionStatus"
     )
+    # Runtime-only: Dynamo items created before redaction persist no status
+    # attribute. The model default of pending must not enroll those tickets.
+    image_redaction_enrolled: bool = Field(default=True, exclude=True)
     image_redaction_generation: int = Field(default=1, alias="imageRedactionGeneration", ge=1)
     image_redaction_claim_token: str | None = Field(default=None, alias="imageRedactionClaimToken")
     image_redaction_detector: str | None = Field(default=None, alias="imageRedactionDetector")

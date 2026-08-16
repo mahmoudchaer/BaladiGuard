@@ -12,6 +12,7 @@ import { WorkforcePage } from '@/pages/WorkforcePage';
 import {
   assignTicketDepartment,
   fetchTicketAggregates,
+  fetchTicketById,
   fetchTicketsPage,
   reviewTicketCategory,
 } from '@/services/tickets';
@@ -25,10 +26,41 @@ vi.mock('@/services/tickets', async () => {
     ...actual,
     fetchTicketsPage: vi.fn(),
     fetchTicketAggregates: vi.fn(),
+    fetchTicketById: vi.fn(),
+    fetchTicketActivity: vi.fn(async () => ({ events: [], nextCursor: null })),
+    fetchTicketComments: vi.fn(async () => []),
+    fetchImageRedactionReview: vi.fn(async () => null),
     reviewTicketCategory: vi.fn(),
     assignTicketDepartment: vi.fn(),
   };
 });
+
+vi.mock('@/services/workOrders', () => ({
+  listTicketWorkOrders: vi.fn(async () => ({ items: [], activeWorkOrderId: null })),
+  createTicketWorkOrder: vi.fn(),
+  assignWorkOrder: vi.fn(),
+  startWorkOrder: vi.fn(),
+  completeWorkOrder: vi.fn(),
+  cancelWorkOrder: vi.fn(),
+  uploadWorkOrderEvidence: vi.fn(),
+}));
+
+vi.mock('@/services/resolutionFeedback', () => ({
+  fetchResolutionFeedback: vi.fn(async () => ({
+    ticketId: 'tkt_preview',
+    trackingCode: 'PREV99',
+    ticketStatus: 'SUBMITTED',
+    status: null,
+    note: null,
+    submittedAt: null,
+    reviewStatus: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewAction: null,
+    needsReview: false,
+  })),
+  reviewResolutionFeedback: vi.fn(),
+}));
 
 vi.mock('@/services/workforce', () => ({
   listWorkers: vi.fn(),
@@ -86,6 +118,7 @@ describe('critical flow accessibility', () => {
       freshnessHintSeconds: 30,
       fromCache: false,
     });
+    vi.mocked(fetchTicketById).mockResolvedValue(previewTicket);
     vi.mocked(fetchTicketAggregates).mockResolvedValue({
       openCount: 0,
       criticalCount: 0,
@@ -127,7 +160,9 @@ describe('critical flow accessibility', () => {
       ).toBeInTheDocument();
       expect(screen.getByLabelText(t('filters.search'))).toBeInTheDocument();
       expect(screen.getByLabelText(t('filters.category'))).toBeInTheDocument();
-      expect(screen.getByText(t('ticket.preview.selectReport'))).toBeInTheDocument();
+      expect(
+        screen.queryByRole('complementary', { name: t('ticket.preview.a11y') }),
+      ).not.toBeInTheDocument();
     }
   });
 
@@ -225,6 +260,9 @@ describe('critical flow accessibility', () => {
 
     renderWithProviders(<TicketPreviewPanel ticket={previewTicket} />);
     const preview = screen.getByRole('complementary', { name: t('ticket.preview.a11y') });
+    expect(
+      await within(preview).findByRole('heading', { name: 'BG-2026-0099' }),
+    ).toBeInTheDocument();
 
     for (const locale of LOCALES) {
       await act(async () => {
@@ -244,8 +282,16 @@ describe('critical flow accessibility', () => {
         within(preview).getByRole('button', { name: t('ticket.review.applyStatus') }),
       ).toBeInTheDocument();
       expect(
+        within(preview).getByRole('combobox', {
+          name: t('ticket.preview.departmentValue', { department: 'Unassigned' }),
+        }),
+      ).toBeInTheDocument();
+      expect(
         within(preview).getByRole('button', { name: t('ticket.review.saveDepartment') }),
       ).toBeInTheDocument();
+      expect(
+        within(preview).getAllByRole('link', { name: t('ticket.preview.open') }).length,
+      ).toBeGreaterThan(0);
     }
 
     await act(async () => {
@@ -272,6 +318,7 @@ describe('critical flow accessibility', () => {
     await act(async () => {
       setLocale('fr');
     });
+    await user.click(within(preview).getByRole('button', { name: t('ticket.review.applyStatus') }));
     expect(screen.getByRole('alert')).toHaveTextContent(
       t('ticket.review.selectReasonBeforeStatus'),
     );

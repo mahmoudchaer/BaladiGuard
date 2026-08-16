@@ -98,7 +98,7 @@
   width: 4.5rem;
   height: 4.5rem;
   border-radius: 0.55rem;
-  object-fit: cover;
+  object-fit: contain;
   background: var(--color-bg-subtle);
   border: 1px solid var(--color-border);
   flex-shrink: 0;

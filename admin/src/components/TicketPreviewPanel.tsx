@@ -28,6 +28,7 @@ import './TicketPreviewPanel.css';
 
 type TicketPreviewPanelProps = {
   ticket: Ticket | null;
+  onClose?: () => void;
   onTicketUpdated?: (ticket: Ticket) => void;
 };
 
@@ -37,7 +38,7 @@ function actionNoticeText(notice: ActionNotice, translate: (key: string) => stri
   return 'key' in notice ? translate(notice.key) : notice.text;
 }
 
-export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPanelProps) {
+export function TicketPreviewPanel({ ticket, onClose, onTicketUpdated }: TicketPreviewPanelProps) {
   const { t } = useI18n();
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -51,6 +52,19 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const [statusReasonCode, setStatusReasonCode] = useState('');
   const [statusPrivateNote, setStatusPrivateNote] = useState('');
+
+  useEffect(() => {
+    if (!onClose) {
+      return;
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   useEffect(() => {
     if (!ticket) {
@@ -67,6 +81,27 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   }, [ticket]);
 
   if (!ticket) {
+    if (onClose) {
+      return (
+        <aside
+          className="ticket-preview ticket-preview--drawer"
+          aria-label={t('ticket.preview.a11y')}
+          aria-busy="true"
+        >
+          <header className="ticket-preview__header">
+            <p className="ticket-preview__empty-title">{t('common.loading')}</p>
+            <button
+              type="button"
+              className="ticket-preview__close"
+              onClick={onClose}
+              aria-label={t('ticket.preview.closePreview')}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+        </aside>
+      );
+    }
     return (
       <aside className="ticket-preview" aria-label={t('ticket.preview.a11y')}>
         <div className="ticket-preview__empty">
@@ -227,7 +262,10 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   }
 
   return (
-    <aside className="ticket-preview" aria-label={t('ticket.preview.a11y')}>
+    <aside
+      className={onClose ? 'ticket-preview ticket-preview--drawer' : 'ticket-preview'}
+      aria-label={t('ticket.preview.a11y')}
+    >
       <header className="ticket-preview__header">
         <div>
           <p className="ticket-preview__eyebrow">{ticket.trackingCode}</p>
@@ -239,9 +277,29 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
             })}
           </p>
         </div>
-        <div className="ticket-preview__badges">
-          <StatusBadge status={ticket.status} />
-          <PriorityBadge priority={ticket.priority} />
+        <div className="ticket-preview__header-actions">
+          <div className="ticket-preview__header-tools">
+            <Link
+              to={`/tickets/${ticket.ticketId}`}
+              className="ticket-preview__open ticket-preview__open--header"
+            >
+              {t('ticket.preview.open')}
+            </Link>
+            {onClose ? (
+              <button
+                type="button"
+                className="ticket-preview__close"
+                onClick={onClose}
+                aria-label={t('ticket.preview.closePreview')}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            ) : null}
+          </div>
+          <div className="ticket-preview__badges">
+            <StatusBadge status={ticket.status} />
+            <PriorityBadge priority={ticket.priority} />
+          </div>
         </div>
       </header>
 
@@ -476,7 +534,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
 
       <footer className="ticket-preview__footer">
         <Link to={`/tickets/${ticket.ticketId}`} className="ticket-preview__open">
-          {t('ticket.preview.openFull')}
+          {t('ticket.preview.open')}
         </Link>
       </footer>
     </aside>

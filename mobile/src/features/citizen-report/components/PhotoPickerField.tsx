@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 
+import { ReportPhoto } from '@/components/ReportPhoto';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
@@ -53,10 +54,10 @@ export function PhotoPickerField({
 
       const result =
         source === 'camera'
-          ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
+          ? await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 0.8 })
           : await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ['images'],
-              allowsEditing: true,
+              allowsEditing: false,
               quality: 0.8,
             });
 
@@ -85,7 +86,7 @@ export function PhotoPickerField({
 
           {value ? (
             <View style={styles.previewWrap}>
-              <Image source={{ uri: value }} style={styles.preview} />
+              <ReportPhoto uri={value} accessibilityLabel={t('report.photo')} variant="hero" />
               <View style={styles.actionRow}>
                 <Button
                   mode="outlined"
@@ -188,11 +189,5 @@ const styles = StyleSheet.create({
   },
   previewWrap: {
     gap: spacing[3],
-  },
-  preview: {
-    width: '100%',
-    height: 220,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceSubtle,
   },
 });

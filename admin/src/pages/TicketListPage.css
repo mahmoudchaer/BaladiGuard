@@ -1,10 +1,16 @@
 .helpdesk-desk {
   display: grid;
-  grid-template-columns: var(--views-width) minmax(22rem, 28rem) minmax(0, 1fr);
+  grid-template-columns: var(--views-width) minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   height: calc(100vh - var(--header-height));
   background: var(--color-desk);
+  overflow: hidden;
+  transition: grid-template-columns 220ms ease;
+}
+
+.helpdesk-desk--preview-open {
+  grid-template-columns: var(--views-width) minmax(18rem, 24rem) minmax(22rem, 1fr);
 }
 
 .helpdesk-desk__list {

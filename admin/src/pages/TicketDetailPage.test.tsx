@@ -240,6 +240,20 @@ describe('TicketDetailPage states', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load ticket');
     expect(screen.getByText('Ticket service unavailable.')).toBeInTheDocument();
   });
+
+  it('loads the full workspace in the queue side panel without dashboard chrome', async () => {
+    renderWithProviders(<TicketDetailPage ticketId="tkt_123" embedded />);
+
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '← Back to ticket queue' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Review & Actions' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('combobox', { name: 'New status' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Assigned department' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Final category' })).toBeInTheDocument();
+  });
 });
 
 describe('TicketDetailPage summary header', () => {
@@ -1498,6 +1512,16 @@ describe('TicketDetailPage activity', () => {
     expect(screen.getByText('Activity unavailable.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry activity' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+  });
+
+  it('renders a full-width labeled comment composer', async () => {
+    renderPage('/tickets/tkt_123?section=activity');
+
+    const composer = await screen.findByLabelText('Add internal comment');
+    expect(composer.tagName).toBe('TEXTAREA');
+    expect(composer).toHaveAttribute('rows', '4');
+    expect(composer).toHaveClass('ticket-detail__comment-input');
+    expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
   });
 
   it('keeps a posted comment when the activity refresh fails', async () => {
