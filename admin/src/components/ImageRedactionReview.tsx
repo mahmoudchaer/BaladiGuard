@@ -29,6 +29,8 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
   const [top, setTop] = useState('0.10');
   const [width, setWidth] = useState('0.20');
   const [height, setHeight] = useState('0.20');
+  const [activeImage, setActiveImage] = useState<0 | 1>(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +90,27 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
     return <p className="image-redaction-review__hint">{t('redaction.loading')}</p>;
   }
 
+  const image =
+    activeImage === 0
+      ? {
+          label: t('redaction.original'),
+          alt: t('redaction.originalAlt'),
+          url: review.originalImageUrl ?? undefined,
+        }
+      : {
+          label: t('redaction.candidate'),
+          alt: t('redaction.candidateAlt'),
+          url: review.candidateImageUrl ?? undefined,
+        };
+
+  function showPrevious() {
+    setActiveImage((current) => (current === 0 ? 1 : 0));
+  }
+
+  function showNext() {
+    setActiveImage((current) => (current === 1 ? 0 : 1));
+  }
+
   return (
     <div className="image-redaction-review">
       <div className="image-redaction-review__status">
@@ -107,22 +130,36 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
         ) : null}
       </div>
 
-      <div className="image-redaction-review__pair">
-        <div>
-          <p className="image-redaction-review__label">{t('redaction.original')}</p>
-          <TicketPhoto
-            category={category}
-            alt={t('redaction.originalAlt')}
-            imageUrl={review.originalImageUrl ?? undefined}
-          />
+      <div className="image-redaction-review__gallery" aria-label={t('redaction.gallery')}>
+        <div className="image-redaction-review__gallery-heading" aria-live="polite">
+          <strong>{image.label}</strong>
+          <span>{activeImage + 1}/2</span>
         </div>
-        <div>
-          <p className="image-redaction-review__label">{t('redaction.candidate')}</p>
-          <TicketPhoto
-            category={category}
-            alt={t('redaction.candidateAlt')}
-            imageUrl={review.candidateImageUrl ?? undefined}
-          />
+        <div className="image-redaction-review__viewer">
+          <button
+            type="button"
+            className="image-redaction-review__arrow image-redaction-review__arrow--previous"
+            aria-label={t('redaction.previousImage')}
+            onClick={showPrevious}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="image-redaction-review__image-button"
+            aria-label={t('redaction.openPreview', { image: image.label })}
+            onClick={() => setPreviewOpen(true)}
+          >
+            <TicketPhoto category={category} alt={image.alt} imageUrl={image.url} />
+          </button>
+          <button
+            type="button"
+            className="image-redaction-review__arrow image-redaction-review__arrow--next"
+            aria-label={t('redaction.nextImage')}
+            onClick={showNext}
+          >
+            ›
+          </button>
         </div>
       </div>
 
@@ -188,6 +225,28 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
             {t('redaction.applyManual')}
           </button>
         </form>
+      ) : null}
+
+      {previewOpen ? (
+        <div
+          className="image-redaction-review__lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={image.label}
+        >
+          <button
+            type="button"
+            className="image-redaction-review__lightbox-close"
+            aria-label={t('redaction.closePreview')}
+            onClick={() => setPreviewOpen(false)}
+          >
+            ×
+          </button>
+          <div className="image-redaction-review__lightbox-content">
+            <p>{image.label}</p>
+            <TicketPhoto category={category} alt={image.alt} imageUrl={image.url} />
+          </div>
+        </div>
       ) : null}
     </div>
   );

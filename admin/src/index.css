@@ -150,6 +150,7 @@
   /* Layout */
   --sidebar-width: 15.5rem;
   --rail-width: 4.5rem;
+  --rail-expanded-width: 10.5rem;
   --views-width: 14.5rem;
   --header-height: 3.9rem;
 }

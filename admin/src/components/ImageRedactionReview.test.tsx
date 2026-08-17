@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ImageRedactionReviewPanel } from '@/components/ImageRedactionReview';
@@ -29,12 +30,17 @@ vi.mock('@/services/tickets', async () => {
 });
 
 describe('ImageRedactionReviewPanel', () => {
-  it('shows original and candidate controls without storage keys', async () => {
+  it('reviews original and candidate in one gallery without storage keys', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<ImageRedactionReviewPanel ticketId="tkt_1" category="road_damage" />);
     expect(await screen.findByText('Approve public derivative')).toBeInTheDocument();
     expect(screen.getByText('Keep private only')).toBeInTheDocument();
     expect(screen.getByText('Original (staff only)')).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.queryByText('Redacted candidate')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show next image' }));
     expect(screen.getByText('Redacted candidate')).toBeInTheDocument();
+    expect(screen.getByText('2/2')).toBeInTheDocument();
     expect(screen.queryByText(/reports\//)).not.toBeInTheDocument();
   });
 });
