@@ -19,7 +19,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
+RUN apt-get update \
+    && apt-get upgrade --yes \
+    && rm -rf /var/lib/apt/lists/* \
+    && find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
         \( -name 'pip*' -o -name 'setuptools*' -o -name 'wheel*' \) \
         -exec rm -rf {} + \
     && addgroup --system app \

@@ -436,19 +436,24 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.75rem;
-  min-height: 3.25rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 88%);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(16px) saturate(150%);
+  min-height: 0;
+  padding: 0.15rem 0;
+  pointer-events: none;
 }
 
 .ticket-detail__save-bar > span {
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 88%);
   color: var(--color-text-muted);
   font-size: var(--text-helper);
   font-weight: 600;
+  backdrop-filter: blur(12px) saturate(140%);
+}
+
+.ticket-detail__save-bar > button {
+  pointer-events: auto;
+  box-shadow: var(--shadow-sm);
 }
 
 @media (min-width: 1101px) {
@@ -931,7 +936,7 @@
   }
 
   .ticket-detail__card--municipal .ticket-detail__actions-grid {
-    align-items: end;
+    align-items: start;
   }
 
   .ticket-detail__card--municipal .ticket-detail__action-group {
