@@ -433,7 +433,7 @@
       "saveFinalCategory": "Save final category",
       "saveChanges": "Save changes",
       "savingChanges": "Saving changes…",
-      "unsavedChanges": "{count} unsaved change(s)",
+      "unsavedChanges": "Unsaved changes: {count}",
       "unableSaveChanges": "Unable to save ticket changes.",
       "unsavedTitle": "You have unsaved changes",
       "unsavedPrompt": "Save before leaving?",

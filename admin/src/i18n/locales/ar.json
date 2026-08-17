@@ -433,7 +433,7 @@
       "saveFinalCategory": "حفظ التصنيف النهائي",
       "saveChanges": "حفظ التغييرات",
       "savingChanges": "جارٍ حفظ التغييرات…",
-      "unsavedChanges": "{count} تغييرات غير محفوظة",
+      "unsavedChanges": "التغييرات غير المحفوظة: {count}",
       "unableSaveChanges": "تعذّر حفظ تغييرات البلاغ.",
       "unsavedTitle": "لديك تغييرات غير محفوظة",
       "unsavedPrompt": "هل تريد الحفظ قبل المغادرة؟",

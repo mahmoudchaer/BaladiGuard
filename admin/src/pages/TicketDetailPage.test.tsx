@@ -634,7 +634,9 @@ describe('TicketDetailPage department assignment', () => {
       'Street Lighting',
     );
     expect(screen.getByText(/Suggested:\s*Road Maintenance/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Accept suggested department' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Accept suggested department' }),
+    ).not.toBeInTheDocument();
   });
 
   it('hides the suggestion row when suggested and assigned match', async () => {
@@ -689,7 +691,7 @@ describe('TicketDetailPage department assignment', () => {
     expect(fetchTicketById).toHaveBeenCalledTimes(1);
   });
 
-  it('accepts the suggested department without changing the suggestion label', async () => {
+  it('lets staff select the suggested department through the normal dropdown', async () => {
     const user = userEvent.setup();
     vi.mocked(fetchTicketById).mockResolvedValue({
       ...ticket,
@@ -713,7 +715,10 @@ describe('TicketDetailPage department assignment', () => {
 
     renderPage('/tickets/tkt_123?section=review');
 
-    await user.click(await screen.findByRole('button', { name: 'Accept suggested department' }));
+    await user.selectOptions(
+      await screen.findByLabelText('Assigned department'),
+      'd1111111-1111-1111-1111-111111111111',
+    );
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(assignTicketDepartment).toHaveBeenCalledWith('tkt_123', {

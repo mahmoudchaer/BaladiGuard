@@ -953,18 +953,13 @@
 
   .ticket-detail__card--municipal .ticket-detail__control-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.3rem 0.45rem;
   }
 
   .ticket-detail__card--municipal .ticket-detail__control-row > label {
     grid-column: 1 / -1;
     font-size: var(--text-label);
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__control-row > .ticket-detail__control-buttons {
-    grid-column: 2;
-    grid-row: 2;
   }
 
   .ticket-detail__card--municipal .ticket-detail__control-select {
@@ -979,6 +974,10 @@
   .ticket-detail__card--municipal .ticket-detail__department-actor {
     margin-top: 0.35rem;
     font-size: 0.65rem;
+  }
+
+  .ticket-detail__card--municipal .ticket-detail__field-suggestion {
+    margin-top: 0.35rem;
   }
 
   .ticket-detail__card--work-order-create .ticket-detail__action-group {
@@ -1107,6 +1106,21 @@
   color: var(--color-text-muted);
   font-size: var(--text-helper);
   font-weight: 500;
+}
+
+.ticket-detail__field-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.45rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-helper);
+  line-height: 1.35;
+}
+
+.ticket-detail__field-suggestion .ticket-detail__ai-icon {
+  flex: 0 0 auto;
+  color: var(--color-brand);
 }
 
 .ticket-detail__department-actor {

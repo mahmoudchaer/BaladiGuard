@@ -1618,17 +1618,6 @@ export function TicketDetailPage({
                         <span className="ticket-detail__department">
                           {ticket.departmentName ?? formatDepartment(ticket.departmentId)}
                         </span>
-                        {ticket.ai?.suggestedDepartmentId &&
-                          ticket.ai.suggestedDepartmentId !== ticket.departmentId && (
-                            <small className="ticket-detail__suggested-department">
-                              <span className="ticket-detail__ai-icon" aria-hidden="true">
-                                <IconSparkles />
-                              </span>
-                              {t('ticket.review.suggested', {
-                                department: formatDepartment(ticket.ai.suggestedDepartmentId),
-                              })}
-                            </small>
-                          )}
                       </div>
 
                       <div className="ticket-detail__control-row">
@@ -1653,23 +1642,19 @@ export function TicketDetailPage({
                             </option>
                           ))}
                         </select>
-
-                        <div className="ticket-detail__control-buttons">
-                          {ticket.ai?.suggestedDepartmentId &&
-                            ticket.ai.suggestedDepartmentId !== selectedDepartmentId && (
-                              <button
-                                type="button"
-                                className="ticket-detail__review-button ticket-detail__review-button--secondary"
-                                onClick={() =>
-                                  setSelectedDepartmentId(ticket.ai?.suggestedDepartmentId ?? '')
-                                }
-                                disabled={isSavingChanges || !ticket.ai?.suggestedDepartmentId}
-                              >
-                                {t('ticket.review.acceptSuggestedDepartment')}
-                              </button>
-                            )}
-                        </div>
                       </div>
+
+                      {ticket.ai?.suggestedDepartmentId &&
+                        ticket.ai.suggestedDepartmentId !== selectedDepartmentId && (
+                          <small className="ticket-detail__field-suggestion">
+                            <span className="ticket-detail__ai-icon" aria-hidden="true">
+                              <IconSparkles />
+                            </span>
+                            {t('ticket.review.suggested', {
+                              department: formatDepartment(ticket.ai.suggestedDepartmentId),
+                            })}
+                          </small>
+                        )}
 
                       {departmentUpdateError && (
                         <p className="ticket-detail__status-error" role="alert">
