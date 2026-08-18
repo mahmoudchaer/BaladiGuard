@@ -1,6 +1,7 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { useStaffAuth } from '@/auth/useStaffAuth';
 import { LoadingState } from '@/components/LoadingState';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { DEPARTMENT_NAMES } from '@/data/departments';
@@ -14,6 +15,9 @@ import type { StaffAccount, StaffAccountRole } from '@/types/staffAccount';
 import './StaffAccountsPage.css';
 
 const DEPARTMENT_OPTIONS = Object.entries(DEPARTMENT_NAMES);
+const MUNICIPALITY_OPTIONS = [
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'Beirut Municipality' },
+];
 
 type CreateForm = {
   username: string;
@@ -94,13 +98,20 @@ function ScopeFields({
     <div className="staff-accounts__scope">
       <label className="staff-accounts__field">
         <span>{t('staffAccounts.municipality')}</span>
-        <input
+        <select
           value={isAdministrator ? '' : municipalityId}
           onChange={(event) => onMunicipalityChange(event.target.value)}
-          placeholder={t('staffAccounts.municipalityPlaceholder')}
           disabled={isAdministrator}
           aria-describedby={hintId}
-        />
+          required={!isAdministrator}
+        >
+          <option value="">{t('staffAccounts.selectMunicipality')}</option>
+          {MUNICIPALITY_OPTIONS.map((municipality) => (
+            <option key={municipality.id} value={municipality.id}>
+              {municipality.name}
+            </option>
+          ))}
+        </select>
       </label>
       <fieldset className="staff-accounts__departments">
         <legend>{t('staffAccounts.departments')}</legend>
@@ -127,6 +138,7 @@ function ScopeFields({
 
 export function StaffAccountsPage() {
   const { t } = useI18n();
+  const { session } = useStaffAuth();
   const [accounts, setAccounts] = useState<StaffAccount[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [query, setQuery] = useState('');
@@ -137,6 +149,8 @@ export function StaffAccountsPage() {
   const [savingCreate, setSavingCreate] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const createInFlight = useRef(false);
+  const mutationInFlight = useRef<Set<string>>(new Set());
 
   async function loadAccounts() {
     setLoadState('loading');
@@ -179,6 +193,7 @@ export function StaffAccountsPage() {
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (createInFlight.current) return;
     setErrorMessage(null);
     setSuccessMessage(null);
     const scopeError = validateScope(
@@ -191,6 +206,7 @@ export function StaffAccountsPage() {
       setErrorMessage(scopeError);
       return;
     }
+    createInFlight.current = true;
     setSavingCreate(true);
     try {
       const created = await createStaffAccount({
@@ -209,6 +225,7 @@ export function StaffAccountsPage() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('staffAccounts.createError'));
     } finally {
+      createInFlight.current = false;
       setSavingCreate(false);
     }
   }
@@ -225,7 +242,7 @@ export function StaffAccountsPage() {
   }
 
   async function saveEdit(account: StaffAccount) {
-    if (!editForm) return;
+    if (!editForm || mutationInFlight.current.has(account.staffId)) return;
     const scopeError = validateScope(
       editForm.role,
       editForm.municipalityId,
@@ -236,11 +253,23 @@ export function StaffAccountsPage() {
       setErrorMessage(scopeError);
       return;
     }
+    const roleChanged = editForm.role !== account.role;
+    if (
+      roleChanged &&
+      !window.confirm(
+        t('staffAccounts.roleChangeConfirm', {
+          name: account.name,
+          role: roleLabel(editForm.role, t),
+        }),
+      )
+    )
+      return;
+    mutationInFlight.current.add(account.staffId);
     setBusyId(account.staffId);
     setErrorMessage(null);
     try {
       const updated = await updateStaffAccount(account.staffId, {
-        role: editForm.role,
+        ...(roleChanged ? { role: editForm.role } : {}),
         municipalityId: editForm.role === 'administrator' ? null : editForm.municipalityId.trim(),
         departmentIds: editForm.role === 'administrator' ? null : editForm.departmentIds,
       });
@@ -253,13 +282,29 @@ export function StaffAccountsPage() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('staffAccounts.updateError'));
     } finally {
+      mutationInFlight.current.delete(account.staffId);
       setBusyId(null);
     }
   }
 
   async function toggleActive(account: StaffAccount) {
-    const actionKey = account.active ? 'deactivateConfirm' : 'reactivateConfirm';
+    if (mutationInFlight.current.has(account.staffId)) return;
+    if (account.active && account.staffId === session?.staffId) {
+      setErrorMessage(t('staffAccounts.cannotDeactivateSelf'));
+      return;
+    }
+    const activeAdministrators = accounts.filter(
+      (item) => item.role === 'administrator' && item.active,
+    ).length;
+    if (account.active && account.role === 'administrator' && activeAdministrators <= 1) {
+      setErrorMessage(t('staffAccounts.cannotDeactivateLastAdministrator'));
+      return;
+    }
+    const actionKey = account.active
+      ? 'staffAccounts.deactivateConfirm'
+      : 'staffAccounts.reactivateConfirm';
     if (!window.confirm(t(actionKey, { name: account.name }))) return;
+    mutationInFlight.current.add(account.staffId);
     setBusyId(account.staffId);
     setErrorMessage(null);
     try {
@@ -273,6 +318,7 @@ export function StaffAccountsPage() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('staffAccounts.statusError'));
     } finally {
+      mutationInFlight.current.delete(account.staffId);
       setBusyId(null);
     }
   }
@@ -508,7 +554,15 @@ export function StaffAccountsPage() {
                                 <button
                                   type="button"
                                   onClick={() => void saveEdit(account)}
-                                  disabled={busyId === account.staffId}
+                                  disabled={
+                                    busyId === account.staffId ||
+                                    (account.active && account.staffId === session?.staffId) ||
+                                    (account.active &&
+                                      account.role === 'administrator' &&
+                                      accounts.filter(
+                                        (item) => item.role === 'administrator' && item.active,
+                                      ).length <= 1)
+                                  }
                                 >
                                   {busyId === account.staffId
                                     ? t('staffAccounts.saving')

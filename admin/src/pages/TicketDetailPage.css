@@ -988,8 +988,12 @@
 
   .ticket-detail__card--work-order-create .ticket-detail__control-row {
     display: grid;
-    grid-template-columns: minmax(16rem, 1.5fr) minmax(13rem, 1fr) auto;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) max-content;
     gap: 0.45rem;
+  }
+
+  .ticket-detail__card--work-order-create .ticket-detail__control-select {
+    min-width: 0;
   }
 
   .ticket-detail__card--work-order-create .ticket-detail__control-row > label {
@@ -1009,7 +1013,7 @@
 
   .ticket-detail__card--category {
     display: grid;
-    grid-template-columns: auto minmax(16rem, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.45rem 0.65rem;
   }
@@ -1019,7 +1023,11 @@
   }
 
   .ticket-detail__card--category .ticket-detail__control-row {
-    display: contents;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
   }
 
   .ticket-detail__card--category .ticket-detail__control-row > label {
@@ -1032,6 +1040,12 @@
 
   .ticket-detail__card--category .ticket-detail__control-buttons {
     margin: 0;
+  }
+
+  .ticket-detail__card--category > .ticket-detail__review-notice,
+  .ticket-detail__card--category > .ticket-detail__suggestion,
+  .ticket-detail__card--category > .ticket-detail__status-error {
+    grid-column: 1 / -1;
   }
 
   .ticket-detail__category-reviewed {

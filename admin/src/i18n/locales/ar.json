@@ -83,8 +83,8 @@
     "role": "الدور",
     "municipalStaff": "موظف بلدي",
     "administrator": "مسؤول",
-    "municipality": "معرّف البلدية",
-    "municipalityPlaceholder": "مثال: بلدية-بيروت",
+    "municipality": "البلدية",
+    "selectMunicipality": "اختر بلدية",
     "departments": "الأقسام",
     "globalScope": "يستخدم المسؤولون نطاقاً عالمياً للبلدية والأقسام.",
     "municipalScope": "يجب أن يملك الموظف بلدية وقسماً واحداً على الأقل.",
@@ -113,6 +113,7 @@
     "saving": "جارٍ الحفظ…",
     "updated": "تم تحديث وصول الموظف.",
     "updateError": "تعذّر تحديث وصول الموظف.",
+    "roleChangeConfirm": "هل تريد تغيير دور {name} إلى {role}؟ سيتغير نطاق صلاحياته فوراً.",
     "deactivate": "تعطيل",
     "reactivate": "إعادة تفعيل",
     "deactivateConfirm": "تعطيل {name}؟ لن يتمكن من تسجيل الدخول.",
@@ -120,6 +121,8 @@
     "deactivated": "تم تعطيل حساب الموظف.",
     "reactivated": "تمت إعادة تفعيل حساب الموظف.",
     "statusError": "تعذّر تحديث حالة الحساب.",
+    "cannotDeactivateSelf": "لا يمكنك تعطيل حسابك الخاص.",
+    "cannotDeactivateLastAdministrator": "يجب إبقاء حساب مسؤول نشط واحد على الأقل.",
     "unknownDepartment": "قسم"
   },
   "assistant": {

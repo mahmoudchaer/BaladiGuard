@@ -83,8 +83,8 @@
     "role": "Rôle",
     "municipalStaff": "Personnel municipal",
     "administrator": "Administrateur",
-    "municipality": "ID de municipalité",
-    "municipalityPlaceholder": "ex. municipalité-beirut",
+    "municipality": "Municipalité",
+    "selectMunicipality": "Sélectionner une municipalité",
     "departments": "Services",
     "globalScope": "Les administrateurs utilisent un périmètre global.",
     "municipalScope": "Le personnel municipal doit avoir une municipalité et au moins un service.",
@@ -113,6 +113,7 @@
     "saving": "Enregistrement…",
     "updated": "Accès du personnel mis à jour.",
     "updateError": "Impossible de mettre à jour l’accès.",
+    "roleChangeConfirm": "Changer le rôle de {name} en {role} ? Son périmètre d’autorisation changera immédiatement.",
     "deactivate": "Désactiver",
     "reactivate": "Réactiver",
     "deactivateConfirm": "Désactiver {name} ? Cette personne ne pourra plus se connecter.",
@@ -120,6 +121,8 @@
     "deactivated": "Compte désactivé.",
     "reactivated": "Compte réactivé.",
     "statusError": "Impossible de mettre à jour le statut.",
+    "cannotDeactivateSelf": "Vous ne pouvez pas désactiver votre propre compte.",
+    "cannotDeactivateLastAdministrator": "Au moins un compte administrateur actif doit rester disponible.",
     "unknownDepartment": "Service"
   },
   "assistant": {

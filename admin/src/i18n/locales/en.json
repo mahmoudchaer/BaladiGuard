@@ -83,8 +83,8 @@
     "role": "Role",
     "municipalStaff": "Municipal staff",
     "administrator": "Administrator",
-    "municipality": "Municipality ID",
-    "municipalityPlaceholder": "e.g. beirut-municipality",
+    "municipality": "Municipality",
+    "selectMunicipality": "Select a municipality",
     "departments": "Departments",
     "globalScope": "Administrators use global municipality and department scope.",
     "municipalScope": "Municipal staff must have one municipality and at least one department.",
@@ -113,6 +113,7 @@
     "saving": "Saving…",
     "updated": "Staff access updated.",
     "updateError": "Unable to update staff access.",
+    "roleChangeConfirm": "Change {name}'s role to {role}? Their authorization scope will change immediately.",
     "deactivate": "Deactivate",
     "reactivate": "Reactivate",
     "deactivateConfirm": "Deactivate {name}? They will no longer be able to sign in.",
@@ -120,6 +121,8 @@
     "deactivated": "Staff account deactivated.",
     "reactivated": "Staff account reactivated.",
     "statusError": "Unable to update account status.",
+    "cannotDeactivateSelf": "You cannot deactivate your own account.",
+    "cannotDeactivateLastAdministrator": "At least one active administrator account must remain.",
     "unknownDepartment": "Department"
   },
   "assistant": {
