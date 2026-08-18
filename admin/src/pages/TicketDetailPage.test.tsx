@@ -296,7 +296,9 @@ describe('TicketDetailPage summary header', () => {
     async function assertWorkflowChrome() {
       await user.click(screen.getByRole('tab', { name: t('ticket.section.review') }));
       expect(screen.getByRole('heading', { name: t('ticket.review.heading') })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: t('ticket.review.saveChanges') })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: t('ticket.review.applyStatus') }),
+      ).toBeInTheDocument();
       expect(screen.getByLabelText(t('ticket.review.assignedDepartment'))).toBeInTheDocument();
       expect(screen.getByLabelText(t('ticket.review.finalCategory'))).toBeInTheDocument();
 
@@ -466,15 +468,17 @@ describe('TicketDetailPage category review', () => {
 
     expect(await screen.findByText('High · 62/100')).toBeInTheDocument();
 
-    const disclosure = screen.getByLabelText('Why this score?');
+    const disclosure = screen.getByText('Why this score?').closest('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute('open');
     expect(
-      within(disclosure).getByText(
+      within(disclosure as HTMLElement).getByText(
         'High (62): possible injury or collision risk; critical location.',
       ),
     ).toBeInTheDocument();
   });
 
-  it('saves the AI suggestion through the batched ticket save', async () => {
+  it('accepts the AI suggestion and immediately shows the review result', async () => {
     const user = userEvent.setup();
     vi.mocked(reviewTicketCategory).mockResolvedValue({
       ...ticket,
@@ -489,16 +493,13 @@ describe('TicketDetailPage category review', () => {
     });
     renderPage('/tickets/tkt_123?section=review');
 
-    const select = await screen.findByLabelText('Final category');
-    await user.selectOptions(select, 'road_damage');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(await screen.findByRole('button', { name: 'Accept AI suggestion' }));
 
     expect(reviewTicketCategory).toHaveBeenCalledWith('tkt_123', {
       finalCategory: 'road_damage',
     });
-    expect(document.querySelector('.ticket-detail__category-reviewed')).toHaveTextContent(
-      'Reviewed',
-    );
+    expect(await screen.findByText('Reviewed')).toBeInTheDocument();
+    expect(screen.getByText(/Reviewed by staff-1 on/)).toBeInTheDocument();
   });
 
   it('saves a corrected category while keeping the original suggestion visible', async () => {
@@ -517,16 +518,12 @@ describe('TicketDetailPage category review', () => {
 
     const select = await screen.findByLabelText('Final category');
     await user.selectOptions(select, 'waste');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save final category' }));
 
     expect(reviewTicketCategory).toHaveBeenCalledWith('tkt_123', {
       finalCategory: 'waste',
     });
-    await waitFor(() => {
-      expect(document.querySelector('.ticket-detail__category-reviewed')).toHaveTextContent(
-        'Reviewed',
-      );
-    });
+    expect(await screen.findByText('Reviewed')).toBeInTheDocument();
     expect(screen.getByText('AI suggestion')).toBeInTheDocument();
     expect(screen.getAllByText('Road Damage').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Waste').length).toBeGreaterThan(0);
@@ -544,7 +541,7 @@ describe('TicketDetailPage category review', () => {
 
     expect(await screen.findByText(/AI processing is still in progress/)).toBeInTheDocument();
     expect(screen.getByLabelText('Final category')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save final category' })).toBeDisabled();
   });
 
   it('keeps the processing and failed AI states visible', async () => {
@@ -578,9 +575,9 @@ describe('TicketDetailPage category review', () => {
 
     const select = await screen.findByLabelText('Final category');
     await user.selectOptions(select, 'waste');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save final category' }));
 
-    expect(screen.getByRole('button', { name: 'Saving changes…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Saving category...' })).toBeDisabled();
     expect(select).toBeDisabled();
     expect(reviewTicketCategory).toHaveBeenCalledTimes(1);
 
@@ -593,11 +590,7 @@ describe('TicketDetailPage category review', () => {
         categoryReviewedAt: '2026-07-17T08:05:00Z',
       },
     });
-    await waitFor(() => {
-      expect(document.querySelector('.ticket-detail__category-reviewed')).toHaveTextContent(
-        'Reviewed',
-      );
-    });
+    expect(await screen.findByText('Reviewed')).toBeInTheDocument();
   });
 
   it('shows API errors without discarding the loaded ticket', async () => {
@@ -607,7 +600,7 @@ describe('TicketDetailPage category review', () => {
 
     const select = await screen.findByLabelText('Final category');
     await user.selectOptions(select, 'waste');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save final category' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to save category review.');
     expect(screen.getByText('Category decision')).toBeInTheDocument();
@@ -634,9 +627,7 @@ describe('TicketDetailPage department assignment', () => {
       'Street Lighting',
     );
     expect(screen.getByText(/Suggested:\s*Road Maintenance/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Accept suggested department' }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept suggested department' })).toBeInTheDocument();
   });
 
   it('hides the suggestion row when suggested and assigned match', async () => {
@@ -674,12 +665,13 @@ describe('TicketDetailPage department assignment', () => {
 
     const select = await screen.findByLabelText('Assigned department');
     await user.selectOptions(select, 'd2222222-2222-2222-2222-222222222222');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save department' }));
 
     expect(assignTicketDepartment).toHaveBeenCalledWith('tkt_123', {
       departmentId: 'd2222222-2222-2222-2222-222222222222',
       updatedBy: undefined,
     });
+    expect(await screen.findByText('Department assignment updated.')).toBeInTheDocument();
     expect(screen.getByLabelText('Assigned department')).toHaveValue(
       'd2222222-2222-2222-2222-222222222222',
     );
@@ -691,7 +683,7 @@ describe('TicketDetailPage department assignment', () => {
     expect(fetchTicketById).toHaveBeenCalledTimes(1);
   });
 
-  it('lets staff select the suggested department through the normal dropdown', async () => {
+  it('accepts the suggested department without changing the suggestion label', async () => {
     const user = userEvent.setup();
     vi.mocked(fetchTicketById).mockResolvedValue({
       ...ticket,
@@ -715,16 +707,13 @@ describe('TicketDetailPage department assignment', () => {
 
     renderPage('/tickets/tkt_123?section=review');
 
-    await user.selectOptions(
-      await screen.findByLabelText('Assigned department'),
-      'd1111111-1111-1111-1111-111111111111',
-    );
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(await screen.findByRole('button', { name: 'Accept suggested department' }));
 
     expect(assignTicketDepartment).toHaveBeenCalledWith('tkt_123', {
       departmentId: 'd1111111-1111-1111-1111-111111111111',
       updatedBy: undefined,
     });
+    expect(await screen.findByText('Department assignment updated.')).toBeInTheDocument();
     expect(screen.getByLabelText('Assigned department')).toHaveValue(
       'd1111111-1111-1111-1111-111111111111',
     );
@@ -748,10 +737,11 @@ describe('TicketDetailPage department assignment', () => {
 
     const select = await screen.findByLabelText('Assigned department');
     await user.selectOptions(select, 'd2222222-2222-2222-2222-222222222222');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save department' }));
 
-    expect(screen.getByRole('button', { name: 'Saving changes…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Saving department...' })).toBeDisabled();
     expect(screen.getByLabelText('Assigned department')).toBeDisabled();
+    expect(screen.getByText('Saving department assignment...')).toBeInTheDocument();
     expect(assignTicketDepartment).toHaveBeenCalledTimes(1);
 
     resolveSave?.({
@@ -760,10 +750,10 @@ describe('TicketDetailPage department assignment', () => {
       departmentName: 'Waste Management',
     });
 
-    expect(await screen.findByRole('button', { name: 'Save changes' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Save department' })).toBeDisabled();
   });
 
-  it('shows an error and keeps the unsaved selection available for retry', async () => {
+  it('shows an error and reverts the select when the API fails', async () => {
     const user = userEvent.setup();
     vi.mocked(assignTicketDepartment).mockRejectedValue(
       new Error('Unable to update ticket department.'),
@@ -774,13 +764,13 @@ describe('TicketDetailPage department assignment', () => {
     const select = await screen.findByLabelText('Assigned department');
     expect(select).toHaveValue('d1111111-1111-1111-1111-111111111111');
     await user.selectOptions(select, 'd2222222-2222-2222-2222-222222222222');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save department' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Unable to update ticket department.',
     );
     expect(screen.getByLabelText('Assigned department')).toHaveValue(
-      'd2222222-2222-2222-2222-222222222222',
+      'd1111111-1111-1111-1111-111111111111',
     );
     expect(document.querySelector('.ticket-detail__department')).toHaveTextContent(
       'Road Maintenance',
@@ -793,7 +783,7 @@ describe('TicketDetailPage department assignment', () => {
     expect(await screen.findByLabelText('Assigned department')).toHaveValue(
       'd1111111-1111-1111-1111-111111111111',
     );
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save department' })).toBeDisabled();
     expect(assignTicketDepartment).not.toHaveBeenCalled();
   });
 });
@@ -1633,12 +1623,12 @@ describe('TicketDetailPage workforce assignment', () => {
     await openSection(user, 'Review & Actions');
     const select = await screen.findByLabelText('Assigned worker or team');
     await user.selectOptions(select, 'worker:wrk_1');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save assignment' }));
 
     await waitFor(() => {
       expect(assignTicketWorkforce).toHaveBeenCalledWith('tkt_123', { workerId: 'wrk_1' });
     });
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    expect(await screen.findByText('Workforce assignment updated.')).toBeInTheDocument();
   });
 
   it('keeps an inactive current assignee visible so staff can clear it', async () => {
@@ -1679,7 +1669,7 @@ describe('TicketDetailPage work orders and outcome reasons', () => {
 
     const statusSelect = await screen.findByLabelText('New status');
     await user.selectOptions(statusSelect, 'CLOSED');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Apply status change' }));
 
     expect(updateTicketStatus).not.toHaveBeenCalled();
     expect(
@@ -1687,7 +1677,7 @@ describe('TicketDetailPage work orders and outcome reasons', () => {
     ).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Required reason'), 'DUPLICATE');
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await user.click(screen.getByRole('button', { name: 'Apply status change' }));
 
     await waitFor(() => {
       expect(updateTicketStatus).toHaveBeenCalledWith('tkt_123', 'CLOSED', {

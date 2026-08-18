@@ -53,7 +53,6 @@ export function DashboardLayout({
   const { logout, session } = useStaffAuth();
   const { t } = useI18n();
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
   const resolvedTitle = title ?? t('layout.title');
   const resolvedSubtitle = subtitle ?? t('layout.subtitle');
   const navItems = NAV_ITEM_DEFS.filter(
@@ -66,34 +65,11 @@ export function DashboardLayout({
   }
 
   return (
-    <div
-      className={`dashboard-layout${flush ? ' dashboard-layout--flush' : ''}${railCollapsed ? ' dashboard-layout--rail-collapsed' : ''}`}
-    >
-      {railCollapsed ? (
-        <button
-          type="button"
-          className="dashboard-rail__reopen"
-          aria-label={t('nav.openSidebar')}
-          onClick={() => setRailCollapsed(false)}
-        >
-          <span aria-hidden="true">›</span>
-        </button>
-      ) : null}
+    <div className={`dashboard-layout${flush ? ' dashboard-layout--flush' : ''}`}>
       <aside className="dashboard-rail" aria-label={t('nav.primaryModules')} inert={assistantOpen}>
-        <div className="dashboard-rail__top-row">
-          <NavLink to="/" className="dashboard-rail__brand" aria-label={t('nav.home')}>
-            <BrandMark size={22} />
-          </NavLink>
-          <button
-            type="button"
-            className="dashboard-rail__toggle"
-            aria-label={t('nav.collapseSidebar')}
-            aria-expanded={!railCollapsed}
-            onClick={() => setRailCollapsed((collapsed) => !collapsed)}
-          >
-            <span aria-hidden="true">{railCollapsed ? '›' : '‹'}</span>
-          </button>
-        </div>
+        <NavLink to="/" className="dashboard-rail__brand" aria-label={t('nav.home')}>
+          <BrandMark size={22} />
+        </NavLink>
 
         <nav className="dashboard-rail__nav" aria-label={t('nav.mainNav')}>
           {navItems.map((item) => {

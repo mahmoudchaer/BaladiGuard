@@ -598,7 +598,11 @@ export function TicketListPage() {
       )}
 
       {loadState === 'success' && (
-        <>
+        <div
+          className={
+            selectedTicketId ? 'helpdesk-desk helpdesk-desk--preview-open' : 'helpdesk-desk'
+          }
+        >
           <QueueViewsSidebar
             activeView={queueView}
             stats={attentionStats}
@@ -608,133 +612,123 @@ export function TicketListPage() {
             onViewChange={handleViewChange}
           />
 
-          <div
-            className={
-              selectedTicketId ? 'helpdesk-desk helpdesk-desk--preview-open' : 'helpdesk-desk'
-            }
-          >
-            <section className="helpdesk-desk__list" aria-label={t('tickets.queueList')}>
-              <TicketFilters
-                searchQuery={searchQuery}
-                statusFilter={statusFilter}
-                categoryFilter={categoryFilter}
-                urgencyFilter={urgencyFilter}
-                departmentFilter={departmentFilter}
-                slaFilter={slaFilter}
-                categoryOptions={categoryOptions}
-                resultCount={pageTickets.length}
-                totalCount={totalCount}
-                isRefreshing={isRefreshing}
-                onSearchChange={setSearchQuery}
-                onStatusChange={setStatusFilter}
-                onCategoryChange={setCategoryFilter}
-                onUrgencyChange={(urgency) => {
-                  setUrgencyFilter(urgency);
-                  if (urgency === 'critical') {
-                    setQueueView('critical');
-                  } else if (urgency === 'high') {
-                    setQueueView('high');
-                  } else if (queueView === 'critical' || queueView === 'high') {
-                    setQueueView('all');
-                  }
-                }}
-                onDepartmentChange={setDepartmentFilter}
-                onSlaChange={(sla) => {
-                  setSlaFilter(sla);
-                  if (sla === 'overdue') {
-                    setQueueView('aging');
-                  } else if (queueView === 'aging') {
-                    setQueueView('all');
-                  }
-                }}
-                onClearFilters={clearFilters}
+          <section className="helpdesk-desk__list" aria-label={t('tickets.queueList')}>
+            <TicketFilters
+              searchQuery={searchQuery}
+              statusFilter={statusFilter}
+              categoryFilter={categoryFilter}
+              urgencyFilter={urgencyFilter}
+              departmentFilter={departmentFilter}
+              slaFilter={slaFilter}
+              categoryOptions={categoryOptions}
+              resultCount={pageTickets.length}
+              totalCount={totalCount}
+              isRefreshing={isRefreshing}
+              onSearchChange={setSearchQuery}
+              onStatusChange={setStatusFilter}
+              onCategoryChange={setCategoryFilter}
+              onUrgencyChange={(urgency) => {
+                setUrgencyFilter(urgency);
+                if (urgency === 'critical') {
+                  setQueueView('critical');
+                } else if (urgency === 'high') {
+                  setQueueView('high');
+                } else if (queueView === 'critical' || queueView === 'high') {
+                  setQueueView('all');
+                }
+              }}
+              onDepartmentChange={setDepartmentFilter}
+              onSlaChange={(sla) => {
+                setSlaFilter(sla);
+                if (sla === 'overdue') {
+                  setQueueView('aging');
+                } else if (queueView === 'aging') {
+                  setQueueView('all');
+                }
+              }}
+              onClearFilters={clearFilters}
+            />
+
+            {errorMessage && !isRefreshing && (
+              <div className="ticket-list-page__error" role="alert">
+                <h3>{t('tickets.unableUpdate')}</h3>
+                <p>{errorMessage}</p>
+              </div>
+            )}
+
+            {pageTickets.length === 0 && !hasActiveFilters && <EmptyState />}
+
+            {hasActiveFilters && pageTickets.length === 0 && (
+              <EmptyState
+                title={
+                  ticketIds.length > 0 ? t('tickets.emptyGoneTitle') : t('tickets.emptyMatchTitle')
+                }
+                message={
+                  ticketIds.length > 0 ? t('tickets.emptyGoneBody') : t('tickets.emptyMatchBody')
+                }
               />
+            )}
 
-              {errorMessage && !isRefreshing && (
-                <div className="ticket-list-page__error" role="alert">
-                  <h3>{t('tickets.unableUpdate')}</h3>
-                  <p>{errorMessage}</p>
-                </div>
-              )}
-
-              {pageTickets.length === 0 && !hasActiveFilters && <EmptyState />}
-
-              {hasActiveFilters && pageTickets.length === 0 && (
-                <EmptyState
-                  title={
-                    ticketIds.length > 0
-                      ? t('tickets.emptyGoneTitle')
-                      : t('tickets.emptyMatchTitle')
-                  }
-                  message={
-                    ticketIds.length > 0 ? t('tickets.emptyGoneBody') : t('tickets.emptyMatchBody')
-                  }
-                />
-              )}
-
-              {pageTickets.length > 0 && (
-                <TicketTable
-                  tickets={pageTickets}
-                  title={queueTitle}
-                  selectedTicketId={selectedTicketId}
-                  onSelectTicket={setSelectedTicketId}
-                />
-              )}
-
-              {(nextCursor || canGoPrevious) && (
-                <nav className="ticket-list-page__pagination" aria-label={t('tickets.pages')}>
-                  <button
-                    type="button"
-                    className="ticket-list-page__page-btn"
-                    disabled={!canGoPrevious || isRefreshing}
-                    onClick={goToPreviousPage}
-                  >
-                    {t('tickets.previous')}
-                  </button>
-                  <button
-                    type="button"
-                    className="ticket-list-page__page-btn"
-                    disabled={!nextCursor || isRefreshing}
-                    onClick={goToNextPage}
-                  >
-                    {t('tickets.next')}
-                  </button>
-                </nav>
-              )}
-
-              <details className="ticket-list-page__insights">
-                <summary className="ticket-list-page__insights-summary">
-                  {t('tickets.insights')}
-                  <span className="ticket-list-page__insights-note">
-                    {t('tickets.insightsNote')}
-                  </span>
-                </summary>
-                <div className="ticket-list-page__insights-body">
-                  <CategoryDistributionChart
-                    tickets={baselineTickets.length > 0 ? baselineTickets : pageTickets}
-                  />
-                  <DepartmentSummary
-                    tickets={baselineTickets.length > 0 ? baselineTickets : pageTickets}
-                  />
-                </div>
-              </details>
-            </section>
-
-            {selectedTicketId ? (
-              <TicketPreviewPanel
-                ticket={displayedPreview}
-                loadError={displayedPreviewError}
-                onRetry={() => {
-                  setPreviewForId(null);
-                  setPreviewError(null);
-                  setPreviewRetry((current) => current + 1);
-                }}
-                onClose={() => setSelectedTicketId(null)}
-                onTicketUpdated={handleTicketUpdated}
+            {pageTickets.length > 0 && (
+              <TicketTable
+                tickets={pageTickets}
+                title={queueTitle}
+                selectedTicketId={selectedTicketId}
+                onSelectTicket={setSelectedTicketId}
               />
-            ) : null}
-          </div>
-        </>
+            )}
+
+            {(nextCursor || canGoPrevious) && (
+              <nav className="ticket-list-page__pagination" aria-label={t('tickets.pages')}>
+                <button
+                  type="button"
+                  className="ticket-list-page__page-btn"
+                  disabled={!canGoPrevious || isRefreshing}
+                  onClick={goToPreviousPage}
+                >
+                  {t('tickets.previous')}
+                </button>
+                <button
+                  type="button"
+                  className="ticket-list-page__page-btn"
+                  disabled={!nextCursor || isRefreshing}
+                  onClick={goToNextPage}
+                >
+                  {t('tickets.next')}
+                </button>
+              </nav>
+            )}
+
+            <details className="ticket-list-page__insights">
+              <summary className="ticket-list-page__insights-summary">
+                {t('tickets.insights')}
+                <span className="ticket-list-page__insights-note">{t('tickets.insightsNote')}</span>
+              </summary>
+              <div className="ticket-list-page__insights-body">
+                <CategoryDistributionChart
+                  tickets={baselineTickets.length > 0 ? baselineTickets : pageTickets}
+                />
+                <DepartmentSummary
+                  tickets={baselineTickets.length > 0 ? baselineTickets : pageTickets}
+                />
+              </div>
+            </details>
+          </section>
+
+          {selectedTicketId ? (
+            <TicketPreviewPanel
+              ticket={displayedPreview}
+              loadError={displayedPreviewError}
+              onRetry={() => {
+                setPreviewForId(null);
+                setPreviewError(null);
+                setPreviewRetry((current) => current + 1);
+              }}
+              onClose={() => setSelectedTicketId(null)}
+              onTicketUpdated={handleTicketUpdated}
+            />
+          ) : null}
+        </div>
       )}
     </DashboardLayout>
   );

@@ -138,73 +138,6 @@
   gap: var(--space-2);
 }
 
-.ticket-detail__summary-urgency {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 1.7rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-secondary);
-  font-size: var(--text-metadata);
-  white-space: nowrap;
-}
-
-.ticket-detail__summary-urgency strong {
-  color: var(--color-text);
-}
-
-.ticket-detail__compact-info {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  cursor: help;
-  font-size: 0.85rem;
-  line-height: 1;
-}
-
-.ticket-detail__compact-info > [role='tooltip'] {
-  position: absolute;
-  inset-inline-start: 50%;
-  top: calc(100% + 0.55rem);
-  z-index: 20;
-  display: none;
-  width: max-content;
-  max-width: min(24rem, 80vw);
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-text);
-  color: #fff;
-  box-shadow: var(--shadow-lg);
-  font-size: var(--text-helper);
-  font-weight: 500;
-  line-height: 1.45;
-  white-space: normal;
-  transform: translateX(-50%);
-}
-
-.ticket-detail__compact-info:hover > [role='tooltip'],
-.ticket-detail__compact-info:focus > [role='tooltip'],
-.ticket-detail__compact-info:focus-within > [role='tooltip'] {
-  display: block;
-}
-
-.ticket-detail__compact-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.45rem;
-}
-
-.ticket-detail__compact-heading .ticket-detail__card-title {
-  margin: 0;
-}
-
 .ticket-detail__summary-actions {
   display: flex;
   flex-wrap: wrap;
@@ -419,68 +352,6 @@
 .ticket-detail__panel:focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 4px;
-}
-
-.ticket-detail__review-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.ticket-detail__save-bar {
-  position: sticky;
-  bottom: 0.5rem;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  min-height: 0;
-  padding: 0.15rem 0;
-  pointer-events: none;
-}
-
-.ticket-detail__save-bar > span {
-  padding: 0.35rem 0.6rem;
-  border-radius: var(--radius-pill);
-  background: rgb(255 255 255 / 88%);
-  color: var(--color-text-muted);
-  font-size: var(--text-helper);
-  font-weight: 600;
-  backdrop-filter: blur(12px) saturate(140%);
-}
-
-.ticket-detail__save-bar > button {
-  pointer-events: auto;
-  box-shadow: var(--shadow-sm);
-}
-
-@media (min-width: 1101px) {
-  .ticket-detail__panel--review {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(22rem, 1fr);
-    align-items: start;
-    gap: 0.75rem 1rem;
-  }
-
-  .ticket-detail__panel--review > .ticket-detail__ai-disclaimer {
-    grid-column: 1 / -1;
-  }
-
-  .ticket-detail__review-controls {
-    grid-column: 1;
-    min-width: 0;
-  }
-
-  .ticket-detail__card--privacy-review {
-    position: sticky;
-    top: 0.75rem;
-    grid-column: 2;
-    min-width: 0;
-    max-height: calc(100vh - var(--header-height) - 1.5rem);
-    overflow: auto;
-  }
 }
 
 /* ---------- Cards ---------- */
@@ -782,41 +653,6 @@
   gap: 0.4rem;
 }
 
-@media (min-width: 861px) {
-  /* Keep review controls on one efficient line on desktop; labels remain paired
-     with their controls while actions stay at the end of the row. */
-  .ticket-detail__action-group .ticket-detail__control-row {
-    display: grid;
-    grid-template-columns: minmax(8rem, 0.35fr) minmax(14rem, 1fr) auto;
-    align-items: center;
-    gap: 0.55rem 0.75rem;
-  }
-
-  .ticket-detail__action-group .ticket-detail__control-row > label {
-    margin: 0;
-  }
-
-  .ticket-detail__action-group .ticket-detail__control-row > .ticket-detail__control-buttons {
-    margin-top: 0;
-  }
-
-  .ticket-detail__action-group
-    .ticket-detail__control-row
-    > .ticket-detail__control-buttons:only-child {
-    grid-column: 1 / -1;
-  }
-
-  .ticket-detail__action-group {
-    padding: 0.7rem 0.8rem;
-  }
-
-  .ticket-detail__action-group > .ticket-detail__control-buttons {
-    display: flex;
-    justify-content: flex-start;
-    margin-top: 0.65rem;
-  }
-}
-
 .ticket-detail__control-row label,
 .ticket-detail__candidate-toolbar label {
   color: var(--color-text-secondary);
@@ -875,7 +711,6 @@
   font-size: var(--text-metadata);
   font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
   transition: filter 0.12s;
 }
 
@@ -908,173 +743,9 @@
 
 .ticket-detail__actions-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
   align-items: start;
-}
-
-.ticket-detail__card--municipal,
-.ticket-detail__card--work-order,
-.ticket-detail__card--category {
-  padding: 0.95rem;
-}
-
-.ticket-detail__card--municipal > .ticket-detail__card-hint,
-.ticket-detail__card--work-order > .ticket-detail__card-hint {
-  max-width: 72rem;
-}
-
-@media (min-width: 861px) {
-  .ticket-detail__ai-disclaimer {
-    min-height: 1.8rem;
-    padding: 0.3rem 0.55rem;
-    font-size: var(--text-label);
-  }
-
-  .ticket-detail__card--municipal > .ticket-detail__card-hint {
-    display: none;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__actions-grid {
-    align-items: start;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__action-group {
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__eyebrow,
-  .ticket-detail__card--municipal .ticket-detail__current-value,
-  .ticket-detail__card--municipal .ticket-detail__department-current {
-    display: none;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__control-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.3rem 0.45rem;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__control-row > label {
-    grid-column: 1 / -1;
-    font-size: var(--text-label);
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__control-select {
-    min-height: 2.1rem;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__review-button {
-    min-height: 2.1rem;
-    padding: 0.35rem 0.6rem;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__department-actor {
-    margin-top: 0.35rem;
-    font-size: 0.65rem;
-  }
-
-  .ticket-detail__card--municipal .ticket-detail__field-suggestion {
-    margin-top: 0.35rem;
-  }
-
-  .ticket-detail__card--work-order-create .ticket-detail__action-group {
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .ticket-detail__card--work-order-create .ticket-detail__control-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) max-content;
-    gap: 0.45rem;
-  }
-
-  .ticket-detail__card--work-order-create .ticket-detail__control-select {
-    min-width: 0;
-  }
-
-  .ticket-detail__card--work-order-create .ticket-detail__control-row > label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-
-  .ticket-detail__card--work-order-create
-    .ticket-detail__control-row
-    > .ticket-detail__control-buttons {
-    grid-column: 3;
-    margin: 0;
-  }
-
-  .ticket-detail__card--category {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.45rem 0.65rem;
-  }
-
-  .ticket-detail__card--category .ticket-detail__card-heading-row {
-    margin: 0;
-  }
-
-  .ticket-detail__card--category .ticket-detail__control-row {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(0, 1fr) max-content;
-    align-items: center;
-    gap: 0.45rem 0.65rem;
-  }
-
-  .ticket-detail__card--category .ticket-detail__control-row > label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-
-  .ticket-detail__card--category .ticket-detail__control-buttons {
-    margin: 0;
-  }
-
-  .ticket-detail__card--category > .ticket-detail__review-notice,
-  .ticket-detail__card--category > .ticket-detail__suggestion,
-  .ticket-detail__card--category > .ticket-detail__status-error {
-    grid-column: 1 / -1;
-  }
-
-  .ticket-detail__category-reviewed {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    color: var(--status-resolved-fg);
-    font-size: var(--text-helper);
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  .ticket-detail__card--category .ticket-detail__suggestion {
-    display: inline-flex;
-    margin: 0 0.5rem 0 0;
-    padding: 0.35rem 0.55rem;
-    vertical-align: middle;
-  }
-
-  .ticket-detail__card--category .ticket-detail__rationale {
-    display: inline;
-    font-size: var(--text-helper);
-  }
-
-  .ticket-detail__card--category .ticket-detail__review-result {
-    display: inline-flex;
-    margin: 0 0 0.6rem;
-    vertical-align: middle;
-  }
 }
 
 .ticket-detail__action-group {
@@ -1120,21 +791,6 @@
   color: var(--color-text-muted);
   font-size: var(--text-helper);
   font-weight: 500;
-}
-
-.ticket-detail__field-suggestion {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-top: 0.45rem;
-  color: var(--color-text-muted);
-  font-size: var(--text-helper);
-  line-height: 1.35;
-}
-
-.ticket-detail__field-suggestion .ticket-detail__ai-icon {
-  flex: 0 0 auto;
-  color: var(--color-brand);
 }
 
 .ticket-detail__department-actor {
@@ -1585,32 +1241,6 @@
   font-size: var(--text-body-compact);
   font-weight: 600;
   line-height: 1.45;
-}
-
-@media (min-width: 861px) {
-  .ticket-detail__panel {
-    gap: 0.75rem;
-  }
-
-  .ticket-detail__card {
-    padding: 0.8rem;
-  }
-
-  .ticket-detail__card-title {
-    margin-bottom: 0.55rem;
-  }
-
-  .ticket-detail__card-hint {
-    margin-bottom: 0.6rem;
-  }
-
-  .ticket-detail__card--urgency {
-    padding: 0.65rem 0.8rem;
-  }
-
-  .ticket-detail__card--urgency .ticket-detail__card-heading-row {
-    margin-bottom: 0.2rem;
-  }
 }
 
 @media (max-width: 1100px) {

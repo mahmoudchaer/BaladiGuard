@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import type { KeyboardEvent } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type {
   ActivityEvent as InternalActivityEvent,
   DuplicateCandidate,
@@ -240,7 +240,6 @@ export function TicketDetailPage({
 }: TicketDetailPageProps = {}) {
   const { t } = useI18n();
   const { ticketId: routeTicketId } = useParams<{ ticketId: string }>();
-  const navigate = useNavigate();
   const ticketId = ticketIdProp ?? routeTicketId;
   const { session } = useStaffAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -257,14 +256,20 @@ export function TicketDetailPage({
 
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categoryReviewError, setCategoryReviewError] = useState<string | null>(null);
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [departmentUpdateError, setDepartmentUpdateError] = useState<string | null>(null);
+  const [departmentUpdateSuccess, setDepartmentUpdateSuccess] = useState<string | null>(null);
+  const [isSavingDepartment, setIsSavingDepartment] = useState(false);
   const [workers, setWorkers] = useState<WorkforceWorker[]>([]);
   const [teams, setTeams] = useState<WorkforceTeam[]>([]);
   const [selectedWorkforceValue, setSelectedWorkforceValue] = useState('');
   const [workforceError, setWorkforceError] = useState<string | null>(null);
+  const [workforceSuccess, setWorkforceSuccess] = useState<string | null>(null);
+  const [isSavingWorkforce, setIsSavingWorkforce] = useState(false);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [activeWorkOrderId, setActiveWorkOrderId] = useState<string | null>(null);
   const [workOrderError, setWorkOrderError] = useState<string | null>(null);
@@ -282,23 +287,6 @@ export function TicketDetailPage({
   const [isReviewingFeedback, setIsReviewingFeedback] = useState(false);
   const [statusReasonCode, setStatusReasonCode] = useState('');
   const [statusPrivateNote, setStatusPrivateNote] = useState('');
-  const [isSavingChanges, setIsSavingChanges] = useState(false);
-  const [saveChangesError, setSaveChangesError] = useState<string | null>(null);
-  const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
-
-  const persistedWorkforceValue = ticket?.assignedWorkerId
-    ? `worker:${ticket.assignedWorkerId}`
-    : ticket?.assignedTeamId
-      ? `team:${ticket.assignedTeamId}`
-      : '';
-  const statusDirty = Boolean(ticket && pendingStatus && pendingStatus !== ticket.status);
-  const departmentDirty = Boolean(ticket && selectedDepartmentId !== (ticket.departmentId ?? ''));
-  const workforceDirty = Boolean(ticket && selectedWorkforceValue !== persistedWorkforceValue);
-  const categoryDirty = Boolean(ticket && selectedCategory !== (ticket.ai?.finalCategory ?? ''));
-  const unsavedChangeCount = [statusDirty, departmentDirty, workforceDirty, categoryDirty].filter(
-    Boolean,
-  ).length;
-  const hasUnsavedChanges = unsavedChangeCount > 0;
 
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([]);
   const [candidateLoadState, setCandidateLoadState] = useState<CandidateLoadState>('idle');
@@ -379,7 +367,7 @@ export function TicketDetailPage({
         loadedTicketRef.current = data;
         setTicket(data);
         setPendingStatus(data.status);
-        setSelectedCategory(data.ai?.finalCategory ?? '');
+        setSelectedCategory(data.ai?.finalCategory ?? data.ai?.aiSuggestedCategory ?? '');
         setSelectedDepartmentId(data.departmentId ?? '');
         setSelectedWorkforceValue(
           data.assignedWorkerId
@@ -430,6 +418,7 @@ export function TicketDetailPage({
           }
         }
         setDepartmentUpdateError(null);
+        setDepartmentUpdateSuccess(null);
         setSelectedDuplicateIds([]);
         setSelectedCandidatesById({});
         setMergeError(null);
@@ -631,136 +620,22 @@ export function TicketDetailPage({
     }
   }
 
-  useEffect(() => {
-    if (!hasUnsavedChanges) {
-      return;
-    }
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warnBeforeUnload);
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-  }, [hasUnsavedChanges]);
-
-  const handleSaveChanges = async (): Promise<boolean> => {
-    if (!ticket || !hasUnsavedChanges) {
-      return true;
-    }
-
-    const outcomeKind = pendingStatus ? requiredOutcomeKind(ticket.status, pendingStatus) : null;
-    if (statusDirty && outcomeKind && !statusReasonCode) {
-      setStatusUpdateError(t('ticket.review.selectReasonBeforeStatus'));
-      return false;
-    }
-    if (departmentDirty && !isKnownDepartmentId(selectedDepartmentId)) {
-      setDepartmentUpdateError(t('ticket.review.selectDepartmentBeforeSave'));
-      return false;
-    }
-    if (
-      categoryDirty &&
-      !SUPPORTED_CATEGORY_OPTIONS.some((category) => category === selectedCategory)
-    ) {
-      setCategoryReviewError(t('ticket.review.selectCategoryBeforeSave'));
-      return false;
-    }
-
-    setIsSavingChanges(true);
-    setSaveChangesError(null);
-    setStatusUpdateError(null);
-    setDepartmentUpdateError(null);
-    setWorkforceError(null);
-    setCategoryReviewError(null);
-
-    try {
-      let updatedTicket: Ticket | null = ticket;
-      if (statusDirty && pendingStatus) {
-        updatedTicket = await updateTicketStatus(ticket.ticketId, pendingStatus, {
-          reasonCode: outcomeKind ? statusReasonCode : undefined,
-          note: statusPrivateNote.trim() || undefined,
-        });
-      }
-      if (updatedTicket && departmentDirty) {
-        updatedTicket = await assignTicketDepartment(ticket.ticketId, {
-          departmentId: selectedDepartmentId,
-          updatedBy: session?.username,
-        });
-      }
-      if (updatedTicket && workforceDirty) {
-        const payload =
-          selectedWorkforceValue === ''
-            ? { clear: true }
-            : selectedWorkforceValue.startsWith('team:')
-              ? { teamId: selectedWorkforceValue.slice('team:'.length) }
-              : { workerId: selectedWorkforceValue.slice('worker:'.length) };
-        updatedTicket = await assignTicketWorkforce(ticket.ticketId, payload);
-      }
-      if (updatedTicket && categoryDirty) {
-        updatedTicket = await reviewTicketCategory(ticket.ticketId, {
-          finalCategory: selectedCategory,
-        });
-      }
-      if (!updatedTicket) {
-        loadedTicketRef.current = null;
-        setTicket(null);
-        setLoadState('not-found');
-        return false;
-      }
-
-      loadedTicketRef.current = updatedTicket;
-      setTicket(updatedTicket);
-      setPendingStatus(updatedTicket.status);
-      setSelectedDepartmentId(updatedTicket.departmentId ?? '');
-      setSelectedWorkforceValue(
-        updatedTicket.assignedWorkerId
-          ? `worker:${updatedTicket.assignedWorkerId}`
-          : updatedTicket.assignedTeamId
-            ? `team:${updatedTicket.assignedTeamId}`
-            : '',
-      );
-      setSelectedCategory(updatedTicket.ai?.finalCategory ?? '');
-      setStatusReasonCode('');
-      setStatusPrivateNote('');
-      return true;
-    } catch (error) {
-      setSaveChangesError(
-        error instanceof Error ? error.message : t('ticket.review.unableSaveChanges'),
-      );
-      return false;
-    } finally {
-      setIsSavingChanges(false);
-    }
-  };
-
-  const requestLeave = useCallback(
-    (action: () => void) => {
-      if (!hasUnsavedChanges) {
-        action();
-        return;
-      }
-      setPendingLeaveAction(() => action);
-    },
-    [hasUnsavedChanges],
-  );
-
   const selectSection = useCallback(
     (section: TicketDetailSection) => {
-      requestLeave(() => {
-        if (embedded) {
-          setEmbeddedSection(section);
-          return;
-        }
-        setSearchParams(
-          (current) => {
-            const next = new URLSearchParams(current);
-            next.set(TICKET_DETAIL_SECTION_PARAM, section);
-            return next;
-          },
-          { replace: false },
-        );
-      });
+      if (embedded) {
+        setEmbeddedSection(section);
+        return;
+      }
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.set(TICKET_DETAIL_SECTION_PARAM, section);
+          return next;
+        },
+        { replace: false },
+      );
     },
-    [embedded, requestLeave, setSearchParams],
+    [embedded, setSearchParams],
   );
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -788,37 +663,183 @@ export function TicketDetailPage({
   };
 
   const handleRefresh = () => {
-    requestLeave(() => setRefreshToken((current) => current + 1));
+    setRefreshToken((current) => current + 1);
   };
 
-  const handleWorkspaceClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (!hasUnsavedChanges || event.defaultPrevented || event.button !== 0) {
+  const handleStatusChange = async (status: TicketStatus) => {
+    if (!ticket || status === ticket.status) {
       return;
     }
-    const target = event.target as HTMLElement;
-    const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
-    if (!anchor || anchor.target === '_blank' || event.metaKey || event.ctrlKey || event.shiftKey) {
+
+    const outcomeKind = requiredOutcomeKind(ticket.status, status);
+    if (outcomeKind && !statusReasonCode) {
+      setStatusUpdateError(t('ticket.review.selectReasonBeforeStatus'));
       return;
     }
-    const href = anchor.getAttribute('href');
-    if (!href || !href.startsWith('/')) {
-      return;
+
+    setIsUpdatingStatus(true);
+    setStatusUpdateError(null);
+
+    try {
+      const updatedTicket = await updateTicketStatus(ticket.ticketId, status, {
+        reasonCode: outcomeKind ? statusReasonCode : undefined,
+        note: statusPrivateNote.trim() || undefined,
+      });
+
+      if (!updatedTicket) {
+        loadedTicketRef.current = null;
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+
+      loadedTicketRef.current = updatedTicket;
+      setTicket(updatedTicket);
+      setPendingStatus(updatedTicket.status);
+      setStatusReasonCode('');
+      setStatusPrivateNote('');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t('ticket.review.unableUpdateStatus');
+      setStatusUpdateError(message);
+    } finally {
+      setIsUpdatingStatus(false);
     }
-    event.preventDefault();
-    requestLeave(() => navigate(href));
   };
 
-  const discardPendingChanges = () => {
+  const handleApplyStatus = async () => {
+    if (!pendingStatus) {
+      return;
+    }
+    await handleStatusChange(pendingStatus);
+  };
+
+  const handleCategoryReview = async (finalCategory: string) => {
     if (!ticket) {
       return;
     }
-    setPendingStatus(ticket.status);
-    setSelectedDepartmentId(ticket.departmentId ?? '');
-    setSelectedWorkforceValue(persistedWorkforceValue);
-    setSelectedCategory(ticket.ai?.finalCategory ?? '');
-    setStatusReasonCode('');
-    setStatusPrivateNote('');
-    setSaveChangesError(null);
+
+    if (!SUPPORTED_CATEGORY_OPTIONS.some((category) => category === finalCategory)) {
+      setCategoryReviewError(t('ticket.review.selectCategoryBeforeSave'));
+      return;
+    }
+
+    setSelectedCategory(finalCategory);
+    setIsSavingCategory(true);
+    setCategoryReviewError(null);
+
+    try {
+      const updatedTicket = await reviewTicketCategory(ticket.ticketId, { finalCategory });
+
+      if (!updatedTicket) {
+        loadedTicketRef.current = null;
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+
+      loadedTicketRef.current = updatedTicket;
+      setTicket(updatedTicket);
+      setSelectedCategory(updatedTicket.ai?.finalCategory ?? finalCategory);
+      setSelectedDepartmentId(updatedTicket.departmentId ?? '');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t('ticket.review.unableSaveCategory');
+      setCategoryReviewError(message);
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  const handleDepartmentAssignment = async (departmentId: string) => {
+    if (!ticket) {
+      return;
+    }
+
+    if (!isKnownDepartmentId(departmentId)) {
+      setDepartmentUpdateError(t('ticket.review.selectDepartmentBeforeSave'));
+      setDepartmentUpdateSuccess(null);
+      return;
+    }
+
+    if (departmentId === ticket.departmentId) {
+      return;
+    }
+
+    const previousDepartmentId = ticket.departmentId ?? '';
+    setSelectedDepartmentId(departmentId);
+    setIsSavingDepartment(true);
+    setDepartmentUpdateError(null);
+    setDepartmentUpdateSuccess(null);
+
+    try {
+      const updatedTicket = await assignTicketDepartment(ticket.ticketId, {
+        departmentId,
+        updatedBy: session?.username,
+      });
+
+      if (!updatedTicket) {
+        loadedTicketRef.current = null;
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+
+      loadedTicketRef.current = updatedTicket;
+      setTicket(updatedTicket);
+      setSelectedDepartmentId(updatedTicket.departmentId ?? departmentId);
+      setDepartmentUpdateSuccess(t('ticket.review.departmentUpdated'));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t('ticket.review.unableUpdateDepartment');
+      setDepartmentUpdateError(message);
+      setSelectedDepartmentId(previousDepartmentId);
+      setDepartmentUpdateSuccess(null);
+    } finally {
+      setIsSavingDepartment(false);
+    }
+  };
+
+  const handleWorkforceAssignment = async () => {
+    if (!ticket) {
+      return;
+    }
+    const previous = selectedWorkforceValue;
+    setIsSavingWorkforce(true);
+    setWorkforceError(null);
+    setWorkforceSuccess(null);
+    try {
+      const payload =
+        selectedWorkforceValue === ''
+          ? { clear: true }
+          : selectedWorkforceValue.startsWith('team:')
+            ? { teamId: selectedWorkforceValue.slice('team:'.length) }
+            : { workerId: selectedWorkforceValue.slice('worker:'.length) };
+      const updatedTicket = await assignTicketWorkforce(ticket.ticketId, payload);
+      if (!updatedTicket) {
+        loadedTicketRef.current = null;
+        setLoadState('not-found');
+        setTicket(null);
+        return;
+      }
+      loadedTicketRef.current = updatedTicket;
+      setTicket(updatedTicket);
+      setSelectedWorkforceValue(
+        updatedTicket.assignedWorkerId
+          ? `worker:${updatedTicket.assignedWorkerId}`
+          : updatedTicket.assignedTeamId
+            ? `team:${updatedTicket.assignedTeamId}`
+            : '',
+      );
+      setWorkforceSuccess(t('ticket.review.workforceUpdated'));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : t('ticket.review.unableUpdateWorkforce');
+      setWorkforceError(message);
+      setSelectedWorkforceValue(previous);
+    } finally {
+      setIsSavingWorkforce(false);
+    }
   };
 
   const refreshWorkOrders = async (ticketIdToLoad: string) => {
@@ -1237,10 +1258,7 @@ export function TicketDetailPage({
   const canMergeSelection = selectedDuplicateIds.length > 0 && unresolvedSelectionCount === 0;
 
   const workspace = (
-    <div
-      className={`ticket-detail-page${embedded ? ' ticket-detail-page--embedded' : ''}`}
-      onClickCapture={handleWorkspaceClickCapture}
-    >
+    <div className={`ticket-detail-page${embedded ? ' ticket-detail-page--embedded' : ''}`}>
       {!embedded && (
         <Link to="/" className="ticket-detail-page__back">
           {t('ticket.back')}
@@ -1273,27 +1291,6 @@ export function TicketDetailPage({
                   <StatusBadge status={ticket.status} />
                   <PriorityBadge priority={ticket.priority} />
                   <CategoryBadge category={effectiveCategory ?? ticket.category} />
-                  {ticket.ai?.urgencyScore !== undefined && (
-                    <span className="ticket-detail__summary-urgency">
-                      <strong>{t('ticket.review.urgencyTitle')}</strong>
-                      {formatUrgencySummary(ticket.ai.urgencyScore)}
-                      <span
-                        className="ticket-detail__ai-icon"
-                        aria-label={t('ticket.review.aiAssisted')}
-                      >
-                        <IconSparkles />
-                      </span>
-                      {ticket.ai.urgencyReason && (
-                        <span
-                          className="ticket-detail__compact-info"
-                          tabIndex={0}
-                          aria-label={t('ticket.review.whyScore')}
-                        >
-                          ⓘ<span role="tooltip">{ticket.ai.urgencyReason}</span>
-                        </span>
-                      )}
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -1506,7 +1503,7 @@ export function TicketDetailPage({
               role="tabpanel"
               tabIndex={0}
               aria-labelledby={ticketDetailTabId('review')}
-              className="ticket-detail__panel ticket-detail__panel--review"
+              className="ticket-detail__panel"
             >
               <h3 className="sr-only">{t('ticket.review.heading')}</h3>
 
@@ -1517,769 +1514,7 @@ export function TicketDetailPage({
                 {t('ticket.review.aiWarning')}
               </p>
 
-              <div className="ticket-detail__review-controls">
-                <div className="ticket-detail__card ticket-detail__card--municipal">
-                  <h4 className="ticket-detail__card-title">{t('ticket.review.municipalTitle')}</h4>
-                  <p className="ticket-detail__card-hint">{t('ticket.review.municipalHint')}</p>
-
-                  <div className="ticket-detail__actions-grid">
-                    <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__eyebrow">{t('ticket.review.statusEyebrow')}</p>
-                      <p className="ticket-detail__current-value">
-                        {t('ticket.review.currentPrefix')} <StatusBadge status={ticket.status} />
-                      </p>
-                      <div className="ticket-detail__control-row">
-                        <label htmlFor="status-update-select">
-                          {t('ticket.review.statusEyebrow')}
-                        </label>
-                        <select
-                          id="status-update-select"
-                          aria-label={t('ticket.review.newStatus')}
-                          className="ticket-detail__control-select"
-                          value={pendingStatus || ticket.status}
-                          onChange={(event) => {
-                            setPendingStatus(event.target.value as TicketStatus);
-                            setStatusUpdateError(null);
-                          }}
-                          disabled={isSavingChanges}
-                        >
-                          {getSelectableTicketStatuses(ticket.status).map((status) => (
-                            <option key={status} value={status}>
-                              {formatStatus(status)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {pendingOutcomeKind && (
-                        <div className="ticket-detail__control-row">
-                          <label htmlFor="status-reason-select">
-                            {t('ticket.review.requiredReason')}
-                          </label>
-                          <select
-                            id="status-reason-select"
-                            className="ticket-detail__control-select"
-                            value={statusReasonCode}
-                            onChange={(event) => {
-                              setStatusReasonCode(event.target.value);
-                              setStatusUpdateError(null);
-                            }}
-                            disabled={isSavingChanges}
-                          >
-                            <option value="">{t('ticket.review.selectReason')}</option>
-                            {reasonsForKind(pendingOutcomeKind).map((reason) => (
-                              <option key={reason.code} value={reason.code}>
-                                {reason.label}
-                              </option>
-                            ))}
-                          </select>
-                          <label htmlFor="status-private-note">
-                            {t('ticket.review.privateNote')}
-                          </label>
-                          <input
-                            id="status-private-note"
-                            className="ticket-detail__control-select"
-                            value={statusPrivateNote}
-                            maxLength={500}
-                            onChange={(event) => setStatusPrivateNote(event.target.value)}
-                            disabled={isSavingChanges}
-                          />
-                        </div>
-                      )}
-                      {ticket.outcome && (
-                        <p className="ticket-detail__card-hint">
-                          {t('ticket.review.recordedOutcome')}
-                          {ticket.outcome.resolutionReasonCode
-                            ? t('ticket.review.recordedOutcomeCode', {
-                                code: ticket.outcome.resolutionReasonCode,
-                              })
-                            : ''}
-                          {ticket.outcome.closureReasonCode
-                            ? t('ticket.review.closedCode', {
-                                code: ticket.outcome.closureReasonCode,
-                              })
-                            : ''}
-                          {ticket.outcome.resolutionNote
-                            ? t('ticket.review.privateNoteOnFile')
-                            : ''}
-                        </p>
-                      )}
-                      {statusUpdateError && (
-                        <p className="ticket-detail__status-error" role="alert">
-                          {statusUpdateError}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__eyebrow">
-                        {t('ticket.review.departmentEyebrow')}
-                      </p>
-                      <div className="ticket-detail__department-current">
-                        <span className="ticket-detail__department">
-                          {ticket.departmentName ?? formatDepartment(ticket.departmentId)}
-                        </span>
-                      </div>
-
-                      <div className="ticket-detail__control-row">
-                        <label htmlFor="department-assign-select">
-                          {t('ticket.review.departmentEyebrow')}
-                        </label>
-                        <select
-                          id="department-assign-select"
-                          aria-label={t('ticket.review.assignedDepartment')}
-                          className="ticket-detail__control-select"
-                          value={selectedDepartmentId}
-                          onChange={(event) => {
-                            setSelectedDepartmentId(event.target.value);
-                            setDepartmentUpdateError(null);
-                          }}
-                          disabled={isSavingChanges}
-                        >
-                          <option value="">{t('ticket.review.selectDepartment')}</option>
-                          {DEPARTMENT_OPTIONS.map((department) => (
-                            <option key={department.departmentId} value={department.departmentId}>
-                              {department.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {ticket.ai?.suggestedDepartmentId &&
-                        ticket.ai.suggestedDepartmentId !== selectedDepartmentId && (
-                          <small className="ticket-detail__field-suggestion">
-                            <span className="ticket-detail__ai-icon" aria-hidden="true">
-                              <IconSparkles />
-                            </span>
-                            {t('ticket.review.suggested', {
-                              department: formatDepartment(ticket.ai.suggestedDepartmentId),
-                            })}
-                          </small>
-                        )}
-
-                      {departmentUpdateError && (
-                        <p className="ticket-detail__status-error" role="alert">
-                          {departmentUpdateError}
-                        </p>
-                      )}
-                      {ticket.updatedBy && ticket.departmentId && (
-                        <small className="ticket-detail__department-actor">
-                          {t('ticket.review.lastUpdatedBy', { name: ticket.updatedBy })}
-                          {ticket.updatedAt ? (
-                            <>
-                              {' '}
-                              {t('ticket.review.on')}{' '}
-                              <time dateTime={ticket.updatedAt}>
-                                {formatCreatedDate(ticket.updatedAt)}
-                              </time>
-                            </>
-                          ) : null}
-                        </small>
-                      )}
-                    </div>
-
-                    <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__eyebrow">{t('ticket.review.fieldAssignment')}</p>
-                      <div className="ticket-detail__control-row">
-                        <label htmlFor="workforce-assign-select">
-                          {t('ticket.review.assignedWorkerOrTeam')}
-                        </label>
-                        <select
-                          id="workforce-assign-select"
-                          className="ticket-detail__control-select"
-                          value={selectedWorkforceValue}
-                          onChange={(event) => {
-                            setSelectedWorkforceValue(event.target.value);
-                            setWorkforceError(null);
-                          }}
-                          disabled={isSavingChanges}
-                        >
-                          <option value="">{t('ticket.review.unassigned')}</option>
-                          {workers
-                            .filter(
-                              (worker) =>
-                                worker.workerId === ticket.assignedWorkerId ||
-                                (worker.active &&
-                                  (!ticket.departmentId ||
-                                    worker.departmentIds.includes(ticket.departmentId))),
-                            )
-                            .map((worker) => (
-                              <option key={worker.workerId} value={`worker:${worker.workerId}`}>
-                                {worker.active
-                                  ? t('ticket.review.workerOption', { name: worker.displayName })
-                                  : t('ticket.review.workerInactive', { name: worker.displayName })}
-                              </option>
-                            ))}
-                          {teams
-                            .filter(
-                              (team) =>
-                                team.teamId === ticket.assignedTeamId ||
-                                (team.active &&
-                                  (!ticket.departmentId ||
-                                    team.departmentIds.includes(ticket.departmentId))),
-                            )
-                            .map((team) => (
-                              <option key={team.teamId} value={`team:${team.teamId}`}>
-                                {team.active
-                                  ? t('ticket.review.teamOption', { name: team.displayName })
-                                  : t('ticket.review.teamInactive', { name: team.displayName })}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                      {workforceError && (
-                        <p className="ticket-detail__status-error" role="alert">
-                          {workforceError}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  className={`ticket-detail__card ticket-detail__card--work-order${activeWorkOrder ? ' ticket-detail__card--work-order-active' : ' ticket-detail__card--work-order-create'}`}
-                >
-                  <div className="ticket-detail__compact-heading">
-                    <h4 className="ticket-detail__card-title">{t('ticket.workOrder.title')}</h4>
-                    <span
-                      className="ticket-detail__compact-info"
-                      tabIndex={0}
-                      aria-label={t('ticket.workOrder.hint')}
-                    >
-                      ⓘ<span role="tooltip">{t('ticket.workOrder.hint')}</span>
-                    </span>
-                  </div>
-                  {activeWorkOrder ? (
-                    <div className="ticket-detail__action-group">
-                      <p className="ticket-detail__current-value">
-                        {t('ticket.workOrder.current', {
-                          state: formatWorkOrderState(activeWorkOrder.state),
-                          id: activeWorkOrder.workOrderId,
-                        })}
-                      </p>
-                      <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
-                      <div className="ticket-detail__evidence-groups">
-                        <section aria-labelledby="citizen-report-evidence-heading">
-                          <h5
-                            id="citizen-report-evidence-heading"
-                            className="ticket-detail__card-title"
-                          >
-                            {t('ticket.workOrder.citizenEvidence')}
-                          </h5>
-                          <p className="ticket-detail__card-hint">
-                            {t('ticket.workOrder.citizenEvidenceHint')}
-                          </p>
-                          <EvidencePhotoList
-                            items={
-                              citizenOriginalEvidence.length
-                                ? citizenOriginalEvidence
-                                : ticket
-                                  ? [
-                                      {
-                                        evidenceId: 'citizen-original',
-                                        ticketId: ticket.ticketId,
-                                        workOrderId: activeWorkOrder.workOrderId,
-                                        kind: 'ORIGINAL_REPORT',
-                                        objectKey: ticket.imageObjectKey,
-                                        contentType: 'image/jpeg',
-                                        uploadedBy: 'citizen',
-                                        createdAt: ticket.createdAt,
-                                        source: 'TICKET_ORIGINAL',
-                                        photoUrl: ticket.imageUrl,
-                                      } satisfies WorkOrderEvidence,
-                                    ]
-                                  : []
-                            }
-                            emptyLabel={t('ticket.workOrder.noCitizenPhoto')}
-                            category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
-                          />
-                        </section>
-                        <section aria-labelledby="maintenance-before-heading">
-                          <h5 id="maintenance-before-heading" className="ticket-detail__card-title">
-                            {t('ticket.workOrder.beforeTitle')}
-                          </h5>
-                          <EvidencePhotoList
-                            items={beforeEvidence}
-                            emptyLabel={t('ticket.workOrder.noBefore')}
-                            category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
-                          />
-                          <label className="ticket-detail__card-hint" htmlFor="wo-before-upload">
-                            {t('ticket.workOrder.uploadBefore')}
-                          </label>
-                          <input
-                            id="wo-before-upload"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            disabled={isUploadingEvidence || isMutatingWorkOrder}
-                            onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              event.target.value = '';
-                              void handleEvidenceUpload(
-                                activeWorkOrder.workOrderId,
-                                'BEFORE',
-                                file,
-                              );
-                            }}
-                          />
-                        </section>
-                        <section aria-labelledby="maintenance-after-heading">
-                          <h5 id="maintenance-after-heading" className="ticket-detail__card-title">
-                            {t('ticket.workOrder.afterTitle')}
-                          </h5>
-                          <EvidencePhotoList
-                            items={afterEvidence}
-                            emptyLabel={t('ticket.workOrder.noAfter')}
-                            category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
-                          />
-                          <label className="ticket-detail__card-hint" htmlFor="wo-after-upload">
-                            {t('ticket.workOrder.uploadAfter')}
-                          </label>
-                          <input
-                            id="wo-after-upload"
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            disabled={isUploadingEvidence || isMutatingWorkOrder}
-                            onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              event.target.value = '';
-                              void handleEvidenceUpload(activeWorkOrder.workOrderId, 'AFTER', file);
-                            }}
-                          />
-                        </section>
-                      </div>
-                      <div className="ticket-detail__control-row">
-                        <label htmlFor="active-work-order-assignee">
-                          {t('ticket.workOrder.assignee')}
-                        </label>
-                        <select
-                          id="active-work-order-assignee"
-                          className="ticket-detail__control-select"
-                          value={workOrderAssignee}
-                          onChange={(event) => setWorkOrderAssignee(event.target.value)}
-                          disabled={isMutatingWorkOrder}
-                        >
-                          <option value="">{t('ticket.review.unassigned')}</option>
-                          {activeWorkOrder.assignedWorkerId &&
-                            !workers.some(
-                              (worker) => worker.workerId === activeWorkOrder.assignedWorkerId,
-                            ) && (
-                              <option value={`worker:${activeWorkOrder.assignedWorkerId}`}>
-                                {t('ticket.review.workerOption', {
-                                  name: activeWorkOrder.assignedWorkerId,
-                                })}
-                              </option>
-                            )}
-                          {activeWorkOrder.assignedTeamId &&
-                            !teams.some(
-                              (team) => team.teamId === activeWorkOrder.assignedTeamId,
-                            ) && (
-                              <option value={`team:${activeWorkOrder.assignedTeamId}`}>
-                                {t('ticket.review.teamOption', {
-                                  name: activeWorkOrder.assignedTeamId,
-                                })}
-                              </option>
-                            )}
-                          {workers
-                            .filter((worker) => worker.active)
-                            .map((worker) => (
-                              <option key={worker.workerId} value={`worker:${worker.workerId}`}>
-                                {t('ticket.review.workerOption', { name: worker.displayName })}
-                              </option>
-                            ))}
-                          {teams
-                            .filter((team) => team.active)
-                            .map((team) => (
-                              <option key={team.teamId} value={`team:${team.teamId}`}>
-                                {t('ticket.review.teamOption', { name: team.displayName })}
-                              </option>
-                            ))}
-                        </select>
-                        <div className="ticket-detail__control-buttons">
-                          <button
-                            type="button"
-                            className="ticket-detail__review-button ticket-detail__review-button--secondary"
-                            disabled={isMutatingWorkOrder}
-                            onClick={() =>
-                              void runWorkOrderMutation(
-                                () =>
-                                  assignWorkOrder(
-                                    activeWorkOrder.workOrderId,
-                                    workOrderAssignee === ''
-                                      ? { clear: true }
-                                      : workOrderAssignee.startsWith('team:')
-                                        ? { teamId: workOrderAssignee.slice('team:'.length) }
-                                        : { workerId: workOrderAssignee.slice('worker:'.length) },
-                                  ),
-                                t('ticket.workOrder.assignmentUpdated'),
-                              )
-                            }
-                          >
-                            {t('ticket.workOrder.saveAssignment')}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="ticket-detail__control-buttons">
-                        {activeWorkOrder.state !== 'IN_PROGRESS' && (
-                          <button
-                            type="button"
-                            className="ticket-detail__review-button"
-                            disabled={isMutatingWorkOrder}
-                            onClick={() =>
-                              void runWorkOrderMutation(
-                                () => startWorkOrder(activeWorkOrder.workOrderId),
-                                t('ticket.workOrder.started'),
-                              )
-                            }
-                          >
-                            {t('ticket.workOrder.startWork')}
-                          </button>
-                        )}
-                        {activeWorkOrder.state === 'IN_PROGRESS' && (
-                          <button
-                            type="button"
-                            className="ticket-detail__review-button"
-                            disabled={isMutatingWorkOrder || !canCompleteWorkOrder}
-                            onClick={() =>
-                              void runWorkOrderMutation(
-                                () => completeWorkOrder(activeWorkOrder.workOrderId, workOrderNote),
-                                t('ticket.workOrder.completed'),
-                              )
-                            }
-                          >
-                            {t('ticket.workOrder.completeWork')}
-                          </button>
-                        )}
-                      </div>
-                      <div className="ticket-detail__control-row">
-                        <label htmlFor="work-order-cancel-reason">
-                          {t('ticket.workOrder.cancelReason')}
-                        </label>
-                        <select
-                          id="work-order-cancel-reason"
-                          className="ticket-detail__control-select"
-                          value={workOrderCancelReason}
-                          onChange={(event) => setWorkOrderCancelReason(event.target.value)}
-                          disabled={isMutatingWorkOrder}
-                        >
-                          <option value="">{t('ticket.workOrder.selectCancelReason')}</option>
-                          {workOrderCancelReasons().map((reason) => (
-                            <option key={reason.code} value={reason.code}>
-                              {reason.label}
-                            </option>
-                          ))}
-                        </select>
-                        <label htmlFor="work-order-note">{t('ticket.review.privateNote')}</label>
-                        <input
-                          id="work-order-note"
-                          className="ticket-detail__control-select"
-                          value={workOrderNote}
-                          maxLength={500}
-                          onChange={(event) => setWorkOrderNote(event.target.value)}
-                          disabled={isMutatingWorkOrder}
-                        />
-                        <div className="ticket-detail__control-buttons">
-                          <button
-                            type="button"
-                            className="ticket-detail__review-button ticket-detail__review-button--secondary"
-                            disabled={isMutatingWorkOrder || !workOrderCancelReason}
-                            onClick={() =>
-                              void runWorkOrderMutation(
-                                () =>
-                                  cancelWorkOrder(
-                                    activeWorkOrder.workOrderId,
-                                    workOrderCancelReason,
-                                    workOrderNote,
-                                  ),
-                                t('ticket.workOrder.cancelled'),
-                              )
-                            }
-                          >
-                            {t('ticket.workOrder.cancelWorkOrder')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="ticket-detail__action-group">
-                      <div className="ticket-detail__control-row">
-                        <label htmlFor="work-order-summary">{t('ticket.workOrder.summary')}</label>
-                        <input
-                          id="work-order-summary"
-                          className="ticket-detail__control-select"
-                          value={workOrderSummary}
-                          maxLength={500}
-                          placeholder={t('ticket.workOrder.summaryPlaceholder')}
-                          onChange={(event) => setWorkOrderSummary(event.target.value)}
-                          disabled={isMutatingWorkOrder}
-                        />
-                        <label htmlFor="work-order-assignee">
-                          {t('ticket.workOrder.assignWorkerOrTeam')}
-                        </label>
-                        <select
-                          id="work-order-assignee"
-                          className="ticket-detail__control-select"
-                          value={workOrderAssignee}
-                          onChange={(event) => setWorkOrderAssignee(event.target.value)}
-                          disabled={isMutatingWorkOrder}
-                        >
-                          <option value="">{t('ticket.review.unassigned')}</option>
-                          {workers
-                            .filter((worker) => worker.active)
-                            .map((worker) => (
-                              <option key={worker.workerId} value={`worker:${worker.workerId}`}>
-                                {t('ticket.review.workerOption', { name: worker.displayName })}
-                              </option>
-                            ))}
-                          {teams
-                            .filter((team) => team.active)
-                            .map((team) => (
-                              <option key={team.teamId} value={`team:${team.teamId}`}>
-                                {t('ticket.review.teamOption', { name: team.displayName })}
-                              </option>
-                            ))}
-                        </select>
-                        <div className="ticket-detail__control-buttons">
-                          <button
-                            type="button"
-                            className="ticket-detail__review-button"
-                            disabled={isMutatingWorkOrder}
-                            onClick={() => void handleCreateWorkOrder()}
-                          >
-                            {isMutatingWorkOrder
-                              ? t('ticket.workOrder.saving')
-                              : t('ticket.workOrder.create')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {workOrders.length > 1 && (
-                    <p className="ticket-detail__card-hint">
-                      {t('ticket.workOrder.countHint', { count: workOrders.length })}
-                    </p>
-                  )}
-                  {workOrderSuccess && (
-                    <p className="ticket-detail__status-message" role="status">
-                      {workOrderSuccess}
-                    </p>
-                  )}
-                  {workOrderError && (
-                    <p className="ticket-detail__status-error" role="alert">
-                      {workOrderError}
-                    </p>
-                  )}
-                </div>
-
-                {resolutionFeedback?.status ? (
-                  <div className="ticket-detail__card">
-                    <h4 className="ticket-detail__card-title">{t('ticket.feedback.title')}</h4>
-                    <p className="ticket-detail__current-value">
-                      {resolutionFeedback.status === 'CONFIRMED_FIXED'
-                        ? t('ticket.feedback.confirmedFixed')
-                        : t('ticket.feedback.stillUnresolved')}
-                    </p>
-                    {resolutionFeedback.note ? (
-                      <p className="ticket-detail__card-hint">
-                        {t('ticket.feedback.privateNote', { note: resolutionFeedback.note })}
-                      </p>
-                    ) : null}
-                    {resolutionFeedback.needsReview ? (
-                      <div className="ticket-detail__control-buttons">
-                        <button
-                          type="button"
-                          className="ticket-detail__review-button"
-                          disabled={isReviewingFeedback}
-                          onClick={() => void handleFeedbackReview('KEEP_RESOLVED')}
-                        >
-                          {t('ticket.feedback.keepResolved')}
-                        </button>
-                        <button
-                          type="button"
-                          className="ticket-detail__review-button ticket-detail__review-button--secondary"
-                          disabled={isReviewingFeedback}
-                          onClick={() => void handleFeedbackReview('RETURN_IN_PROGRESS')}
-                        >
-                          {t('ticket.feedback.returnInProgress')}
-                        </button>
-                      </div>
-                    ) : resolutionFeedback.reviewAction ? (
-                      <p className="ticket-detail__card-hint">
-                        {t('ticket.feedback.reviewed', {
-                          action: resolutionFeedback.reviewAction
-                            .replaceAll('_', ' ')
-                            .toLowerCase(),
-                        })}
-                      </p>
-                    ) : null}
-                    {feedbackError ? (
-                      <p className="ticket-detail__status-error" role="alert">
-                        {feedbackError}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="ticket-detail__card ticket-detail__card--category">
-                  <div className="ticket-detail__card-heading-row">
-                    <h4 className="ticket-detail__card-title">
-                      {t('ticket.review.categoryTitle')}
-                    </h4>
-                    <span className="ticket-detail__ai-chip">
-                      <span className="ticket-detail__ai-icon" aria-hidden="true">
-                        <IconSparkles />
-                      </span>
-                      {t('ticket.review.aiAssisted')}
-                    </span>
-                  </div>
-
-                  {!ticket.ai && (
-                    <p className="ticket-detail__review-notice" role="status">
-                      {t('ticket.review.noAi')}
-                    </p>
-                  )}
-
-                  {ticket.ai?.aiProcessingStatus === 'pending' && (
-                    <p className="ticket-detail__review-notice" role="status">
-                      {t('ticket.review.aiPending')}
-                    </p>
-                  )}
-
-                  {ticket.ai?.aiProcessingStatus === 'processing' && (
-                    <p className="ticket-detail__review-notice" role="status">
-                      {t('ticket.review.aiProcessing')}
-                    </p>
-                  )}
-
-                  {ticket.ai?.aiProcessingStatus === 'failed' && !ticket.ai.aiSuggestedCategory && (
-                    <p
-                      className="ticket-detail__review-notice ticket-detail__review-notice--warning"
-                      role="status"
-                    >
-                      {t('ticket.review.aiFailed')}
-                    </p>
-                  )}
-
-                  {ticket.ai?.aiSuggestedCategory &&
-                    ticket.ai.aiSuggestedCategory !==
-                      (ticket.ai.finalCategory ?? selectedCategory) && (
-                      <div className="ticket-detail__suggestion">
-                        <span className="ticket-detail__suggestion-label">
-                          {t('ticket.review.aiSuggestion')}
-                        </span>
-                        <CategoryBadge category={ticket.ai.aiSuggestedCategory} />
-                        {ticket.ai.aiConfidence !== undefined && (
-                          <span className="ticket-detail__confidence">
-                            {t('ticket.review.confidence', {
-                              percent: Math.round(ticket.ai.aiConfidence * 100),
-                            })}
-                          </span>
-                        )}
-                        {ticket.ai.aiCategoryExplanation && (
-                          <span
-                            className="ticket-detail__compact-info"
-                            tabIndex={0}
-                            aria-label={t('ticket.review.aiSuggestion')}
-                          >
-                            ⓘ<span role="tooltip">{ticket.ai.aiCategoryExplanation}</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                  {ticket.ai?.finalCategory && (
-                    <span className="ticket-detail__category-reviewed" role="status">
-                      ✓ {t('ticket.review.reviewed')}
-                      {ticket.ai.categoryReviewedAt && (
-                        <span
-                          className="ticket-detail__compact-info"
-                          tabIndex={0}
-                          aria-label={t('ticket.review.reviewed')}
-                        >
-                          ⓘ
-                          <span role="tooltip">
-                            {ticket.ai.categoryReviewedBy
-                              ? t('ticket.review.reviewedBy', {
-                                  name: ticket.ai.categoryReviewedBy,
-                                })
-                              : t('ticket.review.reviewed')}{' '}
-                            {t('ticket.review.on')}{' '}
-                            {formatCreatedDate(ticket.ai.categoryReviewedAt)}
-                          </span>
-                        </span>
-                      )}
-                    </span>
-                  )}
-
-                  <div className="ticket-detail__control-row">
-                    <label htmlFor="category-review-select">
-                      {t('ticket.review.finalCategory')}
-                    </label>
-                    <select
-                      id="category-review-select"
-                      className="ticket-detail__control-select"
-                      value={selectedCategory}
-                      onChange={(event) => {
-                        setSelectedCategory(event.target.value);
-                        setCategoryReviewError(null);
-                      }}
-                      disabled={isSavingChanges || ticket.ai?.aiProcessingStatus === 'pending'}
-                    >
-                      <option value="">{t('ticket.review.selectCategory')}</option>
-                      {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
-                        <option key={category} value={category}>
-                          {formatCategory(category)}
-                        </option>
-                      ))}
-                    </select>
-
-                    <div className="ticket-detail__control-buttons">
-                      {ticket.ai?.aiSuggestedCategory &&
-                        ticket.ai.aiSuggestedCategory !== selectedCategory && (
-                          <button
-                            type="button"
-                            className="ticket-detail__review-button ticket-detail__review-button--secondary"
-                            onClick={() =>
-                              setSelectedCategory(ticket.ai?.aiSuggestedCategory ?? '')
-                            }
-                            disabled={isSavingChanges || ticket.ai.aiProcessingStatus === 'pending'}
-                          >
-                            {t('ticket.review.acceptAi')}
-                          </button>
-                        )}
-                    </div>
-                  </div>
-
-                  {categoryReviewError && (
-                    <p className="ticket-detail__status-error" role="alert">
-                      {categoryReviewError}
-                    </p>
-                  )}
-                </div>
-
-                <div className="ticket-detail__save-bar">
-                  <span aria-live="polite">
-                    {hasUnsavedChanges
-                      ? t('ticket.review.unsavedChanges', { count: unsavedChangeCount })
-                      : ''}
-                  </span>
-                  <button
-                    type="button"
-                    className="ticket-detail__review-button"
-                    disabled={!hasUnsavedChanges || isSavingChanges}
-                    onClick={() => void handleSaveChanges()}
-                  >
-                    {isSavingChanges
-                      ? t('ticket.review.savingChanges')
-                      : t('ticket.review.saveChanges')}
-                  </button>
-                </div>
-                {saveChangesError && (
-                  <p className="ticket-detail__status-error" role="alert">
-                    {saveChangesError}
-                  </p>
-                )}
-              </div>
-
-              <aside className="ticket-detail__card ticket-detail__card--privacy-review">
+              <div className="ticket-detail__card">
                 <h4 className="ticket-detail__card-title">{t('ticket.review.privacyTitle')}</h4>
                 <p className="ticket-detail__card-hint">{t('ticket.review.privacyHint')}</p>
                 <ImageRedactionReviewPanel
@@ -2293,7 +1528,830 @@ export function TicketDetailPage({
                     });
                   }}
                 />
-              </aside>
+              </div>
+
+              <div className="ticket-detail__card">
+                <h4 className="ticket-detail__card-title">{t('ticket.review.municipalTitle')}</h4>
+                <p className="ticket-detail__card-hint">{t('ticket.review.municipalHint')}</p>
+
+                <div className="ticket-detail__actions-grid">
+                  <div className="ticket-detail__action-group">
+                    <p className="ticket-detail__eyebrow">{t('ticket.review.statusEyebrow')}</p>
+                    <p className="ticket-detail__current-value">
+                      {t('ticket.review.currentPrefix')} <StatusBadge status={ticket.status} />
+                    </p>
+                    <div className="ticket-detail__control-row">
+                      <label htmlFor="status-update-select">{t('ticket.review.newStatus')}</label>
+                      <select
+                        id="status-update-select"
+                        className="ticket-detail__control-select"
+                        value={pendingStatus || ticket.status}
+                        onChange={(event) => {
+                          setPendingStatus(event.target.value as TicketStatus);
+                          setStatusUpdateError(null);
+                        }}
+                        disabled={isUpdatingStatus}
+                      >
+                        {getSelectableTicketStatuses(ticket.status).map((status) => (
+                          <option key={status} value={status}>
+                            {formatStatus(status)}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="ticket-detail__control-buttons">
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          onClick={() => void handleApplyStatus()}
+                          disabled={
+                            isUpdatingStatus || !pendingStatus || pendingStatus === ticket.status
+                          }
+                        >
+                          {isUpdatingStatus
+                            ? t('ticket.review.applying')
+                            : t('ticket.review.applyStatus')}
+                        </button>
+                      </div>
+                    </div>
+                    {pendingOutcomeKind && (
+                      <div className="ticket-detail__control-row">
+                        <label htmlFor="status-reason-select">
+                          {t('ticket.review.requiredReason')}
+                        </label>
+                        <select
+                          id="status-reason-select"
+                          className="ticket-detail__control-select"
+                          value={statusReasonCode}
+                          onChange={(event) => {
+                            setStatusReasonCode(event.target.value);
+                            setStatusUpdateError(null);
+                          }}
+                          disabled={isUpdatingStatus}
+                        >
+                          <option value="">{t('ticket.review.selectReason')}</option>
+                          {reasonsForKind(pendingOutcomeKind).map((reason) => (
+                            <option key={reason.code} value={reason.code}>
+                              {reason.label}
+                            </option>
+                          ))}
+                        </select>
+                        <label htmlFor="status-private-note">
+                          {t('ticket.review.privateNote')}
+                        </label>
+                        <input
+                          id="status-private-note"
+                          className="ticket-detail__control-select"
+                          value={statusPrivateNote}
+                          maxLength={500}
+                          onChange={(event) => setStatusPrivateNote(event.target.value)}
+                          disabled={isUpdatingStatus}
+                        />
+                      </div>
+                    )}
+                    {ticket.outcome && (
+                      <p className="ticket-detail__card-hint">
+                        {t('ticket.review.recordedOutcome')}
+                        {ticket.outcome.resolutionReasonCode
+                          ? t('ticket.review.recordedOutcomeCode', {
+                              code: ticket.outcome.resolutionReasonCode,
+                            })
+                          : ''}
+                        {ticket.outcome.closureReasonCode
+                          ? t('ticket.review.closedCode', {
+                              code: ticket.outcome.closureReasonCode,
+                            })
+                          : ''}
+                        {ticket.outcome.resolutionNote ? t('ticket.review.privateNoteOnFile') : ''}
+                      </p>
+                    )}
+                    {isUpdatingStatus && (
+                      <p className="ticket-detail__status-message" role="status">
+                        {t('ticket.review.saving')}
+                      </p>
+                    )}
+                    {statusUpdateError && (
+                      <p className="ticket-detail__status-error" role="alert">
+                        {statusUpdateError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="ticket-detail__action-group">
+                    <p className="ticket-detail__eyebrow">{t('ticket.review.departmentEyebrow')}</p>
+                    <div className="ticket-detail__department-current">
+                      <span className="ticket-detail__department">
+                        {ticket.departmentName ?? formatDepartment(ticket.departmentId)}
+                      </span>
+                      {ticket.ai?.suggestedDepartmentId &&
+                        ticket.ai.suggestedDepartmentId !== ticket.departmentId && (
+                          <small className="ticket-detail__suggested-department">
+                            <span className="ticket-detail__ai-icon" aria-hidden="true">
+                              <IconSparkles />
+                            </span>
+                            {t('ticket.review.suggested', {
+                              department: formatDepartment(ticket.ai.suggestedDepartmentId),
+                            })}
+                          </small>
+                        )}
+                    </div>
+
+                    <div className="ticket-detail__control-row">
+                      <label htmlFor="department-assign-select">
+                        {t('ticket.review.assignedDepartment')}
+                      </label>
+                      <select
+                        id="department-assign-select"
+                        className="ticket-detail__control-select"
+                        value={selectedDepartmentId}
+                        onChange={(event) => {
+                          setSelectedDepartmentId(event.target.value);
+                          setDepartmentUpdateError(null);
+                          setDepartmentUpdateSuccess(null);
+                        }}
+                        disabled={isSavingDepartment}
+                      >
+                        <option value="">{t('ticket.review.selectDepartment')}</option>
+                        {DEPARTMENT_OPTIONS.map((department) => (
+                          <option key={department.departmentId} value={department.departmentId}>
+                            {department.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="ticket-detail__control-buttons">
+                        {ticket.ai?.suggestedDepartmentId &&
+                          ticket.ai.suggestedDepartmentId !== ticket.departmentId && (
+                            <button
+                              type="button"
+                              className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                              onClick={() =>
+                                void handleDepartmentAssignment(
+                                  ticket.ai?.suggestedDepartmentId ?? '',
+                                )
+                              }
+                              disabled={isSavingDepartment || !ticket.ai?.suggestedDepartmentId}
+                            >
+                              {t('ticket.review.acceptSuggestedDepartment')}
+                            </button>
+                          )}
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          onClick={() => void handleDepartmentAssignment(selectedDepartmentId)}
+                          disabled={
+                            isSavingDepartment ||
+                            !selectedDepartmentId ||
+                            selectedDepartmentId === (ticket.departmentId ?? '')
+                          }
+                        >
+                          {isSavingDepartment
+                            ? t('ticket.review.savingDepartment')
+                            : t('ticket.review.saveDepartment')}
+                        </button>
+                      </div>
+                    </div>
+
+                    {isSavingDepartment && (
+                      <p className="ticket-detail__status-message" role="status">
+                        {t('ticket.review.savingDepartmentAssignment')}
+                      </p>
+                    )}
+                    {!isSavingDepartment && departmentUpdateSuccess && (
+                      <p className="ticket-detail__status-message" role="status">
+                        {departmentUpdateSuccess}
+                      </p>
+                    )}
+                    {departmentUpdateError && (
+                      <p className="ticket-detail__status-error" role="alert">
+                        {departmentUpdateError}
+                      </p>
+                    )}
+                    {ticket.updatedBy && ticket.departmentId && (
+                      <small className="ticket-detail__department-actor">
+                        {t('ticket.review.lastUpdatedBy', { name: ticket.updatedBy })}
+                        {ticket.updatedAt ? (
+                          <>
+                            {' '}
+                            {t('ticket.review.on')}{' '}
+                            <time dateTime={ticket.updatedAt}>
+                              {formatCreatedDate(ticket.updatedAt)}
+                            </time>
+                          </>
+                        ) : null}
+                      </small>
+                    )}
+                  </div>
+
+                  <div className="ticket-detail__action-group">
+                    <p className="ticket-detail__eyebrow">{t('ticket.review.fieldAssignment')}</p>
+                    <div className="ticket-detail__control-row">
+                      <label htmlFor="workforce-assign-select">
+                        {t('ticket.review.assignedWorkerOrTeam')}
+                      </label>
+                      <select
+                        id="workforce-assign-select"
+                        className="ticket-detail__control-select"
+                        value={selectedWorkforceValue}
+                        onChange={(event) => {
+                          setSelectedWorkforceValue(event.target.value);
+                          setWorkforceError(null);
+                          setWorkforceSuccess(null);
+                        }}
+                        disabled={isSavingWorkforce}
+                      >
+                        <option value="">{t('ticket.review.unassigned')}</option>
+                        {workers
+                          .filter(
+                            (worker) =>
+                              worker.workerId === ticket.assignedWorkerId ||
+                              (worker.active &&
+                                (!ticket.departmentId ||
+                                  worker.departmentIds.includes(ticket.departmentId))),
+                          )
+                          .map((worker) => (
+                            <option key={worker.workerId} value={`worker:${worker.workerId}`}>
+                              {worker.active
+                                ? t('ticket.review.workerOption', { name: worker.displayName })
+                                : t('ticket.review.workerInactive', { name: worker.displayName })}
+                            </option>
+                          ))}
+                        {teams
+                          .filter(
+                            (team) =>
+                              team.teamId === ticket.assignedTeamId ||
+                              (team.active &&
+                                (!ticket.departmentId ||
+                                  team.departmentIds.includes(ticket.departmentId))),
+                          )
+                          .map((team) => (
+                            <option key={team.teamId} value={`team:${team.teamId}`}>
+                              {team.active
+                                ? t('ticket.review.teamOption', { name: team.displayName })
+                                : t('ticket.review.teamInactive', { name: team.displayName })}
+                            </option>
+                          ))}
+                      </select>
+                      <div className="ticket-detail__control-buttons">
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          onClick={() => void handleWorkforceAssignment()}
+                          disabled={isSavingWorkforce}
+                        >
+                          {isSavingWorkforce
+                            ? t('ticket.review.savingAssignment')
+                            : t('ticket.review.saveAssignment')}
+                        </button>
+                      </div>
+                    </div>
+                    {workforceSuccess && (
+                      <p className="ticket-detail__status-message" role="status">
+                        {workforceSuccess}
+                      </p>
+                    )}
+                    {workforceError && (
+                      <p className="ticket-detail__status-error" role="alert">
+                        {workforceError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="ticket-detail__card">
+                <h4 className="ticket-detail__card-title">{t('ticket.workOrder.title')}</h4>
+                <p className="ticket-detail__card-hint">{t('ticket.workOrder.hint')}</p>
+                {activeWorkOrder ? (
+                  <div className="ticket-detail__action-group">
+                    <p className="ticket-detail__current-value">
+                      {t('ticket.workOrder.current', {
+                        state: formatWorkOrderState(activeWorkOrder.state),
+                        id: activeWorkOrder.workOrderId,
+                      })}
+                    </p>
+                    <p className="ticket-detail__card-hint">{activeWorkOrder.summary}</p>
+                    <div className="ticket-detail__evidence-groups">
+                      <section aria-labelledby="citizen-report-evidence-heading">
+                        <h5
+                          id="citizen-report-evidence-heading"
+                          className="ticket-detail__card-title"
+                        >
+                          {t('ticket.workOrder.citizenEvidence')}
+                        </h5>
+                        <p className="ticket-detail__card-hint">
+                          {t('ticket.workOrder.citizenEvidenceHint')}
+                        </p>
+                        <EvidencePhotoList
+                          items={
+                            citizenOriginalEvidence.length
+                              ? citizenOriginalEvidence
+                              : ticket
+                                ? [
+                                    {
+                                      evidenceId: 'citizen-original',
+                                      ticketId: ticket.ticketId,
+                                      workOrderId: activeWorkOrder.workOrderId,
+                                      kind: 'ORIGINAL_REPORT',
+                                      objectKey: ticket.imageObjectKey,
+                                      contentType: 'image/jpeg',
+                                      uploadedBy: 'citizen',
+                                      createdAt: ticket.createdAt,
+                                      source: 'TICKET_ORIGINAL',
+                                      photoUrl: ticket.imageUrl,
+                                    } satisfies WorkOrderEvidence,
+                                  ]
+                                : []
+                          }
+                          emptyLabel={t('ticket.workOrder.noCitizenPhoto')}
+                          category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
+                        />
+                      </section>
+                      <section aria-labelledby="maintenance-before-heading">
+                        <h5 id="maintenance-before-heading" className="ticket-detail__card-title">
+                          {t('ticket.workOrder.beforeTitle')}
+                        </h5>
+                        <EvidencePhotoList
+                          items={beforeEvidence}
+                          emptyLabel={t('ticket.workOrder.noBefore')}
+                          category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
+                        />
+                        <label className="ticket-detail__card-hint" htmlFor="wo-before-upload">
+                          {t('ticket.workOrder.uploadBefore')}
+                        </label>
+                        <input
+                          id="wo-before-upload"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={isUploadingEvidence || isMutatingWorkOrder}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            void handleEvidenceUpload(activeWorkOrder.workOrderId, 'BEFORE', file);
+                          }}
+                        />
+                      </section>
+                      <section aria-labelledby="maintenance-after-heading">
+                        <h5 id="maintenance-after-heading" className="ticket-detail__card-title">
+                          {t('ticket.workOrder.afterTitle')}
+                        </h5>
+                        <EvidencePhotoList
+                          items={afterEvidence}
+                          emptyLabel={t('ticket.workOrder.noAfter')}
+                          category={ticket?.category ?? 'PENDING_CLASSIFICATION'}
+                        />
+                        <label className="ticket-detail__card-hint" htmlFor="wo-after-upload">
+                          {t('ticket.workOrder.uploadAfter')}
+                        </label>
+                        <input
+                          id="wo-after-upload"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={isUploadingEvidence || isMutatingWorkOrder}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            void handleEvidenceUpload(activeWorkOrder.workOrderId, 'AFTER', file);
+                          }}
+                        />
+                      </section>
+                    </div>
+                    <div className="ticket-detail__control-row">
+                      <label htmlFor="active-work-order-assignee">
+                        {t('ticket.workOrder.assignee')}
+                      </label>
+                      <select
+                        id="active-work-order-assignee"
+                        className="ticket-detail__control-select"
+                        value={workOrderAssignee}
+                        onChange={(event) => setWorkOrderAssignee(event.target.value)}
+                        disabled={isMutatingWorkOrder}
+                      >
+                        <option value="">{t('ticket.review.unassigned')}</option>
+                        {activeWorkOrder.assignedWorkerId &&
+                          !workers.some(
+                            (worker) => worker.workerId === activeWorkOrder.assignedWorkerId,
+                          ) && (
+                            <option value={`worker:${activeWorkOrder.assignedWorkerId}`}>
+                              {t('ticket.review.workerOption', {
+                                name: activeWorkOrder.assignedWorkerId,
+                              })}
+                            </option>
+                          )}
+                        {activeWorkOrder.assignedTeamId &&
+                          !teams.some((team) => team.teamId === activeWorkOrder.assignedTeamId) && (
+                            <option value={`team:${activeWorkOrder.assignedTeamId}`}>
+                              {t('ticket.review.teamOption', {
+                                name: activeWorkOrder.assignedTeamId,
+                              })}
+                            </option>
+                          )}
+                        {workers
+                          .filter((worker) => worker.active)
+                          .map((worker) => (
+                            <option key={worker.workerId} value={`worker:${worker.workerId}`}>
+                              {t('ticket.review.workerOption', { name: worker.displayName })}
+                            </option>
+                          ))}
+                        {teams
+                          .filter((team) => team.active)
+                          .map((team) => (
+                            <option key={team.teamId} value={`team:${team.teamId}`}>
+                              {t('ticket.review.teamOption', { name: team.displayName })}
+                            </option>
+                          ))}
+                      </select>
+                      <div className="ticket-detail__control-buttons">
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                          disabled={isMutatingWorkOrder}
+                          onClick={() =>
+                            void runWorkOrderMutation(
+                              () =>
+                                assignWorkOrder(
+                                  activeWorkOrder.workOrderId,
+                                  workOrderAssignee === ''
+                                    ? { clear: true }
+                                    : workOrderAssignee.startsWith('team:')
+                                      ? { teamId: workOrderAssignee.slice('team:'.length) }
+                                      : { workerId: workOrderAssignee.slice('worker:'.length) },
+                                ),
+                              t('ticket.workOrder.assignmentUpdated'),
+                            )
+                          }
+                        >
+                          {t('ticket.workOrder.saveAssignment')}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="ticket-detail__control-buttons">
+                      {activeWorkOrder.state !== 'IN_PROGRESS' && (
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          disabled={isMutatingWorkOrder}
+                          onClick={() =>
+                            void runWorkOrderMutation(
+                              () => startWorkOrder(activeWorkOrder.workOrderId),
+                              t('ticket.workOrder.started'),
+                            )
+                          }
+                        >
+                          {t('ticket.workOrder.startWork')}
+                        </button>
+                      )}
+                      {activeWorkOrder.state === 'IN_PROGRESS' && (
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          disabled={isMutatingWorkOrder || !canCompleteWorkOrder}
+                          onClick={() =>
+                            void runWorkOrderMutation(
+                              () => completeWorkOrder(activeWorkOrder.workOrderId, workOrderNote),
+                              t('ticket.workOrder.completed'),
+                            )
+                          }
+                        >
+                          {t('ticket.workOrder.completeWork')}
+                        </button>
+                      )}
+                    </div>
+                    <div className="ticket-detail__control-row">
+                      <label htmlFor="work-order-cancel-reason">
+                        {t('ticket.workOrder.cancelReason')}
+                      </label>
+                      <select
+                        id="work-order-cancel-reason"
+                        className="ticket-detail__control-select"
+                        value={workOrderCancelReason}
+                        onChange={(event) => setWorkOrderCancelReason(event.target.value)}
+                        disabled={isMutatingWorkOrder}
+                      >
+                        <option value="">{t('ticket.workOrder.selectCancelReason')}</option>
+                        {workOrderCancelReasons().map((reason) => (
+                          <option key={reason.code} value={reason.code}>
+                            {reason.label}
+                          </option>
+                        ))}
+                      </select>
+                      <label htmlFor="work-order-note">{t('ticket.review.privateNote')}</label>
+                      <input
+                        id="work-order-note"
+                        className="ticket-detail__control-select"
+                        value={workOrderNote}
+                        maxLength={500}
+                        onChange={(event) => setWorkOrderNote(event.target.value)}
+                        disabled={isMutatingWorkOrder}
+                      />
+                      <div className="ticket-detail__control-buttons">
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                          disabled={isMutatingWorkOrder || !workOrderCancelReason}
+                          onClick={() =>
+                            void runWorkOrderMutation(
+                              () =>
+                                cancelWorkOrder(
+                                  activeWorkOrder.workOrderId,
+                                  workOrderCancelReason,
+                                  workOrderNote,
+                                ),
+                              t('ticket.workOrder.cancelled'),
+                            )
+                          }
+                        >
+                          {t('ticket.workOrder.cancelWorkOrder')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ticket-detail__action-group">
+                    <div className="ticket-detail__control-row">
+                      <label htmlFor="work-order-summary">{t('ticket.workOrder.summary')}</label>
+                      <input
+                        id="work-order-summary"
+                        className="ticket-detail__control-select"
+                        value={workOrderSummary}
+                        maxLength={500}
+                        placeholder={t('ticket.workOrder.summaryPlaceholder')}
+                        onChange={(event) => setWorkOrderSummary(event.target.value)}
+                        disabled={isMutatingWorkOrder}
+                      />
+                      <label htmlFor="work-order-assignee">
+                        {t('ticket.workOrder.assignWorkerOrTeam')}
+                      </label>
+                      <select
+                        id="work-order-assignee"
+                        className="ticket-detail__control-select"
+                        value={workOrderAssignee}
+                        onChange={(event) => setWorkOrderAssignee(event.target.value)}
+                        disabled={isMutatingWorkOrder}
+                      >
+                        <option value="">{t('ticket.review.unassigned')}</option>
+                        {workers
+                          .filter((worker) => worker.active)
+                          .map((worker) => (
+                            <option key={worker.workerId} value={`worker:${worker.workerId}`}>
+                              {t('ticket.review.workerOption', { name: worker.displayName })}
+                            </option>
+                          ))}
+                        {teams
+                          .filter((team) => team.active)
+                          .map((team) => (
+                            <option key={team.teamId} value={`team:${team.teamId}`}>
+                              {t('ticket.review.teamOption', { name: team.displayName })}
+                            </option>
+                          ))}
+                      </select>
+                      <div className="ticket-detail__control-buttons">
+                        <button
+                          type="button"
+                          className="ticket-detail__review-button"
+                          disabled={isMutatingWorkOrder}
+                          onClick={() => void handleCreateWorkOrder()}
+                        >
+                          {isMutatingWorkOrder
+                            ? t('ticket.workOrder.saving')
+                            : t('ticket.workOrder.create')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {workOrders.length > 1 && (
+                  <p className="ticket-detail__card-hint">
+                    {t('ticket.workOrder.countHint', { count: workOrders.length })}
+                  </p>
+                )}
+                {workOrderSuccess && (
+                  <p className="ticket-detail__status-message" role="status">
+                    {workOrderSuccess}
+                  </p>
+                )}
+                {workOrderError && (
+                  <p className="ticket-detail__status-error" role="alert">
+                    {workOrderError}
+                  </p>
+                )}
+              </div>
+
+              {resolutionFeedback?.status ? (
+                <div className="ticket-detail__card">
+                  <h4 className="ticket-detail__card-title">{t('ticket.feedback.title')}</h4>
+                  <p className="ticket-detail__current-value">
+                    {resolutionFeedback.status === 'CONFIRMED_FIXED'
+                      ? t('ticket.feedback.confirmedFixed')
+                      : t('ticket.feedback.stillUnresolved')}
+                  </p>
+                  {resolutionFeedback.note ? (
+                    <p className="ticket-detail__card-hint">
+                      {t('ticket.feedback.privateNote', { note: resolutionFeedback.note })}
+                    </p>
+                  ) : null}
+                  {resolutionFeedback.needsReview ? (
+                    <div className="ticket-detail__control-buttons">
+                      <button
+                        type="button"
+                        className="ticket-detail__review-button"
+                        disabled={isReviewingFeedback}
+                        onClick={() => void handleFeedbackReview('KEEP_RESOLVED')}
+                      >
+                        {t('ticket.feedback.keepResolved')}
+                      </button>
+                      <button
+                        type="button"
+                        className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                        disabled={isReviewingFeedback}
+                        onClick={() => void handleFeedbackReview('RETURN_IN_PROGRESS')}
+                      >
+                        {t('ticket.feedback.returnInProgress')}
+                      </button>
+                    </div>
+                  ) : resolutionFeedback.reviewAction ? (
+                    <p className="ticket-detail__card-hint">
+                      {t('ticket.feedback.reviewed', {
+                        action: resolutionFeedback.reviewAction.replaceAll('_', ' ').toLowerCase(),
+                      })}
+                    </p>
+                  ) : null}
+                  {feedbackError ? (
+                    <p className="ticket-detail__status-error" role="alert">
+                      {feedbackError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="ticket-detail__card">
+                <div className="ticket-detail__card-heading-row">
+                  <h4 className="ticket-detail__card-title">{t('ticket.review.categoryTitle')}</h4>
+                  <span className="ticket-detail__ai-chip">
+                    <span className="ticket-detail__ai-icon" aria-hidden="true">
+                      <IconSparkles />
+                    </span>
+                    {t('ticket.review.aiAssisted')}
+                  </span>
+                  {ticket.ai?.finalCategory && (
+                    <span className="ticket-detail__review-status">
+                      {t('ticket.review.reviewed')}
+                    </span>
+                  )}
+                </div>
+
+                {!ticket.ai && (
+                  <p className="ticket-detail__review-notice" role="status">
+                    {t('ticket.review.noAi')}
+                  </p>
+                )}
+
+                {ticket.ai?.aiProcessingStatus === 'pending' && (
+                  <p className="ticket-detail__review-notice" role="status">
+                    {t('ticket.review.aiPending')}
+                  </p>
+                )}
+
+                {ticket.ai?.aiProcessingStatus === 'processing' && (
+                  <p className="ticket-detail__review-notice" role="status">
+                    {t('ticket.review.aiProcessing')}
+                  </p>
+                )}
+
+                {ticket.ai?.aiProcessingStatus === 'failed' && !ticket.ai.aiSuggestedCategory && (
+                  <p
+                    className="ticket-detail__review-notice ticket-detail__review-notice--warning"
+                    role="status"
+                  >
+                    {t('ticket.review.aiFailed')}
+                  </p>
+                )}
+
+                {ticket.ai?.aiSuggestedCategory && (
+                  <div className="ticket-detail__suggestion">
+                    <span className="ticket-detail__suggestion-label">
+                      {t('ticket.review.aiSuggestion')}
+                    </span>
+                    <CategoryBadge category={ticket.ai.aiSuggestedCategory} />
+                    {ticket.ai.aiConfidence !== undefined && (
+                      <span className="ticket-detail__confidence">
+                        {t('ticket.review.confidence', {
+                          percent: Math.round(ticket.ai.aiConfidence * 100),
+                        })}
+                      </span>
+                    )}
+                    {ticket.ai.aiCategoryExplanation && (
+                      <p className="ticket-detail__rationale">{ticket.ai.aiCategoryExplanation}</p>
+                    )}
+                  </div>
+                )}
+
+                {ticket.ai?.finalCategory && (
+                  <div className="ticket-detail__review-result" role="status">
+                    <span>{t('ticket.review.finalCategory')}</span>
+                    <CategoryBadge category={ticket.ai.finalCategory} />
+                    {ticket.ai.categoryReviewedAt && (
+                      <small>
+                        {t('ticket.review.reviewed')}
+                        {ticket.ai.categoryReviewedBy
+                          ? t('ticket.review.reviewedBy', {
+                              name: ticket.ai.categoryReviewedBy,
+                            })
+                          : ''}{' '}
+                        {t('ticket.review.on')}{' '}
+                        <time dateTime={ticket.ai.categoryReviewedAt}>
+                          {formatCreatedDate(ticket.ai.categoryReviewedAt)}
+                        </time>
+                      </small>
+                    )}
+                  </div>
+                )}
+
+                <div className="ticket-detail__control-row">
+                  <label htmlFor="category-review-select">{t('ticket.review.finalCategory')}</label>
+                  <select
+                    id="category-review-select"
+                    className="ticket-detail__control-select"
+                    value={selectedCategory}
+                    onChange={(event) => {
+                      setSelectedCategory(event.target.value);
+                      setCategoryReviewError(null);
+                    }}
+                    disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+                  >
+                    <option value="">{t('ticket.review.selectCategory')}</option>
+                    {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>
+                        {formatCategory(category)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="ticket-detail__control-buttons">
+                    {ticket.ai?.aiSuggestedCategory && (
+                      <button
+                        type="button"
+                        className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                        onClick={() =>
+                          void handleCategoryReview(ticket.ai?.aiSuggestedCategory ?? '')
+                        }
+                        disabled={
+                          isSavingCategory ||
+                          ticket.ai.aiProcessingStatus === 'pending' ||
+                          ticket.ai.finalCategory === ticket.ai.aiSuggestedCategory
+                        }
+                      >
+                        {t('ticket.review.acceptAi')}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="ticket-detail__review-button"
+                      onClick={() => void handleCategoryReview(selectedCategory)}
+                      disabled={
+                        isSavingCategory ||
+                        ticket.ai?.aiProcessingStatus === 'pending' ||
+                        !selectedCategory
+                      }
+                    >
+                      {isSavingCategory
+                        ? t('ticket.review.savingCategory')
+                        : t('ticket.review.saveFinalCategory')}
+                    </button>
+                  </div>
+                </div>
+
+                {categoryReviewError && (
+                  <p className="ticket-detail__status-error" role="alert">
+                    {categoryReviewError}
+                  </p>
+                )}
+              </div>
+
+              {(ticket.ai?.urgencyScore !== undefined || ticket.ai?.urgencyReason) && (
+                <div className="ticket-detail__card ticket-detail__card--urgency">
+                  <div className="ticket-detail__card-heading-row">
+                    <h4 className="ticket-detail__card-title">{t('ticket.review.urgencyTitle')}</h4>
+                    <span className="ticket-detail__ai-chip">
+                      <span className="ticket-detail__ai-icon" aria-hidden="true">
+                        <IconSparkles />
+                      </span>
+                      {t('ticket.review.aiAssisted')}
+                    </span>
+                    {ticket.ai?.urgencyScore !== undefined && (
+                      <span className="ticket-detail__urgency-summary">
+                        {formatUrgencySummary(ticket.ai.urgencyScore)}
+                      </span>
+                    )}
+                  </div>
+
+                  {ticket.ai?.urgencyReason && (
+                    <details className="ticket-detail__disclosure">
+                      <summary>{t('ticket.review.whyScore')}</summary>
+                      <p className="ticket-detail__rationale">{ticket.ai.urgencyReason}</p>
+                    </details>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
@@ -2864,64 +2922,6 @@ export function TicketDetailPage({
                     {isMerging
                       ? t('ticket.duplicates.merging')
                       : t('ticket.duplicates.confirmMerge')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {pendingLeaveAction && (
-            <div className="ticket-detail__modal-backdrop">
-              <div
-                className="ticket-detail__modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="unsaved-changes-title"
-                aria-describedby="unsaved-changes-prompt"
-              >
-                <h4 id="unsaved-changes-title" className="ticket-detail__modal-title">
-                  {t('ticket.review.unsavedTitle')}
-                </h4>
-                <p id="unsaved-changes-prompt" className="ticket-detail__modal-text">
-                  {t('ticket.review.unsavedPrompt')}
-                </p>
-                <div className="ticket-detail__modal-actions">
-                  <button
-                    type="button"
-                    className="ticket-detail__ghost-button"
-                    onClick={() => {
-                      const action = pendingLeaveAction;
-                      discardPendingChanges();
-                      setPendingLeaveAction(null);
-                      action();
-                    }}
-                  >
-                    {t('ticket.review.discardChanges')}
-                  </button>
-                  <button
-                    type="button"
-                    className="ticket-detail__ghost-button"
-                    onClick={() => setPendingLeaveAction(null)}
-                  >
-                    {t('ticket.review.stay')}
-                  </button>
-                  <button
-                    type="button"
-                    className="ticket-detail__review-button"
-                    disabled={isSavingChanges}
-                    onClick={() => {
-                      const action = pendingLeaveAction;
-                      void handleSaveChanges().then((saved) => {
-                        if (saved) {
-                          setPendingLeaveAction(null);
-                          action();
-                        }
-                      });
-                    }}
-                  >
-                    {isSavingChanges
-                      ? t('ticket.review.savingChanges')
-                      : t('ticket.review.saveAndLeave')}
                   </button>
                 </div>
               </div>
