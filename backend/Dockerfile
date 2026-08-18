@@ -19,6 +19,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Keep Debian util-linux / libblkid current so container scans pick up HIGH fixes.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
         \( -name 'pip*' -o -name 'setuptools*' -o -name 'wheel*' \) \
         -exec rm -rf {} + \
