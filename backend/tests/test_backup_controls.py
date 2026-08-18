@@ -31,6 +31,9 @@ def test_backup_scope_covers_persistent_mvp_data():
         "workforce-workers",
         "workforce-teams",
         "rate-limit-buckets",
+        "ops-alert-acks",
+        "ops-error-groups",
+        "ops-audit",
     }.issubset(DEFAULT_TABLE_SUFFIXES)
 
 

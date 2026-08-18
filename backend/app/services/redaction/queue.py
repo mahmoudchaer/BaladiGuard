@@ -255,6 +255,31 @@ class ImageRedactionQueue:
         emit_metric("ImageRedactionJobsDeadLettered")
         return "dead_lettered"
 
+    def replay(self, job_id: str, *, now: int | None = None) -> bool:
+        timestamp = now if now is not None else int(time.time())
+        job = self.jobs.get(job_id)
+        if job is None or job.status != "dead_lettered":
+            return False
+        replayed = self.jobs.replay(job_id, now=timestamp)
+        if replayed is None:
+            return False
+        ticket = self.tickets.get(job.ticket_id)
+        if ticket is None:
+            emit_metric("ImageRedactionJobsQueued", dimensions={"source": "manual_replay"})
+            return True
+        if ticket.image_redaction_status != "completed":
+            self.tickets.save(
+                ticket.model_copy(
+                    update={
+                        "image_redaction_status": "pending",
+                        "image_redaction_claim_token": None,
+                        "updated_at": _iso(timestamp),
+                    }
+                )
+            )
+        emit_metric("ImageRedactionJobsQueued", dimensions={"source": "manual_replay"})
+        return True
+
 
 def _iso(timestamp: int) -> str:
     return datetime.fromtimestamp(timestamp, tz=UTC).isoformat().replace("+00:00", "Z")

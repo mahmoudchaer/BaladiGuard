@@ -30,9 +30,24 @@ def _iso_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _require_admin(actor: StaffPrincipal) -> None:
+def _guard_municipality_admin_scope(
+    actor: StaffPrincipal, *, target_role: str | None = None
+) -> None:
     if actor.role != "administrator":
         raise StaffAccountAdminError("Only administrators may manage staff accounts.")
+    if target_role == "developer_operator":
+        raise StaffAccountAdminError(
+            "Municipality administrators cannot create or assign developer-operator access."
+        )
+
+
+def _require_admin(actor: StaffPrincipal) -> None:
+    _guard_municipality_admin_scope(actor)
+
+
+def _reject_operator_target(user: StoredStaffUser) -> None:
+    if user.role == "developer_operator":
+        raise StaffAccountAdminError("Staff account not found.")
 
 
 def _snapshot(user: StoredStaffUser) -> dict:
@@ -72,7 +87,7 @@ class StaffAccountAdminService:
         department_ids: list[str] | None = None,
         staff_id: str | None = None,
     ) -> StoredStaffUser:
-        _require_admin(actor)
+        _guard_municipality_admin_scope(actor, target_role=role)
         stamped = _iso_now()
         try:
             user = StoredStaffUser(
@@ -123,6 +138,11 @@ class StaffAccountAdminService:
         user = store.get(staff_id)
         if user is None:
             raise StaffAccountAdminError("Staff account not found.")
+        _reject_operator_target(user)
+        if role == "developer_operator":
+            raise StaffAccountAdminError(
+                "Municipality administrators cannot create or assign developer-operator access."
+            )
 
         previous = _snapshot(user)
         stamped = _iso_now()
@@ -177,6 +197,7 @@ class StaffAccountAdminService:
         user = store.get(staff_id)
         if user is None:
             raise StaffAccountAdminError("Staff account not found.")
+        _reject_operator_target(user)
         if user.role == "administrator":
             raise StaffAccountAdminError(
                 "Administrator accounts use global scope; change role before assigning scope."
@@ -225,6 +246,7 @@ class StaffAccountAdminService:
         user = store.get(staff_id)
         if user is None:
             raise StaffAccountAdminError("Staff account not found.")
+        _reject_operator_target(user)
 
         previous = _snapshot(user)
         stamped = _iso_now()

@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
-from app.core.staff_auth import StaffDep
+from app.core.staff_auth import MunicipalStaffDep as StaffDep
 from app.schemas.work_order import (
     CancelWorkOrderRequest,
     CompleteWorkOrderRequest,

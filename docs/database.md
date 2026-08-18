@@ -240,9 +240,10 @@ department to be in their assigned scope. Administrators with `departmentIds = n
 across municipalities and departments. Identity/contact reads are least-privilege and audited. The
 citizen `users` table and phone-claim table are not used for staff login.
 
-Local/test bootstrap creates demo `admin` (administrator) and `staff` (municipal_staff) accounts
-when `SEED_DEMO_STAFF` is enabled; production should keep that flag false and provision real
-accounts separately.
+Local/test bootstrap creates demo `admin` (administrator), `staff` (municipal_staff), and
+`operator` (developer_operator) accounts when `SEED_DEMO_STAFF` is enabled; production should
+keep that flag false and provision real accounts separately. Municipality administrators cannot
+create or promote the developer-operator role.
 
 ## 5. TicketStatusHistory
 

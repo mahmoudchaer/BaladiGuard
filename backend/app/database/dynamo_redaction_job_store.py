@@ -123,6 +123,30 @@ class DynamoRedactionJobStore:
                 recovered.append(StoredRedactionJob.model_validate(item))
         return recovered
 
+    def replay(self, job_id: str, *, now: int) -> StoredRedactionJob | None:
+        try:
+            response = self._table.update_item(
+                Key={"jobId": job_id},
+                UpdateExpression=(
+                    "SET #status = :queued, attempts = :zero, availableAt = :now, "
+                    "updatedAt = :now REMOVE claimToken, claimExpiresAt, lastErrorCode"
+                ),
+                ConditionExpression="#status = :dead",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":queued": "queued",
+                    ":dead": "dead_lettered",
+                    ":zero": 0,
+                    ":now": now,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return StoredRedactionJob.model_validate(response["Attributes"])
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
     def list(self) -> list[StoredRedactionJob]:
         return [StoredRedactionJob.model_validate(i) for i in self._scan()]
 

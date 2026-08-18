@@ -6,6 +6,7 @@ import { TicketListPage } from '@/pages/TicketListPage';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
 import { MapViewPage } from '@/pages/MapViewPage';
 import { WorkforcePage } from '@/pages/WorkforcePage';
+import { OpsDashboardPage } from '@/pages/OpsDashboardPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -23,7 +24,7 @@ export function App() {
             <Route
               path="/"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['municipal_staff', 'administrator']}>
                   <TicketListPage />
                 </ProtectedRoute>
               }
@@ -31,7 +32,7 @@ export function App() {
             <Route
               path="/map"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['municipal_staff', 'administrator']}>
                   <MapViewPage />
                 </ProtectedRoute>
               }
@@ -39,7 +40,7 @@ export function App() {
             <Route
               path="/workforce"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['municipal_staff', 'administrator']}>
                   <WorkforcePage />
                 </ProtectedRoute>
               }
@@ -47,8 +48,16 @@ export function App() {
             <Route
               path="/tickets/:ticketId"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['municipal_staff', 'administrator']}>
                   <TicketDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ops"
+              element={
+                <ProtectedRoute allowedRoles={['developer_operator']}>
+                  <OpsDashboardPage />
                 </ProtectedRoute>
               }
             />

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
-from app.core.staff_auth import StaffDep
+from app.core.staff_auth import MunicipalStaffDep as StaffDep
 from app.schemas.resolution_feedback import (
     ResolutionReviewQueueResponse,
     ReviewResolutionFeedbackRequest,

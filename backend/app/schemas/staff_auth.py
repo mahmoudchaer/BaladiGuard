@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-StaffRole = Literal["municipal_staff", "administrator"]
+StaffRole = Literal["municipal_staff", "administrator", "developer_operator"]
 
 
 class StaffLoginRequest(BaseModel):

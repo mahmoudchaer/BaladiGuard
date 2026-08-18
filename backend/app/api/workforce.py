@@ -6,7 +6,8 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
-from app.core.staff_auth import AdminStaffDep, StaffDep
+from app.core.staff_auth import AdminStaffDep
+from app.core.staff_auth import MunicipalStaffDep as StaffDep
 from app.schemas.workforce import (
     TeamResponse,
     UpsertTeamRequest,
