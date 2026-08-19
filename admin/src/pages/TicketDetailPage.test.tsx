@@ -273,6 +273,7 @@ describe('TicketDetailPage summary header', () => {
   it('localizes ticket detail chrome and workspace tabs for Arabic and French', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Ticket Details' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
 
     await act(async () => {
