@@ -24,7 +24,7 @@ import type {
   TicketListPage,
   TicketMapViewport,
 } from '@/types/ticketCollection';
-import type { ImageRedactionReview } from '@/types/ticket';
+import type { ContentSafetyReview, ImageRedactionReview } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
 import { clearStoredStaffSession, getStaffAuthHeaders } from '@/services/auth';
@@ -1158,6 +1158,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     sla: normalizeTicketSla(data.sla),
     public: normalizeTicketPublicFields(data.public),
     imageRedaction: normalizeImageRedaction(data.imageRedaction),
+    contentSafety: normalizeContentSafety(data.contentSafety),
     activeWorkOrderId: typeof data.activeWorkOrderId === 'string' ? data.activeWorkOrderId : null,
     outcome: normalizeTicketOutcome(data.outcome),
   };
@@ -1211,6 +1212,50 @@ function normalizeImageRedaction(data: unknown): Ticket['imageRedaction'] {
     plateCount: typeof data.plateCount === 'number' ? data.plateCount : 0,
     completedAt: typeof data.completedAt === 'string' ? data.completedAt : null,
     reasonCode: typeof data.reasonCode === 'string' ? data.reasonCode : null,
+  };
+}
+
+const CONTENT_SAFETY_STATUSES = [
+  'pending',
+  'processing',
+  'passed',
+  'review_required',
+  'private_only',
+  'rejected',
+  'failed',
+  'superseded',
+] as const;
+
+function normalizeContentSafety(data: unknown): Ticket['contentSafety'] {
+  if (!isRecord(data)) return null;
+  const status = String(data.status);
+  if (!CONTENT_SAFETY_STATUSES.includes(status as (typeof CONTENT_SAFETY_STATUSES)[number])) {
+    return null;
+  }
+  const severity =
+    data.severity === 'none' ||
+    data.severity === 'low' ||
+    data.severity === 'medium' ||
+    data.severity === 'high'
+      ? data.severity
+      : null;
+  return {
+    status: status as NonNullable<Ticket['contentSafety']>['status'],
+    generation: typeof data.generation === 'number' ? data.generation : 1,
+    reasonCode: typeof data.reasonCode === 'string' ? data.reasonCode : null,
+    severity,
+    textModel: typeof data.textModel === 'string' ? data.textModel : null,
+    imageLabels: Array.isArray(data.imageLabels)
+      ? data.imageLabels.filter((item): item is string => typeof item === 'string')
+      : [],
+    authenticityScore: typeof data.authenticityScore === 'number' ? data.authenticityScore : null,
+    authenticityModel: typeof data.authenticityModel === 'string' ? data.authenticityModel : null,
+    authenticityModelVersion:
+      typeof data.authenticityModelVersion === 'string' ? data.authenticityModelVersion : null,
+    authenticitySignals: Array.isArray(data.authenticitySignals)
+      ? data.authenticitySignals.filter((item): item is string => typeof item === 'string')
+      : [],
+    completedAt: typeof data.completedAt === 'string' ? data.completedAt : null,
   };
 }
 
@@ -2253,4 +2298,116 @@ export async function applyManualImageRedaction(
     expectedCandidateRevision,
     regions,
   });
+}
+
+function normalizeContentSafetyReview(data: unknown): ContentSafetyReview | null {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    return null;
+  }
+  const safety = normalizeContentSafety(data);
+  if (!safety) {
+    return null;
+  }
+  return {
+    ticketId: data.ticketId,
+    generation: safety.generation,
+    status: safety.status,
+    reasonCode: safety.reasonCode,
+    severity: safety.severity,
+    textModel: safety.textModel,
+    imageLabels: safety.imageLabels,
+    authenticityScore: safety.authenticityScore,
+    authenticityModel: safety.authenticityModel,
+    authenticityModelVersion: safety.authenticityModelVersion,
+    authenticitySignals: safety.authenticitySignals,
+    completedAt: safety.completedAt,
+    originalImageUrl: typeof data.originalImageUrl === 'string' ? data.originalImageUrl : null,
+    publicImageReady: data.publicImageReady === true,
+    canApprove: data.canApprove === true,
+    canReject: data.canReject === true,
+    canMarkPrivate: data.canMarkPrivate === true,
+    canReprocess: data.canReprocess === true,
+  };
+}
+
+async function postContentSafetyDecision(
+  ticketId: string,
+  action: 'approve' | 'reject' | 'private-only' | 'reprocess',
+  body?: {
+    expectedGeneration: number;
+    reasonCode?: string;
+  },
+): Promise<ContentSafetyReview> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/content-safety/${action}`,
+    {
+      method: 'POST',
+      headers: {
+        ...getStaffAuthHeaders(),
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    },
+  );
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to update content safety.');
+  }
+  if (action === 'reprocess') {
+    const review = await fetchContentSafetyReview(ticketId);
+    if (!review) {
+      throw new Error('Unable to reload content safety review.');
+    }
+    return review;
+  }
+  const review = normalizeContentSafetyReview(await response.json());
+  if (!review) {
+    throw new Error('Content safety review response was invalid.');
+  }
+  return review;
+}
+
+export async function fetchContentSafetyReview(
+  ticketId: string,
+): Promise<ContentSafetyReview | null> {
+  if (config.useMockData) {
+    return null;
+  }
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/content-safety/review`,
+    { headers: getStaffAuthHeaders() },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load content safety review.');
+  }
+  return normalizeContentSafetyReview(await response.json());
+}
+
+export async function approveContentSafety(
+  ticketId: string,
+  expectedGeneration: number,
+): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'approve', { expectedGeneration });
+}
+
+export async function rejectContentSafety(
+  ticketId: string,
+  expectedGeneration: number,
+  reasonCode?: string,
+): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'reject', { expectedGeneration, reasonCode });
+}
+
+export async function markContentSafetyPrivate(
+  ticketId: string,
+  expectedGeneration: number,
+  reasonCode?: string,
+): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'private-only', { expectedGeneration, reasonCode });
+}
+
+export async function reprocessContentSafety(ticketId: string): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'reprocess');
 }

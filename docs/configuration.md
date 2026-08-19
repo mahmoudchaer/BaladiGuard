@@ -59,6 +59,17 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `ACTIVITY_TIMELINE_USE_GSI` | No | `false` | Enable only after timeline GSIs are ACTIVE and `backfill_activity_timeline_keys.py` has finished for status, audit, and comments. See `docs/staff-comments-and-activity.md`. |
 | `SEED_SAMPLE_TICKETS` | No | `false` | Must be `false` in production |
 | `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | AI classification / cleaning |
+| `CONTENT_SAFETY_ENABLED` | No | `true` | Enroll new tickets in content-safety screening (#319) |
+| `CONTENT_SAFETY_FAIL_CLOSED` | No | `true` except local/test/development | Provider outage → `review_required`, never public `passed` |
+| `CONTENT_SAFETY_TEXT_MODEL_ID` | No | `BEDROCK_MODEL_ID` | Bedrock structured moderation model |
+| `CONTENT_SAFETY_IMAGE_REJECT_CONFIDENCE` | No | `80` | Rekognition high-severity cutoff (50–100) |
+| `CONTENT_SAFETY_IMAGE_REVIEW_CONFIDENCE` | No | `50` | Rekognition review cutoff (0–100) |
+| `CONTENT_SAFETY_AUTHENTICITY_REVIEW_SCORE` | No | `0.85` | ONNX score that may add a review signal; never auto-rejects alone |
+| `AUTHENTICITY_DETECTION_MODEL` | No | empty | Optional local DeepfakeDet ONNX path |
+| `CONTENT_SAFETY_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
+| `CONTENT_SAFETY_JOB_TIMEOUT_SECONDS` | No | `300` | Claim timeout before stale recovery |
+| `CONTENT_SAFETY_JOB_BACKOFF_BASE_SECONDS` | No | `5` | First retry delay |
+| `CONTENT_SAFETY_JOB_BACKOFF_MAX_SECONDS` | No | `300` | Upper bound for retry delay |
 | `LOCATION_PLACE_INDEX_NAME` | Production | empty → local index | Geocoding |
 | `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` | No | `300` | Integer ≥ 1 |
 | `AI_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |

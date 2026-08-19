@@ -1,0 +1,44 @@
+[
+  {
+    "id": "en-civic-crash",
+    "language": "en",
+    "description": "Car crash on Corniche with injured people, firefighters on scene, road blocked.",
+    "expect": "passed_or_private_only"
+  },
+  {
+    "id": "ar-civic-fire",
+    "language": "ar",
+    "description": "حريق كبير في مستوعب نفايات قرب المدرسة والدخان كثيف على الطريق.",
+    "expect": "passed_or_private_only"
+  },
+  {
+    "id": "fr-civic-flood",
+    "language": "fr",
+    "description": "Inondation rue Gouraud, voitures coincées, besoin d'intervention municipale urgente.",
+    "expect": "passed_or_private_only"
+  },
+  {
+    "id": "arabizi-pothole",
+    "language": "arabizi",
+    "description": "fi 7ofra kbire 3al taree2 el masnaa 7ada el school, sayyarat 3am tet3attal.",
+    "expect": "passed"
+  },
+  {
+    "id": "en-sexual",
+    "language": "en",
+    "description": "Explicit sexual content unrelated to any municipal service request.",
+    "expect": "rejected_or_review"
+  },
+  {
+    "id": "en-scam",
+    "language": "en",
+    "description": "Click https://pay-now.example https://wallet-now.example https://claim-prize.example to get your municipal refund.",
+    "expect": "rejected"
+  },
+  {
+    "id": "en-garbage-repeat",
+    "language": "en",
+    "description": "aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa aaaaaaa",
+    "expect": "rejected"
+  }
+]

@@ -199,6 +199,32 @@
     "height": "Hauteur",
     "applyManual": "Appliquer le flou manuel"
   },
+  "contentSafety": {
+    "loading": "Chargement de la revue de sûreté du contenu…",
+    "loadError": "Impossible de charger la revue de sûreté du contenu.",
+    "actionError": "Impossible de mettre à jour la revue de sûreté du contenu.",
+    "reason": "Motif : {code}",
+    "original": "Original (personnel uniquement)",
+    "originalAlt": "Photo originale privée du signalement pour la revue de sûreté",
+    "approve": "Autoriser l’éligibilité publique",
+    "privateOnly": "Garder en privé uniquement",
+    "reject": "Rejeter comme non sûr",
+    "reprocess": "Retraiter automatiquement",
+    "authenticityUnavailable": "Signal d’authenticité indisponible — non utilisé pour rejeter ce signalement.",
+    "authenticityScore": "Score de risque d’authenticité {score} (signal de risque uniquement ; jamais de rejet automatique).",
+    "signals": "Signaux d’authenticité : {codes}",
+    "imageLabels": "Libellés d’image : {codes}",
+    "status": {
+      "pending": "En attente du filtrage de contenu",
+      "processing": "Filtrage de contenu en cours",
+      "passed": "Filtrage d’éligibilité publique réussi",
+      "review_required": "Revue du personnel requise",
+      "private_only": "Privé uniquement — le personnel peut continuer",
+      "rejected": "Rejeté comme non sûr",
+      "failed": "Échec du filtrage — l’original reste privé",
+      "superseded": "Remplacé par un filtrage plus récent"
+    }
+  },
   "workforce": {
     "unassigned": "Non assigné",
     "saveWorker": "Enregistrer l’agent",
@@ -378,6 +404,8 @@
       "aiWarning": "Les champs assistés par l’IA sont un aide à la décision uniquement. Le personnel doit les vérifier avant d’agir.",
       "privacyTitle": "Revue de confidentialité de l’image",
       "privacyHint": "Les originaux restent privés. Approuvez un candidat masqué avant qu’il puisse apparaître publiquement.",
+      "contentSafetyTitle": "Revue de sûreté du contenu",
+      "contentSafetyHint": "Les textes ou images non sûrs restent hors du fil public. La revue du personnel est l’exception, pas la règle.",
       "municipalTitle": "Actions municipales",
       "municipalHint": "Le statut et le service ne changent jamais tant que vous n’enregistrez pas le changement.",
       "statusEyebrow": "Statut",

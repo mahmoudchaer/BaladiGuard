@@ -480,3 +480,4 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `counters` | `counterId` | Ticket number sequence counter |
 | `rate-limit-buckets` | `bucketKey` | Shared fixed-window rate-limit counters (issue #186); TTL on `expiresAt` |
 | `ticket-submission-claims` | `idempotencyKey` | Citizen ticket submit ledger (#258); TTL on `ttl` (~14d completed; shorter for abandoned claims). Covered by backup PITR suffix list. |
+| `content-safety-jobs` | `jobId` | Durable content-safety screening queue (#319). Isolated from classification and redaction. |

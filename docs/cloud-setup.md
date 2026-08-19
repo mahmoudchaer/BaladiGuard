@@ -120,6 +120,7 @@ Expected tables (prefix `baladiguard-` by default):
 - `tickets`, `users`, `municipalities`, `departments`, `workforce-workers`, `workforce-teams`
 - `ticket-status-history`, `ai-outputs`, `duplicate-groups`
 - `categories`, `counters`
+- `content-safety-jobs` (issue #319 screening queue; created by the same migrate)
 
 Seed loads municipalities, departments, and categories. Sample tickets stay off unless
 `SEED_SAMPLE_TICKETS=true`.

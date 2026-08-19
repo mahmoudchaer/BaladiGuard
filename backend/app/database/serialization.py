@@ -20,6 +20,22 @@ PUBLIC_INDEX_FIELDS = frozenset(
         "public_published_at",
     }
 )
+# Enrollment is the presence of contentSafetyStatus. Model defaults must not
+# write these attributes for kill-switch or pre-#319 tickets.
+CONTENT_SAFETY_ITEM_KEYS = (
+    "contentSafetyStatus",
+    "contentSafetyGeneration",
+    "contentSafetyClaimToken",
+    "contentSafetyReasonCode",
+    "contentSafetySeverity",
+    "contentSafetyTextModel",
+    "contentSafetyImageLabels",
+    "authenticityScore",
+    "authenticityModel",
+    "authenticityModelVersion",
+    "authenticitySignals",
+    "contentSafetyCompletedAt",
+)
 
 
 def build_owner_history_sort_key(ticket: StoredTicket) -> str:
@@ -76,6 +92,9 @@ def prepare_dynamodb_value(value: Any) -> Any:
 
 def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
     item = ticket.model_dump(by_alias=True, mode="json")
+    if not ticket.content_safety_enrolled:
+        for key in CONTENT_SAFETY_ITEM_KEYS:
+            item.pop(key, None)
     if ticket.owner_user_id:
         item[OWNER_HISTORY_SORT_KEY] = build_owner_history_sort_key(ticket)
     if is_public_ticket_publishable(ticket):
@@ -89,4 +108,9 @@ def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
 
 def item_to_ticket(item: dict[str, Any]) -> StoredTicket:
     ticket = StoredTicket.model_validate(convert_decimals(item))
-    return ticket.model_copy(update={"image_redaction_enrolled": "imageRedactionStatus" in item})
+    return ticket.model_copy(
+        update={
+            "image_redaction_enrolled": "imageRedactionStatus" in item,
+            "content_safety_enrolled": "contentSafetyStatus" in item,
+        }
+    )

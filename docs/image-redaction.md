@@ -21,8 +21,10 @@ public clients.
 7. The derivative is encrypted and written beneath the server-generated key
    `reports/redacted/v1/<ticket-scope>/g<generation>/<uuid>.jpg`.
 8. Only a successfully completed derivative becomes
-   `publicImageObjectKey`. Public list and detail responses validate that key
-   and return its short-lived URL. They never fall back to `imageObjectKey`.
+   `publicImageObjectKey`, and only when content-safety screening has
+   `passed` (or the ticket predates screening). Public list and detail
+   responses validate that key and return its short-lived URL. They never
+   fall back to `imageObjectKey`. See `docs/content-safety.md`.
 
 The report's publication state remains a staff decision. Redaction makes an
 image eligible for an already published or later-published report; it does not

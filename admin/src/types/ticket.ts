@@ -80,6 +80,10 @@ export type TicketAuditActionType =
   | 'IMAGE_REDACTION_REJECT'
   | 'IMAGE_REDACTION_REPROCESS'
   | 'IMAGE_REDACTION_MANUAL_BLUR'
+  | 'CONTENT_SAFETY_APPROVE'
+  | 'CONTENT_SAFETY_REJECT'
+  | 'CONTENT_SAFETY_PRIVATE_ONLY'
+  | 'CONTENT_SAFETY_REPROCESS'
   | 'WORKFORCE_ASSIGN'
   | 'WORK_ORDER_CREATE'
   | 'WORK_ORDER_ASSIGN'
@@ -259,6 +263,53 @@ export type TicketImageRedaction = {
   reasonCode?: string | null;
 };
 
+export type ContentSafetyStatus =
+  | 'pending'
+  | 'processing'
+  | 'passed'
+  | 'review_required'
+  | 'private_only'
+  | 'rejected'
+  | 'failed'
+  | 'superseded';
+
+export type ContentSafetySeverity = 'none' | 'low' | 'medium' | 'high';
+
+export type TicketContentSafety = {
+  status: ContentSafetyStatus;
+  generation: number;
+  reasonCode?: string | null;
+  severity?: ContentSafetySeverity | null;
+  textModel?: string | null;
+  imageLabels: string[];
+  authenticityScore?: number | null;
+  authenticityModel?: string | null;
+  authenticityModelVersion?: string | null;
+  authenticitySignals: string[];
+  completedAt?: string | null;
+};
+
+export type ContentSafetyReview = {
+  ticketId: string;
+  generation: number;
+  status: ContentSafetyStatus;
+  reasonCode?: string | null;
+  severity?: ContentSafetySeverity | null;
+  textModel?: string | null;
+  imageLabels: string[];
+  authenticityScore?: number | null;
+  authenticityModel?: string | null;
+  authenticityModelVersion?: string | null;
+  authenticitySignals: string[];
+  completedAt?: string | null;
+  originalImageUrl?: string | null;
+  publicImageReady: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+  canMarkPrivate: boolean;
+  canReprocess: boolean;
+};
+
 export type TicketSla = {
   state: 'on_track' | 'due_soon' | 'overdue' | 'completed' | 'unavailable';
   acknowledgementDueAt?: string | null;
@@ -301,6 +352,7 @@ export type Ticket = {
   sla?: TicketSla | null;
   public?: TicketPublicFields;
   imageRedaction?: TicketImageRedaction;
+  contentSafety?: TicketContentSafety | null;
   activeWorkOrderId?: string | null;
   outcome?: TicketOutcome | null;
 };

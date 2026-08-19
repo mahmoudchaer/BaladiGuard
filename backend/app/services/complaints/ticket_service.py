@@ -23,6 +23,10 @@ from app.database.store_factory import (
 from app.database.ticket_store import TicketStore
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.content_safety import (
+    ContentSafetyDecisionRequest,
+    ContentSafetyReviewResponse,
+)
 from app.schemas.image_redaction import (
     ImageRedactionDecisionRequest,
     ImageRedactionReviewResponse,
@@ -384,6 +388,14 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
+        if get_settings().content_safety_enabled:
+            stored_ticket = stored_ticket.model_copy(
+                update={
+                    "content_safety_enrolled": True,
+                    "content_safety_status": "pending",
+                    "content_safety_generation": 1,
+                }
+            )
         response = SubmitTicketResponse(
             ticketId=ticket_id,
             ticketNumber=ticket_number,
@@ -1639,6 +1651,8 @@ class TicketService:
                 "REDACTION_NOT_READY",
                 "No redacted candidate is available to approve.",
             )
+        from app.services.content_safety.policy import content_safety_allows_public_image
+
         self._require_matching_review_snapshot(ticket, payload)
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -1647,7 +1661,7 @@ class TicketService:
             self._apply_authorized_review(
                 ticket,
                 payload,
-                copy_candidate_to_public=True,
+                copy_candidate_to_public=content_safety_allows_public_image(ticket),
                 fields={
                     "image_redaction_status": "completed",
                     "image_redaction_reason_code": None,
@@ -1788,6 +1802,228 @@ class TicketService:
             created_at=updated_at,
         )
         return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
+
+    def request_content_safety_reprocessing(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> int:
+        from app.services.content_safety.review import ContentSafetyReviewError
+
+        ticket = self._store.get(ticket_id)
+        if ticket is None or (
+            staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket)
+        ):
+            raise TicketNotFoundError(ticket_id)
+        if not ticket.content_safety_enrolled:
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "This ticket is not enrolled in content-safety screening.",
+            )
+        if ticket.content_safety_status in {"pending", "processing"}:
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "Content safety is already queued or running.",
+            )
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated = self._committed_safety_ticket(
+            ticket_id,
+            self._store.start_content_safety_reprocessing(
+                ticket_id,
+                updated_at,
+                expected_municipality_id=ticket.municipality_id,
+                expected_department_id=ticket.department_id,
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="CONTENT_SAFETY_REPROCESS",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary="Requested automatic content-safety reprocessing.",
+            previous_value=ticket.content_safety_status,
+            new_value=updated.content_safety_status,
+            created_at=updated_at,
+        )
+        return updated.content_safety_generation
+
+    def get_content_safety_review(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        from app.services.complaints.ticket_read_mapper import build_image_url
+        from app.services.content_safety.policy import content_safety_allows_public_image
+
+        status = ticket.content_safety_status if ticket.content_safety_enrolled else "pending"
+        reviewable = ticket.content_safety_enrolled and status == "review_required"
+        return ContentSafetyReviewResponse(
+            ticketId=ticket.ticket_id,
+            generation=ticket.content_safety_generation,
+            status=status,
+            reasonCode=ticket.content_safety_reason_code,
+            severity=ticket.content_safety_severity,
+            textModel=ticket.content_safety_text_model,
+            imageLabels=list(ticket.content_safety_image_labels),
+            authenticityScore=ticket.authenticity_score,
+            authenticityModel=ticket.authenticity_model,
+            authenticityModelVersion=ticket.authenticity_model_version,
+            authenticitySignals=list(ticket.authenticity_signals),
+            completedAt=ticket.content_safety_completed_at,
+            originalImageUrl=build_image_url(ticket.image_object_key),
+            publicImageReady=bool(
+                ticket.public_image_object_key and content_safety_allows_public_image(ticket)
+            ),
+            canApprove=reviewable,
+            canReject=reviewable,
+            canMarkPrivate=reviewable,
+            canReprocess=ticket.content_safety_enrolled and status not in {"pending", "processing"},
+        )
+
+    def approve_content_safety(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        return self._decide_content_safety(
+            ticket_id,
+            payload,
+            staff_principal=staff_principal,
+            status="passed",
+            reason_code="STAFF_APPROVED",
+            action_type="CONTENT_SAFETY_APPROVE",
+            summary="Approved ticket content for public eligibility.",
+            copy_candidate_to_public=True,
+        )
+
+    def reject_content_safety(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        return self._decide_content_safety(
+            ticket_id,
+            payload,
+            staff_principal=staff_principal,
+            status="rejected",
+            reason_code=payload.reason_code or "STAFF_REJECTED",
+            action_type="CONTENT_SAFETY_REJECT",
+            summary="Rejected ticket content as unsafe to publish.",
+        )
+
+    def mark_content_safety_private(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        return self._decide_content_safety(
+            ticket_id,
+            payload,
+            staff_principal=staff_principal,
+            status="private_only",
+            reason_code=payload.reason_code or "STAFF_PRIVATE_ONLY",
+            action_type="CONTENT_SAFETY_PRIVATE_ONLY",
+            summary="Kept ticket evidence private-only after content-safety review.",
+        )
+
+    def _decide_content_safety(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+        status: str,
+        reason_code: str,
+        action_type: AuditActionType,
+        summary: str,
+        copy_candidate_to_public: bool = False,
+    ) -> ContentSafetyReviewResponse:
+        from app.services.content_safety.policy import should_promote_public_image
+        from app.services.content_safety.review import (
+            ContentSafetyReviewConflictError,
+            ContentSafetyReviewError,
+        )
+
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        if not ticket.content_safety_enrolled:
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "This ticket is not enrolled in content-safety screening.",
+            )
+        if ticket.content_safety_status in {"passed", "rejected", "private_only"}:
+            raise ContentSafetyReviewConflictError()
+        if ticket.content_safety_status != "review_required":
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "Only a review-required ticket can receive a staff content-safety decision.",
+            )
+        if payload.expected_generation != ticket.content_safety_generation:
+            raise ContentSafetyReviewConflictError()
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        fields: dict[str, Any] = {
+            "content_safety_status": status,
+            "content_safety_reason_code": reason_code[:64],
+            "content_safety_completed_at": updated_at,
+            "updated_at": updated_at,
+            "updated_by": actor_id,
+        }
+        promote = copy_candidate_to_public and should_promote_public_image(ticket, status)  # type: ignore[arg-type]
+        if status != "passed":
+            fields["public_image_object_key"] = None
+        self._committed_safety_ticket(
+            ticket_id,
+            self._store.apply_content_safety_review(
+                ticket.ticket_id,
+                expected_generation=payload.expected_generation,
+                expected_status="review_required",
+                expected_municipality_id=ticket.municipality_id,
+                expected_department_id=ticket.department_id,
+                copy_candidate_to_public=promote,
+                fields=fields,
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type=action_type,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=summary,
+            previous_value="review_required",
+            new_value=status,
+            created_at=updated_at,
+        )
+        return self.get_content_safety_review(ticket_id, staff_principal=staff_principal)
+
+    def _committed_safety_ticket(
+        self,
+        ticket_id: str,
+        updated: StoredTicket | None,
+        *,
+        staff_principal: StaffPrincipal | None,
+    ) -> StoredTicket:
+        from app.services.content_safety.review import ContentSafetyReviewConflictError
+
+        if updated is not None:
+            return updated
+        if staff_principal is None:
+            raise TicketNotFoundError(ticket_id)
+        current = self._store.get(ticket_id)
+        if current is None or not staff_can_access_ticket(staff_principal, current):
+            raise TicketNotFoundError(ticket_id)
+        raise ContentSafetyReviewConflictError()
 
     def _require_accessible_ticket(
         self, ticket_id: str, staff_principal: StaffPrincipal

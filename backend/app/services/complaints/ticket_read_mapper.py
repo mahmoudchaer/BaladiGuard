@@ -7,6 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.database.store_factory import get_citizen_store
 from app.schemas.citizen import StoredCitizenUser
+from app.schemas.content_safety import TicketContentSafety
 from app.schemas.image_redaction import TicketImageRedaction
 from app.schemas.staff_ticket_collection import (
     TicketListDepartment,
@@ -315,9 +316,15 @@ def map_ticket_to_public_response(
 
 
 def _approved_redacted_key(ticket: StoredTicket) -> str:
+    from app.services.content_safety.policy import content_safety_allows_public_image
+
     key = (ticket.public_image_object_key or "").strip()
     expected = f"reports/redacted/v1/{PhotoUploadService.ticket_scope(ticket.ticket_id)}/"
-    return key if key.startswith(expected) and key != ticket.image_object_key else ""
+    if not key.startswith(expected) or key == ticket.image_object_key:
+        return ""
+    if not content_safety_allows_public_image(ticket):
+        return ""
+    return key
 
 
 def _citizen_visible_category(ticket: StoredTicket) -> str | None:
@@ -407,6 +414,23 @@ def map_ticket_to_response(
             plateCount=ticket.image_redaction_plate_count,
             completedAt=ticket.image_redaction_completed_at,
             reasonCode=ticket.image_redaction_reason_code,
+        ),
+        contentSafety=(
+            TicketContentSafety(
+                status=ticket.content_safety_status,
+                generation=ticket.content_safety_generation,
+                reasonCode=ticket.content_safety_reason_code,
+                severity=ticket.content_safety_severity,
+                textModel=ticket.content_safety_text_model,
+                imageLabels=list(ticket.content_safety_image_labels),
+                authenticityScore=ticket.authenticity_score,
+                authenticityModel=ticket.authenticity_model,
+                authenticityModelVersion=ticket.authenticity_model_version,
+                authenticitySignals=list(ticket.authenticity_signals),
+                completedAt=ticket.content_safety_completed_at,
+            )
+            if ticket.content_safety_enrolled
+            else None
         ),
         statusHistory=[
             TicketStatusHistoryEntry(

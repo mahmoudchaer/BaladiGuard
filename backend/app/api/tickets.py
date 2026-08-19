@@ -9,6 +9,11 @@ from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import StaffDep
 from app.database.store_factory import get_citizen_store
+from app.schemas.content_safety import (
+    ContentSafetyDecisionRequest,
+    ContentSafetyReviewResponse,
+    ReprocessContentSafetyResponse,
+)
 from app.schemas.image_redaction import (
     ImageRedactionDecisionRequest,
     ImageRedactionReviewResponse,
@@ -66,6 +71,11 @@ from app.services.complaints.ticket_service import (
     TicketNotFoundError,
     TicketSubmissionInProgressError,
     ticket_service,
+)
+from app.services.content_safety.queue import content_safety_queue
+from app.services.content_safety.review import (
+    ContentSafetyReviewConflictError,
+    ContentSafetyReviewError,
 )
 from app.services.redaction.queue import image_redaction_queue
 from app.services.redaction.review import (
@@ -247,6 +257,14 @@ def submit_ticket(
             response.ticket_id,
             type(exc).__name__,
         )
+    try:
+        content_safety_queue.enqueue(response.ticket_id)
+    except Exception as exc:
+        logger.warning(
+            "Content safety queue write deferred ticket_id=%s error=%s",
+            response.ticket_id,
+            type(exc).__name__,
+        )
     return response
 
 
@@ -283,6 +301,134 @@ def _redaction_review_error(request: Request, exc: ImageRedactionReviewError) ->
         request_id=get_request_id(request),
         status_code=status,
     )
+
+
+def _content_safety_review_error(request: Request, exc: ContentSafetyReviewError) -> JSONResponse:
+    status = 409 if isinstance(exc, ContentSafetyReviewConflictError) else 400
+    return build_error_response(
+        code=exc.code,
+        message=str(exc),
+        request_id=get_request_id(request),
+        status_code=status,
+    )
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/reprocess",
+    response_model=ReprocessContentSafetyResponse,
+    status_code=202,
+)
+def reprocess_ticket_content_safety(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ReprocessContentSafetyResponse | JSONResponse:
+    try:
+        generation = ticket_service.request_content_safety_reprocessing(
+            ticket_id, staff_principal=principal
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+    content_safety_queue.enqueue(ticket_id, generation)
+    return ReprocessContentSafetyResponse(ticketId=ticket_id, generation=generation)
+
+
+@router.get(
+    "/tickets/{ticket_id}/content-safety/review",
+    response_model=ContentSafetyReviewResponse,
+)
+def get_content_safety_review(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.get_content_safety_review(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/approve",
+    response_model=ContentSafetyReviewResponse,
+)
+def approve_content_safety(
+    ticket_id: str,
+    payload: ContentSafetyDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.approve_content_safety(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/reject",
+    response_model=ContentSafetyReviewResponse,
+)
+def reject_content_safety(
+    ticket_id: str,
+    payload: ContentSafetyDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.reject_content_safety(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/private-only",
+    response_model=ContentSafetyReviewResponse,
+)
+def mark_content_safety_private(
+    ticket_id: str,
+    payload: ContentSafetyDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.mark_content_safety_private(
+            ticket_id, payload, staff_principal=principal
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
 
 
 @router.get(

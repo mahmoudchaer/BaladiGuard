@@ -108,6 +108,56 @@ class Settings:
         self.image_redaction_job_backoff_max_seconds = self._int_setting(
             "IMAGE_REDACTION_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
         )
+        self.content_safety_enabled = (
+            os.getenv("CONTENT_SAFETY_ENABLED", "true").strip().lower() == "true"
+        )
+        fail_closed_raw = os.getenv("CONTENT_SAFETY_FAIL_CLOSED", "").strip().lower()
+        if fail_closed_raw in {"true", "false"}:
+            self.content_safety_fail_closed = fail_closed_raw == "true"
+        else:
+            self.content_safety_fail_closed = self.app_env not in {
+                "local",
+                "test",
+                "development",
+            }
+        self.content_safety_text_model_id = (
+            os.getenv("CONTENT_SAFETY_TEXT_MODEL_ID", "").strip()
+            or os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0").strip()
+            or "amazon.nova-lite-v1:0"
+        )
+        self.content_safety_image_reject_confidence = self._float_setting(
+            "CONTENT_SAFETY_IMAGE_REJECT_CONFIDENCE",
+            default=80.0,
+            minimum=50.0,
+            maximum=100.0,
+        )
+        self.content_safety_image_review_confidence = self._float_setting(
+            "CONTENT_SAFETY_IMAGE_REVIEW_CONFIDENCE",
+            default=50.0,
+            minimum=0.0,
+            maximum=100.0,
+        )
+        self.content_safety_authenticity_review_score = self._float_setting(
+            "CONTENT_SAFETY_AUTHENTICITY_REVIEW_SCORE",
+            default=0.85,
+            minimum=0.5,
+            maximum=1.0,
+        )
+        self.authenticity_detection_model = (
+            os.getenv("AUTHENTICITY_DETECTION_MODEL", "").strip() or None
+        )
+        self.content_safety_job_max_attempts = self._int_setting(
+            "CONTENT_SAFETY_JOB_MAX_ATTEMPTS", default=5, minimum=1
+        )
+        self.content_safety_job_timeout_seconds = self._int_setting(
+            "CONTENT_SAFETY_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.content_safety_job_backoff_base_seconds = self._int_setting(
+            "CONTENT_SAFETY_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.content_safety_job_backoff_max_seconds = self._int_setting(
+            "CONTENT_SAFETY_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",

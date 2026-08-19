@@ -1,4 +1,5 @@
 from app.config import Settings, get_settings
+from app.database import content_safety_job_store as content_safety_job_store_module
 from app.database import redaction_job_store as redaction_job_store_module
 from app.database.account_audit_store import AccountAuditStore
 from app.database.ai_job_store import AiJobStore
@@ -12,6 +13,7 @@ from app.database.memory_audit_history import audit_history_store
 from app.database.memory_citizen import citizen_store
 from app.database.memory_citizen_otp import citizen_otp_store
 from app.database.memory_citizen_session import citizen_session_store
+from app.database.memory_content_safety_job import content_safety_job_store
 from app.database.memory_duplicate_group import duplicate_group_store
 from app.database.memory_notification_delivery import notification_delivery_store
 from app.database.memory_redaction_job import redaction_job_store
@@ -194,6 +196,21 @@ def get_ai_job_store() -> AiJobStore:
 
 def get_redaction_job_store() -> redaction_job_store_module.RedactionJobStore:
     return build_redaction_job_store(get_settings())
+
+
+def build_content_safety_job_store(
+    settings: Settings | None = None,
+) -> content_safety_job_store_module.ContentSafetyJobStore:
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_content_safety_job_store import DynamoContentSafetyJobStore
+
+        return DynamoContentSafetyJobStore(settings)
+    return content_safety_job_store
+
+
+def get_content_safety_job_store() -> content_safety_job_store_module.ContentSafetyJobStore:
+    return build_content_safety_job_store(get_settings())
 
 
 def get_status_history_store() -> StatusHistoryStore:

@@ -199,6 +199,32 @@
     "height": "Height",
     "applyManual": "Apply manual blur"
   },
+  "contentSafety": {
+    "loading": "Loading content safety review…",
+    "loadError": "Unable to load content safety review.",
+    "actionError": "Unable to update content safety review.",
+    "reason": "Reason: {code}",
+    "original": "Original (staff only)",
+    "originalAlt": "Original private report photo for content safety review",
+    "approve": "Allow public eligibility",
+    "privateOnly": "Keep private only",
+    "reject": "Reject as unsafe",
+    "reprocess": "Reprocess automatically",
+    "authenticityUnavailable": "Authenticity signal unavailable — not used to reject this report.",
+    "authenticityScore": "Authenticity risk score {score} (risk signal only; never auto-rejects).",
+    "signals": "Authenticity signals: {codes}",
+    "imageLabels": "Image labels: {codes}",
+    "status": {
+      "pending": "Waiting for content screening",
+      "processing": "Content screening in progress",
+      "passed": "Passed public-eligibility screening",
+      "review_required": "Staff review required",
+      "private_only": "Private only — staff can still work",
+      "rejected": "Rejected as unsafe",
+      "failed": "Screening failed — original remains private",
+      "superseded": "Superseded by a newer screening"
+    }
+  },
   "workforce": {
     "unassigned": "Unassigned",
     "saveWorker": "Save worker",
@@ -378,6 +404,8 @@
       "aiWarning": "AI-assisted fields are decision support only. Staff must verify them before acting.",
       "privacyTitle": "Image privacy review",
       "privacyHint": "Originals stay private. Approve a redacted candidate before it can appear publicly.",
+      "contentSafetyTitle": "Content safety review",
+      "contentSafetyHint": "Unsafe text or images stay off the public feed. Staff review is the exception, not the default.",
       "municipalTitle": "Municipal actions",
       "municipalHint": "Status and department never change until you save the change.",
       "statusEyebrow": "Status",

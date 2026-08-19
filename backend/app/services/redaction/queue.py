@@ -176,10 +176,13 @@ class ImageRedactionQueue:
                 ],
                 "updated_at": completed_at,
             }
-            # Only an automatically approved derivative becomes public. During
-            # reprocessing, the previous approved derivative remains atomic/current.
+            # Only an automatically approved derivative becomes public, and only
+            # after content safety has passed (or the ticket predates screening).
             if result.status == "completed":
-                fields["public_image_object_key"] = result.derivative_key
+                from app.services.content_safety.policy import content_safety_allows_public_image
+
+                if content_safety_allows_public_image(claimed):
+                    fields["public_image_object_key"] = result.derivative_key
             updated = self.tickets.finalize_image_redaction(
                 job.ticket_id, job.generation, token, fields
             )

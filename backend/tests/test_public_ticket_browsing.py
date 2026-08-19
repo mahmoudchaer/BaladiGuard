@@ -504,7 +504,10 @@ def test_public_ticket_photo_requires_staff_approved_public_image_key(
     )
     patched = ticket_store.patch_fields(
         created["ticketId"],
-        {"public_image_object_key": approved_key},
+        {
+            "public_image_object_key": approved_key,
+            "content_safety_status": "passed",
+        },
     )
     assert patched is not None
 

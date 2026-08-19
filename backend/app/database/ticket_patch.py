@@ -36,6 +36,18 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "image_redaction_candidate_object_key": "imageRedactionCandidateObjectKey",
     "image_redaction_candidate_revision": "imageRedactionCandidateRevision",
     "image_redaction_regions": "imageRedactionRegions",
+    "content_safety_status": "contentSafetyStatus",
+    "content_safety_generation": "contentSafetyGeneration",
+    "content_safety_claim_token": "contentSafetyClaimToken",
+    "content_safety_reason_code": "contentSafetyReasonCode",
+    "content_safety_severity": "contentSafetySeverity",
+    "content_safety_text_model": "contentSafetyTextModel",
+    "content_safety_image_labels": "contentSafetyImageLabels",
+    "authenticity_score": "authenticityScore",
+    "authenticity_model": "authenticityModel",
+    "authenticity_model_version": "authenticityModelVersion",
+    "authenticity_signals": "authenticitySignals",
+    "content_safety_completed_at": "contentSafetyCompletedAt",
     "duplicate_group_id": "duplicateGroupId",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",
@@ -165,6 +177,43 @@ def append_redaction_review_condition(
             "#rs = :expectedStatus",
             "#rg = :generation",
             revision_clause,
+            scope_clause,
+        )
+    )
+
+
+def append_content_safety_review_condition(
+    names: dict[str, str],
+    values: dict[str, Any],
+    *,
+    expected_status: str,
+    expected_generation: int,
+    expected_municipality_id: str | None,
+    expected_department_id: str | None,
+) -> str:
+    """Conditional write for a staff content-safety decision against one generation."""
+    names.update(
+        {
+            "#css": "contentSafetyStatus",
+            "#csg": "contentSafetyGeneration",
+        }
+    )
+    values.update(
+        {
+            ":expectedSafetyStatus": expected_status,
+            ":safetyGeneration": expected_generation,
+        }
+    )
+    scope_clause = append_ticket_access_scope_condition(
+        names,
+        values,
+        expected_municipality_id=expected_municipality_id,
+        expected_department_id=expected_department_id,
+    )
+    return " AND ".join(
+        (
+            "#css = :expectedSafetyStatus",
+            "#csg = :safetyGeneration",
             scope_clause,
         )
     )
