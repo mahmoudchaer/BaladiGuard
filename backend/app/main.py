@@ -18,6 +18,7 @@ from app.api.resolution_feedback import router as resolution_feedback_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
+from app.api.whatsapp import router as whatsapp_router
 from app.api.work_orders import router as work_orders_router
 from app.api.workforce import router as workforce_router
 from app.core.config_validation import validate_configuration
@@ -292,6 +293,7 @@ def create_app() -> FastAPI:
     app.include_router(resolution_feedback_router)
     app.include_router(locations_router)
     app.include_router(uploads_router)
+    app.include_router(whatsapp_router)
 
     return app
 

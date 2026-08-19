@@ -440,6 +440,24 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [{"AttributeName": "auditId", "AttributeType": "S"}],
         "global_secondary_indexes": [],
     },
+    {
+        # Deterministic WhatsApp conversation state (issue #296). TTL on ttl.
+        "suffix": "whatsapp-conversations",
+        "key_schema": [{"AttributeName": "conversationKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "conversationKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
+        # Inbound WhatsApp message-id deduplication ledger (issue #296). TTL on ttl.
+        "suffix": "whatsapp-inbound-dedup",
+        "key_schema": [{"AttributeName": "messageId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "messageId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
 ]
 
 
