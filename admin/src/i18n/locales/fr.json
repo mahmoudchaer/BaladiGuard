@@ -127,6 +127,21 @@
     "closed": "Fermés",
     "notifications": "Notifications",
     "succeeded": "Réussies",
+    "refresh": "Actualiser",
+    "ackNotePlaceholder": "Note facultative pour la passation d’astreinte",
+    "emptyAlerts": "Aucune alerte sur cette période.",
+    "emptyJobs": "Aucune tâche worker ne correspond à ce filtre.",
+    "emptyErrors": "Aucun groupe d’erreurs pour le moment.",
+    "openDashboard": "Ouvrir CloudWatch",
+    "updated": "Mis à jour",
+    "jobKind": {
+      "all": "Tous les workers",
+      "ai": "Classification IA",
+      "redaction": "Masquage d’images",
+      "notifications": "Notifications",
+      "whatsapp": "WhatsApp",
+      "moderation": "Sécurité des contenus"
+    },
     "tab": {
       "overview": "Vue d’ensemble",
       "alerts": "Alertes",

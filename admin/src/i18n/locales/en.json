@@ -127,6 +127,21 @@
     "closed": "Closed",
     "notifications": "Notifications",
     "succeeded": "Succeeded",
+    "refresh": "Refresh",
+    "ackNotePlaceholder": "Optional note for the on-call handoff",
+    "emptyAlerts": "No alerts in this range.",
+    "emptyJobs": "No worker jobs match this filter.",
+    "emptyErrors": "No grouped errors yet.",
+    "openDashboard": "Open CloudWatch",
+    "updated": "Updated",
+    "jobKind": {
+      "all": "All workers",
+      "ai": "AI classification",
+      "redaction": "Image redaction",
+      "notifications": "Notifications",
+      "whatsapp": "WhatsApp",
+      "moderation": "Content safety"
+    },
     "tab": {
       "overview": "Overview",
       "alerts": "Alerts",

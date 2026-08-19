@@ -73,7 +73,9 @@ def _iso(moment: datetime | None = None) -> str:
 
 
 def _env(settings: Settings) -> str:
-    return (settings.app_env or "local").lower()
+    return (
+        os.getenv("OBSERVABILITY_ENV", "").strip() or settings.app_env or "local"
+    ).lower()
 
 
 def _version() -> str:
@@ -553,7 +555,11 @@ def list_errors(
     category: str | None = None,
     service: str | None = None,
 ) -> list[ErrorGroup]:
-    items = get_ops_error_store().list_recent(limit=50)
+    try:
+        items = get_ops_error_store().list_recent(limit=50)
+    except Exception:
+        logger.warning("Ops error store list failed; returning an empty error list.", exc_info=True)
+        items = []
     groups = [
         ErrorGroup(
             errorKey=item.error_key,
@@ -681,21 +687,24 @@ def record_http_error(
         service = "auth"
     key = f"{service}:{category}:{path_group}:{status_code // 100}xx"
     stamped = _iso()
-    get_ops_error_store().upsert(
-        StoredOpsErrorGroup(
-            errorKey=key[:120],
-            category=category,
-            service=service,
-            pathGroup=path_group,
-            statusClass=f"{status_code // 100}xx",
-            version=_version(),
-            count=1,
-            firstSeen=stamped,
-            lastSeen=stamped,
-            lastRequestId=request_id,
-            lastJobId=None,
+    try:
+        get_ops_error_store().upsert(
+            StoredOpsErrorGroup(
+                errorKey=key[:120],
+                category=category,
+                service=service,
+                pathGroup=path_group,
+                statusClass=f"{status_code // 100}xx",
+                version=_version(),
+                count=1,
+                firstSeen=stamped,
+                lastSeen=stamped,
+                lastRequestId=request_id,
+                lastJobId=None,
+            )
         )
-    )
+    except Exception:
+        logger.warning("Failed to persist an ops HTTP error group.", exc_info=True)
 
 
 def record_job_error(*, service: str, category: str, job_id: str, reason: str | None) -> None:
@@ -704,21 +713,24 @@ def record_job_error(*, service: str, category: str, job_id: str, reason: str | 
     stamped = _iso()
     safe_reason = sanitize_ops_text(reason, max_len=80) or "provider_error"
     key = f"{service}:{category}:{safe_reason}"
-    get_ops_error_store().upsert(
-        StoredOpsErrorGroup(
-            errorKey=key[:120],
-            category=category,
-            service=service,
-            pathGroup=None,
-            statusClass=None,
-            version=_version(),
-            count=1,
-            firstSeen=stamped,
-            lastSeen=stamped,
-            lastRequestId=None,
-            lastJobId=job_id,
+    try:
+        get_ops_error_store().upsert(
+            StoredOpsErrorGroup(
+                errorKey=key[:120],
+                category=category,
+                service=service,
+                pathGroup=None,
+                statusClass=None,
+                version=_version(),
+                count=1,
+                firstSeen=stamped,
+                lastSeen=stamped,
+                lastRequestId=None,
+                lastJobId=job_id,
+            )
         )
-    )
+    except Exception:
+        logger.warning("Failed to persist an ops job error group.", exc_info=True)
 
 
 __all__ = [

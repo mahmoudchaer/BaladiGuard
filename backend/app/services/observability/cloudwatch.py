@@ -166,13 +166,17 @@ def describe_ops_alarms(
         raise
     except (BotoCoreError, ClientError, Exception) as exc:
         raise CloudWatchUnavailable(str(exc)[:160]) from exc
-    alarms = []
+    matching: list[dict[str, Any]] = []
+    fallback: list[dict[str, Any]] = []
     for alarm in response.get("MetricAlarms") or []:
         dimensions = {item["Name"]: item["Value"] for item in alarm.get("Dimensions") or []}
-        if dimensions.get("env") not in {None, env}:
-            continue
-        alarms.append(alarm)
-    return alarms
+        if dimensions.get("env") in {None, env}:
+            matching.append(alarm)
+        else:
+            fallback.append(alarm)
+    # Alarm names are unique in the account. A local API process still needs to
+    # show the live staging/production alarms when no local-dimension series exist.
+    return matching or fallback
 
 
 def backup_control_status(settings: Settings | None = None) -> dict[str, str]:

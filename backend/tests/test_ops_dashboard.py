@@ -231,3 +231,29 @@ def test_operator_cannot_browse_tickets(anonymous_client):
     headers = _headers(anonymous_client, "operator")
     response = anonymous_client.get("/v1/tickets", headers=headers)
     assert response.status_code == 403
+
+
+def test_ops_env_prefers_observability_env(monkeypatch):
+    monkeypatch.setenv("OBSERVABILITY_ENV", "staging")
+    from app.config import Settings
+    from app.services.observability.snapshot import _env
+
+    settings = Settings()
+    settings.app_env = "local"
+    assert _env(settings) == "staging"
+
+
+def test_dynamo_ops_error_store_survives_missing_table():
+    from unittest.mock import MagicMock
+
+    from botocore.exceptions import ClientError
+
+    from app.database.dynamo_ops_store import DynamoOpsErrorStore
+
+    store = DynamoOpsErrorStore.__new__(DynamoOpsErrorStore)
+    store._table = MagicMock()
+    store._table.scan.side_effect = ClientError(
+        {"Error": {"Code": "ResourceNotFoundException", "Message": "missing"}},
+        "Scan",
+    )
+    assert store.list_recent() == []

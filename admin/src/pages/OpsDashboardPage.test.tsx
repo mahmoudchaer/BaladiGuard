@@ -134,6 +134,16 @@ describe('OpsDashboardPage', () => {
     expect(screen.getByText(/Version:\s*0\.1\.0/)).toBeInTheDocument();
   });
 
+  it('still renders overview when a secondary ops endpoint fails', async () => {
+    vi.mocked(fetchOpsErrors).mockRejectedValue(new Error('Failed to fetch'));
+    renderWithProviders(<OpsDashboardPage />, { route: '/ops' });
+    expect(
+      await screen.findByRole('heading', { level: 2, name: /operations dashboard/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Environment:\s*test/)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/Failed to fetch/);
+  });
+
   it('acknowledges an alert without rendering ticket text', async () => {
     vi.mocked(acknowledgeOpsAlert).mockResolvedValue({
       alarmName: 'BaladiGuard-Sustained5xx',

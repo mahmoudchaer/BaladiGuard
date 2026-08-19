@@ -29,6 +29,28 @@ const JOB_FILTERS: Array<WorkerKind | 'all'> = [
 
 type OpsTab = 'overview' | 'alerts' | 'workers' | 'errors' | 'product';
 
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === 'fulfilled' ? result.value : fallback;
+}
+
+function settledError(result: PromiseSettledResult<unknown>): string | null {
+  if (result.status !== 'rejected') {
+    return null;
+  }
+  return result.reason instanceof Error ? result.reason.message : null;
+}
+
+function badgeTone(value: string): 'ok' | 'warn' | 'danger' {
+  const normalized = value.toLowerCase();
+  if (['ok', 'healthy', 'ready', 'true', 'cloudwatch'].includes(normalized)) {
+    return 'ok';
+  }
+  if (['alarm', 'failed', 'degraded', 'error', 'false', 'critical'].includes(normalized)) {
+    return 'danger';
+  }
+  return 'warn';
+}
+
 export function OpsDashboardPage() {
   const { t } = useI18n();
   const [tab, setTab] = useState<OpsTab>('overview');
@@ -48,16 +70,22 @@ export function OpsDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextOverview, nextAlerts, nextErrors, nextWorkers] = await Promise.all([
+      const [nextOverview, nextAlerts, nextErrors, nextWorkers] = await Promise.allSettled([
         fetchOpsOverview(range),
         fetchOpsAlerts(range),
         fetchOpsErrors(),
         fetchOpsWorkers(jobType === 'all' ? undefined : jobType),
       ]);
-      setOverview(nextOverview);
-      setAlerts(nextAlerts);
-      setErrors(nextErrors);
-      setJobs(nextWorkers.jobs);
+      setOverview(settledValue(nextOverview, null));
+      setAlerts(settledValue(nextAlerts, []));
+      setErrors(settledValue(nextErrors, []));
+      setJobs(settledValue(nextWorkers, { queues: [], jobs: [] }).jobs);
+      setError(
+        settledError(nextOverview) ??
+          settledError(nextAlerts) ??
+          settledError(nextErrors) ??
+          settledError(nextWorkers),
+      );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('ops.loadError'));
     } finally {
@@ -96,6 +124,8 @@ export function OpsDashboardPage() {
     }
   }
 
+  const readyLabel = overview?.health.ready ? t('ops.yes') : t('ops.no');
+
   return (
     <DashboardLayout title={t('ops.title')} subtitle={t('ops.subtitle')}>
       <section className="ops-page" aria-labelledby="ops-heading">
@@ -104,9 +134,15 @@ export function OpsDashboardPage() {
             <p className="ops-page__eyebrow">{t('ops.eyebrow')}</p>
             <h2 id="ops-heading">{t('ops.title')}</h2>
             <p className="ops-page__lede">{t('ops.lede')}</p>
+            {overview ? (
+              <p className="ops-page__meta">
+                {t('ops.updated')}: {overview.generatedAt} · {t('ops.source')}:{' '}
+                {overview.telemetrySource}
+              </p>
+            ) : null}
           </div>
           <div className="ops-page__controls">
-            <label>
+            <label className="ops-field">
               <span>{t('ops.timeRange')}</span>
               <select
                 value={range}
@@ -119,8 +155,23 @@ export function OpsDashboardPage() {
                 ))}
               </select>
             </label>
-            <button type="button" onClick={() => void load()} disabled={loading}>
-              {t('common.retry')}
+            {overview?.cloudwatchDashboardUrl ? (
+              <a
+                className="ops-page__link"
+                href={overview.cloudwatchDashboardUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t('ops.openDashboard')}
+              </a>
+            ) : null}
+            <button
+              type="button"
+              className="ops-page__primary"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              {t('ops.refresh')}
             </button>
           </div>
         </header>
@@ -155,47 +206,42 @@ export function OpsDashboardPage() {
 
         {tab === 'overview' && overview ? (
           <div className="ops-grid">
-            <article className="ops-card">
-              <h3>{t('ops.health')}</h3>
-              <p>
+            <article className={`ops-metric ops-metric--${overview.health.ready ? 'ok' : 'danger'}`}>
+              <p className="ops-metric__label">{t('ops.health')}</p>
+              <p className="ops-metric__value">{readyLabel}</p>
+              <p className="ops-metric__hint">
                 {t('ops.env')}: {overview.health.env}
               </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.version')}: {overview.health.version}
               </p>
-              <p>
-                {t('ops.ready')}: {overview.health.ready ? t('ops.yes') : t('ops.no')}
-              </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.database')}: {overview.health.database}
               </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.source')}: {overview.telemetrySource}
               </p>
             </article>
-            <article className="ops-card">
-              <h3>{t('ops.traffic')}</h3>
-              <p>
-                {t('ops.requests')}: {overview.traffic.requests}
+            <article className="ops-metric">
+              <p className="ops-metric__label">{t('ops.traffic')}</p>
+              <p className="ops-metric__value">{overview.traffic.requests}</p>
+              <p className="ops-metric__hint">
+                {t('ops.errors')}: {overview.traffic.errors} · {t('ops.errorRate')}:{' '}
+                {overview.traffic.errorRate}
               </p>
-              <p>
-                {t('ops.errors')}: {overview.traffic.errors}
-              </p>
-              <p>
-                {t('ops.errorRate')}: {overview.traffic.errorRate}
-              </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.latency')}: {overview.traffic.latencyMs} ms
               </p>
             </article>
-            <article className="ops-card">
-              <h3>{t('ops.backup')}</h3>
-              <p>{overview.backup.status}</p>
-              <p>{overview.backup.detail}</p>
+            <article className={`ops-metric ops-metric--${badgeTone(overview.backup.status)}`}>
+              <p className="ops-metric__label">{t('ops.backup')}</p>
+              <p className="ops-metric__value">{overview.backup.status}</p>
+              <p className="ops-metric__hint">{overview.backup.detail}</p>
             </article>
-            <article className="ops-card">
-              <h3>{t('ops.municipalities')}</h3>
-              <p>{t('ops.municipalitySoon')}</p>
+            <article className="ops-metric ops-metric--warn">
+              <p className="ops-metric__label">{t('ops.municipalities')}</p>
+              <p className="ops-metric__value">{overview.product.activeMunicipalities}</p>
+              <p className="ops-metric__hint">{t('ops.municipalitySoon')}</p>
             </article>
           </div>
         ) : null}
@@ -207,54 +253,80 @@ export function OpsDashboardPage() {
               <input
                 value={ackNote}
                 maxLength={200}
+                placeholder={t('ops.ackNotePlaceholder')}
                 onChange={(event) => setAckNote(event.target.value)}
               />
             </label>
-            <table className="ops-table">
-              <thead>
-                <tr>
-                  <th>{t('ops.alarm')}</th>
-                  <th>{t('ops.state')}</th>
-                  <th>{t('ops.severity')}</th>
-                  <th>{t('ops.reason')}</th>
-                  <th>{t('ops.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((alert) => (
-                  <tr key={alert.alarmName}>
-                    <td>{alert.alarmName}</td>
-                    <td>{alert.state}</td>
-                    <td>{alert.severity}</td>
-                    <td>{alert.reason}</td>
-                    <td>
-                      {alert.ackStatus === 'acknowledged' ? (
-                        t('ops.acknowledged')
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={busyAlarm === alert.alarmName}
-                          onClick={() => void handleAck(alert.alarmName)}
-                        >
-                          {t('ops.acknowledge')}
-                        </button>
-                      )}
-                      {alert.awsConsoleUrl ? (
-                        <a href={alert.awsConsoleUrl} target="_blank" rel="noreferrer">
-                          {t('ops.awsLink')}
-                        </a>
-                      ) : null}
-                    </td>
+            <div className="ops-table-wrap">
+              <table className="ops-table">
+                <thead>
+                  <tr>
+                    <th>{t('ops.alarm')}</th>
+                    <th>{t('ops.state')}</th>
+                    <th>{t('ops.severity')}</th>
+                    <th>{t('ops.reason')}</th>
+                    <th>{t('ops.actions')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {alerts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5}>
+                        <p className="ops-empty">{t('ops.emptyAlerts')}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    alerts.map((alert) => (
+                      <tr key={alert.alarmName}>
+                        <td>{alert.alarmName}</td>
+                        <td>
+                          <span className={`ops-badge ops-badge--${badgeTone(alert.state)}`}>
+                            {alert.state}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`ops-badge ops-badge--${badgeTone(alert.severity)}`}>
+                            {alert.severity}
+                          </span>
+                        </td>
+                        <td>{alert.reason}</td>
+                        <td>
+                          <div className="ops-actions">
+                            {alert.ackStatus === 'acknowledged' ? (
+                              t('ops.acknowledged')
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={busyAlarm === alert.alarmName}
+                                onClick={() => void handleAck(alert.alarmName)}
+                              >
+                                {t('ops.acknowledge')}
+                              </button>
+                            )}
+                            {alert.awsConsoleUrl ? (
+                              <a
+                                className="ops-page__link"
+                                href={alert.awsConsoleUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {t('ops.awsLink')}
+                              </a>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : null}
 
         {tab === 'workers' ? (
           <div className="ops-stack">
-            <label>
+            <label className="ops-field">
               <span>{t('ops.jobType')}</span>
               <select
                 value={jobType}
@@ -262,7 +334,7 @@ export function OpsDashboardPage() {
               >
                 {JOB_FILTERS.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {t(`ops.jobKind.${item}`)}
                   </option>
                 ))}
               </select>
@@ -273,6 +345,7 @@ export function OpsDashboardPage() {
                 .map((queue) => (
                   <article className="ops-card" key={queue.kind}>
                     <h3>{queue.label}</h3>
+                    <p className="ops-metric__value">{queue.pending}</p>
                     <p>
                       {t('ops.deployed')}: {queue.deployed ? t('ops.yes') : t('ops.no')}
                     </p>
@@ -288,97 +361,124 @@ export function OpsDashboardPage() {
                   </article>
                 ))}
             </div>
+            <div className="ops-table-wrap">
+              <table className="ops-table">
+                <thead>
+                  <tr>
+                    <th>{t('ops.jobId')}</th>
+                    <th>{t('ops.status')}</th>
+                    <th>{t('ops.attempts')}</th>
+                    <th>{t('ops.reason')}</th>
+                    <th>{t('ops.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5}>
+                        <p className="ops-empty">{t('ops.emptyJobs')}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    jobs.map((job) => (
+                      <tr key={job.jobId}>
+                        <td>{job.jobId}</td>
+                        <td>
+                          <span className={`ops-badge ops-badge--${badgeTone(job.status)}`}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td>{job.attempts}</td>
+                        <td>{job.lastErrorCode ?? '—'}</td>
+                        <td>
+                          {job.replayable ? (
+                            <button
+                              type="button"
+                              disabled={busyJob === job.jobId}
+                              onClick={() => void handleReplay(job.jobId)}
+                            >
+                              {t('ops.replay')}
+                            </button>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {tab === 'errors' ? (
+          <div className="ops-table-wrap">
             <table className="ops-table">
               <thead>
                 <tr>
+                  <th>{t('ops.category')}</th>
+                  <th>{t('ops.service')}</th>
+                  <th>{t('ops.count')}</th>
+                  <th>{t('ops.requestId')}</th>
                   <th>{t('ops.jobId')}</th>
-                  <th>{t('ops.status')}</th>
-                  <th>{t('ops.attempts')}</th>
-                  <th>{t('ops.reason')}</th>
-                  <th>{t('ops.actions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.jobId}>
-                    <td>{job.jobId}</td>
-                    <td>{job.status}</td>
-                    <td>{job.attempts}</td>
-                    <td>{job.lastErrorCode ?? '—'}</td>
-                    <td>
-                      {job.replayable ? (
-                        <button
-                          type="button"
-                          disabled={busyJob === job.jobId}
-                          onClick={() => void handleReplay(job.jobId)}
-                        >
-                          {t('ops.replay')}
-                        </button>
-                      ) : (
-                        '—'
-                      )}
+                {errors.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>
+                      <p className="ops-empty">{t('ops.emptyErrors')}</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  errors.map((item) => (
+                    <tr key={item.errorKey}>
+                      <td>{item.category}</td>
+                      <td>{item.service}</td>
+                      <td>{item.count}</td>
+                      <td>{item.lastRequestId ?? '—'}</td>
+                      <td>{item.lastJobId ?? '—'}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         ) : null}
 
-        {tab === 'errors' ? (
-          <table className="ops-table">
-            <thead>
-              <tr>
-                <th>{t('ops.category')}</th>
-                <th>{t('ops.service')}</th>
-                <th>{t('ops.count')}</th>
-                <th>{t('ops.requestId')}</th>
-                <th>{t('ops.jobId')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {errors.map((item) => (
-                <tr key={item.errorKey}>
-                  <td>{item.category}</td>
-                  <td>{item.service}</td>
-                  <td>{item.count}</td>
-                  <td>{item.lastRequestId ?? '—'}</td>
-                  <td>{item.lastJobId ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-
         {tab === 'product' && overview ? (
           <div className="ops-grid">
-            <article className="ops-card">
-              <h3>{t('ops.reports')}</h3>
-              <p>
+            <article className="ops-metric">
+              <p className="ops-metric__label">{t('ops.reports')}</p>
+              <p className="ops-metric__value">{overview.product.reportsSubmitted}</p>
+              <p className="ops-metric__hint">
                 {t('ops.submitted')}: {overview.product.reportsSubmitted}
               </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.failed')}: {overview.product.reportsFailed}
               </p>
             </article>
-            <article className="ops-card">
-              <h3>{t('ops.tickets')}</h3>
-              <p>
+            <article className="ops-metric">
+              <p className="ops-metric__label">{t('ops.tickets')}</p>
+              <p className="ops-metric__value">{overview.product.ticketsOpen}</p>
+              <p className="ops-metric__hint">
                 {t('ops.open')}: {overview.product.ticketsOpen}
               </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.resolved')}: {overview.product.ticketsResolved}
               </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.closed')}: {overview.product.ticketsClosed}
               </p>
             </article>
-            <article className="ops-card">
-              <h3>{t('ops.notifications')}</h3>
-              <p>
+            <article className="ops-metric">
+              <p className="ops-metric__label">{t('ops.notifications')}</p>
+              <p className="ops-metric__value">{overview.product.notificationSucceeded}</p>
+              <p className="ops-metric__hint">
                 {t('ops.succeeded')}: {overview.product.notificationSucceeded}
               </p>
-              <p>
+              <p className="ops-metric__hint">
                 {t('ops.failed')}: {overview.product.notificationFailed}
               </p>
             </article>

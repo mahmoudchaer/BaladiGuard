@@ -127,6 +127,21 @@
     "closed": "مغلقة",
     "notifications": "الإشعارات",
     "succeeded": "نجح",
+    "refresh": "تحديث",
+    "ackNotePlaceholder": "ملاحظة اختيارية لتسليم المناوبة",
+    "emptyAlerts": "لا توجد تنبيهات في هذا النطاق.",
+    "emptyJobs": "لا توجد مهام عمال مطابقة لهذا التصفية.",
+    "emptyErrors": "لا توجد أخطاء مجمّعة بعد.",
+    "openDashboard": "فتح CloudWatch",
+    "updated": "آخر تحديث",
+    "jobKind": {
+      "all": "كل العمال",
+      "ai": "تصنيف الذكاء الاصطناعي",
+      "redaction": "تمويه الصور",
+      "notifications": "الإشعارات",
+      "whatsapp": "واتساب",
+      "moderation": "سلامة المحتوى"
+    },
     "tab": {
       "overview": "نظرة عامة",
       "alerts": "التنبيهات",
