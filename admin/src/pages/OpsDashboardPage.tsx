@@ -206,7 +206,9 @@ export function OpsDashboardPage() {
 
         {tab === 'overview' && overview ? (
           <div className="ops-grid">
-            <article className={`ops-metric ops-metric--${overview.health.ready ? 'ok' : 'danger'}`}>
+            <article
+              className={`ops-metric ops-metric--${overview.health.ready ? 'ok' : 'danger'}`}
+            >
               <p className="ops-metric__label">{t('ops.health')}</p>
               <p className="ops-metric__value">{readyLabel}</p>
               <p className="ops-metric__hint">

@@ -73,9 +73,7 @@ def _iso(moment: datetime | None = None) -> str:
 
 
 def _env(settings: Settings) -> str:
-    return (
-        os.getenv("OBSERVABILITY_ENV", "").strip() or settings.app_env or "local"
-    ).lower()
+    return (os.getenv("OBSERVABILITY_ENV", "").strip() or settings.app_env or "local").lower()
 
 
 def _version() -> str:
