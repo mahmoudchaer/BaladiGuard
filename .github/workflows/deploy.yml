@@ -1,0 +1,105 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment target
+        required: true
+        type: choice
+        options: [staging, production]
+
+concurrency:
+  group: deploy-${{ inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production') || 'staging' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production') || 'staging' }}
+    env:
+      DEPLOY_ENV: ${{ inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production') || 'staging' }}
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_environment: ${{ inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production') || 'staging' }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
+      TF_VAR_api_domain_name: ${{ vars.API_DOMAIN_NAME }}
+      TF_VAR_admin_domain_name: ${{ vars.ADMIN_DOMAIN_NAME }}
+      TF_VAR_runtime_secret_arn: ${{ vars.RUNTIME_SECRET_ARN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and publish immutable backend image
+        id: image
+        env:
+          ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+        run: |
+          repository="${ECR_REPOSITORY_URL##*/}"
+          digest=$(aws ecr describe-images --repository-name "$repository" --image-ids imageTag="$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null || true)
+          if [ -z "$digest" ] || [ "$digest" = "None" ]; then
+            docker build --pull --tag "$ECR_REPOSITORY_URL:$GITHUB_SHA" backend
+            docker push "$ECR_REPOSITORY_URL:$GITHUB_SHA"
+            digest=$(aws ecr describe-images --repository-name "$repository" --image-ids imageTag="$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text)
+          fi
+          echo "uri=$ECR_REPOSITORY_URL@$digest" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+      - name: Reconcile infrastructure
+        env:
+          TF_VAR_backend_image: ${{ steps.image.outputs.uri }}
+          TF_VAR_app_version: ${{ github.sha }}
+        run: |
+          terraform -chdir=infra/deployment/terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=$DEPLOY_ENV/terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
+          terraform -chdir=infra/deployment/terraform apply \
+            -auto-approve -input=false
+          terraform -chdir=infra/deployment/terraform output -json > terraform-output.json
+      - name: Run migration and promote backend
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.uri }}
+        run: |
+          output=terraform-output.json
+          cluster=$(jq -r '.ecs_cluster_name.value' "$output")
+          subnets=$(jq -r '.task_subnet_ids.value | join(",")' "$output")
+          security_group=$(jq -r '.task_security_group_id.value' "$output")
+          api_url=$(jq -r '.api_url.value' "$output")
+          python scripts/deployment/deploy_backend.py \
+            --environment "$DEPLOY_ENV" --cluster "$cluster" --image "$IMAGE_URI" \
+            --version "$GITHUB_SHA" --subnets "$subnets" \
+            --security-group "$security_group" --api-url "$api_url"
+      - name: Build and publish admin UI
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_URL }}
+          VITE_USE_MOCK_DATA: "false"
+        run: |
+          npm ci --prefix admin
+          npm run build --prefix admin
+          bucket=$(jq -r '.admin_bucket.value' terraform-output.json)
+          distribution=$(jq -r '.admin_distribution_id.value' terraform-output.json)
+          aws s3 sync admin/dist "s3://$bucket" --delete --only-show-errors
+          aws cloudfront create-invalidation --distribution-id "$distribution" --paths '/*' >/dev/null
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployment-${{ env.DEPLOY_ENV }}-${{ github.sha }}
+          path: |
+            deployment-manifest.json
+            terraform-output.json
+          if-no-files-found: ignore
+          retention-days: 90

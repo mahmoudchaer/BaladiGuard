@@ -1,0 +1,33 @@
+name: Infrastructure checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "infra/deployment/**"
+      - "scripts/deployment/**"
+      - ".github/workflows/deploy.yml"
+      - ".github/workflows/infrastructure.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/deployment/**"
+      - "scripts/deployment/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+      - run: terraform fmt -check -recursive infra/deployment
+      - run: terraform -chdir=infra/deployment/terraform init -backend=false
+      - run: terraform -chdir=infra/deployment/terraform validate
+      - run: terraform -chdir=infra/deployment/bootstrap init -backend=false
+      - run: terraform -chdir=infra/deployment/bootstrap validate
+      - run: python -m unittest discover -s scripts/deployment -p 'test_*.py'
