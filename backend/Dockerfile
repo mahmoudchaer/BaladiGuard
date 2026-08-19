@@ -19,12 +19,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Keep Debian util-linux / libblkid current so container scans pick up HIGH fixes.
+ARG UTIL_LINUX_VERSION=2.41.5-0+deb13u1
+ARG LOGIN_VERSION=1:4.16.0-2+really2.41.5-0+deb13u1
 RUN apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
+    && apt-get install --yes --no-install-recommends --only-upgrade \
+        "bsdutils=1:${UTIL_LINUX_VERSION}" \
+        "libblkid1=${UTIL_LINUX_VERSION}" \
+        "liblastlog2-2=${UTIL_LINUX_VERSION}" \
+        "libmount1=${UTIL_LINUX_VERSION}" \
+        "libsmartcols1=${UTIL_LINUX_VERSION}" \
+        "libuuid1=${UTIL_LINUX_VERSION}" \
+        "login=${LOGIN_VERSION}" \
+        "mount=${UTIL_LINUX_VERSION}" \
+        "util-linux=${UTIL_LINUX_VERSION}" \
+    && rm -rf /var/lib/apt/lists/* \
+    && find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
         \( -name 'pip*' -o -name 'setuptools*' -o -name 'wheel*' \) \
         -exec rm -rf {} + \
     && addgroup --system app \

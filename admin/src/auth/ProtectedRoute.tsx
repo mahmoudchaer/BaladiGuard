@@ -5,10 +5,11 @@ import { homePathForRole, type StaffRole } from '@/services/auth';
 
 type ProtectedRouteProps = {
   children: ReactNode;
+  role?: StaffRole;
   allowedRoles?: StaffRole[];
 };
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, role, allowedRoles }: ProtectedRouteProps) {
   const location = useLocation();
   const { isAuthenticated, session } = useStaffAuth();
 
@@ -16,7 +17,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (allowedRoles && session?.role && !allowedRoles.includes(session.role)) {
+  const permitted = allowedRoles ?? (role ? [role] : undefined);
+  if (permitted && session?.role && !permitted.includes(session.role)) {
     return <Navigate to={homePathForRole(session.role)} replace />;
   }
 

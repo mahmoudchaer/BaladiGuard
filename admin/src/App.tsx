@@ -10,6 +10,7 @@ import { OpsDashboardPage } from '@/pages/OpsDashboardPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { StaffAccountsPage } from '@/pages/StaffAccountsPage';
 import '@/pages/TicketListPage.css';
 
 export function App() {
@@ -42,6 +43,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['municipal_staff', 'administrator']}>
                   <WorkforcePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/staff-accounts"
+              element={
+                <ProtectedRoute role="administrator">
+                  <StaffAccountsPage />
                 </ProtectedRoute>
               }
             />

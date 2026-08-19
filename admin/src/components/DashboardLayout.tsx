@@ -31,6 +31,7 @@ const MUNICIPAL_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
   { id: 'tickets', labelKey: 'nav.tickets', Icon: IconTickets, to: '/' },
   { id: 'map', labelKey: 'nav.map', Icon: IconMap, to: '/map' },
   { id: 'workforce', labelKey: 'nav.workforce', Icon: IconPeople, to: '/workforce' },
+  { id: 'staff-accounts', labelKey: 'nav.staffAccounts', Icon: IconPeople, to: '/staff-accounts' },
 ];
 
 const OPERATOR_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
@@ -58,10 +59,12 @@ export function DashboardLayout({
   const resolvedTitle = title ?? t('layout.title');
   const resolvedSubtitle = subtitle ?? t('layout.subtitle');
   const operator = isDeveloperOperator(session?.role);
-  const navItems = (operator ? OPERATOR_NAV : MUNICIPAL_NAV).map((item) => ({
-    ...item,
-    label: t(item.labelKey),
-  }));
+  const navItems = (operator ? OPERATOR_NAV : MUNICIPAL_NAV)
+    .filter((item) => item.id !== 'staff-accounts' || session?.role === 'administrator')
+    .map((item) => ({
+      ...item,
+      label: t(item.labelKey),
+    }));
 
   function handleLogout() {
     logout();
