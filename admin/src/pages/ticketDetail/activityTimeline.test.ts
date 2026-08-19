@@ -42,6 +42,10 @@ describe('activity timeline work-order events', () => {
     expect(formatAuditAction('WORK_ORDER_COMPLETE')).toBe('Work order completed');
     expect(formatAuditAction('WORK_ORDER_EVIDENCE_ADD')).toBe('Maintenance evidence added');
     expect(formatAuditAction('RESOLUTION_FEEDBACK_SUBMIT')).toBe('Citizen resolution feedback');
+    expect(formatAuditAction('CONTENT_SAFETY_APPROVE')).toBe(
+      'Content safety approved for public eligibility',
+    );
+    expect(formatAuditAction('CONTENT_SAFETY_REJECT')).toBe('Content safety rejected as unsafe');
   });
 
   it('keeps work-order audit rows on the operational timeline', () => {
