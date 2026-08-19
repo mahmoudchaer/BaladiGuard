@@ -23,6 +23,7 @@ _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "produ
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_WHATSAPP_PROVIDERS = frozenset({"mock", "cloud"})
+ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
 # Common typos / short forms normalize before validation and production checks.
@@ -318,6 +319,78 @@ def validate_configuration(
                         "Staging/production WhatsApp requires WHATSAPP_PROVIDER=cloud "
                         "(mock is local/test only)."
                     ),
+                )
+            )
+
+    raw_otp_channel = _raw(env_map, "CITIZEN_OTP_DELIVERY_CHANNEL")
+    if raw_otp_channel is not None and raw_otp_channel.strip():
+        if raw_otp_channel.strip().lower() not in ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS:
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_CITIZEN_OTP_DELIVERY_CHANNEL",
+                    message="CITIZEN_OTP_DELIVERY_CHANNEL must be 'mock', 'sns', or 'whatsapp'.",
+                )
+            )
+
+    # Resolve effective OTP channel (explicit or legacy auto).
+    from app.services.citizens.otp_delivery import resolve_citizen_otp_delivery_channel
+
+    effective_otp_channel = resolve_citizen_otp_delivery_channel(cfg)
+    if effective_otp_channel == "whatsapp":
+        missing_otp_wa = []
+        if not (cfg.citizen_otp_whatsapp_phone_number_id or "").strip():
+            missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID")
+        if not (cfg.citizen_otp_whatsapp_access_token or "").strip():
+            missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN")
+        if not (cfg.citizen_otp_whatsapp_template_name or "").strip():
+            missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_TEMPLATE_NAME")
+        if missing_otp_wa:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CITIZEN_OTP_WHATSAPP_CONFIG",
+                    message=(
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=whatsapp requires: "
+                        + ", ".join(missing_otp_wa)
+                        + "."
+                    ),
+                )
+            )
+        if app_env in {"staging", "production"}:
+            token = (cfg.citizen_otp_whatsapp_access_token or "").strip().lower()
+            if token and any(
+                marker in token for marker in ("changeme", "placeholder", "example", "test")
+            ):
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_TOKEN",
+                        message=(
+                            "Staging/production WhatsApp OTP access token looks like a "
+                            "placeholder; set a real Meta system-user token."
+                        ),
+                    )
+                )
+    if app_env in {"staging", "production"}:
+        explicit = (raw_otp_channel or "").strip().lower()
+        if explicit == "mock":
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_CITIZEN_OTP_DELIVERY_CHANNEL",
+                    message=(
+                        "Staging/production must not set CITIZEN_OTP_DELIVERY_CHANNEL=mock. "
+                        "Use 'sns' or 'whatsapp'."
+                    ),
+                )
+            )
+        elif effective_otp_channel == "mock":
+            result.issues.append(
+                ConfigIssue(
+                    code="LEGACY_CITIZEN_OTP_DELIVERY_MOCK",
+                    message=(
+                        "Citizen OTP delivery resolved to mock via legacy "
+                        "NOTIFICATION_ADAPTER defaults. Set "
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=sns or whatsapp for real OTP."
+                    ),
+                    severity="warning",
                 )
             )
 

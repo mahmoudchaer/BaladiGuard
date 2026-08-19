@@ -135,7 +135,7 @@ def request_citizen_otp(
     # HTTP response stays code-free; delivery is side-effect only.
     # If real delivery raises, invalidate the unused challenge so it cannot linger.
     try:
-        deliver_citizen_otp(
+        delivery_channel = deliver_citizen_otp(
             phone=payload.phone,
             region=payload.region,
             code=code,
@@ -149,6 +149,7 @@ def request_citizen_otp(
         challengeId=challenge_id,
         expiresIn=expires_in,
         message=GENERIC_OTP_MESSAGE,
+        deliveryChannel=delivery_channel,
     )
 
 

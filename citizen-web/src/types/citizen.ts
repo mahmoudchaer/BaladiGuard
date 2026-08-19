@@ -17,7 +17,12 @@ export type CitizenProfile = {
   updatedAt: string;
 };
 
-export type OtpChallenge = { challengeId: string; expiresIn: number; message: string };
+export type OtpChallenge = {
+  challengeId: string;
+  expiresIn: number;
+  message: string;
+  deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
+};
 
 export type CitizenProfilePatch = {
   fullName?: string | null;
