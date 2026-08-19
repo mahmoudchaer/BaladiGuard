@@ -24,9 +24,9 @@ Authenticity scores are risk signals only and **never** auto-reject a report.
    redaction stays a separate pipeline and is still required for any public
    photo.
 6. Authenticity combines cheap file clues, Bedrock `DetectGeneratedContent`
-   (Titan/Nova watermarks only; a negative proves nothing), and the pinned
-   Community Forensics DeepfakeDet ViT ONNX model. A high score
-   alone still `passed`.
+   when boto3 exposes it (Titan/Nova watermarks only; a negative proves
+   nothing), and the pinned Community Forensics DeepfakeDet ViT ONNX model.
+   A high score alone still `passed`.
 7. Disposition is stored as bounded codes. Citizen tracking and public APIs
    never expose detector internals.
 
@@ -64,11 +64,19 @@ is not `passed`, any public key is cleared.
 
 ## Authenticity model
 
-- Watermark detection only finds Amazon Titan / Nova Canvas marks.
+- Watermark detection only finds Amazon Titan / Nova Canvas marks. Current
+  boto3/botocore still has no `DetectGeneratedContent` operation, so the
+  worker records `AUTH_UNAVAILABLE` for that signal and keeps going. Titan
+  Image Generator is EOL on Bedrock and Nova Canvas is legacy, so those
+  models cannot be used to mint a watermarked sample until AWS ships the
+  detector in a public SDK.
 - The learned detector is the MIT-licensed
   [Community Forensics DeepfakeDet ViT](https://huggingface.co/buildborderless/CommunityForensics-DeepfakeDet-ViT)
   FP32 ONNX export (corrected weights; ~83 MB). No Git binary, no Hugging Face
-  call at runtime after the checksummed download.
+  call at runtime after the checksummed download. Live checks: StyleGAN faces
+  scored ~0.99–1.0 (`AUTH_ONNX_HIGH`) and still `passed` unless another risk
+  signal was present; real photos scored ~0.00–0.03 (`AUTH_ONNX_LOW`). This
+  model is a face/deepfake detector, not a general “any AI picture” detector.
 - Docker pins URL + SHA256 into `/opt/models/community-forensics-deepfakedet-vit.onnx`.
 - Local workers: `make download-authenticity-model` writes
   `backend/models/community-forensics-deepfakedet-vit.onnx`.
