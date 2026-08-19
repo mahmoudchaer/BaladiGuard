@@ -45,10 +45,17 @@ def _seed_env_tree(tmp_path: Path) -> None:
             "EXPO_PUBLIC_ENABLE_MOCK_API=false\n"
         ),
         "admin/.env": "VITE_USE_MOCK_DATA=false\nVITE_API_BASE_URL=http://localhost:8000\n",
+        "citizen-web/.env": (
+            "VITE_APP_ENV=local\nVITE_API_BASE_URL=http://localhost:8000\n"
+            "VITE_USE_MOCK_DATA=false\n"
+        ),
         ".env.example": "AWS_REGION=\nAWS_ACCESS_KEY_ID=\n",
         "backend/.env.example": "DATABASE_BACKEND=dynamodb\n",
         "mobile/.env.example": "EXPO_PUBLIC_API_BASE_URL=http://localhost:8000/v1\n",
         "admin/.env.example": "VITE_USE_MOCK_DATA=false\n",
+        "citizen-web/.env.example": (
+            "VITE_APP_ENV=local\nVITE_API_BASE_URL=http://localhost:8000\n"
+        ),
     }
     for relative, body in samples.items():
         path = tmp_path / relative
@@ -151,6 +158,26 @@ def test_resolve_region_uses_local_env_after_bootstrap(
 def test_incomplete_bundle_is_rejected():
     with pytest.raises(sync_env.EnvSyncError, match="incomplete"):
         sync_env.parse_bundle({"version": 2, "files": {".env": "A=1\n"}})
+
+
+def test_pre_312_bundle_derives_citizen_web_environment():
+    files = {
+        ".env": "AWS_REGION=us-east-1\n",
+        "backend/.env": "DATABASE_BACKEND=memory\n",
+        "mobile/.env": (
+            "EXPO_PUBLIC_APP_ENV=development\n"
+            "EXPO_PUBLIC_API_BASE_URL=http://10.0.0.5:8000/v1\n"
+            "EXPO_PUBLIC_ENABLE_MOCK_API=false\n"
+        ),
+        "admin/.env": "VITE_USE_MOCK_DATA=false\n",
+    }
+    parsed = sync_env.parse_bundle({"version": 2, "files": files})
+    citizen = sync_env.parse_env_text(parsed["citizen-web/.env"])
+    assert citizen == {
+        "VITE_APP_ENV": "development",
+        "VITE_API_BASE_URL": "http://10.0.0.5:8000",
+        "VITE_USE_MOCK_DATA": "false",
+    }
 
 
 def test_push_pull_round_trip_and_concurrency_guard(

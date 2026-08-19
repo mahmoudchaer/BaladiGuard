@@ -32,6 +32,7 @@ Follow the database setup in `docs/local-database-setup.md` when you need persis
 Create `admin/.env.local` if needed:
 
 ```env
+VITE_APP_ENV=local
 VITE_USE_MOCK_DATA=false
 VITE_API_BASE_URL=http://localhost:8000
 VITE_STAFF_USERNAME=staff
@@ -40,8 +41,8 @@ VITE_STAFF_PASSWORD=staff-demo-password
 
 The full env catalog (backend + admin + mobile) lives in
 [`docs/configuration.md`](../docs/configuration.md). Demo staff credentials are for
-**local development only** — production builds must use unique `VITE_STAFF_*` values
-and must not ship `staff-demo-password`.
+**local development only** — staging and production builds must omit `VITE_STAFF_*`
+entirely. Real staff credentials are entered by the user and sent only to the backend login API.
 
 Mock fixtures remain available for explicit development and testing by setting
 `VITE_USE_MOCK_DATA=true`. In mock mode, the dashboard loads tickets from the shared root fixture
