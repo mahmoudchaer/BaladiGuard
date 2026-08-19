@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Protocol
@@ -9,6 +10,8 @@ from PIL import Image, ImageStat, UnidentifiedImageError
 
 from app.config import Settings, get_settings
 from app.services.content_safety.policy import AuthenticityResult
+
+logger = logging.getLogger(__name__)
 
 _WATERMARK_MODELS = (
     "amazon.titan-image-generator-v1",
@@ -49,7 +52,10 @@ class CompositeAuthenticityDetector:
         else:
             signals.append("AUTH_AWS_WATERMARK_ABSENT")
 
-        learned = self._learned or OnnxAuthenticityDetector(self._settings)
+        learned = self._learned
+        if learned is None:
+            learned = OnnxAuthenticityDetector(self._settings)
+            self._learned = learned
         try:
             learned_result = learned.inspect(image_bytes)
         except Exception:
@@ -108,47 +114,53 @@ class CompositeAuthenticityDetector:
 
 
 class OnnxAuthenticityDetector:
-    """Community Forensics DeepfakeDet ViT. Missing model => unavailable, never reject."""
+    """Community Forensics DeepfakeDet ViT. Missing weights => unavailable, never reject."""
 
     def __init__(self, settings: Settings | None = None, *, session=None) -> None:
         self._settings = settings or get_settings()
         self._session = session
-        self._unavailable = False
+        configured = self._settings.authenticity_detection_model or ""
+        self._model_path = Path(configured) if configured else Path()
+        if self._session is None and self._model_path.is_file():
+            try:
+                self._session = self._load_session(self._model_path)
+                logger.info("Loaded authenticity ONNX model path=%s", self._model_path)
+            except Exception:
+                logger.warning(
+                    "Authenticity ONNX model failed to load path=%s",
+                    self._model_path,
+                    exc_info=True,
+                )
+                self._session = None
 
     def inspect(self, image_bytes: bytes) -> AuthenticityResult:
-        model_path = self._settings.authenticity_detection_model
-        if not model_path:
-            return AuthenticityResult(unavailable=True, signals=("AUTH_UNAVAILABLE",))
-        path = Path(model_path)
-        if not path.is_file():
+        if self._session is None:
             return AuthenticityResult(unavailable=True, signals=("AUTH_UNAVAILABLE",))
         try:
-            session = self._session or self._load_session(path)
             tensor = _preprocess(image_bytes)
-            input_name = session.get_inputs()[0].name
-            outputs = session.run(None, {input_name: tensor})
+            input_name = self._session.get_inputs()[0].name
+            outputs = self._session.run(None, {input_name: tensor})
             score = _fake_score(outputs[0])
         except Exception:
+            logger.warning("Authenticity ONNX inference failed", exc_info=True)
             return AuthenticityResult(unavailable=True, signals=("AUTH_UNAVAILABLE",))
         signal = (
             "AUTH_ONNX_HIGH"
             if score >= self._settings.content_safety_authenticity_review_score
             else "AUTH_ONNX_LOW"
         )
+        version = self._model_path.name or "community-forensics-deepfakedet-vit.onnx"
         return AuthenticityResult(
             score=score,
             model="community-forensics-deepfakedet-vit",
-            model_version=path.name,
+            model_version=version,
             signals=(signal,),
         )
 
     def _load_session(self, path: Path):
-        try:
-            import onnxruntime as ort
-        except ImportError:
-            raise
-        self._session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
-        return self._session
+        import onnxruntime as ort
+
+        return ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
 
 
 def _file_clue_signals(image_bytes: bytes) -> list[str]:

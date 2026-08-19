@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
+from PIL import Image
 
 from app.config import Settings
 from app.database.memory import InMemoryTicketStore
@@ -10,7 +14,12 @@ from app.database.memory_content_safety_job import InMemoryContentSafetyJobStore
 from app.database.memory_redaction_job import InMemoryRedactionJobStore
 from app.database.serialization import item_to_ticket, ticket_to_item
 from app.schemas.stored_ticket import StoredTicket
+from app.services.content_safety.authenticity import OnnxAuthenticityDetector, _fake_score
 from app.services.content_safety.image_moderator import RekognitionImageModerator
+from app.services.content_safety.model_assets import (
+    authenticity_model_candidates,
+    resolve_authenticity_model_path,
+)
 from app.services.content_safety.policy import (
     AuthenticityResult,
     ImageSafetyResult,
@@ -300,6 +309,60 @@ def test_authenticity_high_plus_other_signal_reviews():
         authenticity=AuthenticityResult(score=0.97, signals=("AUTH_ONNX_HIGH", "AUTH_SCREENSHOT")),
     )
     assert decision.status == "review_required"
+
+
+def _jpeg_bytes() -> bytes:
+    image = Image.new("RGB", (96, 64), (40, 90, 130))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
+def test_resolve_authenticity_model_path_explicit_file(tmp_path):
+    model = tmp_path / "custom.onnx"
+    model.write_bytes(b"onnx")
+    resolved = resolve_authenticity_model_path(str(model))
+    assert resolved is not None
+    assert Path(resolved).name == "custom.onnx"
+    assert resolve_authenticity_model_path(str(tmp_path / "missing.onnx")) is None
+
+
+def test_onnx_detector_scores_injected_session():
+    class FakeSession:
+        def get_inputs(self):
+            return [SimpleNamespace(name="pixel_values")]
+
+        def run(self, _unused, feeds):
+            assert "pixel_values" in feeds
+            return [[[-8.12]]]
+
+    detector = OnnxAuthenticityDetector(_settings(), session=FakeSession())
+    result = detector.inspect(_jpeg_bytes())
+    assert result.unavailable is False
+    assert result.signals == ("AUTH_ONNX_LOW",)
+    assert result.score is not None
+    assert result.score < 0.01
+
+
+def test_onnx_fake_score_maps_single_logit():
+    assert 0 <= _fake_score([[-8.12]]) <= 0.01
+    assert _fake_score([[0.9]]) == 0.9
+
+
+@pytest.mark.skipif(
+    not any(path.is_file() for path in authenticity_model_candidates()),
+    reason="authenticity ONNX not downloaded",
+)
+def test_onnx_detector_runs_pinned_weights():
+    downloaded = next(path for path in authenticity_model_candidates() if path.is_file())
+    settings = _settings()
+    settings.authenticity_detection_model = str(downloaded)
+    result = OnnxAuthenticityDetector(settings).inspect(_jpeg_bytes())
+    assert result.unavailable is False
+    assert result.score is not None
+    assert 0.0 <= result.score <= 1.0
+    assert result.signals[0] in {"AUTH_ONNX_LOW", "AUTH_ONNX_HIGH"}
+    assert result.model == "community-forensics-deepfakedet-vit"
 
 
 def test_provider_outage_fail_closed_reviews_not_passed():

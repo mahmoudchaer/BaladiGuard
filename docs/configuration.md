@@ -65,7 +65,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `CONTENT_SAFETY_IMAGE_REJECT_CONFIDENCE` | No | `80` | Rekognition high-severity cutoff (50–100) |
 | `CONTENT_SAFETY_IMAGE_REVIEW_CONFIDENCE` | No | `50` | Rekognition review cutoff (0–100) |
 | `CONTENT_SAFETY_AUTHENTICITY_REVIEW_SCORE` | No | `0.85` | ONNX score that may add a review signal; never auto-rejects alone |
-| `AUTHENTICITY_DETECTION_MODEL` | No | empty | Optional local DeepfakeDet ONNX path |
+| `AUTHENTICITY_DETECTION_MODEL` | No | pinned DeepfakeDet ONNX | Docker: `/opt/models/community-forensics-deepfakedet-vit.onnx`. Local: `backend/models/` after `make download-authenticity-model` |
 | `CONTENT_SAFETY_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
 | `CONTENT_SAFETY_JOB_TIMEOUT_SECONDS` | No | `300` | Claim timeout before stale recovery |
 | `CONTENT_SAFETY_JOB_BACKOFF_BASE_SECONDS` | No | `5` | First retry delay |

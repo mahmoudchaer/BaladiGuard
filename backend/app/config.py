@@ -4,6 +4,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.services.content_safety.model_assets import resolve_authenticity_model_path
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
 
@@ -143,7 +145,7 @@ class Settings:
             minimum=0.5,
             maximum=1.0,
         )
-        self.authenticity_detection_model = (
+        self.authenticity_detection_model = resolve_authenticity_model_path(
             os.getenv("AUTHENTICITY_DETECTION_MODEL", "").strip() or None
         )
         self.content_safety_job_max_attempts = self._int_setting(

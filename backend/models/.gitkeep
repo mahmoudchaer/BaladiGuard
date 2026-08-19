@@ -1,0 +1,2 @@
+# Pinned ONNX weights (issue #319). Downloaded by
+# `python scripts/download_authenticity_model.py` / the backend Docker image.

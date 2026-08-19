@@ -24,8 +24,8 @@ Authenticity scores are risk signals only and **never** auto-reject a report.
    redaction stays a separate pipeline and is still required for any public
    photo.
 6. Authenticity combines cheap file clues, Bedrock `DetectGeneratedContent`
-   (Titan/Nova watermarks only; a negative proves nothing), and an optional
-   in-process Community Forensics DeepfakeDet ViT ONNX model. A high score
+   (Titan/Nova watermarks only; a negative proves nothing), and the pinned
+   Community Forensics DeepfakeDet ViT ONNX model. A high score
    alone still `passed`.
 7. Disposition is stored as bounded codes. Citizen tracking and public APIs
    never expose detector internals.
@@ -65,11 +65,15 @@ is not `passed`, any public key is cleared.
 ## Authenticity model
 
 - Watermark detection only finds Amazon Titan / Nova Canvas marks.
-- The learned detector is
-  [Community Forensics DeepfakeDet ViT ONNX](https://huggingface.co/onnx-community/CommunityForensics-DeepfakeDet-ViT-ONNX)
-  (MIT). No Git binary, no Hugging Face call at runtime.
-- Set `AUTHENTICITY_DETECTION_MODEL` to a local ONNX path to enable it.
-  Missing file → `AUTH_UNAVAILABLE`; the ticket is not failed on authenticity.
+- The learned detector is the MIT-licensed
+  [Community Forensics DeepfakeDet ViT](https://huggingface.co/buildborderless/CommunityForensics-DeepfakeDet-ViT)
+  FP32 ONNX export (corrected weights; ~83 MB). No Git binary, no Hugging Face
+  call at runtime after the checksummed download.
+- Docker pins URL + SHA256 into `/opt/models/community-forensics-deepfakedet-vit.onnx`.
+- Local workers: `make download-authenticity-model` writes
+  `backend/models/community-forensics-deepfakedet-vit.onnx`.
+- Empty `AUTHENTICITY_DETECTION_MODEL` uses those default paths. A missing file
+  records `AUTH_UNAVAILABLE`; the ticket is not failed on authenticity.
 
 ## Staff workspace
 
@@ -89,7 +93,7 @@ See `docs/configuration.md`. Important knobs:
 | `CONTENT_SAFETY_IMAGE_REJECT_CONFIDENCE` | `80` | Rekognition high-severity cutoff |
 | `CONTENT_SAFETY_IMAGE_REVIEW_CONFIDENCE` | `50` | Rekognition review cutoff |
 | `CONTENT_SAFETY_AUTHENTICITY_REVIEW_SCORE` | `0.85` | ONNX score that can *contribute* to review when other signals exist |
-| `AUTHENTICITY_DETECTION_MODEL` | empty | Optional ONNX path |
+| `AUTHENTICITY_DETECTION_MODEL` | pinned DeepfakeDet ONNX | Docker/local default path; override with an explicit `.onnx` file |
 | `CONTENT_SAFETY_JOB_*` | same shape as redaction jobs | Attempts, timeout, backoff |
 
 Worker:

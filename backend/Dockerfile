@@ -6,16 +6,22 @@ WORKDIR /build
 ARG PLATE_MODEL_URL=https://github.com/ankandrew/open-image-models/releases/download/assets/yolo-v9-s-608-license-plates-end2end.onnx
 ARG PLATE_MODEL_SHA256=2b878b38d9aa07b6ddc3ea75c4ffcb39869bc5c218e0a14002f60ab2f7b0be9a
 
+# MIT: https://huggingface.co/buildborderless/CommunityForensics-DeepfakeDet-ViT
+ARG AUTHENTICITY_MODEL_URL=https://huggingface.co/buildborderless/CommunityForensics-DeepfakeDet-ViT/resolve/ac6ee457bea904a373065754107451793b56db00/onnx/model.onnx
+ARG AUTHENTICITY_MODEL_SHA256=a42c7d740fbb345ba9a26d469b22f301d73089ce3c6da993877ed2b6965a8ba1
+
 COPY requirements.lock ./
 RUN python -m pip install --no-cache-dir --prefix=/install -r requirements.lock
 RUN mkdir -p /models \
-    && python -c "import hashlib, pathlib, urllib.request; p=pathlib.Path('/models/license-plate.onnx'); urllib.request.urlretrieve('${PLATE_MODEL_URL}', p); actual=hashlib.sha256(p.read_bytes()).hexdigest(); expected='${PLATE_MODEL_SHA256}'; assert actual == expected, f'plate model checksum mismatch: {actual}'"
+    && python -c "import hashlib, pathlib, urllib.request; p=pathlib.Path('/models/license-plate.onnx'); urllib.request.urlretrieve('${PLATE_MODEL_URL}', p); actual=hashlib.sha256(p.read_bytes()).hexdigest(); expected='${PLATE_MODEL_SHA256}'; assert actual == expected, f'plate model checksum mismatch: {actual}'" \
+    && python -c "import hashlib, pathlib, urllib.request; p=pathlib.Path('/models/community-forensics-deepfakedet-vit.onnx'); urllib.request.urlretrieve('${AUTHENTICITY_MODEL_URL}', p); actual=hashlib.sha256(p.read_bytes()).hexdigest(); expected='${AUTHENTICITY_MODEL_SHA256}'; assert actual == expected, f'authenticity model checksum mismatch: {actual}'"
 
 FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PLATE_DETECTION_MODEL=/opt/models/license-plate.onnx
+    PLATE_DETECTION_MODEL=/opt/models/license-plate.onnx \
+    AUTHENTICITY_DETECTION_MODEL=/opt/models/community-forensics-deepfakedet-vit.onnx
 
 WORKDIR /app
 

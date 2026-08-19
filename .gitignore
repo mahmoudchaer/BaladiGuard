@@ -15,5 +15,6 @@ __pycache__/
 .venv/
 venv/
 .activity-timeline-backfill.checkpoint.json
+backend/models/*.onnx
 
 .DS_Store
