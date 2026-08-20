@@ -11,6 +11,9 @@ updates:
       # typescript-eslint@8 requires TypeScript < 6.1. Revisit when eslint 9/TS-eslint catch up.
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # jsdom 30 crashes Vitest on GitHub Actions Node 20 (webidl.markAsUncloneable).
+      - dependency-name: jsdom
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /mobile
     schedule: { interval: weekly }
