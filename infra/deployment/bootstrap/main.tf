@@ -163,10 +163,15 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "s3:CreateBucket", "s3:DeleteBucket", "s3:ListBucket",
-          "s3:GetBucketLocation", "s3:GetBucketVersioning",
+          "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketVersioning",
           "s3:GetBucketEncryption", "s3:GetBucketPublicAccessBlock",
+          "s3:GetBucketCORS", "s3:GetBucketLifecycleConfiguration",
+          "s3:GetBucketLogging", "s3:GetBucketNotification",
+          "s3:GetBucketOwnershipControls", "s3:GetBucketPolicyStatus",
+          "s3:GetBucketRequestPayment", "s3:GetBucketReplication", "s3:GetBucketWebsite",
           "s3:PutBucketVersioning", "s3:PutBucketEncryption",
           "s3:PutBucketPublicAccessBlock", "s3:PutBucketPolicy",
+          "s3:PutBucketLifecycleConfiguration", "s3:DeleteBucketLifecycleConfiguration",
           "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
           "s3:GetBucketTagging", "s3:PutBucketTagging",
         ]
