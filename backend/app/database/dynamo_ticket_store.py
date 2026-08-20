@@ -587,7 +587,12 @@ class DynamoTicketStore:
         return item_to_ticket(response["Attributes"])
 
     def patch_ai_fields(
-        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+        self,
+        ticket_id: str,
+        claim_token: str,
+        fields: dict[str, object],
+        *,
+        expected_values: dict[str, object] | None = None,
     ) -> StoredTicket | None:
         expression, names, values = build_update_expression(
             {**fields, "ai_processing_claim_token": None}
@@ -595,13 +600,19 @@ class DynamoTicketStore:
         names["#ai"] = "aiProcessingStatus"
         values[":processing"] = "processing"
         values[":claimToken"] = claim_token
+        condition = "#ai = :processing AND aiProcessingClaimToken = :claimToken"
+        if expected_values:
+            condition = (
+                f"{condition} AND "
+                f"{append_expected_values_condition(names, values, expected_values)}"
+            )
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=expression,
-                ConditionExpression=("#ai = :processing AND aiProcessingClaimToken = :claimToken"),
+                ConditionExpression=condition,
                 ExpressionAttributeNames=names,
-                ExpressionAttributeValues=values,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
         except ClientError as error:

@@ -383,7 +383,12 @@ class InMemoryTicketStore:
             return updated_ticket
 
     def patch_ai_fields(
-        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+        self,
+        ticket_id: str,
+        claim_token: str,
+        fields: dict[str, object],
+        *,
+        expected_values: dict[str, Any] | None = None,
     ) -> StoredTicket | None:
         with self._lock:
             ticket = self._tickets.get(ticket_id)
@@ -392,6 +397,8 @@ class InMemoryTicketStore:
                 or ticket.ai_processing_status != "processing"
                 or ticket.ai_processing_claim_token != claim_token
             ):
+                return None
+            if expected_values and not ticket_matches_expected_values(ticket, expected_values):
                 return None
             updated = ticket.model_copy(update={**fields, "ai_processing_claim_token": None})
             self._tickets[ticket_id] = _with_coerced_municipality_routing(updated)

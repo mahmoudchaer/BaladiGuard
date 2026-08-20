@@ -264,6 +264,61 @@ def test_operator_can_override_assignment(client, anonymous_client):
     assert overridden.json()["municipalityId"] == BEIRUT_WATER
 
 
+def test_in_flight_ai_does_not_overwrite_a_staff_claim(client, anonymous_client, monkeypatch):
+    ticket_ids: list[str] = []
+
+    def classifier(description: str, **_: object):
+        claimed = anonymous_client.post(
+            f"/v1/tickets/{ticket_ids[0]}/municipality/claim",
+            json={"reasonCode": "CONFIRMED_GEOGRAPHY"},
+            headers=_headers(anonymous_client, "admin"),
+        )
+        assert claimed.status_code == 200, claimed.text
+        return ClassificationResult(
+            category="road_damage",
+            explanation="Classified as road_damage.",
+            usedInputs=ClassificationInputs(description=bool(description), image=False),
+        )
+
+    monkeypatch.setattr(
+        "app.services.complaints.ticket_service.ticket_service._classifier",
+        classifier,
+    )
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(),
+    )
+    assert created.status_code == 201, created.text
+    ticket_ids.append(created.json()["ticketId"])
+    assert ai_job_queue.run_once().outcome == "succeeded"
+    stored = ticket_store.get(ticket_ids[0])
+    assert stored is not None
+    assert stored.municipality_id == BEIRUT_MUNICIPALITY_ID
+    assert stored.municipality_routing is not None
+    assert stored.municipality_routing.method == "staff_claim"
+    assert stored.ai_suggested_category == "road_damage"
+    assert stored.ai_processing_status == "completed"
+
+
+def test_category_review_reroutes_and_uses_municipality_departments(client, anonymous_client):
+    created = _submit(client, VALID_PAYLOAD)
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.municipality_id == BEIRUT_MUNICIPALITY_ID
+    reviewed = anonymous_client.patch(
+        f"/v1/tickets/{created['ticketId']}/category",
+        json={"finalCategory": "power_outage"},
+        headers=_headers(anonymous_client, "admin"),
+    )
+    assert reviewed.status_code == 200, reviewed.text
+    assert reviewed.json()["municipalityId"] == BEIRUT_ELECTRICITY
+    stored = ticket_store.get(created["ticketId"])
+    assert stored is not None
+    assert stored.final_category == "power_outage"
+    assert stored.department_id == "daaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+
 def test_missing_location_does_not_fabricate_owner():
     from app.schemas.stored_ticket import StoredTicket
     from app.schemas.ticket import ReportContact, ReportLocation

@@ -27,7 +27,11 @@ Routing runs inside `process_ticket_ai` after classification.
 4. Optional Bedrock tool-call (`MUNICIPALITY_ROUTING_USE_MODEL=true`) may break
    ties only from the allowlist. Default is **off** (CI-safe).
 5. Fail closed: placeholder location, missing coordinates, inactive profile, or
-provider failure → unassigned. Never invent a municipality id.
+   provider failure → unassigned. Never invent a municipality id.
+6. AI completion is conditional on the municipality/routing version it read. A
+   staff claim during processing is preserved; classification still saves.
+7. Staff category review reruns routing and selects that municipality's
+   department, so a new category can move ownership when the mandate changes.
 
 Citizen location validation accepts any point covered by an **active**
 municipality profile (Beirut and Tripoli in the seed set). It no longer treats

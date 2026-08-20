@@ -171,6 +171,47 @@ class AiProcessingClaimLostError(RuntimeError):
     pass
 
 
+def _ownership_expected_values(ticket: StoredTicket) -> dict[str, object]:
+    return {
+        "municipality_id": ticket.municipality_id,
+        "municipality_routing_status": ticket.municipality_routing_status,
+    }
+
+
+def _ownership_changed(snapshot: StoredTicket, latest: StoredTicket) -> bool:
+    return (
+        latest.municipality_id != snapshot.municipality_id
+        or latest.municipality_routing_status != snapshot.municipality_routing_status
+    )
+
+
+def _can_preserve_ai_after_ownership_change(
+    *,
+    snapshot: StoredTicket,
+    latest: StoredTicket,
+    claim_token: str,
+) -> bool:
+    if latest.ai_processing_status != "processing":
+        return False
+    if latest.ai_processing_claim_token != claim_token:
+        return False
+    return _ownership_changed(snapshot, latest)
+
+
+def _department_fields_for_municipality(
+    ticket: StoredTicket,
+    *,
+    category: str | None,
+    municipality_id: str | None,
+) -> dict[str, object]:
+    suggested = suggest_department_id(category_id=category, municipality_id=municipality_id)
+    return _department_suggestion_fields(
+        ticket,
+        suggested_department_id=suggested,
+        previous_category_id=effective_ticket_category(ticket),
+    )
+
+
 def effective_ticket_category(ticket: StoredTicket) -> str | None:
     """Staff-reviewed category, else the AI suggestion, else the stored category if classified.
 
@@ -512,23 +553,44 @@ class TicketService:
             from app.services.municipalities.ticket_routing import apply_routing_decision
 
             routing_fields = apply_routing_decision(ticket, routing, category=routing_category)
-            self.save_ticket_ai_output(
-                ticket_id,
-                SaveTicketAiOutputRequest(
-                    cleanedDescription=cleaning.cleaned_description if cleaning_ok else None,
-                    aiSuggestedCategory=(classification.category if classification_ok else None),
-                    aiCategoryExplanation=(
-                        classification.explanation if classification_ok else None
-                    ),
-                    aiModelVersion=get_settings().bedrock_model_id,
-                    urgencyScore=urgency.urgency_score,
-                    urgencyReason=urgency.urgency_reason,
-                    priority=urgency.urgency_level,
-                    aiProcessingStatus="failed" if processing_failed else "completed",
-                ),
-                claim_token=active_claim_token,
-                extra_fields=routing_fields,
+            ai_payload = SaveTicketAiOutputRequest(
+                cleanedDescription=cleaning.cleaned_description if cleaning_ok else None,
+                aiSuggestedCategory=(classification.category if classification_ok else None),
+                aiCategoryExplanation=(classification.explanation if classification_ok else None),
+                aiModelVersion=get_settings().bedrock_model_id,
+                urgencyScore=urgency.urgency_score,
+                urgencyReason=urgency.urgency_reason,
+                priority=urgency.urgency_level,
+                aiProcessingStatus="failed" if processing_failed else "completed",
             )
+            try:
+                self.save_ticket_ai_output(
+                    ticket_id,
+                    ai_payload,
+                    claim_token=active_claim_token,
+                    extra_fields=routing_fields,
+                    expected_values=_ownership_expected_values(ticket),
+                )
+            except AiProcessingClaimLostError:
+                latest = self._store.get(ticket_id)
+                if latest is None or not _can_preserve_ai_after_ownership_change(
+                    snapshot=ticket,
+                    latest=latest,
+                    claim_token=active_claim_token,
+                ):
+                    raise
+                preserve_fields = _department_fields_for_municipality(
+                    latest,
+                    category=routing_category,
+                    municipality_id=latest.municipality_id,
+                )
+                self.save_ticket_ai_output(
+                    ticket_id,
+                    ai_payload,
+                    claim_token=active_claim_token,
+                    extra_fields=preserve_fields or None,
+                    expected_values=_ownership_expected_values(latest),
+                )
             if processing_failed:
                 logger.warning(
                     "AI processing produced no output for ticket %s.",
@@ -1409,6 +1471,7 @@ class TicketService:
         *,
         claim_token: str | None = None,
         extra_fields: dict[str, object] | None = None,
+        expected_values: dict[str, object] | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
@@ -1451,7 +1514,12 @@ class TicketService:
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
         if claim_token is not None:
-            updated_ticket = self._store.patch_ai_fields(ticket_id, claim_token, update_fields)
+            updated_ticket = self._store.patch_ai_fields(
+                ticket_id,
+                claim_token,
+                update_fields,
+                expected_values=expected_values,
+            )
             if updated_ticket is None:
                 raise AiProcessingClaimLostError(ticket_id)
         else:
@@ -1475,35 +1543,26 @@ class TicketService:
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.category_reviewed_by)
         reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        update_fields: dict[str, object] = {
-            "final_category": payload.final_category,
-            "category": payload.final_category,
-            "category_reviewed_by": actor_id,
-            "category_reviewed_at": reviewed_at,
-            "updated_at": reviewed_at,
-            "updated_by": actor_id,
-        }
-        suggested_department_id = suggest_department_id(category_id=payload.final_category)
-        previous_category_id = effective_ticket_category(ticket)
-        department_update_fields = _department_suggestion_fields(
+        updated_ticket = self._apply_category_review(
             ticket,
-            suggested_department_id=suggested_department_id,
-            previous_category_id=previous_category_id,
+            payload=payload,
+            actor_id=actor_id,
+            reviewed_at=reviewed_at,
+            staff_principal=staff_principal,
         )
-        department_id = department_update_fields.get("department_id")
-        if (
-            staff_principal is not None
-            and isinstance(department_id, str)
-            and not staff_can_assign_department(staff_principal, department_id)
-        ):
-            raise StaffScopeForbiddenError(department_id)
-        update_fields.update(department_update_fields)
-
-        # Partial update so concurrent merges/AI writes are not overwritten.
-        updated_ticket = self._store.patch_fields(
-            ticket_id,
-            update_fields,
-        )
+        if updated_ticket is None:
+            latest = self._store.get(ticket_id)
+            if latest is None:
+                raise TicketNotFoundError(ticket_id)
+            if staff_principal is not None and not staff_can_access_ticket(staff_principal, latest):
+                raise TicketNotFoundError(ticket_id)
+            updated_ticket = self._apply_category_review(
+                latest,
+                payload=payload,
+                actor_id=actor_id,
+                reviewed_at=reviewed_at,
+                staff_principal=staff_principal,
+            )
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
         previous_category = ticket.final_category or ticket.category
@@ -1518,6 +1577,56 @@ class TicketService:
             created_at=reviewed_at,
         )
         return self._map_ticket(updated_ticket)
+
+    def _apply_category_review(
+        self,
+        ticket: StoredTicket,
+        *,
+        payload: ReviewTicketCategoryRequest,
+        actor_id: str,
+        reviewed_at: str,
+        staff_principal: StaffPrincipal | None,
+    ) -> StoredTicket | None:
+        from app.services.municipalities.ticket_routing import apply_routing_decision
+
+        probe = ticket.model_copy(
+            update={
+                "final_category": payload.final_category,
+                "category": payload.final_category,
+            }
+        )
+        decision = route_ticket_to_municipality(probe, category=payload.final_category)
+        routing_fields = apply_routing_decision(
+            ticket,
+            decision,
+            actor=staff_principal,
+            category=payload.final_category,
+            stamped=reviewed_at,
+        )
+        resulting_municipality_id = routing_fields.get("municipality_id")
+        department_id = routing_fields.get("department_id")
+        if (
+            staff_principal is not None
+            and isinstance(department_id, str)
+            and resulting_municipality_id == staff_principal.municipality_id
+            and not staff_can_assign_department(staff_principal, department_id)
+        ):
+            raise StaffScopeForbiddenError(department_id)
+
+        update_fields: dict[str, object] = {
+            "final_category": payload.final_category,
+            "category": payload.final_category,
+            "category_reviewed_by": actor_id,
+            "category_reviewed_at": reviewed_at,
+            "updated_by": actor_id,
+            **routing_fields,
+            "updated_at": reviewed_at,
+        }
+        return self._store.patch_fields(
+            ticket.ticket_id,
+            update_fields,
+            expected_values=_ownership_expected_values(ticket),
+        )
 
     def update_ticket_public_content(
         self,
