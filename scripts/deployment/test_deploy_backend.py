@@ -67,7 +67,7 @@ def _make_task_def(family: str = "test-api", image: str = "old", revision: int =
 
 
 def _make_service(name: str, task_definition_arn: str) -> dict:
-    return {"serviceName": name, "taskDefinition": task_definition_arn}
+    return {"serviceName": name, "taskDefinition": task_definition_arn, "runningCount": 1}
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +184,19 @@ class RunningTaskDefinitionArnsTests(unittest.TestCase):
         with patch("deploy_backend.aws", side_effect=fake_aws):
             with self.assertRaisesRegex(RuntimeError, "broken"):
                 running_task_definition_arns("test-cluster", ["api", "broken"])
+
+    def test_healthy_only_allows_initial_deployment_without_running_tasks(self):
+        services = [
+            {"serviceName": "api", "taskDefinition": "arn:...:1", "runningCount": 0},
+            {"serviceName": "ai-worker", "taskDefinition": "arn:...:1", "runningCount": 0},
+        ]
+
+        with patch("deploy_backend.aws", return_value={"services": services}):
+            result = running_task_definition_arns(
+                "test-cluster", ["api", "ai-worker"], healthy_only=True
+            )
+
+        self.assertEqual(result, {})
 
 
 # ---------------------------------------------------------------------------
@@ -492,6 +505,39 @@ class MainRollbackTests(unittest.TestCase):
         self.assertEqual(all_updates.get("api"), running_api_arn)
         self.assertEqual(all_updates.get("ai-worker"), running_ai_arn)
         self.assertEqual(all_updates.get("redaction-worker"), running_redaction_arn)
+
+    def test_initial_deployment_failure_does_not_restore_non_running_placeholder(self):
+        """A first release must preserve its real error, not roll back to a dead placeholder."""
+        td = _make_task_def()
+        update_service_calls = []
+
+        def fake_aws(*args):
+            cmd = args[0:2]
+            if cmd == ("ecs", "describe-services"):
+                return {"services": [
+                    {"serviceName": name, "taskDefinition": f"arn:...:{name}:1", "runningCount": 0}
+                    for name in ("api", "ai-worker", "redaction-worker")
+                ]}
+            if cmd == ("ecs", "describe-task-definition"):
+                return {"taskDefinition": td}
+            if cmd == ("ecs", "register-task-definition"):
+                return {"taskDefinition": {"taskDefinitionArn": "arn:...:new"}}
+            if cmd == ("ecs", "run-task"):
+                return {"tasks": [{"taskArn": "arn:...:migration"}]}
+            if cmd == ("ecs", "describe-tasks"):
+                return {"tasks": [{"containers": [{"exitCode": 1, "reason": "Migration error"}]}]}
+            if cmd == ("ecs", "update-service"):
+                update_service_calls.append(args)
+                return {}
+            return {}
+
+        with patch("deploy_backend.aws", side_effect=fake_aws), \
+             patch("subprocess.run"), \
+             patch("sys.argv", self.BASE_ARGS):
+            with self.assertRaisesRegex(RuntimeError, "migration failed"):
+                main()
+
+        self.assertEqual(update_service_calls, [])
 
     def test_rollback_on_readiness_failure(self):
         """When readiness fails, rollback restores running service ARNs."""

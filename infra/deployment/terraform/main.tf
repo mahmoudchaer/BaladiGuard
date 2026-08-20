@@ -232,7 +232,8 @@ resource "aws_iam_role_policy" "runtime_dynamodb" {
       Effect = "Allow"
       Action = each.key == "migration" ? [
         "dynamodb:CreateTable", "dynamodb:DescribeTable", "dynamodb:UpdateTable",
-        "dynamodb:UpdateContinuousBackups", "dynamodb:ListTagsOfResource", "dynamodb:TagResource"
+        "dynamodb:UpdateContinuousBackups", "dynamodb:UpdateTimeToLive",
+        "dynamodb:ListTagsOfResource", "dynamodb:TagResource"
         ] : [
         "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem", "dynamodb:ConditionCheckItem",
         "dynamodb:DeleteItem", "dynamodb:DescribeTable", "dynamodb:GetItem", "dynamodb:PutItem",
@@ -374,7 +375,7 @@ resource "aws_lb_listener" "https" {
 
 locals {
   commands = {
-    api              = ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    api              = ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ai-worker        = ["python", "-m", "app.workers.ai_worker"]
     redaction-worker = ["python", "-m", "app.workers.image_redaction_worker"]
     migration        = ["python", "scripts/db/migrate.py"]
@@ -387,10 +388,10 @@ locals {
   }
 }
 
-# Terraform owns the task-definition *shape* (CPU, memory, IAM roles, logging, etc.)
-# but uses a placeholder image so it does not create a new revision on every deploy.
-# The deploy_backend.py script is the sole publisher of image-bearing revisions and
-# snapshots the running service ARN for rollback.  See #328 for rationale.
+# Terraform owns the task-definition shape (commands, CPU, memory, IAM roles,
+# logging, and health checks) and publishes a placeholder-image revision whenever
+# that shape changes. The deploy_backend.py script then promotes an immutable image
+# revision from that shape and snapshots the running service ARN for rollback.
 resource "aws_ecs_task_definition" "backend" {
   for_each                 = local.commands
   family                   = "${local.name}-${each.key}"
@@ -428,10 +429,6 @@ resource "aws_ecs_task_definition" "backend" {
       startPeriod = 30
     } : null
   }])
-
-  lifecycle {
-    ignore_changes = [container_definitions]
-  }
 }
 
 resource "aws_ecs_service" "api" {

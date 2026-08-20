@@ -150,7 +150,7 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
-          "ecr:DescribeRepositories", "ecr:DescribeImages",
+          "ecr:DescribeRepositories", "ecr:DescribeImages", "ecr:ListTagsForResource",
           "ecr:PutImage", "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
           "ecr:BatchCheckLayerAvailability",
@@ -162,12 +162,22 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
+          # Bucket metadata only; object reads remain separately restricted below.
+          "s3:Get*",
           "s3:CreateBucket", "s3:DeleteBucket", "s3:ListBucket",
-          "s3:GetBucketLocation", "s3:GetBucketVersioning",
+          "s3:GetAccelerateConfiguration", "s3:GetBucketAcl", "s3:GetBucketLocation",
+          "s3:GetBucketObjectLockConfiguration", "s3:GetBucketVersioning",
           "s3:GetBucketEncryption", "s3:GetBucketPublicAccessBlock",
-          "s3:PutBucketVersioning", "s3:PutBucketEncryption",
+          "s3:GetBucketCORS", "s3:GetBucketLifecycleConfiguration",
+          "s3:GetBucketLogging", "s3:GetBucketNotification",
+          "s3:GetBucketOwnershipControls", "s3:GetBucketPolicyStatus",
+          "s3:GetBucketRequestPayment", "s3:GetBucketReplication", "s3:GetBucketWebsite",
+          "s3:PutBucketVersioning", "s3:PutBucketEncryption", "s3:PutEncryptionConfiguration",
           "s3:PutBucketPublicAccessBlock", "s3:PutBucketPolicy",
+          "s3:PutBucketLifecycleConfiguration", "s3:DeleteBucketLifecycleConfiguration",
+          "s3:PutLifecycleConfiguration", "s3:DeleteLifecycleConfiguration",
           "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
+          "s3:GetBucketTagging", "s3:PutBucketTagging",
         ]
         Resource = [
           aws_s3_bucket.state.arn,
@@ -203,7 +213,7 @@ resource "aws_iam_role_policy" "deploy" {
           "ecs:CreateService", "ecs:DeleteService",
           "ecs:UpdateService", "ecs:DescribeServices",
           "ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks",
-          "ecs:ListTasks",
+          "ecs:ListTasks", "ecs:TagResource", "ecs:UntagResource", "ecs:ListTagsForResource",
         ]
         Resource = "*"
       },
@@ -211,7 +221,7 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "ec2:CreateVpc", "ec2:DeleteVpc",
-          "ec2:DescribeVpcs", "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs", "ec2:DescribeVpcAttribute", "ec2:DescribeSubnets", "ec2:DescribeNetworkInterfaces",
           "ec2:DescribeSecurityGroups", "ec2:DescribeRouteTables",
           "ec2:DescribeInternetGateways", "ec2:DescribeAvailabilityZones",
           "ec2:CreateSubnet", "ec2:DeleteSubnet",
@@ -223,7 +233,7 @@ resource "aws_iam_role_policy" "deploy" {
           "ec2:CreateRoute", "ec2:DeleteRoute",
           "ec2:CreateRouteTable", "ec2:DeleteRouteTable",
           "ec2:AssociateRouteTable", "ec2:DisassociateRouteTable",
-          "ec2:ModifyVpcAttribute", "ec2:CreateTags", "ec2:DeleteTags",
+          "ec2:ModifyVpcAttribute", "ec2:ModifySubnetAttribute", "ec2:CreateTags", "ec2:DeleteTags",
         ]
         Resource = "*"
       },
@@ -231,9 +241,12 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "elasticloadbalancing:CreateLoadBalancer", "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:Describe*",
           "elasticloadbalancing:DescribeLoadBalancers",
           "elasticloadbalancing:CreateTargetGroup", "elasticloadbalancing:DeleteTargetGroup",
           "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetGroupAttributes",
+          "elasticloadbalancing:DescribeTags",
           "elasticloadbalancing:CreateListener", "elasticloadbalancing:DeleteListener",
           "elasticloadbalancing:DescribeListeners",
           "elasticloadbalancing:ModifyLoadBalancerAttributes",
@@ -246,13 +259,13 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "acm:RequestCertificate", "acm:DeleteCertificate",
-          "acm:DescribeCertificate", "acm:ListCertificates",
+          "acm:DescribeCertificate", "acm:ListCertificates", "acm:ListTagsForCertificate",
         ]
         Resource = "*"
       },
       {
         Effect   = "Allow"
-        Action   = ["route53:ChangeResourceRecordSets", "route53:ListResourceRecordSets"]
+        Action   = ["route53:ChangeResourceRecordSets", "route53:GetHostedZone", "route53:ListResourceRecordSets"]
         Resource = "arn:aws:route53:::hostedzone/${var.route53_zone_id}"
       },
       {
@@ -265,6 +278,7 @@ resource "aws_iam_role_policy" "deploy" {
         Action = [
           "cloudfront:CreateDistribution", "cloudfront:DeleteDistribution",
           "cloudfront:UpdateDistribution", "cloudfront:GetDistribution",
+          "cloudfront:ListTagsForResource",
           "cloudfront:CreateInvalidation",
           "cloudfront:CreateOriginAccessControl", "cloudfront:DeleteOriginAccessControl",
           "cloudfront:GetOriginAccessControl",
@@ -276,8 +290,8 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup", "logs:DeleteLogGroup",
-          "logs:PutRetentionPolicy",
+          "logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy",
+          "logs:ListTagsForResource",
         ]
         Resource = "arn:aws:logs:*:*:log-group:/ecs/baladiguard-*"
       },
@@ -305,9 +319,18 @@ resource "aws_iam_role_policy" "deploy" {
           "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
           "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListRolePolicies",
           "iam:ListAttachedRolePolicies", "iam:TagRole",
-          "iam:CreateServiceLinkedRole",
         ]
         Resource = "arn:aws:iam::*:role/baladiguard-${each.key}-*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:CreateServiceLinkedRole"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = ["ecs.amazonaws.com", "elasticloadbalancing.amazonaws.com"]
+          }
+        }
       },
       {
         Effect = "Allow"

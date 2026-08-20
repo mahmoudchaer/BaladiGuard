@@ -2,6 +2,8 @@
 
 This repository defines the reviewable staging and production platform for BaladiGuard. Issue #74 supplies the code and operating contract; issue #54 performs the first deployment in the AWS account.
 
+For the live AWS resource inventory, domains, and service purposes, see [AWS and DevOps inventory](./aws-devops-inventory.md).
+
 ## Target architecture and ownership
 
 | Component | AWS target | Exposure | Owner |
