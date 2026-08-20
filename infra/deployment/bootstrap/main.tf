@@ -150,7 +150,7 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
-          "ecr:DescribeRepositories", "ecr:DescribeImages",
+          "ecr:DescribeRepositories", "ecr:DescribeImages", "ecr:ListTagsForResource",
           "ecr:PutImage", "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
           "ecr:BatchCheckLayerAvailability",
@@ -168,6 +168,7 @@ resource "aws_iam_role_policy" "deploy" {
           "s3:PutBucketVersioning", "s3:PutBucketEncryption",
           "s3:PutBucketPublicAccessBlock", "s3:PutBucketPolicy",
           "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
+          "s3:GetBucketTagging", "s3:PutBucketTagging",
         ]
         Resource = [
           aws_s3_bucket.state.arn,
@@ -203,7 +204,7 @@ resource "aws_iam_role_policy" "deploy" {
           "ecs:CreateService", "ecs:DeleteService",
           "ecs:UpdateService", "ecs:DescribeServices",
           "ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks",
-          "ecs:ListTasks",
+          "ecs:ListTasks", "ecs:TagResource", "ecs:UntagResource", "ecs:ListTagsForResource",
         ]
         Resource = "*"
       },
@@ -211,7 +212,7 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "ec2:CreateVpc", "ec2:DeleteVpc",
-          "ec2:DescribeVpcs", "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs", "ec2:DescribeVpcAttribute", "ec2:DescribeSubnets",
           "ec2:DescribeSecurityGroups", "ec2:DescribeRouteTables",
           "ec2:DescribeInternetGateways", "ec2:DescribeAvailabilityZones",
           "ec2:CreateSubnet", "ec2:DeleteSubnet",
@@ -246,7 +247,7 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "acm:RequestCertificate", "acm:DeleteCertificate",
-          "acm:DescribeCertificate", "acm:ListCertificates",
+          "acm:DescribeCertificate", "acm:ListCertificates", "acm:ListTagsForCertificate",
         ]
         Resource = "*"
       },
@@ -276,8 +277,8 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup", "logs:DeleteLogGroup",
-          "logs:PutRetentionPolicy",
+          "logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy",
+          "logs:ListTagsForResource",
         ]
         Resource = "arn:aws:logs:*:*:log-group:/ecs/baladiguard-*"
       },
