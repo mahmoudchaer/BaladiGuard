@@ -247,9 +247,9 @@ def test_seed_script_loads_reference_data(dynamodb_settings: Settings) -> None:
     departments = resource.Table(build_table_name(prefix, "departments")).scan()["Items"]
     categories = resource.Table(build_table_name(prefix, "categories")).scan()["Items"]
 
-    assert len(municipalities) == 1
-    assert len(departments) == 8
-    assert len(categories) == 10
+    assert len(municipalities) == 4
+    assert len(departments) == 11
+    assert len(categories) == 11
 
 
 def test_seed_script_loads_sample_ticket_story_when_enabled(

@@ -43,7 +43,7 @@ function installAdminSession() {
       name: 'Admin',
       staffId: 'staff_admin_001',
       role: 'administrator',
-      municipalityId: null,
+      municipalityId: BEIRUT,
       departmentIds: null,
       signedInAt: '2026-08-18T00:00:00Z',
       accessToken: 'token',
@@ -97,7 +97,6 @@ describe('StaffAccountsPage', () => {
     await user.type(screen.getByLabelText('Email'), 'new@example.test');
     const password = screen.getByLabelText('Initial password');
     await user.type(password, 'secret-pass');
-    await user.selectOptions(screen.getByLabelText('Municipality'), BEIRUT);
     await user.click(screen.getByLabelText('Road Maintenance'));
     await user.click(screen.getByRole('button', { name: 'Create account' }));
     await waitFor(() =>
@@ -113,25 +112,12 @@ describe('StaffAccountsPage', () => {
     expect(password).toHaveValue('');
   });
 
-  it('creates administrators with explicit global null scope', async () => {
-    const user = userEvent.setup();
+  it('does not offer administrator creation from the municipality desk', async () => {
     renderWithProviders(<StaffAccountsPage />);
     await screen.findByText('Road Operator');
-    await user.type(screen.getByLabelText('Full name'), 'New Admin');
-    await user.type(screen.getByLabelText('Username'), 'new.admin');
-    await user.type(screen.getByLabelText('Email'), 'admin@example.test');
-    await user.type(screen.getByLabelText('Initial password'), 'secret-pass');
-    await user.selectOptions(screen.getByLabelText('Role'), 'administrator');
-    await user.click(screen.getByRole('button', { name: 'Create account' }));
-    await waitFor(() =>
-      expect(createStaffAccount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          role: 'administrator',
-          municipalityId: null,
-          departmentIds: null,
-        }),
-      ),
-    );
+    const roleSelect = screen.getByLabelText('Role');
+    expect(roleSelect).toHaveValue('municipal_staff');
+    expect(roleSelect).not.toHaveTextContent(/administrator/i);
   });
 
   it('validates scope and omits role from scope-only edits', async () => {
@@ -150,17 +136,10 @@ describe('StaffAccountsPage', () => {
     );
   });
 
-  it('confirms role and activation changes and reports stale/conflict failures', async () => {
+  it('confirms activation changes and reports stale/conflict failures', async () => {
     const user = userEvent.setup();
     renderWithProviders(<StaffAccountsPage />);
     await screen.findByText('Road Operator');
-    await user.click(screen.getByRole('button', { name: 'Edit access' }));
-    await user.selectOptions(screen.getByLabelText('Edit staff role'), 'administrator');
-    vi.mocked(updateStaffAccount).mockRejectedValueOnce(new Error('Staff account not found.'));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('authorization scope'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Staff account not found.');
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await user.click(screen.getByRole('button', { name: 'Deactivate' }));
     expect(window.confirm).toHaveBeenCalledWith(
       'Deactivate Road Operator? They will no longer be able to sign in.',

@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from app.schemas.ai_processing import AiProcessingStatus
 from app.schemas.content_safety import TicketContentSafety
 from app.schemas.image_redaction import TicketImageRedaction
+from app.schemas.municipality import TicketMunicipalityRouting
 from app.schemas.stored_ticket import PublicTicketStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
@@ -79,6 +80,10 @@ class TicketAuditHistoryEntry(BaseModel):
         "CONTENT_SAFETY_REJECT",
         "CONTENT_SAFETY_PRIVATE_ONLY",
         "CONTENT_SAFETY_REPROCESS",
+        "MUNICIPALITY_ASSIGN",
+        "MUNICIPALITY_CLAIM",
+        "MUNICIPALITY_REJECT",
+        "MUNICIPALITY_OVERRIDE",
         "WORKFORCE_ASSIGN",
         "WORK_ORDER_CREATE",
         "WORK_ORDER_ASSIGN",
@@ -90,7 +95,7 @@ class TicketAuditHistoryEntry(BaseModel):
         "RESOLUTION_FEEDBACK_REVIEW",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
-    actor_role: Literal["municipal_staff", "administrator"] | None = Field(
+    actor_role: Literal["municipal_staff", "administrator", "developer_operator"] | None = Field(
         default=None,
         alias="actorRole",
     )
@@ -304,6 +309,9 @@ class TicketResponse(BaseModel):
     outcome: TicketOutcomeFields | None = None
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
+    municipality_routing: TicketMunicipalityRouting | None = Field(
+        default=None, alias="municipalityRouting"
+    )
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")

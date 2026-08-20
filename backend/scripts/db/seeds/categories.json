@@ -57,5 +57,11 @@
     "label": "Public facilities",
     "description": "Damaged benches, playgrounds, and public spaces.",
     "departmentId": "d8888888-8888-8888-8888-888888888888"
+  },
+  {
+    "categoryId": "power_outage",
+    "label": "Power outage",
+    "description": "Electrical outages, downed distribution lines, and dark streets caused by grid failure.",
+    "departmentId": "daaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
   }
 ]

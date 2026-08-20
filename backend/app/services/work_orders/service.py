@@ -22,7 +22,6 @@ from app.schemas.work_order import (
 )
 from app.schemas.workforce import AssignWorkforceRequest
 from app.services.routing import department_ids
-from app.services.staff.bootstrap import BEIRUT_MUNICIPALITY_ID
 from app.services.work_orders.reasons import (
     normalize_private_note,
     validate_work_order_cancel_reason,
@@ -405,7 +404,11 @@ class WorkOrderService:
             return ticket.municipality_id
         if principal.municipality_id:
             return principal.municipality_id
-        return BEIRUT_MUNICIPALITY_ID
+        raise WorkOrderError(
+            "Ticket is not assigned to a municipality.",
+            status_code=409,
+            code="MUNICIPALITY_REQUIRED",
+        )
 
     def _require_ticket(self, ticket_id: str, principal: StaffPrincipal) -> StoredTicket:
         ticket = get_ticket_store().get(ticket_id)

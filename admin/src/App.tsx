@@ -7,6 +7,7 @@ import { TicketDetailPage } from '@/pages/TicketDetailPage';
 import { MapViewPage } from '@/pages/MapViewPage';
 import { WorkforcePage } from '@/pages/WorkforcePage';
 import { OpsDashboardPage } from '@/pages/OpsDashboardPage';
+import { MunicipalitiesPage } from '@/pages/MunicipalitiesPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -67,6 +68,14 @@ export function App() {
               element={
                 <ProtectedRoute allowedRoles={['developer_operator']}>
                   <OpsDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ops/municipalities"
+              element={
+                <ProtectedRoute allowedRoles={['developer_operator']}>
+                  <MunicipalitiesPage />
                 </ProtectedRoute>
               }
             />

@@ -186,6 +186,7 @@ def validate_configuration(
         ("DUPLICATE_MIN_SCORE", 0.0, 1.0),
         ("DUPLICATE_SAME_CATEGORY_WEIGHT", 0.0, 1.0),
         ("DUPLICATE_SIMILAR_CATEGORY_WEIGHT", 0.0, 1.0),
+        ("MUNICIPALITY_ROUTING_HIGH_CONFIDENCE", 0.5, 1.0),
     ):
         raw = _raw(env_map, name)
         if raw is None or not raw.strip():

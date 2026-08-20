@@ -10,7 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 import app.config  # noqa: F401 - ensure .env is loaded
 from app.services.location.local_place_index import (
-    is_within_beirut_bounds,
+    is_within_service_area,
     search_local_places_by_position,
     search_local_places_by_text,
 )
@@ -140,7 +140,7 @@ class LocalLocationClient:
         if place is None:
             raise LocationProviderError(
                 "LOCATION_NOT_FOUND",
-                "We could not find that address. Try a Beirut landmark or choose a map point.",
+                "We could not find that address. Try a known landmark or choose a map point.",
             )
         return {
             "latitude": place.latitude,
@@ -149,10 +149,10 @@ class LocalLocationClient:
         }
 
     def reverse_geocode(self, latitude: float, longitude: float) -> dict[str, Any]:
-        if not is_within_beirut_bounds(latitude, longitude):
+        if not is_within_service_area(latitude, longitude):
             raise LocationProviderError(
                 "LOCATION_OUT_OF_SERVICE_AREA",
-                "That location is outside the current BaladiGuard service area (Beirut).",
+                "That location is outside the current BaladiGuard service area.",
             )
 
         place = search_local_places_by_position(latitude, longitude)

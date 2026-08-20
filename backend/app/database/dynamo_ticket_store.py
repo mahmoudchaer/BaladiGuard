@@ -198,6 +198,12 @@ class DynamoTicketStore:
                     department_id=department_id,
                 ):
                     continue
+                if (
+                    browse_mode == "admin"
+                    and municipality_id
+                    and ticket.municipality_id not in {None, municipality_id}
+                ):
+                    continue
                 items.append(ticket)
                 if len(items) == limit:
                     break
@@ -1116,11 +1122,10 @@ def _staff_query_target(
 ) -> tuple[str, str, str]:
     if department_id and browse_mode == "municipality":
         return DEPARTMENT_STAFF_INDEX, "departmentId", department_id
-    if browse_mode == "admin":
-        return ADMIN_BROWSE_INDEX, ADMIN_BROWSE_KEY, ADMIN_BROWSE_ALL
-    if not municipality_id:
-        raise ValueError("municipality_id is required for municipality browse mode.")
-    return STAFF_SCOPE_INDEX, STAFF_SCOPE_KEY, municipality_id
+    del municipality_id, browse_mode
+    # Municipality and admin browse share the admin partition so unassigned
+    # tickets (staffScopeKey=UNSCOPED) stay visible, then post-filter owners.
+    return ADMIN_BROWSE_INDEX, ADMIN_BROWSE_KEY, ADMIN_BROWSE_ALL
 
 
 def _priority_filter_values(urgency: str | Sequence[str] | None) -> list[str]:
@@ -1194,6 +1199,8 @@ def _municipal_post_filter(
 ) -> bool:
     if ticket.municipality_id is not None and ticket.municipality_id != municipality_id:
         return False
+    if department_ids is None and department_id is None:
+        return True
     if department_id is not None:
         return ticket.department_id == department_id
     if ticket.department_id is None:

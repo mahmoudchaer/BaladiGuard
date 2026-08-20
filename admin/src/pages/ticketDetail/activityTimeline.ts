@@ -39,6 +39,10 @@ const AUDIT_ACTION_LABELS: Record<TicketAuditActionType, string> = {
   WORK_ORDER_EVIDENCE_ADD: 'Maintenance evidence added',
   RESOLUTION_FEEDBACK_SUBMIT: 'Citizen resolution feedback',
   RESOLUTION_FEEDBACK_REVIEW: 'Resolution feedback reviewed',
+  MUNICIPALITY_ASSIGN: 'Municipality assigned',
+  MUNICIPALITY_CLAIM: 'Municipality claimed',
+  MUNICIPALITY_REJECT: 'Municipality rejected',
+  MUNICIPALITY_OVERRIDE: 'Municipality override',
 };
 
 export function formatAuditAction(actionType: TicketAuditActionType): string {

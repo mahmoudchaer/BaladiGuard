@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { LoadingState } from '@/components/LoadingState';
-import { DEPARTMENT_NAMES } from '@/data/departments';
+import { DEPARTMENT_NAMES, departmentsForMunicipality } from '@/data/departments';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import {
   createTeam,
@@ -20,9 +20,6 @@ import type { WorkforceTeam, WorkforceWorker, WorkloadSnapshot } from '@/types/w
 import { formatStatus } from '@/utils/labels';
 import type { TicketStatus } from '@/types/ticket';
 import './WorkforcePage.css';
-
-const BEIRUT_MUNICIPALITY_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-const DEPARTMENT_OPTIONS = Object.entries(DEPARTMENT_NAMES);
 
 type TabId = 'directory' | 'workload';
 
@@ -50,15 +47,17 @@ function toggleValue(values: string[], value: string): string[] {
 function DepartmentChecklist({
   selected,
   onChange,
+  options,
 }: {
   selected: string[];
   onChange: (next: string[]) => void;
+  options: Array<[string, string]>;
 }) {
   const { t } = useI18n();
   return (
     <fieldset className="workforce-checklist">
       <legend>{t('workforce.departments')}</legend>
-      {DEPARTMENT_OPTIONS.map(([id, name]) => (
+      {options.map(([id, name]) => (
         <label key={id}>
           <input
             type="checkbox"
@@ -79,7 +78,8 @@ export function WorkforcePage() {
   const focusTeamId = searchParams.get('teamId');
   const { session } = useStaffAuth();
   const isAdmin = session?.role === 'administrator';
-  const municipalityId = session?.municipalityId ?? BEIRUT_MUNICIPALITY_ID;
+  const municipalityId = session?.municipalityId ?? '';
+  const departmentOptions = departmentsForMunicipality(municipalityId);
   const [tab, setTab] = useState<TabId>(focusWorkerId || focusTeamId ? 'directory' : 'workload');
   const [workers, setWorkers] = useState<WorkforceWorker[]>([]);
   const [teams, setTeams] = useState<WorkforceTeam[]>([]);
@@ -87,9 +87,9 @@ export function WorkforcePage() {
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [workerName, setWorkerName] = useState('');
-  const [workerDepartment, setWorkerDepartment] = useState(DEPARTMENT_OPTIONS[0]?.[0] ?? '');
+  const [workerDepartment, setWorkerDepartment] = useState(departmentOptions[0]?.[0] ?? '');
   const [teamName, setTeamName] = useState('');
-  const [teamDepartment, setTeamDepartment] = useState(DEPARTMENT_OPTIONS[0]?.[0] ?? '');
+  const [teamDepartment, setTeamDepartment] = useState(departmentOptions[0]?.[0] ?? '');
   const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
   const [editWorkerName, setEditWorkerName] = useState('');
   const [editWorkerDepartments, setEditWorkerDepartments] = useState<string[]>([]);
@@ -316,7 +316,7 @@ export function WorkforcePage() {
                       value={workerDepartment}
                       onChange={(event) => setWorkerDepartment(event.target.value)}
                     >
-                      {DEPARTMENT_OPTIONS.map(([id, name]) => (
+                      {departmentOptions.map(([id, name]) => (
                         <option key={id} value={id}>
                           {name}
                         </option>
@@ -364,6 +364,7 @@ export function WorkforcePage() {
                             <DepartmentChecklist
                               selected={editWorkerDepartments}
                               onChange={setEditWorkerDepartments}
+                              options={departmentOptions}
                             />
                             <div className="workforce-form__actions">
                               <button type="submit">{t('workforce.saveWorker')}</button>
@@ -427,7 +428,7 @@ export function WorkforcePage() {
                       value={teamDepartment}
                       onChange={(event) => setTeamDepartment(event.target.value)}
                     >
-                      {DEPARTMENT_OPTIONS.map(([id, name]) => (
+                      {departmentOptions.map(([id, name]) => (
                         <option key={id} value={id}>
                           {name}
                         </option>
@@ -473,6 +474,7 @@ export function WorkforcePage() {
                             <DepartmentChecklist
                               selected={editTeamDepartments}
                               onChange={setEditTeamDepartments}
+                              options={departmentOptions}
                             />
                             <fieldset className="workforce-checklist">
                               <legend>{t('workforce.members')}</legend>

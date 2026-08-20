@@ -115,6 +115,19 @@ def test_local_provider_rejects_unknown_address() -> None:
     assert exc.value.code == "LOCATION_NOT_FOUND"
 
 
+def test_local_provider_accepts_tripoli_coordinates() -> None:
+    provider = LocalLocationClient()
+    result = provider.reverse_geocode(34.4361, 35.8372)
+    assert "Tripoli" in result["addressText"]
+
+
+def test_local_provider_geocodes_tripoli_landmark() -> None:
+    provider = LocalLocationClient()
+    result = provider.geocode_address("Tripoli")
+    assert result["latitude"] == pytest.approx(34.4361)
+    assert "Tripoli" in result["addressText"]
+
+
 def test_local_provider_rejects_coordinates_outside_service_area() -> None:
     provider = LocalLocationClient()
     with pytest.raises(LocationProviderError) as exc:

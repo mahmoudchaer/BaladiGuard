@@ -20,6 +20,7 @@ def load_department_catalog() -> tuple[dict[str, str], ...]:
             "municipalityId": item["municipalityId"],
             "name": item["name"],
             "description": item["description"],
+            "serviceDomain": item.get("serviceDomain") or "",
         }
         for item in raw
     )
@@ -60,14 +61,28 @@ def suggest_department_id(
     category_id: str | None,
     urgency_level: str | None = None,
     urgency_score: int | None = None,
+    municipality_id: str | None = None,
 ) -> str | None:
     """Suggest the responsible department from seeded routing rules.
 
     Urgency is accepted as part of the processed-ticket context so rule sets can
-    evolve later. The current MVP rule source maps category to department and
-    does not reroute tickets by urgency.
+    evolve later. When ``municipality_id`` is set, prefer that municipality's
+    department for the category's service domain.
     """
+    del urgency_level, urgency_score
     if category_id is None:
+        return None
+    if municipality_id:
+        from app.services.routing.municipality_router import service_domain_for_category
+
+        domain = service_domain_for_category(category_id)
+        if domain:
+            for item in load_department_catalog():
+                if (
+                    item["municipalityId"] == municipality_id
+                    and item.get("serviceDomain") == domain
+                ):
+                    return item["departmentId"]
         return None
     return department_id_for_category(category_id)
 

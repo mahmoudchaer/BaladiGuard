@@ -160,6 +160,23 @@ class Settings:
         self.content_safety_job_backoff_max_seconds = self._int_setting(
             "CONTENT_SAFETY_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
         )
+        self.municipality_routing_enabled = (
+            os.getenv("MUNICIPALITY_ROUTING_ENABLED", "true").strip().lower() == "true"
+        )
+        self.municipality_routing_use_model = (
+            os.getenv("MUNICIPALITY_ROUTING_USE_MODEL", "false").strip().lower() == "true"
+        )
+        self.municipality_routing_model_id = (
+            os.getenv("MUNICIPALITY_ROUTING_MODEL_ID", "").strip()
+            or os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0").strip()
+            or "amazon.nova-lite-v1:0"
+        )
+        self.municipality_routing_high_confidence = self._float_setting(
+            "MUNICIPALITY_ROUTING_HIGH_CONFIDENCE",
+            default=0.85,
+            minimum=0.5,
+            maximum=1.0,
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",

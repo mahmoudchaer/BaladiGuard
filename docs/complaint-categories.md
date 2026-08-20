@@ -19,6 +19,7 @@ the UI without changing these keys.
 | `traffic_signal` | Traffic signal | Traffic Management (`d6666666-6666-6666-6666-666666666666`) | Traffic light not working; signal stuck on red; pedestrian crossing signal failure. |
 | `drainage` | Drainage | Drainage (`d7777777-7777-7777-7777-777777777777`) | Blocked storm drain; rainwater pooling; flooded street after rain; clogged drainage channel. |
 | `public_facilities` | Public facilities | Public Facilities (`d8888888-8888-8888-8888-888888888888`) | Broken public bench; damaged playground equipment; unsafe park fixture; damaged public amenity. |
+| `power_outage` | Power outage | Power Distribution (municipality-specific) | Electrical outages, downed distribution lines, dark streets caused by grid failure. |
 | `PENDING_CLASSIFICATION` | Pending classification | No department mapping until reviewed or classified | Newly submitted ticket before AI classification; ambiguous report needing staff review. |
 
 ## Translation Guidance

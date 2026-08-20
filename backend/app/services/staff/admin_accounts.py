@@ -39,6 +39,10 @@ def _guard_municipality_admin_scope(
         raise StaffAccountAdminError(
             "Municipality administrators cannot create or assign developer-operator access."
         )
+    if target_role == "administrator":
+        raise StaffAccountAdminError(
+            "Municipality administrators cannot create or promote other administrators."
+        )
 
 
 def _require_admin(actor: StaffPrincipal) -> None:
@@ -88,6 +92,15 @@ class StaffAccountAdminService:
         staff_id: str | None = None,
     ) -> StoredStaffUser:
         _guard_municipality_admin_scope(actor, target_role=role)
+        if role != "municipal_staff":
+            raise StaffAccountAdminError(
+                "Municipality administrators may only create municipal staff accounts."
+            )
+        scoped_municipality = actor.municipality_id
+        if not scoped_municipality:
+            raise StaffAccountAdminError("Administrator municipality scope is required.")
+        if municipality_id and municipality_id != scoped_municipality:
+            raise StaffAccountAdminError("You cannot create staff for another municipality.")
         stamped = _iso_now()
         try:
             user = StoredStaffUser(
@@ -97,7 +110,7 @@ class StaffAccountAdminService:
                 email=email,
                 passwordHash=hash_password(password),
                 role=role,
-                municipalityId=municipality_id,
+                municipalityId=scoped_municipality,
                 departmentIds=department_ids,
                 active=True,
                 sessionEpoch=0,
@@ -147,23 +160,18 @@ class StaffAccountAdminService:
         previous = _snapshot(user)
         stamped = _iso_now()
         if role == "administrator":
-            update = {
-                "role": role,
-                "municipality_id": None,
-                "department_ids": None,
-                "updated_at": stamped,
-            }
-        else:
-            update = {
-                "role": role,
-                "municipality_id": (
-                    municipality_id if municipality_id is not None else user.municipality_id
-                ),
-                "department_ids": (
-                    department_ids if department_ids is not None else user.department_ids
-                ),
-                "updated_at": stamped,
-            }
+            raise StaffAccountAdminError(
+                "Municipality administrators cannot create or promote other administrators."
+            )
+        update = {
+            "role": role,
+            "municipality_id": actor.municipality_id,
+            "department_ids": (
+                department_ids if department_ids is not None else user.department_ids
+            ),
+            "updated_at": stamped,
+        }
+        del municipality_id
         try:
             updated = store.update(StoredStaffUser.model_validate({**user.model_dump(), **update}))
         except ValidationError as exc:
@@ -200,8 +208,13 @@ class StaffAccountAdminService:
         _reject_operator_target(user)
         if user.role == "administrator":
             raise StaffAccountAdminError(
-                "Administrator accounts use global scope; change role before assigning scope."
+                "Municipality administrator scope is fixed; provision a new administrator instead."
             )
+        if municipality_id and municipality_id != actor.municipality_id:
+            raise StaffAccountAdminError("You cannot move staff to another municipality.")
+        scoped_municipality = actor.municipality_id
+        if not scoped_municipality:
+            raise StaffAccountAdminError("Administrator municipality scope is required.")
 
         previous = _snapshot(user)
         stamped = _iso_now()
@@ -210,7 +223,7 @@ class StaffAccountAdminService:
                 StoredStaffUser.model_validate(
                     {
                         **user.model_dump(),
-                        "municipality_id": municipality_id,
+                        "municipality_id": scoped_municipality,
                         "department_ids": department_ids,
                         "updated_at": stamped,
                     }

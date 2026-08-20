@@ -100,6 +100,7 @@ from app.services.redaction.review import (
     ImageRedactionReviewError,
 )
 from app.services.routing import department_ids, suggest_department_id
+from app.services.routing.municipality_router import route_ticket_to_municipality
 from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.urgency import score_urgency
 from app.services.work_orders.reasons import (
@@ -506,6 +507,11 @@ class TicketService:
                 category=classification.category if classification_ok else None,
                 description=cleaning.cleaned_description if cleaning_ok else None,
             )
+            routing_category = classification.category if classification_ok else None
+            routing = route_ticket_to_municipality(ticket, category=routing_category)
+            from app.services.municipalities.ticket_routing import apply_routing_decision
+
+            routing_fields = apply_routing_decision(ticket, routing, category=routing_category)
             self.save_ticket_ai_output(
                 ticket_id,
                 SaveTicketAiOutputRequest(
@@ -521,6 +527,7 @@ class TicketService:
                     aiProcessingStatus="failed" if processing_failed else "completed",
                 ),
                 claim_token=active_claim_token,
+                extra_fields=routing_fields,
             )
             if processing_failed:
                 logger.warning(
@@ -1401,6 +1408,7 @@ class TicketService:
         payload: SaveTicketAiOutputRequest,
         *,
         claim_token: str | None = None,
+        extra_fields: dict[str, object] | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
@@ -1420,18 +1428,26 @@ class TicketService:
         }
         if payload.ai_confidence is not None:
             update_fields["ai_confidence"] = payload.ai_confidence
-        suggested_department_id = suggest_department_id(
-            category_id=payload.ai_suggested_category,
-            urgency_level=payload.priority,
-            urgency_score=payload.urgency_score,
-        )
-        update_fields.update(
-            _department_suggestion_fields(
-                ticket,
-                suggested_department_id=suggested_department_id,
-                previous_category_id=ticket.ai_suggested_category,
+        routed_municipality_id = None
+        if extra_fields:
+            routed_municipality_id = extra_fields.get("municipality_id")
+        if extra_fields is None or "department_id" not in extra_fields:
+            suggested_department_id = suggest_department_id(
+                category_id=payload.ai_suggested_category,
+                urgency_level=payload.priority,
+                urgency_score=payload.urgency_score,
+                municipality_id=routed_municipality_id or ticket.municipality_id,
             )
-        )
+            update_fields.update(
+                _department_suggestion_fields(
+                    ticket,
+                    suggested_department_id=suggested_department_id,
+                    previous_category_id=ticket.ai_suggested_category,
+                )
+            )
+        if extra_fields:
+            update_fields.update(extra_fields)
+            update_fields["updated_at"] = updated_at
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
         if claim_token is not None:
@@ -2675,7 +2691,7 @@ def _staff_browse_scope(
     principal: StaffPrincipal,
 ) -> tuple[Literal["admin", "municipality"], str | None, list[str] | None]:
     if principal.role == "administrator":
-        return "admin", None, None
+        return "admin", principal.municipality_id, None
     return (
         "municipality",
         principal.municipality_id,

@@ -206,11 +206,13 @@ def test_invalid_numeric_settings_are_reported():
         "AWS_REGION": "us-east-1",
         "DUPLICATE_MIN_SCORE": "not-a-number",
         "AI_PROCESSING_CLAIM_TIMEOUT_SECONDS": "0",
+        "MUNICIPALITY_ROUTING_HIGH_CONFIDENCE": "2",
     }
     result = validate_configuration(_settings_from_env(), environ=environ)
     codes = {issue.code for issue in result.issues}
     assert "INVALID_DUPLICATE_MIN_SCORE" in codes
     assert "INVALID_AI_PROCESSING_CLAIM_TIMEOUT_SECONDS" in codes
+    assert "INVALID_MUNICIPALITY_ROUTING_HIGH_CONFIDENCE" in codes
 
 
 def test_production_rejects_development_defaults():

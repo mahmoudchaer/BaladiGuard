@@ -58,7 +58,7 @@ def test_operator_can_read_overview_metrics_alerts_workers_and_runbooks(anonymou
     assert body["health"]["ready"] is True
     assert body["health"]["database"] in {"ok", "unknown"}
     assert body["telemetrySource"] in {"application", "cloudwatch", "mixed"}
-    assert body["municipalityManagement"]["available"] is False
+    assert body["municipalityManagement"]["available"] is True
     assert {item["kind"] for item in body["workers"]} >= {
         "ai",
         "redaction",

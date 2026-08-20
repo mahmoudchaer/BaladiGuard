@@ -67,12 +67,11 @@ def test_admin_can_create_list_read_update_and_toggle_staff_accounts(anonymous_c
 
     municipality_only = anonymous_client.patch(
         f"/v1/admin/staff-accounts/{staff_id}",
-        json={"municipalityId": "cccccccc-cccc-cccc-cccc-cccccccccccc"},
+        json={"municipalityId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"},
         headers=admin_headers,
     )
-    assert municipality_only.status_code == 200, municipality_only.text
-    assert municipality_only.json()["municipalityId"] == "cccccccc-cccc-cccc-cccc-cccccccccccc"
-    assert municipality_only.json()["departmentIds"] == ["d3333333-3333-3333-3333-333333333333"]
+    assert municipality_only.status_code == 400
+    assert municipality_only.json()["error"]["code"] == "VALIDATION_ERROR"
 
     deactivated = anonymous_client.post(
         f"/v1/admin/staff-accounts/{staff_id}/deactivate", headers=admin_headers
@@ -101,7 +100,6 @@ def test_admin_can_create_list_read_update_and_toggle_staff_accounts(anonymous_c
     actions = [entry.action_type for entry in account_audit_store.list_by_target_staff_id(staff_id)]
     assert actions == [
         "STAFF_CREATED",
-        "STAFF_SCOPE_CHANGED",
         "STAFF_SCOPE_CHANGED",
         "STAFF_DEACTIVATED",
         "STAFF_REACTIVATED",
@@ -133,9 +131,8 @@ def test_admin_update_validates_role_scope_and_duplicate_accounts(anonymous_clie
     global_admin = anonymous_client.patch(
         f"/v1/admin/staff-accounts/{staff_id}", json={"role": "administrator"}, headers=headers
     )
-    assert global_admin.status_code == 200
-    assert global_admin.json()["municipalityId"] is None
-    assert global_admin.json()["departmentIds"] is None
+    assert global_admin.status_code == 400
+    assert global_admin.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_admin_routes_are_safe_for_guests_invalid_sessions_and_municipal_staff(anonymous_client):
