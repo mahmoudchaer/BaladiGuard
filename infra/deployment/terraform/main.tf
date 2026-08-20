@@ -232,7 +232,8 @@ resource "aws_iam_role_policy" "runtime_dynamodb" {
       Effect = "Allow"
       Action = each.key == "migration" ? [
         "dynamodb:CreateTable", "dynamodb:DescribeTable", "dynamodb:UpdateTable",
-        "dynamodb:UpdateContinuousBackups", "dynamodb:ListTagsOfResource", "dynamodb:TagResource"
+        "dynamodb:UpdateContinuousBackups", "dynamodb:UpdateTimeToLive",
+        "dynamodb:ListTagsOfResource", "dynamodb:TagResource"
         ] : [
         "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem", "dynamodb:ConditionCheckItem",
         "dynamodb:DeleteItem", "dynamodb:DescribeTable", "dynamodb:GetItem", "dynamodb:PutItem",
