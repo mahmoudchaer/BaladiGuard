@@ -47,11 +47,32 @@ def next_task_definition(current: dict[str, Any], image: str, version: str) -> d
 
 
 def register(family: str, image: str, version: str) -> tuple[str, str]:
+    """Register a new task definition revision and return (previous_running_arn, new_arn).
+
+    The "previous" ARN is read from the ECS service that runs this family so that
+    rollback restores the actually-running revision, not the family tip (which may
+    already point to a bad image pushed by Terraform).
+    """
     current = aws("ecs", "describe-task-definition", "--task-definition", family)["taskDefinition"]
-    previous = current["taskDefinitionArn"]
     payload = next_task_definition(current, image, version)
     registered = aws("ecs", "register-task-definition", "--cli-input-json", json.dumps(payload))
-    return previous, registered["taskDefinition"]["taskDefinitionArn"]
+    return current["taskDefinitionArn"], registered["taskDefinition"]["taskDefinitionArn"]
+
+
+def running_task_definition_arns(cluster: str, services: list[str]) -> dict[str, str]:
+    """Return {service_name: task_definition_arn} for each service currently running."""
+    if not services:
+        return {}
+    described = aws(
+        "ecs", "describe-services", "--cluster", cluster, "--services", *services,
+    )
+    result: dict[str, str] = {}
+    for svc in described.get("services", []):
+        name = svc["serviceName"]
+        td_arn = svc.get("taskDefinition")
+        if td_arn:
+            result[name] = td_arn
+    return result
 
 
 def run_migration(task_definition: str, cluster: str, subnets: str, security_group: str) -> None:
@@ -59,18 +80,30 @@ def run_migration(task_definition: str, cluster: str, subnets: str, security_gro
         f"awsvpcConfiguration={{subnets=[{subnets}],securityGroups=[{security_group}],"
         "assignPublicIp=ENABLED}"
     )
-    task = aws(
+    response = aws(
         "ecs", "run-task", "--cluster", cluster, "--task-definition", task_definition,
         "--launch-type", "FARGATE", "--network-configuration", configuration,
         "--started-by", "baladiguard-cd",
-    )["tasks"][0]
-    task_arn = task["taskArn"]
+    )
+    failures = response.get("failures", [])
+    tasks = response.get("tasks", [])
+    if failures:
+        reasons = "; ".join(f"{f.get('arn', 'unknown')}: {f.get('reason', 'unknown')}" for f in failures)
+        raise RuntimeError(f"run-task failed to place migration task: {reasons}")
+    if not tasks:
+        raise RuntimeError("run-task returned no tasks and no failures — capacity, networking, or IAM issue")
+    task_arn = tasks[0]["taskArn"]
     subprocess.run(
         ["aws", "ecs", "wait", "tasks-stopped", "--cluster", cluster, "--tasks", task_arn],
         check=True,
     )
     stopped = aws("ecs", "describe-tasks", "--cluster", cluster, "--tasks", task_arn)["tasks"][0]
-    container = stopped.get("containers", [{}])[0]
+    containers = stopped.get("containers", [])
+    if not containers:
+        raise RuntimeError(
+            f"migration task stopped with no containers: {stopped.get('stoppedReason') or 'unknown'}"
+        )
+    container = containers[0]
     if container.get("exitCode") != 0:
         raise RuntimeError(
             f"migration failed: {container.get('reason') or stopped.get('stoppedReason') or 'unknown'}"
@@ -89,6 +122,24 @@ def wait_stable(cluster: str, services: list[str]) -> None:
         ["aws", "ecs", "wait", "services-stable", "--cluster", cluster, "--services", *services],
         check=True,
     )
+
+
+def verify_promoted(cluster: str, services: list[str], promoted: dict[str, str]) -> None:
+    """Fail the release unless every service runs the task definition we promoted.
+
+    The ECS deployment circuit breaker can roll a failed rollout back to the old
+    tasks, which makes ``wait services-stable`` succeed on the previous revision.
+    Without this check a failed rollout would be recorded as a success in the
+    deployment manifest.
+    """
+    running = running_task_definition_arns(cluster, services)
+    mismatched = {
+        service: {"expected": promoted[service], "actual": running.get(service)}
+        for service in services
+        if service in promoted and running.get(service) != promoted[service]
+    }
+    if mismatched:
+        raise RuntimeError(f"services not running the promoted task definitions: {mismatched}")
 
 
 def readiness(url: str, attempts: int = 12) -> None:
@@ -129,21 +180,24 @@ def main() -> int:
     promoted: dict[str, str] = {}
     services = ["api", "ai-worker", "redaction-worker"]
     try:
+        # Snapshot the currently-running task definitions BEFORE registering new ones.
+        previous = running_task_definition_arns(args.cluster, services)
         for name, family in families.items():
-            previous[name], promoted[name] = register(family, args.image, args.version)
+            _, promoted[name] = register(family, args.image, args.version)
         run_migration(
             promoted["migration"], args.cluster, args.subnets, args.security_group
         )
         for service in services:
             update_service(args.cluster, service, promoted[service])
         wait_stable(args.cluster, services)
+        verify_promoted(args.cluster, services, promoted)
         readiness(args.api_url)
     except Exception:
         for service in services:
             if service in previous:
                 update_service(args.cluster, service, previous[service])
         if previous:
-            wait_stable(args.cluster, [service for service in services if service in previous])
+            wait_stable(args.cluster, [s for s in services if s in previous])
         raise
 
     manifest = {

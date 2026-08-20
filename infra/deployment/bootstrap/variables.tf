@@ -8,6 +8,12 @@ variable "github_repository" {
   type        = string
 }
 
+variable "github_oidc_provider_arn" {
+  description = "ARN of an existing GitHub OIDC provider in this account. AWS allows only one provider per URL; set this if the account already has one. Leave empty to create the provider here."
+  type        = string
+  default     = ""
+}
+
 variable "state_bucket_name" {
   type = string
 }
@@ -15,4 +21,14 @@ variable "state_bucket_name" {
 variable "lock_table_name" {
   type    = string
   default = "baladiguard-terraform-locks"
+}
+
+variable "route53_zone_id" {
+  description = "Route 53 hosted zone ID for DNS record management."
+  type        = string
+}
+
+variable "runtime_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding runtime environment values."
+  type        = string
 }

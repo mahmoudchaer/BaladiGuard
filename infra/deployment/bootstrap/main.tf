@@ -89,10 +89,22 @@ resource "aws_ecr_lifecycle_policy" "backend" {
   })
 }
 
+# Most AWS accounts already have the GitHub OIDC provider (only one is allowed
+# per URL).  Set var.github_oidc_provider_arn to the existing provider ARN in
+# that case; leave it empty to have this module create the provider.
 resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+  count          = var.github_oidc_provider_arn == "" ? 1 : 0
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1", # GitHub (legacy)
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd", # GitHub (current)
+    "a031c46782e6e6c662c2c87c76da9aa62ccabd8e", # GitHub (current)
+  ]
+}
+
+locals {
+  github_oidc_arn = var.github_oidc_provider_arn != "" ? var.github_oidc_provider_arn : aws_iam_openid_connect_provider.github[0].arn
 }
 
 data "aws_iam_policy_document" "github_trust" {
@@ -101,7 +113,7 @@ data "aws_iam_policy_document" "github_trust" {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [local.github_oidc_arn]
     }
     condition {
       test     = "StringEquals"
@@ -122,29 +134,175 @@ resource "aws_iam_role" "github_deploy" {
   assume_role_policy = each.value.json
 }
 
-# The deployment role manages infrastructure, while the ECS runtime roles in the
-# environment module remain narrowly scoped. IAM mutation is limited to roles
-# owned by this project.
-resource "aws_iam_role_policy_attachment" "power_user" {
-  for_each   = aws_iam_role.github_deploy
-  role       = each.value.name
-  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
-}
-
-resource "aws_iam_role_policy" "project_roles" {
+# Least-privilege deployment role scoped to resources this module manages.
+# The ECS runtime roles in the environment module remain separately scoped.
+resource "aws_iam_role_policy" "deploy" {
   for_each = aws_iam_role.github_deploy
   role     = each.value.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:PassRole",
-        "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
-        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListRolePolicies",
-        "iam:ListAttachedRolePolicies", "iam:TagRole"
-      ]
-      Resource = "arn:aws:iam::*:role/baladiguard-${each.key}-*"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:DescribeRepositories", "ecr:DescribeImages",
+          "ecr:PutImage", "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
+          "ecr:BatchCheckLayerAvailability", "ecr:GetAuthorizationToken",
+          "ecr:PutImageTagMutability", "ecr:PutImageScanningConfiguration",
+          "ecr:PutLifecyclePolicy", "ecr:GetLifecyclePolicy",
+        ]
+        Resource = [for repo in aws_ecr_repository.backend : repo.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:CreateBucket", "s3:DeleteBucket", "s3:ListBucket",
+          "s3:GetBucketLocation", "s3:GetBucketVersioning",
+          "s3:GetBucketEncryption", "s3:GetBucketPublicAccessBlock",
+          "s3:PutBucketVersioning", "s3:PutBucketEncryption",
+          "s3:PutBucketPublicAccessBlock", "s3:PutBucketPolicy",
+          "s3:GetBucketPolicy", "s3:DeleteBucketPolicy",
+        ]
+        Resource = [
+          aws_s3_bucket.state.arn,
+          "arn:aws:s3:::baladiguard-*-admin-*",
+          "arn:aws:s3:::baladiguard-*-report-photos-*",
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:CreateTable", "dynamodb:DeleteTable",
+          "dynamodb:DescribeTable", "dynamodb:UpdateTable",
+          "dynamodb:DescribeContinuousBackups",
+          "dynamodb:UpdateContinuousBackups",
+          "dynamodb:DescribeTimeToLive", "dynamodb:UpdateTimeToLive",
+          "dynamodb:ListTagsOfResource", "dynamodb:TagResource",
+        ]
+        Resource = [
+          aws_dynamodb_table.locks.arn,
+          "arn:aws:dynamodb:*:*:table/baladiguard-*",
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:CreateCluster", "ecs:DeleteCluster",
+          "ecs:DescribeClusters", "ecs:UpdateClusterSettings",
+          "ecs:RegisterTaskDefinition", "ecs:DeregisterTaskDefinition",
+          "ecs:DescribeTaskDefinition",
+          "ecs:CreateService", "ecs:DeleteService",
+          "ecs:UpdateService", "ecs:DescribeServices",
+          "ecs:RunTask", "ecs:StopTask", "ecs:DescribeTasks",
+          "ecs:ListTasks",
+        ]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "aws:ResourceTag/Project" = "baladiguard"
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateVpc", "ec2:DeleteVpc",
+          "ec2:DescribeVpcs", "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups", "ec2:DescribeRouteTables",
+          "ec2:DescribeInternetGateways", "ec2:DescribeAvailabilityZones",
+          "ec2:CreateSubnet", "ec2:DeleteSubnet",
+          "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup",
+          "ec2:AuthorizeSecurityGroupIngress", "ec2:RevokeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress", "ec2:RevokeSecurityGroupEgress",
+          "ec2:CreateInternetGateway", "ec2:DeleteInternetGateway",
+          "ec2:AttachInternetGateway", "ec2:DetachInternetGateway",
+          "ec2:CreateRoute", "ec2:DeleteRoute",
+          "ec2:CreateRouteTable", "ec2:DeleteRouteTable",
+          "ec2:AssociateRouteTable", "ec2:DisassociateRouteTable",
+          "ec2:ModifyVpcAttribute",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:CreateLoadBalancer", "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:CreateTargetGroup", "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:CreateListener", "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes",
+          "elasticloadbalancing:ModifyTargetGroupAttributes",
+          "elasticloadbalancing:SetSecurityGroups",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "acm:RequestCertificate", "acm:DeleteCertificate",
+          "acm:DescribeCertificate", "acm:ListCertificates",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeResourceRecordSets",
+          "route53:GetChange",
+          "route53:ListResourceRecordSets",
+          "route53:ListHostedZones",
+        ]
+        Resource = "arn:aws:route53:::hostedzone/${var.route53_zone_id}"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateDistribution", "cloudfront:DeleteDistribution",
+          "cloudfront:UpdateDistribution", "cloudfront:GetDistribution",
+          "cloudfront:CreateInvalidation",
+          "cloudfront:CreateOriginAccessControl", "cloudfront:DeleteOriginAccessControl",
+          "cloudfront:GetOriginAccessControl",
+          "cloudfront:CreateResponseHeadersPolicy", "cloudfront:DeleteResponseHeadersPolicy",
+          "cloudfront:GetResponseHeadersPolicy",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup", "logs:DeleteLogGroup",
+          "logs:DescribeLogGroups", "logs:PutRetentionPolicy",
+        ]
+        Resource = "arn:aws:logs:*:*:log-group:/ecs/baladiguard-*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:PassRole",
+          "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies", "iam:TagRole",
+          "iam:CreateServiceLinkedRole",
+        ]
+        Resource = "arn:aws:iam::*:role/baladiguard-${each.key}-*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret",
+        ]
+        Resource = var.runtime_secret_arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sts:GetCallerIdentity",
+        ]
+        Resource = "*"
+      },
+    ]
   })
 }

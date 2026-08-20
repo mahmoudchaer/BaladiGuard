@@ -85,11 +85,17 @@ jobs:
             --security-group "$security_group" --api-url "$api_url"
       - name: Build and publish admin UI
         env:
+          VITE_APP_ENV: ${{ env.DEPLOY_ENV }}
           VITE_API_BASE_URL: ${{ vars.API_URL }}
           VITE_USE_MOCK_DATA: "false"
         run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::error::VITE_API_BASE_URL (vars.API_URL) is required for production builds"
+            exit 1
+          fi
           npm ci --prefix admin
           npm run build --prefix admin
+          npm run check:production-build --prefix admin
           bucket=$(jq -r '.admin_bucket.value' terraform-output.json)
           distribution=$(jq -r '.admin_distribution_id.value' terraform-output.json)
           aws s3 sync admin/dist "s3://$bucket" --delete --only-show-errors
