@@ -979,7 +979,11 @@ def test_staff_list_projects_and_filters_content_safety_status(client):
     assert all(item["ticketId"] != created["ticketId"] for item in empty.json()["items"])
 
 
-def test_review_original_image_is_only_returned_when_flagged(client):
+def test_review_original_image_is_only_returned_when_flagged(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.complaints.ticket_read_mapper.build_image_url",
+        lambda key: f"https://example.test/{key}" if key else None,
+    )
     ensure_contribution_ready_citizen(phone="+96170925517", full_name="Safety Original", email=None)
     created = client.post(
         "/v1/tickets",
