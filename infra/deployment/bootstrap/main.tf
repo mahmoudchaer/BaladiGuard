@@ -221,7 +221,7 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "ec2:CreateVpc", "ec2:DeleteVpc",
-          "ec2:DescribeVpcs", "ec2:DescribeVpcAttribute", "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs", "ec2:DescribeVpcAttribute", "ec2:DescribeSubnets", "ec2:DescribeNetworkInterfaces",
           "ec2:DescribeSecurityGroups", "ec2:DescribeRouteTables",
           "ec2:DescribeInternetGateways", "ec2:DescribeAvailabilityZones",
           "ec2:CreateSubnet", "ec2:DeleteSubnet",
@@ -277,6 +277,7 @@ resource "aws_iam_role_policy" "deploy" {
         Action = [
           "cloudfront:CreateDistribution", "cloudfront:DeleteDistribution",
           "cloudfront:UpdateDistribution", "cloudfront:GetDistribution",
+          "cloudfront:ListTagsForResource",
           "cloudfront:CreateInvalidation",
           "cloudfront:CreateOriginAccessControl", "cloudfront:DeleteOriginAccessControl",
           "cloudfront:GetOriginAccessControl",
