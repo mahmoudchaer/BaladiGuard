@@ -30,6 +30,7 @@ vi.mock('@/services/tickets', async () => {
     fetchTicketActivity: vi.fn(async () => ({ events: [], nextCursor: null })),
     fetchTicketComments: vi.fn(async () => []),
     fetchImageRedactionReview: vi.fn(async () => null),
+    fetchContentSafetyReview: vi.fn(async () => null),
     reviewTicketCategory: vi.fn(),
     assignTicketDepartment: vi.fn(),
   };

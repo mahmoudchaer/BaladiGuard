@@ -16,6 +16,7 @@ import {
   mergeDuplicateTickets,
   updateTicketStatus,
   fetchImageRedactionReview,
+  fetchContentSafetyReview,
 } from '@/services/tickets';
 import { fetchResolutionFeedback } from '@/services/resolutionFeedback';
 import {
@@ -48,6 +49,7 @@ vi.mock('@/services/tickets', () => ({
   fetchTicketActivity: vi.fn(),
   fetchTicketComments: vi.fn(),
   fetchImageRedactionReview: vi.fn(),
+  fetchContentSafetyReview: vi.fn(),
 }));
 
 vi.mock('@/services/workforce', () => ({
@@ -212,6 +214,7 @@ beforeEach(() => {
   vi.mocked(fetchTicketActivity).mockResolvedValue({ events: [], nextCursor: null });
   vi.mocked(fetchTicketComments).mockResolvedValue([]);
   vi.mocked(fetchImageRedactionReview).mockResolvedValue(null);
+  vi.mocked(fetchContentSafetyReview).mockResolvedValue(null);
 });
 
 describe('TicketDetailPage states', () => {
@@ -270,6 +273,7 @@ describe('TicketDetailPage summary header', () => {
   it('localizes ticket detail chrome and workspace tabs for Arabic and French', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Ticket Details' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
 
     await act(async () => {

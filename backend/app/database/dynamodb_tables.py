@@ -383,6 +383,13 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        # Content-safety screening is isolated from classification and redaction.
+        "suffix": "content-safety-jobs",
+        "key_schema": [{"AttributeName": "jobId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "jobId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "duplicate-groups",
         "key_schema": [{"AttributeName": "duplicateGroupId", "KeyType": "HASH"}],
         "attribute_definitions": [

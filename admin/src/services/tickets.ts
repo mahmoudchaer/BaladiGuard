@@ -1,6 +1,7 @@
 import type {
   AiProcessingStatus,
   ActivityPage,
+  ContentSafetyStatus,
   DuplicateCandidate,
   DuplicateCandidatePage,
   DuplicateComparison,
@@ -24,7 +25,7 @@ import type {
   TicketListPage,
   TicketMapViewport,
 } from '@/types/ticketCollection';
-import type { ImageRedactionReview } from '@/types/ticket';
+import type { ContentSafetyReview, ImageRedactionReview } from '@/types/ticket';
 import mockTickets from '../../../mock_tickets.json';
 import { DEPARTMENT_NAMES } from '@/data/departments';
 import { clearStoredStaffSession, getStaffAuthHeaders } from '@/services/auth';
@@ -59,6 +60,7 @@ export type FetchTicketsFilters = {
   ticketIds?: string[];
   workerId?: string;
   teamId?: string;
+  contentSafetyStatus?: ContentSafetyStatus | 'ALL';
 };
 
 export type FetchTicketsPageOptions = {
@@ -206,6 +208,13 @@ function ticketMatchesFetchFilters(ticket: Ticket, filters: FetchTicketsFilters)
   if (filters.teamId && ticket.assignedTeamId !== filters.teamId) {
     return false;
   }
+  if (
+    filters.contentSafetyStatus &&
+    filters.contentSafetyStatus !== 'ALL' &&
+    ticket.contentSafety?.status !== filters.contentSafetyStatus
+  ) {
+    return false;
+  }
   const query = filters.q?.trim().toLowerCase();
   if (query) {
     const haystack = [
@@ -240,6 +249,10 @@ function filterRecord(filters: FetchTicketsFilters = {}): Record<string, string 
     ticketIds: filters.ticketIds?.length ? filters.ticketIds.join(',') : undefined,
     workerId: filters.workerId,
     teamId: filters.teamId,
+    contentSafetyStatus:
+      filters.contentSafetyStatus && filters.contentSafetyStatus !== 'ALL'
+        ? filters.contentSafetyStatus
+        : undefined,
   };
 }
 
@@ -278,6 +291,9 @@ function appendListFilters(url: URL, filters: FetchTicketsFilters = {}): void {
   if (filters.teamId) {
     url.searchParams.set('teamId', filters.teamId);
   }
+  if (filters.contentSafetyStatus && filters.contentSafetyStatus !== 'ALL') {
+    url.searchParams.set('contentSafetyStatus', filters.contentSafetyStatus);
+  }
 }
 
 function listItemToTicket(item: TicketListItem): Ticket {
@@ -304,6 +320,14 @@ function listItemToTicket(item: TicketListItem): Ticket {
     departmentId,
     assignedWorkerId: item.assignedWorkerId ?? null,
     assignedTeamId: item.assignedTeamId ?? null,
+    contentSafety: item.contentSafetyStatus
+      ? {
+          status: item.contentSafetyStatus,
+          generation: 1,
+          imageLabels: [],
+          authenticitySignals: [],
+        }
+      : undefined,
     departmentName,
     department:
       departmentId || departmentName
@@ -352,6 +376,19 @@ function normalizeTicketListItem(data: unknown): TicketListItem {
     updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : null,
     municipalityId: typeof data.municipalityId === 'string' ? data.municipalityId : null,
     assignmentState: data.assignmentState === 'unassigned' ? 'unassigned' : 'assigned',
+    assignedWorkerId: typeof data.assignedWorkerId === 'string' ? data.assignedWorkerId : null,
+    assignedTeamId: typeof data.assignedTeamId === 'string' ? data.assignedTeamId : null,
+    contentSafetyStatus:
+      data.contentSafetyStatus === 'pending' ||
+      data.contentSafetyStatus === 'processing' ||
+      data.contentSafetyStatus === 'passed' ||
+      data.contentSafetyStatus === 'review_required' ||
+      data.contentSafetyStatus === 'private_only' ||
+      data.contentSafetyStatus === 'rejected' ||
+      data.contentSafetyStatus === 'failed' ||
+      data.contentSafetyStatus === 'superseded'
+        ? data.contentSafetyStatus
+        : undefined,
     location: {
       latitude: typeof location.latitude === 'number' ? location.latitude : Number.NaN,
       longitude: typeof location.longitude === 'number' ? location.longitude : Number.NaN,
@@ -418,6 +455,7 @@ function ticketToListItem(ticket: Ticket): TicketListItem {
     assignmentState: ticket.departmentId ? 'assigned' : 'unassigned',
     assignedWorkerId: ticket.assignedWorkerId ?? null,
     assignedTeamId: ticket.assignedTeamId ?? null,
+    contentSafetyStatus: ticket.contentSafety?.status,
     location: {
       latitude: ticket.location.latitude,
       longitude: ticket.location.longitude,
@@ -902,6 +940,10 @@ const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
   'IMAGE_REDACTION_REJECT',
   'IMAGE_REDACTION_REPROCESS',
   'IMAGE_REDACTION_MANUAL_BLUR',
+  'CONTENT_SAFETY_APPROVE',
+  'CONTENT_SAFETY_REJECT',
+  'CONTENT_SAFETY_PRIVATE_ONLY',
+  'CONTENT_SAFETY_REPROCESS',
   'WORKFORCE_ASSIGN',
   'WORK_ORDER_CREATE',
   'WORK_ORDER_ASSIGN',
@@ -1158,6 +1200,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
     sla: normalizeTicketSla(data.sla),
     public: normalizeTicketPublicFields(data.public),
     imageRedaction: normalizeImageRedaction(data.imageRedaction),
+    contentSafety: normalizeContentSafety(data.contentSafety),
     activeWorkOrderId: typeof data.activeWorkOrderId === 'string' ? data.activeWorkOrderId : null,
     outcome: normalizeTicketOutcome(data.outcome),
   };
@@ -1211,6 +1254,50 @@ function normalizeImageRedaction(data: unknown): Ticket['imageRedaction'] {
     plateCount: typeof data.plateCount === 'number' ? data.plateCount : 0,
     completedAt: typeof data.completedAt === 'string' ? data.completedAt : null,
     reasonCode: typeof data.reasonCode === 'string' ? data.reasonCode : null,
+  };
+}
+
+const CONTENT_SAFETY_STATUSES = [
+  'pending',
+  'processing',
+  'passed',
+  'review_required',
+  'private_only',
+  'rejected',
+  'failed',
+  'superseded',
+] as const;
+
+function normalizeContentSafety(data: unknown): Ticket['contentSafety'] {
+  if (!isRecord(data)) return null;
+  const status = String(data.status);
+  if (!CONTENT_SAFETY_STATUSES.includes(status as (typeof CONTENT_SAFETY_STATUSES)[number])) {
+    return null;
+  }
+  const severity =
+    data.severity === 'none' ||
+    data.severity === 'low' ||
+    data.severity === 'medium' ||
+    data.severity === 'high'
+      ? data.severity
+      : null;
+  return {
+    status: status as NonNullable<Ticket['contentSafety']>['status'],
+    generation: typeof data.generation === 'number' ? data.generation : 1,
+    reasonCode: typeof data.reasonCode === 'string' ? data.reasonCode : null,
+    severity,
+    textModel: typeof data.textModel === 'string' ? data.textModel : null,
+    imageLabels: Array.isArray(data.imageLabels)
+      ? data.imageLabels.filter((item): item is string => typeof item === 'string')
+      : [],
+    authenticityScore: typeof data.authenticityScore === 'number' ? data.authenticityScore : null,
+    authenticityModel: typeof data.authenticityModel === 'string' ? data.authenticityModel : null,
+    authenticityModelVersion:
+      typeof data.authenticityModelVersion === 'string' ? data.authenticityModelVersion : null,
+    authenticitySignals: Array.isArray(data.authenticitySignals)
+      ? data.authenticitySignals.filter((item): item is string => typeof item === 'string')
+      : [],
+    completedAt: typeof data.completedAt === 'string' ? data.completedAt : null,
   };
 }
 
@@ -2253,4 +2340,125 @@ export async function applyManualImageRedaction(
     expectedCandidateRevision,
     regions,
   });
+}
+
+function normalizeContentSafetyReview(data: unknown): ContentSafetyReview | null {
+  if (!isRecord(data) || typeof data.ticketId !== 'string') {
+    return null;
+  }
+  const safety = normalizeContentSafety(data);
+  if (!safety) {
+    return null;
+  }
+  return {
+    ticketId: data.ticketId,
+    generation: safety.generation,
+    status: safety.status,
+    reasonCode: safety.reasonCode,
+    severity: safety.severity,
+    textModel: safety.textModel,
+    imageLabels: safety.imageLabels,
+    authenticityScore: safety.authenticityScore,
+    authenticityModel: safety.authenticityModel,
+    authenticityModelVersion: safety.authenticityModelVersion,
+    authenticitySignals: safety.authenticitySignals,
+    completedAt: safety.completedAt,
+    originalImageUrl: typeof data.originalImageUrl === 'string' ? data.originalImageUrl : null,
+    staffNote: typeof data.staffNote === 'string' ? data.staffNote : null,
+    publicImageReady: data.publicImageReady === true,
+    canApprove: data.canApprove === true,
+    canReject: data.canReject === true,
+    canMarkPrivate: data.canMarkPrivate === true,
+    canReprocess: data.canReprocess === true,
+  };
+}
+
+async function postContentSafetyDecision(
+  ticketId: string,
+  action: 'approve' | 'reject' | 'private-only' | 'reprocess',
+  body?: {
+    expectedGeneration: number;
+    reasonCode?: string;
+    note?: string;
+  },
+): Promise<ContentSafetyReview> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/content-safety/${action}`,
+    {
+      method: 'POST',
+      headers: {
+        ...getStaffAuthHeaders(),
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    },
+  );
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to update content safety.');
+  }
+  if (action === 'reprocess') {
+    const review = await fetchContentSafetyReview(ticketId);
+    if (!review) {
+      throw new Error('Unable to reload content safety review.');
+    }
+    return review;
+  }
+  const review = normalizeContentSafetyReview(await response.json());
+  if (!review) {
+    throw new Error('Content safety review response was invalid.');
+  }
+  return review;
+}
+
+export async function fetchContentSafetyReview(
+  ticketId: string,
+): Promise<ContentSafetyReview | null> {
+  if (config.useMockData) {
+    return null;
+  }
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/content-safety/review`,
+    { headers: getStaffAuthHeaders() },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load content safety review.');
+  }
+  return normalizeContentSafetyReview(await response.json());
+}
+
+export async function approveContentSafety(
+  ticketId: string,
+  expectedGeneration: number,
+  note?: string,
+): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'approve', { expectedGeneration, note });
+}
+
+export async function rejectContentSafety(
+  ticketId: string,
+  expectedGeneration: number,
+  reasonCode?: string,
+  note?: string,
+): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'reject', { expectedGeneration, reasonCode, note });
+}
+
+export async function markContentSafetyPrivate(
+  ticketId: string,
+  expectedGeneration: number,
+  reasonCode?: string,
+  note?: string,
+): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'private-only', {
+    expectedGeneration,
+    reasonCode,
+    note,
+  });
+}
+
+export async function reprocessContentSafety(ticketId: string): Promise<ContentSafetyReview> {
+  return postContentSafetyDecision(ticketId, 'reprocess');
 }

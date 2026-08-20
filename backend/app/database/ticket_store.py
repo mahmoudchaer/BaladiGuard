@@ -210,6 +210,40 @@ class TicketStore(Protocol):
         copy_candidate_to_public: bool = False,
     ) -> StoredTicket | None: ...
 
+    def claim_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None: ...
+
+    def finalize_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, fields: dict[str, Any]
+    ) -> StoredTicket | None: ...
+
+    def requeue_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None: ...
+
+    def start_content_safety_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
+    ) -> StoredTicket | None: ...
+
+    def apply_content_safety_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None: ...
+
     def has_ticket_id(self, ticket_id: str) -> bool: ...
 
     def has_ticket_number(self, ticket_number: str) -> bool: ...

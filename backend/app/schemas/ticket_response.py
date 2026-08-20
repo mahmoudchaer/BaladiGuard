@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.content_safety import TicketContentSafety
 from app.schemas.image_redaction import TicketImageRedaction
 from app.schemas.stored_ticket import PublicTicketStatus
 from app.schemas.ticket import ReportContact, ReportLocation
@@ -74,6 +75,10 @@ class TicketAuditHistoryEntry(BaseModel):
         "IMAGE_REDACTION_REJECT",
         "IMAGE_REDACTION_REPROCESS",
         "IMAGE_REDACTION_MANUAL_BLUR",
+        "CONTENT_SAFETY_APPROVE",
+        "CONTENT_SAFETY_REJECT",
+        "CONTENT_SAFETY_PRIVATE_ONLY",
+        "CONTENT_SAFETY_REPROCESS",
         "WORKFORCE_ASSIGN",
         "WORK_ORDER_CREATE",
         "WORK_ORDER_ASSIGN",
@@ -310,6 +315,7 @@ class TicketResponse(BaseModel):
         default_factory=lambda: TicketImageRedaction(status="pending", generation=1),
         alias="imageRedaction",
     )
+    content_safety: TicketContentSafety | None = Field(default=None, alias="contentSafety")
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,
         alias="statusHistory",

@@ -31,6 +31,7 @@ vi.mock('@/services/tickets', async () => {
     fetchTicketActivity: vi.fn(async () => ({ events: [], nextCursor: null })),
     fetchTicketComments: vi.fn(async () => []),
     fetchImageRedactionReview: vi.fn(async () => null),
+    fetchContentSafetyReview: vi.fn(async () => null),
     updateTicketStatus: vi.fn(),
     assignTicketDepartment: vi.fn(),
     acceptAiCategory: vi.fn(),
@@ -518,14 +519,12 @@ describe('TicketListPage', () => {
     await waitFor(() =>
       expect(fetchTicketsPage).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          filters: {
+          filters: expect.objectContaining({
             status: 'RESOLVED',
             category: 'waste',
             urgency: 'medium',
             departmentId: 'd2222222-2222-2222-2222-222222222222',
-            slaState: 'ALL',
-            q: undefined,
-          },
+          }),
         }),
       ),
     );

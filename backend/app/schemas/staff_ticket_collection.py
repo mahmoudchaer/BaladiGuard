@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.content_safety import ContentSafetyStatus
 from app.schemas.ticket_response import TicketPriority
 from app.schemas.ticket_status import TicketStatus
 
@@ -42,6 +43,9 @@ class TicketListItemResponse(BaseModel):
     assignment_state: AssignmentState = Field(alias="assignmentState")
     assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
     assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
+    content_safety_status: ContentSafetyStatus | None = Field(
+        default=None, alias="contentSafetyStatus"
+    )
     location: TicketListLocation
 
     model_config = {"populate_by_name": True}

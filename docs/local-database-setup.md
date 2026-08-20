@@ -118,6 +118,7 @@ persistence foundation.
 | `baladiguard-counters`               | `counterId`        | — (ticket number sequence)                                                                  |
 | `baladiguard-rate-limit-buckets`     | `bucketKey`        | Shared rate-limit counters (#186); TTL on `expiresAt`.                                      |
 | `baladiguard-ticket-submission-claims` | `idempotencyKey` | Ticket create Idempotency-Key claims + replay (#258); TTL on `ttl` (14-day completed retention). |
+| `baladiguard-content-safety-jobs`    | `jobId`            | Content-safety screening queue (#319). Isolated from classification and redaction.          |
 
 ### Legacy `users` table migration
 
@@ -226,6 +227,20 @@ Replay one after fixing the cause with:
 cd backend
 python -m app.workers.ai_worker --replay ai:tkt_<ticket-id> --once
 ```
+
+## Durable content-safety worker
+
+Ticket submit enrolls `contentSafetyStatus=pending` when `CONTENT_SAFETY_ENABLED=true`
+and enqueues `safety:{ticketId}:g{generation}`. Screening does not run inside the
+API process. Start a separate worker:
+
+```bash
+make content-safety-worker
+```
+
+`make content-safety-worker-once` processes at most one available job and
+`make content-safety-worker-drain` processes all jobs whose backoff delay has
+elapsed. See [content-safety.md](./content-safety.md).
 
 ## Verify setup
 

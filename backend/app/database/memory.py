@@ -19,6 +19,7 @@ from app.database.ticket_store import (
     TicketHistoryPage,
     public_ticket_matches_query,
 )
+from app.schemas.content_safety import ContentSafetyProvenance
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
@@ -509,6 +510,138 @@ class InMemoryTicketStore:
             self._tickets[ticket_id] = updated
             return updated
 
+    def claim_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.content_safety_generation != generation
+                or ticket.content_safety_status != "pending"
+            ):
+                return None
+            updated = ticket.model_copy(
+                update={
+                    "content_safety_status": "processing",
+                    "content_safety_claim_token": claim_token,
+                    "updated_at": updated_at,
+                }
+            )
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def finalize_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, fields: dict[str, Any]
+    ) -> StoredTicket | None:
+        for field_name in fields:
+            resolve_ticket_attr_name(field_name)
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.content_safety_generation != generation
+                or ticket.content_safety_status != "processing"
+                or ticket.content_safety_claim_token != claim_token
+            ):
+                return None
+            updated = ticket.model_copy(update={**fields, "content_safety_claim_token": None})
+            updated = _with_coerced_content_safety_history(updated)
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def requeue_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.content_safety_generation != generation
+                or ticket.content_safety_status != "processing"
+                or ticket.content_safety_claim_token != claim_token
+            ):
+                return None
+            updated = ticket.model_copy(
+                update={
+                    "content_safety_status": "pending",
+                    "content_safety_claim_token": None,
+                    "updated_at": updated_at,
+                }
+            )
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def start_content_safety_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
+    ) -> StoredTicket | None:
+        extra = dict(fields or {})
+        for field_name in extra:
+            resolve_ticket_attr_name(field_name)
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if ticket is None or not _ticket_matches_access_scope(
+                ticket, expected_municipality_id, expected_department_id
+            ):
+                return None
+            updates = {
+                "content_safety_generation": ticket.content_safety_generation + 1,
+                "content_safety_status": "pending",
+                "content_safety_claim_token": None,
+                "content_safety_completed_at": None,
+                "content_safety_reason_code": None,
+                "content_safety_severity": None,
+                "content_safety_text_model": None,
+                "content_safety_image_labels": [],
+                "authenticity_score": None,
+                "authenticity_model": None,
+                "authenticity_model_version": None,
+                "authenticity_signals": [],
+                "content_safety_staff_note": None,
+                "updated_at": updated_at,
+            }
+            updates.update(extra)
+            updated = _with_coerced_content_safety_history(ticket.model_copy(update=updates))
+            self._tickets[ticket_id] = updated
+            return updated
+
+    def apply_content_safety_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        for field_name in fields:
+            resolve_ticket_attr_name(field_name)
+        with self._lock:
+            ticket = self._tickets.get(ticket_id)
+            if (
+                ticket is None
+                or ticket.content_safety_generation != expected_generation
+                or ticket.content_safety_status != expected_status
+                or not _ticket_matches_access_scope(
+                    ticket, expected_municipality_id, expected_department_id
+                )
+            ):
+                return None
+            updates = dict(fields)
+            if copy_candidate_to_public:
+                updates["public_image_object_key"] = ticket.image_redaction_candidate_object_key
+            updated = _with_coerced_content_safety_history(ticket.model_copy(update=updates))
+            self._tickets[ticket_id] = updated
+            return updated
+
     def has_ticket_id(self, ticket_id: str) -> bool:
         with self._lock:
             return ticket_id in self._tickets
@@ -624,6 +757,16 @@ def _municipal_staff_can_access(
     if ticket.department_id is None:
         return True
     return ticket.department_id in set(department_ids or [])
+
+
+def _with_coerced_content_safety_history(ticket: StoredTicket) -> StoredTicket:
+    history = [
+        item
+        if isinstance(item, ContentSafetyProvenance)
+        else ContentSafetyProvenance.model_validate(item)
+        for item in ticket.content_safety_history
+    ]
+    return ticket.model_copy(update={"content_safety_history": history})
 
 
 def _encode_staff_cursor(staff_sort_key: str) -> str:

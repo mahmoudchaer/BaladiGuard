@@ -35,6 +35,12 @@ def _review_category(client, ticket_id: str, token: str) -> None:
     assert response.status_code == 200, response.text
 
 
+def _pass_content_safety(ticket_id: str) -> None:
+    stored = ticket_store.get(ticket_id)
+    assert stored is not None
+    ticket_store.save(stored.model_copy(update={"content_safety_status": "passed"}))
+
+
 def test_staff_cannot_publish_private_original_photo(client):
     created = _submit_report(client)
     stored = ticket_store.get(created["ticketId"])
@@ -60,6 +66,7 @@ def test_staff_publish_without_photo_keeps_photo_null(client):
     created = _submit_report(client, phone="+96170888889")
     token = issue_test_staff_token(client)
     _review_category(client, created["ticketId"], token)
+    _pass_content_safety(created["ticketId"])
 
     response = client.patch(
         f"/v1/tickets/{created['ticketId']}/public",
@@ -86,6 +93,7 @@ def test_staff_can_clear_public_photo(client, monkeypatch):
     created = _submit_report(client, phone="+96170888890")
     token = issue_test_staff_token(client)
     _review_category(client, created["ticketId"], token)
+    _pass_content_safety(created["ticketId"])
 
     derivative = "reports/redacted/v1/ticket/g1/approved.jpg"
     ticket_store.patch_fields(created["ticketId"], {"public_image_object_key": derivative})
@@ -181,6 +189,7 @@ def test_unpublish_removes_ticket_from_public_feed(client):
     created = _submit_report(client, phone="+96170888893")
     token = issue_test_staff_token(client)
     _review_category(client, created["ticketId"], token)
+    _pass_content_safety(created["ticketId"])
 
     published = client.patch(
         f"/v1/tickets/{created['ticketId']}/public",
@@ -206,6 +215,29 @@ def test_unpublish_removes_ticket_from_public_feed(client):
     assert unpublished.status_code == 200
     assert client.get("/v1/tickets/public").json()["items"] == []
     assert client.get(f"/v1/tickets/public/{created['ticketNumber']}").status_code == 404
+
+
+def test_staff_cannot_publish_until_content_safety_passed(client):
+    created = _submit_report(client, phone="+96170888896")
+    token = issue_test_staff_token(client)
+    _review_category(client, created["ticketId"], token)
+
+    pending = client.patch(
+        f"/v1/tickets/{created['ticketId']}/public",
+        json={
+            "publicStatus": "PUBLISHED",
+            "publicDescription": "Staff-approved summary still waiting on screening.",
+            "publicLocationLabel": "Hamra",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert pending.status_code == 400
+    assert pending.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert client.get(f"/v1/tickets/public/{created['ticketNumber']}").status_code == 404
+    public_numbers = [
+        item["ticketNumber"] for item in client.get("/v1/tickets/public").json()["items"]
+    ]
+    assert created["ticketNumber"] not in public_numbers
 
 
 def test_scoped_staff_can_reprocess_but_anonymous_cannot(anonymous_client):

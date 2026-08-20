@@ -153,6 +153,11 @@ def reset_ticket_store() -> None:
     staff_comment_store.clear()
     account_audit_store.clear()
     ai_job_store.clear()
+    from app.database.memory_content_safety_job import content_safety_job_store
+    from app.database.memory_redaction_job import redaction_job_store
+
+    content_safety_job_store.clear()
+    redaction_job_store.clear()
     duplicate_group_store.clear()
     notification_delivery_store.clear()
     photo_claim_store.clear()

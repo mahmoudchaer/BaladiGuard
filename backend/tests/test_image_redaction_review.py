@@ -50,6 +50,7 @@ def _stamp_review_required(ticket_id: str, *, municipality_id: str | None = None
         "image_redaction_reason_code": "LOW_CONFIDENCE",
         "image_redaction_detector": "fake",
         "image_redaction_detector_version": "v1",
+        "content_safety_status": "passed",
         "image_redaction_regions": [
             {
                 "kind": "plate",

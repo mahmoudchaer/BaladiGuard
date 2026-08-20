@@ -3,6 +3,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.content_safety import (
+    ContentSafetyProvenance,
+    ContentSafetySeverity,
+    ContentSafetyStatus,
+)
 from app.schemas.image_redaction import (
     ImageRedactionStatus,
     RedactionProvenance,
@@ -72,6 +77,31 @@ class StoredTicket(BaseModel):
     )
     image_redaction_regions: list[StoredRedactionRegion] = Field(
         default_factory=list, alias="imageRedactionRegions"
+    )
+    content_safety_status: ContentSafetyStatus = Field(
+        default="pending", alias="contentSafetyStatus"
+    )
+    # Runtime-only: Dynamo items created before screening persist no status
+    # attribute. The model default of pending must not enroll those tickets.
+    content_safety_enrolled: bool = Field(default=False, exclude=True)
+    content_safety_generation: int = Field(default=1, alias="contentSafetyGeneration", ge=1)
+    content_safety_claim_token: str | None = Field(default=None, alias="contentSafetyClaimToken")
+    content_safety_reason_code: str | None = Field(default=None, alias="contentSafetyReasonCode")
+    content_safety_severity: ContentSafetySeverity | None = Field(
+        default=None, alias="contentSafetySeverity"
+    )
+    content_safety_text_model: str | None = Field(default=None, alias="contentSafetyTextModel")
+    content_safety_image_labels: list[str] = Field(
+        default_factory=list, alias="contentSafetyImageLabels"
+    )
+    authenticity_score: float | None = Field(default=None, alias="authenticityScore")
+    authenticity_model: str | None = Field(default=None, alias="authenticityModel")
+    authenticity_model_version: str | None = Field(default=None, alias="authenticityModelVersion")
+    authenticity_signals: list[str] = Field(default_factory=list, alias="authenticitySignals")
+    content_safety_completed_at: str | None = Field(default=None, alias="contentSafetyCompletedAt")
+    content_safety_staff_note: str | None = Field(default=None, alias="contentSafetyStaffNote")
+    content_safety_history: list[ContentSafetyProvenance] = Field(
+        default_factory=list, alias="contentSafetyHistory"
     )
 
     ai_processing_status: AiProcessingStatus = Field(
