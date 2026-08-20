@@ -245,6 +245,7 @@ resource "aws_iam_role_policy" "deploy" {
           "elasticloadbalancing:CreateTargetGroup", "elasticloadbalancing:DeleteTargetGroup",
           "elasticloadbalancing:DescribeTargetGroups",
           "elasticloadbalancing:DescribeTargetGroupAttributes",
+          "elasticloadbalancing:DescribeTags",
           "elasticloadbalancing:CreateListener", "elasticloadbalancing:DeleteListener",
           "elasticloadbalancing:DescribeListeners",
           "elasticloadbalancing:ModifyLoadBalancerAttributes",
