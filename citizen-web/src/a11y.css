@@ -7,7 +7,7 @@ html {
 
 .skip-link {
   position: absolute;
-  left: 0.75rem;
+  inset-inline-start: 0.75rem;
   top: 0.75rem;
   z-index: 100;
   padding: 0.65rem 1rem;

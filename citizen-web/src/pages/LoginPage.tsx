@@ -4,6 +4,7 @@ import { sanitizeReturnTo } from '@/auth/returnTo';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { ApiError } from '@/services/api';
 import { requestOtp } from '@/services/citizenAuth';
+import { CountryRegionSelect } from '@/components/CountryRegionSelect';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 type Step = 'phone' | 'code';
@@ -127,17 +128,7 @@ export function LoginPage() {
             <label className="field-label" htmlFor="region">
               {t('auth.country')}
             </label>
-            <select
-              id="region"
-              className="input"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-            >
-              <option value="LB">{t('auth.lebanon')}</option>
-              <option value="US">{t('auth.unitedStates')}</option>
-              <option value="FR">{t('auth.france')}</option>
-              <option value="GB">{t('auth.unitedKingdom')}</option>
-            </select>
+            <CountryRegionSelect id="region" value={region} onChange={setRegion} />
             <label className="field-label" htmlFor="phone">
               {t('auth.phone')}
             </label>

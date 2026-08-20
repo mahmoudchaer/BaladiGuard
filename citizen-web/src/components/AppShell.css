@@ -51,7 +51,17 @@ a {
   min-width: 0;
   overflow-x: clip;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
+}
+
+.shell-stripe {
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0 33.33%,
+    #fff 33.33% 66.66%,
+    var(--accent) 66.66%
+  );
 }
 
 .shell-header {
@@ -106,6 +116,25 @@ a {
   flex-wrap: wrap;
   gap: 0.35rem;
   min-width: 0;
+  align-items: center;
+  position: relative;
+}
+
+.shell-nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.nav-menu-toggle {
+  display: none;
+  border: 0;
+  background: #e6f4ec;
+  color: var(--brand-dark);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .shell-nav-link {
@@ -558,6 +587,30 @@ a {
   width: min(1040px, 100%);
   margin: 0 auto;
 }
+.report-section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+.review-summary,
+.track-guidance,
+.draft-dialog {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  border-radius: 14px;
+  background: #f7f8fa;
+}
+.draft-dialog {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.track-code-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
 .report-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.8fr);
@@ -800,6 +853,10 @@ a {
   background: #e6f4ec;
   color: #005c2e;
 }
+.status-submitted {
+  background: #eef1f4;
+  color: #4f5d6f;
+}
 .status-in-progress {
   background: #fde8eb;
   color: #a50e1f;
@@ -811,6 +868,10 @@ a {
 .status-assigned {
   background: #ecfeff;
   color: #0e7490;
+}
+.status-closed {
+  background: #eef1f4;
+  color: #4f5d6f;
 }
 .empty-state {
   display: grid;
@@ -1403,9 +1464,7 @@ a {
     display: none;
   }
   .status {
-    max-width: 90px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
   }
   .location-row {
     grid-template-columns: 1fr;
@@ -1421,6 +1480,31 @@ a {
   }
   .avatar-large {
     display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .nav-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .shell-nav-links {
+    position: absolute;
+    inset-inline-end: 0;
+    top: calc(100% + 0.5rem);
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 12rem;
+    padding: 0.5rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    z-index: 30;
+  }
+  .shell-nav-links .shell-nav-link {
+    width: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {

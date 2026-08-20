@@ -9,6 +9,7 @@ import {
 } from '@/services/citizenAuth';
 import { clearDraft, loadDraft } from '@/services/reportDraft';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { CountryRegionSelect } from '@/components/CountryRegionSelect';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 export function ProfilePage() {
@@ -27,9 +28,11 @@ export function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [phoneMode, setPhoneMode] = useState(false);
   const [newPhone, setNewPhone] = useState('');
+  const [region, setRegion] = useState('LB');
   const [challenge, setChallenge] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [draftChoice, setDraftChoice] = useState(false);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -56,7 +59,7 @@ export function ProfilePage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await requestOtp(newPhone, 'LB', 'CHANGE_PHONE');
+      const result = await requestOtp(newPhone, region, 'CHANGE_PHONE');
       setChallenge(result.challengeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('profile.sendFailed'));
@@ -71,7 +74,7 @@ export function ProfilePage() {
     try {
       await auth.updateProfile({
         phone: newPhone,
-        region: 'LB',
+        region,
         phoneChangeChallengeId: challenge,
         phoneChangeCode: phoneCode,
       });
@@ -85,13 +88,16 @@ export function ProfilePage() {
     }
   }
 
-  async function signOut() {
+  async function signOut(retainDraft?: boolean) {
     const draft = await loadDraft(profile.userId);
     const hasDraft = Boolean(
       draft && (draft.description.trim() || draft.addressText.trim() || draft.imageObjectKey),
     );
-    const retain = hasDraft ? window.confirm(t('profile.keepDraft')) : false;
-    if (!retain) await clearDraft(profile.userId);
+    if (hasDraft && retainDraft === undefined) {
+      setDraftChoice(true);
+      return;
+    }
+    if (!retainDraft) await clearDraft(profile.userId);
     await auth.logout();
     navigate('/');
   }
@@ -342,6 +348,10 @@ export function ProfilePage() {
         </button>
         {phoneMode ? (
           <div className="phone-flow">
+            <label className="field-label" htmlFor="phone-region">
+              {t('auth.country')}
+            </label>
+            <CountryRegionSelect id="phone-region" value={region} onChange={setRegion} />
             <input
               className="input"
               inputMode="tel"
@@ -364,7 +374,7 @@ export function ProfilePage() {
                   className="input otp-input"
                   inputMode="numeric"
                   maxLength={6}
-                  placeholder="000000"
+                  placeholder={t('profile.otpPlaceholder')}
                   value={phoneCode}
                   onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))}
                 />
@@ -428,6 +438,24 @@ export function ProfilePage() {
           </span>
           <span>→</span>
         </button>
+        {draftChoice ? (
+          <div className="draft-dialog" role="dialog" aria-labelledby="draft-dialog-title">
+            <p id="draft-dialog-title">{t('profile.keepDraftTitle')}</p>
+            <p className="helper">{t('profile.keepDraft')}</p>
+            <div className="button-row">
+              <button className="button" type="button" onClick={() => void signOut(true)}>
+                {t('profile.keepDraftKeep')}
+              </button>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => void signOut(false)}
+              >
+                {t('profile.keepDraftClear')}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

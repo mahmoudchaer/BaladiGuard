@@ -18,7 +18,11 @@
     "previous": "← Précédent",
     "department": "Service : {name}",
     "general": "Général",
-    "optional": "Facultatif"
+    "optional": "Facultatif",
+    "copy": "Copier",
+    "copied": "Copié",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu"
   },
   "language": {
     "en": "Anglais",
@@ -51,7 +55,8 @@
     "yourProfile": "Votre profil",
     "citizenSignIn": "Connexion citoyen",
     "footerTagline": "Conçu pour un signalement civique plus clair et plus sûr.",
-    "footerLegal": "Comptes à téléphone vérifié · Données publiques respectueuses de la vie privée"
+    "footerLegal": "Comptes à téléphone vérifié · Données publiques respectueuses de la vie privée",
+    "menu": "Menu"
   },
   "home": {
     "heroLine1": "Votre ville,",
@@ -152,7 +157,12 @@
     "optionalSignIn": "La connexion est facultative. Le suivi nécessite seulement un code valide reçu dans votre notification. L’état est partagé lorsque le code est valide, comme sur l’écran de suivi.",
     "codeFromLink": "Code de suivi du lien : {code}. Choisissez comment continuer.",
     "trackWithCode": "Suivre avec ce code",
-    "signInToContinue": "Se connecter pour continuer"
+    "signInToContinue": "Se connecter pour continuer",
+    "emptyTitle": "Vous avez un code de suivi ?",
+    "emptyBody": "Saisissez le code à 6 caractères de l’écran de confirmation ou du SMS pour voir les mises à jour privées.",
+    "whatItMeans": "Ce que signifie ce statut",
+    "whatHappensNext": "Prochaine étape",
+    "copyCode": "Copier le code de suivi"
   },
   "report": {
     "signInAtSubmit": "Connexion à l’envoi",
@@ -202,7 +212,13 @@
     "privacyJitLink": "Lire la politique de confidentialité",
     "pleaseWait": "Veuillez patienter…",
     "submit": "Envoyer le signalement",
-    "discard": "Supprimer le brouillon"
+    "discard": "Supprimer le brouillon",
+    "stepDetails": "Détails",
+    "stepPhoto": "Photo",
+    "stepLocation": "Lieu",
+    "stepReview": "Vérification",
+    "reviewHeading": "Vérifiez avant l’envoi",
+    "notContributionReady": "Ce compte ne peut pas encore envoyer de signalements. Terminez la vérification du téléphone, puis réessayez."
   },
   "history": {
     "title": "Mes signalements",
@@ -287,7 +303,11 @@
     "acceptLegal": "Accepter les Conditions, Confidentialité et Usage acceptable actuels",
     "acceptingLegal": "Enregistrement de l’acceptation…",
     "legalAccepted": "Acceptation juridique enregistrée.",
-    "legalAcceptFailed": "Impossible d’enregistrer l’acceptation juridique."
+    "legalAcceptFailed": "Impossible d’enregistrer l’acceptation juridique.",
+    "otpPlaceholder": "000000",
+    "keepDraftTitle": "Conserver votre brouillon enregistré ?",
+    "keepDraftKeep": "Conserver le brouillon",
+    "keepDraftClear": "Effacer et se déconnecter"
   },
   "legal": {
     "loadingTitle": "Document juridique",
@@ -331,7 +351,9 @@
     "noPhoto": "Aucune photo publique disponible",
     "network": "Impossible de charger les signalements publics pour le moment. Vérifiez votre connexion et réessayez.",
     "detailNetwork": "Impossible de charger ce signalement public pour le moment. Vérifiez votre connexion et réessayez.",
-    "detailNotFound": "Nous n’avons pas trouvé ce signalement public. Il a peut-être été retiré ou le lien est incorrect."
+    "detailNotFound": "Nous n’avons pas trouvé ce signalement public. Il a peut-être été retiré ou le lien est incorrect.",
+    "emptyMap": "Aucun signalement publié dans cette zone de la carte. Éloignez le zoom ou utilisez la liste.",
+    "openInMaps": "Ouvrir dans Maps"
   },
   "privacy": {
     "title": "Confidentialité",
@@ -352,7 +374,26 @@
     "ASSIGNED": "Assigné",
     "IN_PROGRESS": "En cours",
     "RESOLVED": "Résolu",
-    "CLOSED": "Clôturé"
+    "CLOSED": "Clôturé",
+    "pendingCategory": "Catégorie en attente"
+  },
+  "statusMeaning": {
+    "SUBMITTED": "Votre signalement a été reçu et est en file d’examen.",
+    "UNDER_REVIEW": "Un agent examine le signalement avant de l’orienter.",
+    "ASSIGNED": "Un service a pris en charge ce signalement.",
+    "IN_PROGRESS": "L’équipe assignée travaille sur le problème.",
+    "RESOLVED": "Le problème a été marqué comme résolu.",
+    "CLOSED": "Ce signalement a été clôturé.",
+    "unknown": "Les détails du statut ne sont pas disponibles."
+  },
+  "nextAction": {
+    "SUBMITTED": "Votre signalement a été reçu et sera examiné par le personnel municipal.",
+    "UNDER_REVIEW": "Le personnel examine les détails et la catégorie du signalement.",
+    "ASSIGNED": "Le service responsable a été assigné et planifiera la suite.",
+    "IN_PROGRESS": "L’équipe assignée travaille sur le problème et mettra à jour le statut.",
+    "RESOLVED": "Le problème a été marqué comme résolu. Aucune autre action n’est attendue.",
+    "CLOSED": "Ce signalement est clôturé et conservé dans vos dossiers.",
+    "unknown": "Revenez plus tard pour la prochaine mise à jour."
   },
   "category": {
     "general": "Général",
@@ -415,12 +456,14 @@
   },
   "errors": {
     "generic": "Une erreur s’est produite. Veuillez réessayer.",
+    "network": "Vous semblez hors ligne. Vérifiez votre connexion et réessayez.",
     "notFound": "Nous n’avons pas trouvé ce signalement.",
     "validation": "Veuillez corriger les champs indiqués."
   },
   "a11y": {
     "languageGroup": "Langue de l’application",
     "statusWithLabel": "Statut : {status}",
-    "urgencyWithLabel": "Urgence : {urgency}"
+    "urgencyWithLabel": "Urgence : {urgency}",
+    "skipToContent": "Aller au contenu principal"
   }
 }

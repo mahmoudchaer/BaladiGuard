@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PublicPhoto } from '@/components/PublicPhoto';
+import { StatusChip } from '@/components/StatusChip';
 import { PUBLIC_TICKETS_NETWORK_MESSAGE, getPublicTickets } from '@/services/tickets';
 import type { PublicTicketResponse } from '@/types/ticket';
 import { translateCategory, translateStatus } from '@/i18n';
@@ -224,7 +225,7 @@ export function PublicReportsPage() {
               />
               <Link className="report-card" to={`/public/${report.ticketNumber}`}>
                 <div className="tile-meta">
-                  <span className="badge">{translateStatus(report.status)}</span>
+                  <StatusChip status={report.status} />
                   <strong>{report.ticketNumber}</strong>
                 </div>
                 <span className="muted">{formatCategory(report.category)}</span>

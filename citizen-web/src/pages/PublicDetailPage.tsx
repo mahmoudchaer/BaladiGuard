@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { PublicPhoto } from '@/components/PublicPhoto';
-import { translateCategory, translateStatus } from '@/i18n';
+import { StatusChip } from '@/components/StatusChip';
+import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
 import {
   PUBLIC_TICKET_NETWORK_MESSAGE,
@@ -17,15 +18,13 @@ export function PublicDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     void getPublicTicketByNumber(ticketNumber)
       .then((item) => {
-        if (!cancelled) {
-          setReport(item);
-        }
+        if (!cancelled) setReport(item);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -42,25 +41,28 @@ export function PublicDetailPage() {
         }
       })
       .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [ticketNumber]);
+  }, [ticketNumber, t]);
+
+  useEffect(() => load(), [load]);
 
   return (
     <div className="page">
-      <Link to="/">{t('public.back')}</Link>
+      <Link to="/reports">{t('public.back')}</Link>
       <h1>{t('public.detailTitle')}</h1>
 
       {loading ? <p className="muted">{t('public.loadingDetail')}</p> : null}
 
       {error ? (
         <div className="error-banner" role="alert">
-          {error}
+          <p style={{ margin: '0 0 0.75rem' }}>{error}</p>
+          <button type="button" className="button" onClick={() => load()}>
+            {t('common.tryAgain')}
+          </button>
         </div>
       ) : null}
 
@@ -70,8 +72,10 @@ export function PublicDetailPage() {
             photoUrl={report.photoUrl}
             alt={t('public.photoAlt', { ticketNumber: report.ticketNumber })}
           />
-          <span className="badge">{translateStatus(report.status)}</span>
-          <h2 style={{ margin: 0 }}>{report.ticketNumber}</h2>
+          <StatusChip status={report.status} />
+          <h2 className="ltr-isolate" style={{ margin: 0 }}>
+            {report.ticketNumber}
+          </h2>
           <p className="muted" style={{ margin: 0 }}>
             {translateCategory(report.category)} · {report.attribution.displayName}
           </p>
@@ -79,6 +83,17 @@ export function PublicDetailPage() {
           <p className="muted" style={{ margin: 0 }}>
             {report.location.addressText}
           </p>
+          {Number.isFinite(report.mapLocation.latitude) &&
+          Number.isFinite(report.mapLocation.longitude) ? (
+            <a
+              className="button button-secondary"
+              href={`https://www.google.com/maps?q=${report.mapLocation.latitude},${report.mapLocation.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('public.openInMaps')}
+            </a>
+          ) : null}
           {report.department?.name ? (
             <p className="muted" style={{ margin: 0 }}>
               {t('common.department', { name: report.department.name })}

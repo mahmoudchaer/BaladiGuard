@@ -17,6 +17,7 @@ import {
   saveDraft,
 } from '@/services/reportDraft';
 import type { SubmitTicketResponse } from '@/types/ticket';
+import { CopyButton } from '@/components/CopyButton';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 type Phase = 'idle' | 'validating' | 'uploading' | 'submitting';
@@ -182,6 +183,10 @@ export function ReportPage() {
       navigate(loginPath('/report'));
       return;
     }
+    if (!profile.contributionReady) {
+      setError(t('report.notContributionReady'));
+      return;
+    }
     if (!photo && !uploadedKey) {
       setError(t('report.needPhoto'));
       return;
@@ -246,6 +251,7 @@ export function ReportPage() {
           <strong>{result.ticketNumber}</strong>
           <span>{t('report.trackingCode')}</span>
           <strong className="tracking-code">{result.trackingCode}</strong>
+          <CopyButton value={result.trackingCode} label={t('track.copyCode')} />
         </div>
         <div className="button-row">
           <Link className="button" to={`/track?trackingCode=${result.trackingCode}`}>
@@ -271,6 +277,11 @@ export function ReportPage() {
         </span>
       </div>
       {restored ? <div className="notice notice-info">{t('report.draftRestored')}</div> : null}
+      {profile && !profile.contributionReady ? (
+        <div className="notice notice-error" role="alert">
+          {t('report.notContributionReady')}
+        </div>
+      ) : null}
       {error ? (
         <div className="notice notice-error" role="alert">
           {error}
@@ -290,6 +301,7 @@ export function ReportPage() {
       ) : null}
       <form className="report-grid" onSubmit={(event) => void submit(event)}>
         <div className="report-main settings-card">
+          <h2 className="report-section-title">{t('report.stepDetails')}</h2>
           <label className="field-label" htmlFor="description">
             {t('report.describe')}
           </label>
@@ -302,6 +314,7 @@ export function ReportPage() {
             onChange={(e) => setDescription(e.target.value)}
           />
           <span className="character-count">{description.length} / 2,000</span>
+          <h2 className="report-section-title">{t('report.stepLocation')}</h2>
           <label className="field-label" htmlFor="address">
             {t('report.location')}
           </label>
@@ -348,6 +361,7 @@ export function ReportPage() {
           ) : null}
         </div>
         <aside className="report-side settings-card">
+          <h2 className="report-section-title">{t('report.stepPhoto')}</h2>
           <label className="field-label" htmlFor="photo">
             {t('report.photo')}
           </label>
@@ -380,6 +394,12 @@ export function ReportPage() {
             }}
           />
           {photoLabel ? <span className="helper">{photoLabel}</span> : null}
+          <div className="review-summary">
+            <h2 className="report-section-title">{t('report.reviewHeading')}</h2>
+            <p>{description.trim() || t('report.describePlaceholder')}</p>
+            <p className="muted">{location?.addressText || t('report.needLocation')}</p>
+            <p className="muted">{photoLabel || t('report.needPhoto')}</p>
+          </div>
           <div className="privacy-callout">
             <span aria-hidden>◉</span>
             <p>
@@ -391,7 +411,11 @@ export function ReportPage() {
           <p className="helper" style={{ marginTop: '0.5rem' }}>
             {t('report.privacyJit')} <Link to="/privacy">{t('report.privacyJitLink')}</Link>
           </p>
-          <button className="button button-large" disabled={busy} type="submit">
+          <button
+            className="button button-large"
+            disabled={busy || Boolean(profile && !profile.contributionReady)}
+            type="submit"
+          >
             {busy ? t('report.pleaseWait') : t('report.submit')} <span aria-hidden>→</span>
           </button>
           <button

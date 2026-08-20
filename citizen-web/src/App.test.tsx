@@ -165,7 +165,7 @@ describe('citizen web public browsing', () => {
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Browse public reports' })).toHaveAttribute(
       'href',
-      '/',
+      '/reports',
     );
   });
 
