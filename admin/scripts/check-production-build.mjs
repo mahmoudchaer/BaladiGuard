@@ -37,10 +37,21 @@ if (errors.length === 0) {
     .join('\n');
   if (!text.includes(apiBase))
     errors.push('The configured API origin was not embedded in the build.');
-  if (text.includes('staff-demo-password'))
-    errors.push('The build contains the demo staff password.');
-  if (/AKIA[0-9A-Z]{16}|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY/.test(text))
-    errors.push('The build contains credential-like material.');
+  const forbidden = [
+    [/VITE_USE_MOCK_DATA["']?\s*[:=]\s*["']?true/i, 'mock-data flag'],
+    [/\buseMockData\s*:\s*true\b/, 'compiled mock mode'],
+    [/staff-demo-password/i, 'demo staff password'],
+    [/\b(?:staff|admin)@baladiguard\b/i, 'demo staff credential'],
+    [/password\s*[:=]\s*["'](?:admin|demo|password)["']/i, 'demo password'],
+    [
+      /VITE_API_BASE_URL:\s*[`'"]https?:\/\/(?:localhost|127\.0\.0\.1)/,
+      'localhost compiled as VITE_API_BASE_URL',
+    ],
+    [/AKIA[0-9A-Z]{16}|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY/, 'credential-like material'],
+  ];
+  for (const [pattern, label] of forbidden) {
+    if (pattern.test(text)) errors.push(`The build contains ${label}.`);
+  }
 }
 
 if (errors.length) {

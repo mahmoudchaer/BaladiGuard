@@ -152,6 +152,7 @@ def test_staging_rejects_development_integrations():
         "LOCATION_PLACE_INDEX_NAME": "",
         "SEED_SAMPLE_TICKETS": "true",
         "SEED_DEMO_STAFF": "true",
+        "OTP_DEV_PLAINTEXT_STDOUT": "true",
         "DYNAMODB_ENDPOINT_URL": "http://localhost:8001",
         "IMAGE_REDACTION_ENABLED": "false",
         "IMAGE_REDACTION_DETECTOR": "disabled",
@@ -178,6 +179,7 @@ def test_staging_rejects_development_integrations():
         "MISSING_AWS_S3_BUCKET",
         "UNSAFE_DYNAMODB_ENDPOINT_URL",
         "UNSAFE_SEED_SAMPLE_TICKETS",
+        "UNSAFE_OTP_DEV_PLAINTEXT_STDOUT",
         "UNSAFE_IMAGE_REDACTION_DISABLED",
         "UNSAFE_IMAGE_REDACTION_DETECTOR",
     } <= codes

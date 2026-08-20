@@ -101,10 +101,10 @@ jobs:
         working-directory: mobile
         env:
           EXPO_PUBLIC_APP_ENV: production
-          EXPO_PUBLIC_API_BASE_URL: https://api.example.test/v1
+          EXPO_PUBLIC_API_BASE_URL: https://api.baladiguard.gov.lb/v1
           EXPO_PUBLIC_ENABLE_MOCK_API: "false"
-          EXPO_PUBLIC_CITIZEN_APP_HOST: citizen.example.test
-        run: npm run check:config
+          EXPO_PUBLIC_CITIZEN_APP_HOST: citizen.baladiguard.gov.lb
+        run: npm run check:config -- --release
 
   admin:
     name: Admin dashboard checks
@@ -149,7 +149,7 @@ jobs:
         working-directory: admin
         env:
           VITE_APP_ENV: production
-          VITE_API_BASE_URL: https://api.example.test
+          VITE_API_BASE_URL: https://api.baladiguard.gov.lb
           VITE_USE_MOCK_DATA: "false"
         run: |
           npm run build

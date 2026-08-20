@@ -2,7 +2,10 @@ export type AppEnvironment = 'local' | 'development' | 'test' | 'staging' | 'pro
 
 const LOCAL_API_BASE_URL = 'http://localhost:8000';
 
-function normalizeEnvironment(raw: string | undefined): AppEnvironment {
+function normalizeEnvironment(raw: string | undefined, productionBuild: boolean): AppEnvironment {
+  if (!raw?.trim() && productionBuild) {
+    throw new Error('VITE_APP_ENV must be explicitly set for a production Vite build.');
+  }
   const value = (raw ?? 'local').trim().toLowerCase();
   if (value === 'prod' || value === 'prd') return 'production';
   if (value === 'dev' || value === 'develop') return 'development';
@@ -40,12 +43,19 @@ type AdminPublicEnvironment = Partial<
     | 'VITE_USE_MOCK_DATA'
     | 'VITE_STAFF_USERNAME'
     | 'VITE_STAFF_PASSWORD'
+    | 'PROD'
   >
 >;
 
 export function resolveAdminConfig(env: AdminPublicEnvironment = import.meta.env) {
-  const appEnv = normalizeEnvironment(env.VITE_APP_ENV);
-  const deployed = appEnv === 'staging' || appEnv === 'production';
+  // Vite replaces PROD at build time. Do not let an omitted public app label turn
+  // a browser production artifact into a local/mock build.
+  const productionBuild = import.meta.env.PROD || env.PROD === true;
+  const appEnv = normalizeEnvironment(env.VITE_APP_ENV, productionBuild);
+  if (productionBuild && appEnv !== 'staging' && appEnv !== 'production') {
+    throw new Error('VITE_APP_ENV must be staging or production for a production Vite build.');
+  }
+  const deployed = productionBuild || appEnv === 'staging' || appEnv === 'production';
   const useMockData = env.VITE_USE_MOCK_DATA === 'true';
   const rawApiBase = (env.VITE_API_BASE_URL ?? '').trim();
 

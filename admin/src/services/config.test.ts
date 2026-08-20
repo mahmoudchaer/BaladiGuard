@@ -15,6 +15,12 @@ describe('resolveAdminConfig', () => {
     expect(config.apiBaseUrl).toBe('http://localhost:8000');
   });
 
+  it('rejects an unlabeled production Vite build instead of selecting local mode', () => {
+    expect(() => resolveAdminConfig({ PROD: true, VITE_USE_MOCK_DATA: 'true' })).toThrow(
+      'VITE_APP_ENV must be explicitly set',
+    );
+  });
+
   it.each(['staging', 'production'])('rejects mock mode in %s', (appEnv) => {
     expect(() =>
       resolveAdminConfig(deployed({ VITE_APP_ENV: appEnv, VITE_USE_MOCK_DATA: 'true' })),

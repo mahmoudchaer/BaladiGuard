@@ -39,12 +39,16 @@ Backend staging and production require DynamoDB, S3, real notification
 configuration, a non-placeholder signing secret, Amazon Location, no sample or
 demo seeding, HTTPS citizen deep links, and explicit HTTPS CORS origins.
 
-Admin staging/production builds require `VITE_APP_ENV`, a non-localhost HTTPS
-API origin, mock mode off, and no browser-bundled staff credentials. Mobile
-staging/production builds require a non-localhost HTTPS API URL, mock mode off,
-and a real Universal/App Links host. Citizen web applies the equivalent checks.
-CI builds every client with a production-shaped configuration and rejects an
-unsafe artifact before it can be deployed.
+Admin production bundles and mobile release builds reject a missing environment
+label rather than falling back to local mode. Deployed client configurations
+require an explicit staging/production label, a non-localhost HTTPS API origin,
+mock mode off, and no browser-bundled demo credentials; mobile also requires a
+non-reserved Universal/App Links host. CI runs the mobile release config check
+explicitly and rejects unsafe client artifacts before they can be deployed.
+
+This configuration audit does not replace end-to-end verification of every
+user journey. The release execution (#54) remains responsible for exercising
+the deployed citizen-to-staff workflow and provider integrations.
 
 The API and both background workers are separate runtime processes. Deployment
 infrastructure (#74) must supervise all three from the same immutable backend

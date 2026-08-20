@@ -74,8 +74,13 @@ if (typeof host !== 'string' || !host.trim()) {
   errors.push('extra.citizenAppLinkHost must be set so runtime can read the claimed host.');
 }
 
-const appEnv = (process.env.EXPO_PUBLIC_APP_ENV ?? 'local').trim().toLowerCase();
-if (appEnv === 'staging' || appEnv === 'production') {
+const releaseCheck = process.argv.includes('--release');
+const appEnv = (process.env.EXPO_PUBLIC_APP_ENV ?? '').trim().toLowerCase();
+const deployed = appEnv === 'staging' || appEnv === 'production';
+if (releaseCheck && !deployed) {
+  errors.push('EXPO_PUBLIC_APP_ENV must be staging or production for a release config check.');
+}
+if (deployed || releaseCheck) {
   if (process.env.EXPO_PUBLIC_ENABLE_MOCK_API !== 'false') {
     errors.push('EXPO_PUBLIC_ENABLE_MOCK_API must be explicitly false in deployed builds.');
   }
@@ -94,7 +99,15 @@ if (appEnv === 'staging' || appEnv === 'production') {
   ) {
     errors.push('EXPO_PUBLIC_API_BASE_URL must be a non-localhost HTTPS URL in deployed builds.');
   }
-  if (typeof host !== 'string' || host.endsWith('.example')) {
+  const normalizedHost = typeof host === 'string' ? host.trim().toLowerCase() : '';
+  const placeholderHost =
+    normalizedHost === 'example' ||
+    normalizedHost.endsWith('.example') ||
+    normalizedHost === 'example.com' ||
+    normalizedHost.endsWith('.example.com') ||
+    normalizedHost === 'example.test' ||
+    normalizedHost.endsWith('.example.test');
+  if (!normalizedHost || placeholderHost) {
     errors.push('EXPO_PUBLIC_CITIZEN_APP_HOST must be a real host in deployed builds.');
   }
 }

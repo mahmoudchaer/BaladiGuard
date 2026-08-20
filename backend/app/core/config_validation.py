@@ -426,6 +426,17 @@ def validate_configuration(
                 )
             )
 
+        if cfg.otp_dev_plaintext_stdout:
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_OTP_DEV_PLAINTEXT_STDOUT",
+                    message=(
+                        f"{env_label} must set OTP_DEV_PLAINTEXT_STDOUT=false; "
+                        "printing OTP codes is development-only."
+                    ),
+                )
+            )
+
         if not cfg.image_redaction_enabled:
             result.issues.append(
                 ConfigIssue(

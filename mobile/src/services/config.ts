@@ -4,7 +4,10 @@ export type MobileEnvironment = 'local' | 'development' | 'test' | 'staging' | '
 
 type MobilePublicEnvironment = Record<string, string | undefined>;
 
-function normalizeEnvironment(raw: string | undefined): MobileEnvironment {
+function normalizeEnvironment(raw: string | undefined, releaseBuild: boolean): MobileEnvironment {
+  if (!raw?.trim() && releaseBuild) {
+    throw new Error('EXPO_PUBLIC_APP_ENV must be explicitly set for a release build.');
+  }
   const value = (raw ?? 'local').trim().toLowerCase();
   if (value === 'prod' || value === 'prd') return 'production';
   if (value === 'dev' || value === 'develop') return 'development';
@@ -12,6 +15,18 @@ function normalizeEnvironment(raw: string | undefined): MobileEnvironment {
     return value as MobileEnvironment;
   }
   throw new Error('EXPO_PUBLIC_APP_ENV must be local, development, test, staging, or production.');
+}
+
+function isPlaceholderHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase();
+  return (
+    normalized === 'example' ||
+    normalized.endsWith('.example') ||
+    normalized === 'example.com' ||
+    normalized.endsWith('.example.com') ||
+    normalized === 'example.test' ||
+    normalized.endsWith('.example.test')
+  );
 }
 
 function validateDeployedApiUrl(raw: string, appEnv: MobileEnvironment): string {
@@ -35,10 +50,16 @@ function validateDeployedApiUrl(raw: string, appEnv: MobileEnvironment): string 
 
 export function resolveMobileConfig(
   env: MobilePublicEnvironment,
-  options: { appVersion?: string; citizenAppLinkHost?: string } = {},
+  options: { appVersion?: string; citizenAppLinkHost?: string; releaseBuild?: boolean } = {},
 ) {
-  const appEnv = normalizeEnvironment(env.EXPO_PUBLIC_APP_ENV);
-  const deployed = appEnv === 'staging' || appEnv === 'production';
+  // __DEV__ is false in a native release bundle. Require an explicit deployed
+  // configuration there so a missing label cannot select localhost/mock defaults.
+  const releaseBuild = options.releaseBuild ?? (typeof __DEV__ !== 'undefined' && !__DEV__);
+  const appEnv = normalizeEnvironment(env.EXPO_PUBLIC_APP_ENV, releaseBuild);
+  if (releaseBuild && appEnv !== 'staging' && appEnv !== 'production') {
+    throw new Error('EXPO_PUBLIC_APP_ENV must be staging or production for a release build.');
+  }
+  const deployed = releaseBuild || appEnv === 'staging' || appEnv === 'production';
   const enableMockApi = env.EXPO_PUBLIC_ENABLE_MOCK_API === 'true';
   const rawApiBase = (env.EXPO_PUBLIC_API_BASE_URL ?? '').trim();
   const citizenAppLinkHost = (options.citizenAppLinkHost ?? '').trim();
@@ -46,7 +67,7 @@ export function resolveMobileConfig(
   if (deployed && enableMockApi) {
     throw new Error(`EXPO_PUBLIC_ENABLE_MOCK_API cannot be true in ${appEnv}.`);
   }
-  if (deployed && (!citizenAppLinkHost || citizenAppLinkHost.endsWith('.example'))) {
+  if (deployed && (!citizenAppLinkHost || isPlaceholderHost(citizenAppLinkHost))) {
     throw new Error(`A real EXPO_PUBLIC_CITIZEN_APP_HOST is required in ${appEnv}.`);
   }
 
