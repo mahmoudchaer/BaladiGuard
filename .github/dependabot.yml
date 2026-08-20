@@ -7,6 +7,10 @@ updates:
     groups:
       admin-production: { dependency-type: production }
       admin-development: { dependency-type: development }
+    ignore:
+      # typescript-eslint@8 requires TypeScript < 6.1. Revisit when eslint 9/TS-eslint catch up.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /mobile
     schedule: { interval: weekly }
@@ -14,6 +18,17 @@ updates:
     groups:
       mobile-production: { dependency-type: production }
       mobile-development: { dependency-type: development }
+    ignore:
+      # Expo 57 + eslint-config-expo still target ESLint 9 / Babel 7 / TypeScript 5.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      # react-native-reanimated@4.5 peers RN 0.83–0.86 only.
+      - dependency-name: react-native
+        versions: [">=0.87.0"]
   - package-ecosystem: pip
     directory: /backend
     schedule: { interval: weekly }
