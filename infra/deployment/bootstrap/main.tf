@@ -318,9 +318,18 @@ resource "aws_iam_role_policy" "deploy" {
           "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
           "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListRolePolicies",
           "iam:ListAttachedRolePolicies", "iam:TagRole",
-          "iam:CreateServiceLinkedRole",
         ]
         Resource = "arn:aws:iam::*:role/baladiguard-${each.key}-*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:CreateServiceLinkedRole"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = ["ecs.amazonaws.com", "elasticloadbalancing.amazonaws.com"]
+          }
+        }
       },
       {
         Effect = "Allow"
