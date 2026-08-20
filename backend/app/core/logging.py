@@ -15,6 +15,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from app.core.job_context import get_job_id
 from app.core.request_context import get_request_id
 
 # Mapping-key redaction includes authorization headers stored as structured fields.
@@ -133,6 +134,9 @@ class JsonLogFormatter(logging.Formatter):
         request_id = get_request_id()
         if request_id:
             payload["request_id"] = request_id
+        job_id = get_job_id()
+        if job_id:
+            payload["job_id"] = job_id
         if record.exc_info:
             # Prefer allowlisted structured fields; keep a redacted traceback for
             # operators without shipping raw secret-bearing exception text.

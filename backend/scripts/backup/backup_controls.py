@@ -45,6 +45,9 @@ DEFAULT_TABLE_SUFFIXES = (
     "categories",
     "counters",
     "rate-limit-buckets",
+    "ops-alert-acks",
+    "ops-error-groups",
+    "ops-audit",
 )
 
 

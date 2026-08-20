@@ -68,6 +68,12 @@
   box-shadow: inset 3px 0 0 var(--lb-red);
 }
 
+.dashboard-rail__link--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: rgb(255 255 255 / 70%);
+}
+
 .dashboard-rail__link-label {
   max-width: 100%;
   overflow: hidden;

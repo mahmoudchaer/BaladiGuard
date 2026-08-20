@@ -2,13 +2,13 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
-import { getStaffRoleLabel } from '@/services/auth';
+import { getStaffRoleLabel, isDeveloperOperator } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
 import { GlobalSearch } from '@/components/GlobalSearch';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { StaffAssistantPanel } from '@/components/StaffAssistantPanel';
 import { useI18n } from '@/i18n/LocaleProvider';
-import { IconMap, IconPeople, IconSparkles, IconTickets } from '@/components/icons';
+import { IconAnalytics, IconMap, IconPeople, IconSparkles, IconTickets } from '@/components/icons';
 import './BrandMark.css';
 import './DashboardLayout.css';
 
@@ -27,12 +27,15 @@ type NavItem = {
   to: string;
 };
 
-/** Analytics stays off the nav until a dedicated page exists; queue insights remain secondary on Tickets. */
-const NAV_ITEM_DEFS: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
+const MUNICIPAL_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
   { id: 'tickets', labelKey: 'nav.tickets', Icon: IconTickets, to: '/' },
   { id: 'map', labelKey: 'nav.map', Icon: IconMap, to: '/map' },
   { id: 'workforce', labelKey: 'nav.workforce', Icon: IconPeople, to: '/workforce' },
   { id: 'staff-accounts', labelKey: 'nav.staffAccounts', Icon: IconPeople, to: '/staff-accounts' },
+];
+
+const OPERATOR_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
+  { id: 'ops', labelKey: 'nav.ops', Icon: IconAnalytics, to: '/ops' },
 ];
 
 function isNavActive(pathname: string, to: string): boolean {
@@ -55,9 +58,13 @@ export function DashboardLayout({
   const [assistantOpen, setAssistantOpen] = useState(false);
   const resolvedTitle = title ?? t('layout.title');
   const resolvedSubtitle = subtitle ?? t('layout.subtitle');
-  const navItems = NAV_ITEM_DEFS.filter(
-    (item) => item.id !== 'staff-accounts' || session?.role === 'administrator',
-  ).map((item) => ({ ...item, label: t(item.labelKey) }));
+  const operator = isDeveloperOperator(session?.role);
+  const navItems = (operator ? OPERATOR_NAV : MUNICIPAL_NAV)
+    .filter((item) => item.id !== 'staff-accounts' || session?.role === 'administrator')
+    .map((item) => ({
+      ...item,
+      label: t(item.labelKey),
+    }));
 
   function handleLogout() {
     logout();
@@ -67,7 +74,11 @@ export function DashboardLayout({
   return (
     <div className={`dashboard-layout${flush ? ' dashboard-layout--flush' : ''}`}>
       <aside className="dashboard-rail" aria-label={t('nav.primaryModules')} inert={assistantOpen}>
-        <NavLink to="/" className="dashboard-rail__brand" aria-label={t('nav.home')}>
+        <NavLink
+          to={operator ? '/ops' : '/'}
+          className="dashboard-rail__brand"
+          aria-label={t('nav.home')}
+        >
           <BrandMark size={22} />
         </NavLink>
 
@@ -88,6 +99,15 @@ export function DashboardLayout({
               </NavLink>
             );
           })}
+          {operator ? (
+            <span
+              className="dashboard-rail__link dashboard-rail__link--disabled"
+              title={t('nav.municipalitiesSoon')}
+            >
+              <IconPeople />
+              <span className="dashboard-rail__link-label">{t('nav.municipalities')}</span>
+            </span>
+          ) : null}
         </nav>
       </aside>
 
@@ -95,22 +115,26 @@ export function DashboardLayout({
         <header className="dashboard-topbar">
           <div className="dashboard-topbar__brand-block">
             <p className="dashboard-topbar__product">{t('topbar.product')}</p>
-            <p className="dashboard-topbar__context">{t('topbar.context')}</p>
+            <p className="dashboard-topbar__context">
+              {operator ? t('topbar.opsContext') : t('topbar.context')}
+            </p>
           </div>
 
-          <GlobalSearch />
+          {operator ? null : <GlobalSearch />}
 
           <div className="dashboard-topbar__actions">
-            <button
-              type="button"
-              className="dashboard-topbar__assistant"
-              aria-expanded={assistantOpen}
-              aria-controls="staff-assistant-panel"
-              onClick={() => setAssistantOpen(true)}
-            >
-              <IconSparkles />
-              {t('topbar.assistant')}
-            </button>
+            {operator ? null : (
+              <button
+                type="button"
+                className="dashboard-topbar__assistant"
+                aria-expanded={assistantOpen}
+                aria-controls="staff-assistant-panel"
+                onClick={() => setAssistantOpen(true)}
+              >
+                <IconSparkles />
+                {t('topbar.assistant')}
+              </button>
+            )}
             {config.useMockData && (
               <span className="dashboard-topbar__badge">{t('topbar.mockData')}</span>
             )}

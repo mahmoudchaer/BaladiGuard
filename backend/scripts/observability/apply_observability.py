@@ -28,11 +28,17 @@ STABLE_DIMENSION_KEYS = ("env",)
 REQUIRED_ALARM_METRICS = {
     "Http5xx",
     "ReadyProbeSuccess",
+    "HttpRequestDuration",
+    "RateLimitExceeded",
     "AiQueuePending",
     "AiProcessingFailed",
+    "AiJobOldestAgeSeconds",
+    "ImageRedactionJobsDeadLettered",
     "S3Errors",
     "DynamoDbErrors",
     "NotificationFailed",
+    "AuthFailures",
+    "BackupControlSuccess",
 }
 
 REQUIRED_DASHBOARD_METRICS = {
@@ -44,10 +50,14 @@ REQUIRED_DASHBOARD_METRICS = {
     "RateLimitExceeded",
     "AiQueuePending",
     "AiProcessingFailed",
+    "AiJobOldestAgeSeconds",
     "S3Errors",
     "DynamoDbErrors",
     "NotificationSucceeded",
     "NotificationFailed",
+    "ImageRedactionJobsDeadLettered",
+    "ReportsSubmitted",
+    "BackupControlSuccess",
 }
 
 

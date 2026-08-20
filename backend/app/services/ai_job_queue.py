@@ -78,65 +78,78 @@ class AiJobQueue:
         emit_metric("AiJobsRunning")
         token = job.claim_token
         assert token is not None
+        from app.core.job_context import reset_job_id, set_job_id
 
-        ticket = self._tickets.get(job.ticket_id)
-        if ticket is None:
-            self._jobs.dead_letter(
-                job.job_id,
-                token,
-                now=timestamp,
-                reason="Ticket no longer exists.",
-            )
-            emit_metric("AiJobsDeadLettered", dimensions={"reason": "missing_ticket"})
-            return WorkerResult("dead_lettered", job.job_id)
-        if ticket.ai_processing_status == "completed":
-            self._jobs.succeed(job.job_id, token, timestamp)
-            emit_metric("AiJobsSucceeded", dimensions={"outcome": "duplicate_delivery"})
-            return WorkerResult("succeeded", job.job_id)
-
+        job_token = set_job_id(job.job_id)
         try:
-            processed = self._processor.process_ticket_ai(job.ticket_id, claim_token=token)
-            latest = self._tickets.get(job.ticket_id)
-            if processed and latest and latest.ai_processing_status == "completed":
-                self._jobs.succeed(job.job_id, token, int(time.time()))
-                emit_metric("AiJobsSucceeded")
+            ticket = self._tickets.get(job.ticket_id)
+            if ticket is None:
+                self._jobs.dead_letter(
+                    job.job_id,
+                    token,
+                    now=timestamp,
+                    reason="Ticket no longer exists.",
+                )
+                emit_metric("AiJobsDeadLettered", dimensions={"reason": "missing_ticket"})
+                return WorkerResult("dead_lettered", job.job_id)
+            if ticket.ai_processing_status == "completed":
+                self._jobs.succeed(job.job_id, token, timestamp)
+                emit_metric("AiJobsSucceeded", dimensions={"outcome": "duplicate_delivery"})
                 return WorkerResult("succeeded", job.job_id)
-            reason = "AI providers returned no usable output."
-        except Exception as exc:  # worker boundary must keep polling
-            reason = f"Transient processing error: {type(exc).__name__}."
-            logger.warning("AI job failed job_id=%s error=%s", job.job_id, type(exc).__name__)
 
-        finished_at = int(time.time())
-        if job.attempts >= settings.ai_job_max_attempts:
-            self._jobs.dead_letter(
+            try:
+                processed = self._processor.process_ticket_ai(job.ticket_id, claim_token=token)
+                latest = self._tickets.get(job.ticket_id)
+                if processed and latest and latest.ai_processing_status == "completed":
+                    self._jobs.succeed(job.job_id, token, int(time.time()))
+                    emit_metric("AiJobsSucceeded")
+                    return WorkerResult("succeeded", job.job_id)
+                reason = "AI providers returned no usable output."
+            except Exception as exc:  # worker boundary must keep polling
+                reason = f"Transient processing error: {type(exc).__name__}."
+                logger.warning("AI job failed job_id=%s error=%s", job.job_id, type(exc).__name__)
+
+            finished_at = int(time.time())
+            if job.attempts >= settings.ai_job_max_attempts:
+                self._jobs.dead_letter(
+                    job.job_id,
+                    token,
+                    now=finished_at,
+                    reason=reason,
+                )
+                emit_metric("AiJobsDeadLettered", dimensions={"reason": "attempts_exhausted"})
+                from app.services.observability.snapshot import record_job_error
+
+                record_job_error(
+                    service="ai",
+                    category="ai_provider",
+                    job_id=job.job_id,
+                    reason=reason,
+                )
+                return WorkerResult("dead_lettered", job.job_id)
+
+            reset = self._tickets.requeue_ai_processing(job.ticket_id, _iso(finished_at))
+            if reset is None:
+                latest = self._tickets.get(job.ticket_id)
+                if latest and latest.ai_processing_status == "completed":
+                    self._jobs.succeed(job.job_id, token, finished_at)
+                    emit_metric("AiJobsSucceeded", dimensions={"outcome": "concurrent_completion"})
+                    return WorkerResult("succeeded", job.job_id)
+            delay = min(
+                settings.ai_job_backoff_max_seconds,
+                settings.ai_job_backoff_base_seconds * (2 ** max(0, job.attempts - 1)),
+            )
+            self._jobs.retry(
                 job.job_id,
                 token,
+                available_at=finished_at + delay,
                 now=finished_at,
                 reason=reason,
             )
-            emit_metric("AiJobsDeadLettered", dimensions={"reason": "attempts_exhausted"})
-            return WorkerResult("dead_lettered", job.job_id)
-
-        reset = self._tickets.requeue_ai_processing(job.ticket_id, _iso(finished_at))
-        if reset is None:
-            latest = self._tickets.get(job.ticket_id)
-            if latest and latest.ai_processing_status == "completed":
-                self._jobs.succeed(job.job_id, token, finished_at)
-                emit_metric("AiJobsSucceeded", dimensions={"outcome": "concurrent_completion"})
-                return WorkerResult("succeeded", job.job_id)
-        delay = min(
-            settings.ai_job_backoff_max_seconds,
-            settings.ai_job_backoff_base_seconds * (2 ** max(0, job.attempts - 1)),
-        )
-        self._jobs.retry(
-            job.job_id,
-            token,
-            available_at=finished_at + delay,
-            now=finished_at,
-            reason=reason,
-        )
-        emit_metric("AiJobsRetried")
-        return WorkerResult("retried", job.job_id)
+            emit_metric("AiJobsRetried")
+            return WorkerResult("retried", job.job_id)
+        finally:
+            reset_job_id(job_token)
 
     def replay(self, job_id: str, *, now: int | None = None) -> bool:
         timestamp = now if now is not None else int(time.time())
@@ -149,7 +162,10 @@ class AiJobQueue:
         reset = self._tickets.requeue_ai_processing(job.ticket_id, _iso(timestamp))
         if reset is None:
             latest = self._tickets.get(job.ticket_id)
-            return bool(latest and latest.ai_processing_status == "completed")
+            if latest is None:
+                emit_metric("AiJobsQueued", dimensions={"source": "manual_replay"})
+                return True
+            return bool(latest.ai_processing_status == "completed")
         emit_metric("AiJobsQueued", dimensions={"source": "manual_replay"})
         return True
 

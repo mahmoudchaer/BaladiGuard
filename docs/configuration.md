@@ -97,8 +97,10 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `RATE_LIMIT_SMOKE_BYPASS_TOKEN` | No | empty | Optional smoke header token; never a global disable |
 | `RATE_LIMIT_SMOKE_LIMIT` | No | `1000` | Higher still-enforced quota for smoke token clients |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
-| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin` + `staff` accounts (#175) |
+| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin`, `staff`, and `operator` accounts (#175 / #320) |
 | `DEMO_STAFF_PASSWORD` | When seeding demos | `staff-demo-password` | Password used only to hash demo staff accounts; never used as shared login |
+| `DEVELOPER_OPERATOR_USERNAME` / `DEVELOPER_OPERATOR_PASSWORD` | Production bootstrap | empty | Creates the first `developer_operator` if the username is unused (#320) |
+| `DEVELOPER_OPERATOR_EMAIL` | With operator bootstrap | `ops@example.com` | Email on the bootstrapped operator account |
 | `STAFF_PASSWORD` | Legacy alias | same as demo default | Deprecated alias for `DEMO_STAFF_PASSWORD` |
 | `STAFF_USERNAME` | Legacy | `staff` | Deprecated; ignored for authentication |
 | `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |

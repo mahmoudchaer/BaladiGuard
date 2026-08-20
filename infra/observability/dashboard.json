@@ -57,9 +57,37 @@
       "periodSeconds": 60
     },
     {
+      "type": "metric",
+      "title": "AI oldest job age",
+      "metrics": ["AiJobOldestAgeSeconds"],
+      "stat": "Maximum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Image redaction dead letters",
+      "metrics": ["ImageRedactionJobsDeadLettered"],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Privacy-safe product intake",
+      "metrics": ["ReportsSubmitted", "ReportsFailed", "CitizensRegistered"],
+      "stat": "Sum",
+      "periodSeconds": 60
+    },
+    {
+      "type": "metric",
+      "title": "Backup control success",
+      "metrics": ["BackupControlSuccess"],
+      "stat": "Minimum",
+      "periodSeconds": 60
+    },
+    {
       "type": "text",
       "title": "Critical user flows",
-      "markdown": "Watch ticket submit (`POST /v1/tickets`), report-photo upload, staff login, citizen OTP verify, and notification delivery together with readiness. Runbook: docs/production-observability.md"
+      "markdown": "Watch ticket submit (`POST /v1/tickets`), report-photo upload, staff login, citizen OTP verify, and notification delivery together with readiness. Private operator UI: admin `/ops`. Runbook: docs/production-observability.md"
     }
   ]
 }

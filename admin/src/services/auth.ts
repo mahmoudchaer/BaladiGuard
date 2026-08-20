@@ -3,7 +3,7 @@ import { config } from '@/services/config';
 const STAFF_SESSION_KEY = 'baladiguard.staffSession';
 export const STAFF_SESSION_CLEARED_EVENT = 'baladiguard.staffSessionCleared';
 
-export type StaffRole = 'municipal_staff' | 'administrator';
+export type StaffRole = 'municipal_staff' | 'administrator' | 'developer_operator';
 
 export type StaffSession = {
   username: string;
@@ -52,7 +52,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStaffRole(value: unknown): value is StaffRole {
-  return value === 'municipal_staff' || value === 'administrator';
+  return value === 'municipal_staff' || value === 'administrator' || value === 'developer_operator';
 }
 
 function parseDepartmentIds(value: unknown): string[] | null {
@@ -163,7 +163,13 @@ export function clearStoredStaffSession(): void {
 }
 
 function roleLabel(role: StaffRole): string {
-  return role === 'administrator' ? 'Administrator' : 'Municipal staff';
+  if (role === 'administrator') {
+    return 'Administrator';
+  }
+  if (role === 'developer_operator') {
+    return 'Developer operator';
+  }
+  return 'Municipal staff';
 }
 
 export function getStaffRoleLabel(role: StaffRole | undefined): string {
@@ -171,6 +177,14 @@ export function getStaffRoleLabel(role: StaffRole | undefined): string {
     return 'Staff';
   }
   return roleLabel(role);
+}
+
+export function isDeveloperOperator(role: StaffRole | undefined): boolean {
+  return role === 'developer_operator';
+}
+
+export function homePathForRole(role: StaffRole | undefined): string {
+  return isDeveloperOperator(role) ? '/ops' : '/';
 }
 
 async function loginStaffAgainstApi(username: string, password: string): Promise<LoginResult> {

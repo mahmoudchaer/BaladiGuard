@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.staff_user import StaffRole, StoredStaffUser
+from app.schemas.staff_user import MunicipalityAssignableRole, StaffRole, StoredStaffUser
 
 
 class StaffAccountResponse(BaseModel):
@@ -42,7 +42,7 @@ class CreateStaffAccountRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
-    role: StaffRole
+    role: MunicipalityAssignableRole
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     department_ids: list[str] | None = Field(default=None, alias="departmentIds")
 
@@ -55,7 +55,7 @@ class CreateStaffAccountRequest(BaseModel):
 
 
 class UpdateStaffAccountRequest(BaseModel):
-    role: StaffRole | None = None
+    role: MunicipalityAssignableRole | None = None
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     department_ids: list[str] | None = Field(default=None, alias="departmentIds")
 
@@ -63,7 +63,9 @@ class UpdateStaffAccountRequest(BaseModel):
 
     @field_validator("role")
     @classmethod
-    def role_cannot_be_null(cls, value: StaffRole | None) -> StaffRole | None:
+    def role_cannot_be_null(
+        cls, value: MunicipalityAssignableRole | None
+    ) -> MunicipalityAssignableRole | None:
         if value is None:
             raise ValueError("role cannot be null when supplied.")
         return value

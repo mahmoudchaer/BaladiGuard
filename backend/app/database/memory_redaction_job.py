@@ -108,6 +108,25 @@ class InMemoryRedactionJobStore:
                 recovered.append(job.model_copy(deep=True))
         return recovered
 
+    def replay(self, job_id: str, *, now: int) -> StoredRedactionJob | None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.status != "dead_lettered":
+                return None
+            replayed = job.model_copy(
+                update={
+                    "status": "queued",
+                    "attempts": 0,
+                    "available_at": now,
+                    "updated_at": now,
+                    "claim_token": None,
+                    "claim_expires_at": None,
+                    "last_error_code": None,
+                }
+            )
+            self._jobs[job_id] = replayed
+            return replayed.model_copy(deep=True)
+
     def list(self) -> list[StoredRedactionJob]:
         with self._lock:
             return [j.model_copy(deep=True) for j in self._jobs.values()]

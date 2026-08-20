@@ -12,6 +12,7 @@ from app.api.admin_staff_accounts import router as admin_staff_accounts_router
 from app.api.citizen import router as citizen_router
 from app.api.health import router as health_router
 from app.api.locations import router as locations_router
+from app.api.ops import router as ops_router
 from app.api.resolution_feedback import router as resolution_feedback_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
@@ -63,11 +64,15 @@ async def lifespan(_: FastAPI):
     # Memory/local bootstrap for demo staff accounts (issue #175). DynamoDB uses
     # `make db-seed` / run_seed instead.
     from app.config import get_settings
-    from app.services.staff.bootstrap import ensure_demo_staff_accounts
+    from app.services.staff.bootstrap import (
+        ensure_demo_staff_accounts,
+        ensure_developer_operator_bootstrap,
+    )
 
     settings = get_settings()
     if not settings.use_dynamodb:
         ensure_demo_staff_accounts(settings=settings)
+    ensure_developer_operator_bootstrap(settings=settings)
     # AI work is processed by ``python -m app.workers.ai_worker``. Keeping the
     # worker outside the web process prevents API restarts from losing accepted work.
     # Continuous ReadyProbeSuccess publisher for CloudWatch alarms (issue #185).
@@ -277,6 +282,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(staff_auth_router)
     app.include_router(admin_staff_accounts_router)
+    app.include_router(ops_router)
     app.include_router(citizen_router)
     app.include_router(tickets_router)
     app.include_router(workforce_router)
@@ -305,6 +311,14 @@ def _record_http_metrics(
     timed_metric("HttpRequestDuration", dimensions=dims, started_at=started_at)
     if status_code >= 500:
         emit_metric("Http5xx", dimensions=dims)
+        from app.core.request_context import get_request_id
+        from app.services.observability.snapshot import record_http_error
+
+        record_http_error(
+            path_group=path_group,
+            status_code=status_code,
+            request_id=get_request_id(),
+        )
 
 
 app = create_app()

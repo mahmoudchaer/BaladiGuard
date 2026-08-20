@@ -468,8 +468,9 @@ When `SEED_DEMO_STAFF=true` (default for local/test), the backend bootstraps:
 
 | Username | Role                                        | Password                                              |
 | -------- | ------------------------------------------- | ----------------------------------------------------- |
-| `admin`  | `administrator` (global scope)              | `DEMO_STAFF_PASSWORD` (default `staff-demo-password`) |
-| `staff`  | `municipal_staff` (Beirut roads + lighting) | same demo password                                    |
+| `admin`    | `administrator` (global scope)              | `DEMO_STAFF_PASSWORD` (default `staff-demo-password`) |
+| `staff`    | `municipal_staff` (Beirut roads + lighting) | same demo password                                    |
+| `operator` | `developer_operator` (ops dashboard `/ops`) | same demo password                                    |
 
 Memory mode creates these accounts on API startup. DynamoDB Local creates them via
 `make db-seed`. Passwords are stored as PBKDF2 hashes only. Use `POST /v1/staff/logout`

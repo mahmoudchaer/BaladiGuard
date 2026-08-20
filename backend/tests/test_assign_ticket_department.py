@@ -168,9 +168,9 @@ def test_assign_department_requires_staff_auth(anonymous_client):
 
 def test_staff_actor_dep_resolves_to_real_staff_auth() -> None:
     from app.api.deps import StaffActorDep, require_staff
-    from app.core.staff_auth import StaffDep
+    from app.core.staff_auth import MunicipalStaffDep
     from app.core.staff_auth import require_staff as core_require_staff
 
     assert callable(require_staff)
     assert require_staff is core_require_staff
-    assert StaffActorDep is StaffDep
+    assert StaffActorDep is MunicipalStaffDep

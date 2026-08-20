@@ -106,6 +106,71 @@
       "treatMissingData": "notBreaching",
       "severity": "warning",
       "description": "Auth failure spike (possible credential stuffing). Single bad logins do not page. Triage: docs/production-observability.md#auth-failures"
+    },
+    {
+      "alarmName": "BaladiGuard-HighLatency",
+      "metricName": "HttpRequestDuration",
+      "statistic": "Average",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 3000,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "warning",
+      "description": "Sustained high average HTTP latency. Triage: docs/production-observability.md#high-latency"
+    },
+    {
+      "alarmName": "BaladiGuard-ThrottlingSpike",
+      "metricName": "RateLimitExceeded",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 80,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "warning",
+      "description": "Sustained request throttling / abuse limiter rejections. Triage: docs/production-observability.md#throttling"
+    },
+    {
+      "alarmName": "BaladiGuard-StuckAiJobs",
+      "metricName": "AiJobOldestAgeSeconds",
+      "statistic": "Maximum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 900,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "Oldest active AI job exceeded 15 minutes. Triage: docs/production-observability.md#stuck-ai-jobs"
+    },
+    {
+      "alarmName": "BaladiGuard-RedactionFailures",
+      "metricName": "ImageRedactionJobsDeadLettered",
+      "statistic": "Sum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 5,
+      "comparisonOperator": "GreaterThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "Image redaction dead-letter spike. Keep public images fail-closed. Triage: docs/production-observability.md#redaction-failures"
+    },
+    {
+      "alarmName": "BaladiGuard-BackupControlFailure",
+      "metricName": "BackupControlSuccess",
+      "statistic": "Minimum",
+      "periodSeconds": 300,
+      "evaluationPeriods": 2,
+      "datapointsToAlarm": 2,
+      "threshold": 1,
+      "comparisonOperator": "LessThanThreshold",
+      "treatMissingData": "notBreaching",
+      "severity": "critical",
+      "description": "Backup/PITR control check is unhealthy. Triage: docs/production-observability.md and docs/production-backup-restore.md"
     }
   ]
 }
