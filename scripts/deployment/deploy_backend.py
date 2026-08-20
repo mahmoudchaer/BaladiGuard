@@ -72,6 +72,17 @@ def running_task_definition_arns(cluster: str, services: list[str]) -> dict[str,
         td_arn = svc.get("taskDefinition")
         if td_arn:
             result[name] = td_arn
+    missing = sorted(set(services) - set(result))
+    if missing:
+        failures = described.get("failures", [])
+        details = "; ".join(
+            f"{failure.get('arn', 'unknown')}: {failure.get('reason', 'unknown')}"
+            for failure in failures
+        )
+        suffix = f" ({details})" if details else ""
+        raise RuntimeError(
+            f"could not determine the running task definition for: {', '.join(missing)}{suffix}"
+        )
     return result
 
 

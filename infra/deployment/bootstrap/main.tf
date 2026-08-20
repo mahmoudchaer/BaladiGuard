@@ -143,12 +143,17 @@ resource "aws_iam_role_policy" "deploy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
         Effect = "Allow"
         Action = [
           "ecr:DescribeRepositories", "ecr:DescribeImages",
           "ecr:PutImage", "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
-          "ecr:BatchCheckLayerAvailability", "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
           "ecr:PutImageTagMutability", "ecr:PutImageScanningConfiguration",
           "ecr:PutLifecyclePolicy", "ecr:GetLifecyclePolicy",
         ]
@@ -173,17 +178,20 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
-          "dynamodb:CreateTable", "dynamodb:DeleteTable",
-          "dynamodb:DescribeTable", "dynamodb:UpdateTable",
-          "dynamodb:DescribeContinuousBackups",
-          "dynamodb:UpdateContinuousBackups",
-          "dynamodb:DescribeTimeToLive", "dynamodb:UpdateTimeToLive",
-          "dynamodb:ListTagsOfResource", "dynamodb:TagResource",
+          "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
         ]
         Resource = [
-          aws_dynamodb_table.locks.arn,
-          "arn:aws:dynamodb:*:*:table/baladiguard-*",
+          "${aws_s3_bucket.state.arn}/*",
+          "arn:aws:s3:::baladiguard-*-admin-*/*",
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable",
+        ]
+        Resource = aws_dynamodb_table.locks.arn
       },
       {
         Effect = "Allow"
@@ -198,11 +206,6 @@ resource "aws_iam_role_policy" "deploy" {
           "ecs:ListTasks",
         ]
         Resource = "*"
-        Condition = {
-          StringLike = {
-            "aws:ResourceTag/Project" = "baladiguard"
-          }
-        }
       },
       {
         Effect = "Allow"
@@ -220,7 +223,7 @@ resource "aws_iam_role_policy" "deploy" {
           "ec2:CreateRoute", "ec2:DeleteRoute",
           "ec2:CreateRouteTable", "ec2:DeleteRouteTable",
           "ec2:AssociateRouteTable", "ec2:DisassociateRouteTable",
-          "ec2:ModifyVpcAttribute",
+          "ec2:ModifyVpcAttribute", "ec2:CreateTags", "ec2:DeleteTags",
         ]
         Resource = "*"
       },
@@ -248,14 +251,14 @@ resource "aws_iam_role_policy" "deploy" {
         Resource = "*"
       },
       {
-        Effect = "Allow"
-        Action = [
-          "route53:ChangeResourceRecordSets",
-          "route53:GetChange",
-          "route53:ListResourceRecordSets",
-          "route53:ListHostedZones",
-        ]
+        Effect   = "Allow"
+        Action   = ["route53:ChangeResourceRecordSets", "route53:ListResourceRecordSets"]
         Resource = "arn:aws:route53:::hostedzone/${var.route53_zone_id}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["route53:GetChange", "route53:ListHostedZones"]
+        Resource = "*"
       },
       {
         Effect = "Allow"
@@ -274,9 +277,26 @@ resource "aws_iam_role_policy" "deploy" {
         Effect = "Allow"
         Action = [
           "logs:CreateLogGroup", "logs:DeleteLogGroup",
-          "logs:DescribeLogGroups", "logs:PutRetentionPolicy",
+          "logs:PutRetentionPolicy",
         ]
         Resource = "arn:aws:logs:*:*:log-group:/ecs/baladiguard-*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogGroups"]
+        Resource = "*"
+      },
+      {
+        # Terraform's provider default_tags are sent with creates across these
+        # services. These actions do not support useful resource-level scoping.
+        Effect = "Allow"
+        Action = [
+          "acm:AddTagsToCertificate", "acm:RemoveTagsFromCertificate",
+          "cloudfront:TagResource", "cloudfront:UntagResource",
+          "elasticloadbalancing:AddTags", "elasticloadbalancing:RemoveTags",
+          "logs:TagResource", "logs:UntagResource",
+        ]
+        Resource = "*"
       },
       {
         Effect = "Allow"
@@ -288,13 +308,6 @@ resource "aws_iam_role_policy" "deploy" {
           "iam:CreateServiceLinkedRole",
         ]
         Resource = "arn:aws:iam::*:role/baladiguard-${each.key}-*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret",
-        ]
-        Resource = var.runtime_secret_arn
       },
       {
         Effect = "Allow"

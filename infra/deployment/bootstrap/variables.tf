@@ -27,8 +27,3 @@ variable "route53_zone_id" {
   description = "Route 53 hosted zone ID for DNS record management."
   type        = string
 }
-
-variable "runtime_secret_arn" {
-  description = "ARN of the Secrets Manager secret holding runtime environment values."
-  type        = string
-}

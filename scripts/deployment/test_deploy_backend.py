@@ -172,7 +172,7 @@ class RunningTaskDefinitionArnsTests(unittest.TestCase):
         self.assertEqual(result, {})
         mock_aws.assert_not_called()
 
-    def test_skips_services_without_task_definition(self):
+    def test_rejects_services_without_a_running_task_definition(self):
         services = [
             {"serviceName": "api", "taskDefinition": "arn:...:1"},
             {"serviceName": "broken", "taskDefinition": None},
@@ -182,10 +182,8 @@ class RunningTaskDefinitionArnsTests(unittest.TestCase):
             return {"services": services}
 
         with patch("deploy_backend.aws", side_effect=fake_aws):
-            result = running_task_definition_arns("test-cluster", ["api", "broken"])
-
-        self.assertIn("api", result)
-        self.assertNotIn("broken", result)
+            with self.assertRaisesRegex(RuntimeError, "broken"):
+                running_task_definition_arns("test-cluster", ["api", "broken"])
 
 
 # ---------------------------------------------------------------------------
