@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.schemas.stored_ticket import StoredTicket
+from app.services.content_safety.policy import content_safety_allows_public_ticket
 
 OWNER_HISTORY_SORT_KEY = "ownerHistorySortKey"
 PUBLIC_SORT_KEY = "publicSortKey"
@@ -35,6 +36,8 @@ CONTENT_SAFETY_ITEM_KEYS = (
     "authenticityModelVersion",
     "authenticitySignals",
     "contentSafetyCompletedAt",
+    "contentSafetyStaffNote",
+    "contentSafetyHistory",
 )
 
 
@@ -60,6 +63,7 @@ def is_public_ticket_publishable(ticket: StoredTicket) -> bool:
         and bool(ticket.public_description and ticket.public_description.strip())
         and bool(ticket.public_location_label and ticket.public_location_label.strip())
         and bool(ticket.public_published_at)
+        and content_safety_allows_public_ticket(ticket)
     )
 
 

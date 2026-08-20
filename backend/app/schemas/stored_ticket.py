@@ -3,7 +3,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
-from app.schemas.content_safety import ContentSafetySeverity, ContentSafetyStatus
+from app.schemas.content_safety import (
+    ContentSafetyProvenance,
+    ContentSafetySeverity,
+    ContentSafetyStatus,
+)
 from app.schemas.image_redaction import (
     ImageRedactionStatus,
     RedactionProvenance,
@@ -95,6 +99,10 @@ class StoredTicket(BaseModel):
     authenticity_model_version: str | None = Field(default=None, alias="authenticityModelVersion")
     authenticity_signals: list[str] = Field(default_factory=list, alias="authenticitySignals")
     content_safety_completed_at: str | None = Field(default=None, alias="contentSafetyCompletedAt")
+    content_safety_staff_note: str | None = Field(default=None, alias="contentSafetyStaffNote")
+    content_safety_history: list[ContentSafetyProvenance] = Field(
+        default_factory=list, alias="contentSafetyHistory"
+    )
 
     ai_processing_status: AiProcessingStatus = Field(
         default="pending",

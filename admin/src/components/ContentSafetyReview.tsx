@@ -23,6 +23,7 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -96,15 +97,37 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
           {t('contentSafety.imageLabels', { codes: review.imageLabels.join(', ') })}
         </p>
       ) : null}
+      {review.staffNote ? (
+        <p className="content-safety-review__signals">
+          {t('contentSafety.savedNote', { note: review.staffNote })}
+        </p>
+      ) : null}
 
-      <div>
-        <p className="content-safety-review__label">{t('contentSafety.original')}</p>
-        <TicketPhoto
-          category={category}
-          alt={t('contentSafety.originalAlt')}
-          imageUrl={review.originalImageUrl ?? undefined}
-        />
-      </div>
+      {review.originalImageUrl ? (
+        <div>
+          <p className="content-safety-review__label">{t('contentSafety.original')}</p>
+          <TicketPhoto
+            category={category}
+            alt={t('contentSafety.originalAlt')}
+            imageUrl={review.originalImageUrl}
+          />
+        </div>
+      ) : null}
+
+      {review.canApprove || review.canReject || review.canMarkPrivate ? (
+        <label className="content-safety-review__note">
+          <span className="content-safety-review__label">{t('contentSafety.note')}</span>
+          <textarea
+            className="content-safety-review__note-input"
+            maxLength={500}
+            rows={3}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder={t('contentSafety.notePlaceholder')}
+            disabled={busy}
+          />
+        </label>
+      ) : null}
 
       {actionError ? <p className="content-safety-review__error">{actionError}</p> : null}
 
@@ -113,7 +136,11 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
           type="button"
           className="ticket-detail__review-button"
           disabled={busy || !review.canApprove}
-          onClick={() => void runAction(() => approveContentSafety(ticketId, review.generation))}
+          onClick={() =>
+            void runAction(() =>
+              approveContentSafety(ticketId, review.generation, note.trim() || undefined),
+            )
+          }
         >
           {t('contentSafety.approve')}
         </button>
@@ -123,7 +150,12 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
           disabled={busy || !review.canMarkPrivate}
           onClick={() =>
             void runAction(() =>
-              markContentSafetyPrivate(ticketId, review.generation, 'STAFF_PRIVATE_ONLY'),
+              markContentSafetyPrivate(
+                ticketId,
+                review.generation,
+                'STAFF_PRIVATE_ONLY',
+                note.trim() || undefined,
+              ),
             )
           }
         >
@@ -134,7 +166,14 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
           className="ticket-detail__ghost-button"
           disabled={busy || !review.canReject}
           onClick={() =>
-            void runAction(() => rejectContentSafety(ticketId, review.generation, 'STAFF_REJECTED'))
+            void runAction(() =>
+              rejectContentSafety(
+                ticketId,
+                review.generation,
+                'STAFF_REJECTED',
+                note.trim() || undefined,
+              ),
+            )
           }
         >
           {t('contentSafety.reject')}

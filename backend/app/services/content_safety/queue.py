@@ -15,6 +15,8 @@ from app.services.content_safety.authenticity import CompositeAuthenticityDetect
 from app.services.content_safety.image_moderator import RekognitionImageModerator
 from app.services.content_safety.policy import (
     SafetyDecision,
+    append_content_safety_history,
+    public_unpublish_fields,
     should_clear_public_image,
     should_promote_public_image,
 )
@@ -135,6 +137,7 @@ class ContentSafetyQueue:
             )
             return "retried" if transitioned else "claim_lost"
         try:
+            started_at = time.perf_counter()
             decision = self.processor.process(
                 ticket_id=job.ticket_id,
                 source_key=claimed.image_object_key,
@@ -149,6 +152,17 @@ class ContentSafetyQueue:
             if not self.jobs.succeed(job.job_id, token, int(time.time())):
                 return "claim_lost"
             emit_metric("ContentSafetyJobsSucceeded", dimensions={"status": decision.status})
+            emit_metric(
+                "ContentSafetyJobLatencyMs",
+                value=round((time.perf_counter() - started_at) * 1000.0, 2),
+                unit="Milliseconds",
+                dimensions={"status": decision.status},
+            )
+            if decision.text.model:
+                emit_metric(
+                    "ContentSafetyModelVersion",
+                    dimensions={"model": decision.text.model[:64]},
+                )
             return "succeeded"
         except DetectionProviderError as exc:
             return self._retry_or_fail(
@@ -188,6 +202,7 @@ class ContentSafetyQueue:
     ) -> str:
         fail_closed = get_settings().content_safety_fail_closed
         status = "review_required" if fail_closed else "failed"
+        ticket = self.tickets.get(job.ticket_id)
         fields = {
             "content_safety_status": status,
             "content_safety_reason_code": reason[:80] or "SAFETY_FAILED",
@@ -195,7 +210,13 @@ class ContentSafetyQueue:
             "content_safety_completed_at": _iso(now),
             "updated_at": _iso(now),
         }
-        if should_clear_public_image(status):
+        if ticket is not None:
+            snapshot = ticket.model_copy(update=fields)
+            fields["content_safety_history"] = append_content_safety_history(
+                snapshot, status=status
+            )
+            fields.update(public_unpublish_fields(ticket))
+        elif should_clear_public_image(status):
             fields["public_image_object_key"] = None
         finalized = self.tickets.finalize_content_safety(
             job.ticket_id, job.generation, token, fields
@@ -226,6 +247,12 @@ def _fields_for_decision(ticket, decision: SafetyDecision, *, completed_at: str)
         fields["public_image_object_key"] = ticket.image_redaction_candidate_object_key
     elif should_clear_public_image(decision.status):
         fields["public_image_object_key"] = None
+    if decision.status != "passed":
+        fields.update(public_unpublish_fields(ticket))
+    snapshot = ticket.model_copy(update=fields)
+    fields["content_safety_history"] = append_content_safety_history(
+        snapshot, status=decision.status
+    )
     return fields
 
 

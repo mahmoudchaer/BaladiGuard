@@ -538,6 +538,7 @@ def list_tickets(
     q: str | None = Query(default=None),
     open_only: bool = Query(default=False, alias="openOnly"),
     ticket_ids: str | None = Query(default=None, alias="ticketIds"),
+    content_safety_status: str | None = Query(default=None, alias="contentSafetyStatus"),
     limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
     cursor: str | None = Query(default=None),
 ) -> TicketListPageResponse | JSONResponse:
@@ -555,6 +556,7 @@ def list_tickets(
         q=q,
         open_only=open_only,
         ticket_ids=ticket_ids,
+        content_safety_status=content_safety_status,
     )
     if errors:
         return build_error_response(

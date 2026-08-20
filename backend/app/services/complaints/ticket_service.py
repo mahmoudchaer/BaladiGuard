@@ -682,7 +682,12 @@ class TicketService:
             )
         )
         needs_post_filter = bool(
-            store_filters is not None and (store_filters.sla_state or workforce_post_filter)
+            store_filters is not None
+            and (
+                store_filters.sla_state
+                or workforce_post_filter
+                or store_filters.content_safety_status
+            )
         )
 
         collected: list[StoredTicket] = []
@@ -1520,6 +1525,12 @@ class TicketService:
                 raise PublicContentUpdateError(
                     "Published tickets require a public description and coarse location label."
                 )
+            from app.services.content_safety.policy import content_safety_allows_public_ticket
+
+            if not content_safety_allows_public_ticket(ticket):
+                raise PublicContentUpdateError(
+                    "Content-safety screening must pass before a ticket can be published."
+                )
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -1828,6 +1839,16 @@ class TicketService:
             )
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        from app.services.content_safety.policy import (
+            public_unpublish_fields,
+            superseded_content_safety_history,
+        )
+
+        extra_fields = {
+            "content_safety_generation": ticket.content_safety_generation + 1,
+            "content_safety_history": superseded_content_safety_history(ticket),
+            **public_unpublish_fields(ticket),
+        }
         updated = self._committed_safety_ticket(
             ticket_id,
             self._store.start_content_safety_reprocessing(
@@ -1835,6 +1856,7 @@ class TicketService:
                 updated_at,
                 expected_municipality_id=ticket.municipality_id,
                 expected_department_id=ticket.department_id,
+                fields=extra_fields,
             ),
             staff_principal=staff_principal,
         )
@@ -1862,6 +1884,9 @@ class TicketService:
 
         status = ticket.content_safety_status if ticket.content_safety_enrolled else "pending"
         reviewable = ticket.content_safety_enrolled and status == "review_required"
+        original_image_url = None
+        if reviewable:
+            original_image_url = build_image_url(ticket.image_object_key)
         return ContentSafetyReviewResponse(
             ticketId=ticket.ticket_id,
             generation=ticket.content_safety_generation,
@@ -1875,7 +1900,8 @@ class TicketService:
             authenticityModelVersion=ticket.authenticity_model_version,
             authenticitySignals=list(ticket.authenticity_signals),
             completedAt=ticket.content_safety_completed_at,
-            originalImageUrl=build_image_url(ticket.image_object_key),
+            originalImageUrl=original_image_url,
+            staffNote=ticket.content_safety_staff_note,
             publicImageReady=bool(
                 ticket.public_image_object_key and content_safety_allows_public_image(ticket)
             ),
@@ -1949,7 +1975,11 @@ class TicketService:
         summary: str,
         copy_candidate_to_public: bool = False,
     ) -> ContentSafetyReviewResponse:
-        from app.services.content_safety.policy import should_promote_public_image
+        from app.services.content_safety.policy import (
+            append_content_safety_history,
+            public_unpublish_fields,
+            should_promote_public_image,
+        )
         from app.services.content_safety.review import (
             ContentSafetyReviewConflictError,
             ContentSafetyReviewError,
@@ -1972,16 +2002,24 @@ class TicketService:
             raise ContentSafetyReviewConflictError()
         actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        staff_note = (payload.note or "").strip()[:500] or None
         fields: dict[str, Any] = {
             "content_safety_status": status,
             "content_safety_reason_code": reason_code[:64],
             "content_safety_completed_at": updated_at,
+            "content_safety_staff_note": staff_note,
             "updated_at": updated_at,
             "updated_by": actor_id,
         }
         promote = copy_candidate_to_public and should_promote_public_image(ticket, status)  # type: ignore[arg-type]
         if status != "passed":
             fields["public_image_object_key"] = None
+            fields.update(public_unpublish_fields(ticket))
+        snapshot = ticket.model_copy(update=fields)
+        fields["content_safety_history"] = append_content_safety_history(
+            snapshot,
+            status=status,  # type: ignore[arg-type]
+        )
         self._committed_safety_ticket(
             ticket_id,
             self._store.apply_content_safety_review(
@@ -1995,16 +2033,20 @@ class TicketService:
             ),
             staff_principal=staff_principal,
         )
+        audit_summary = summary
+        if staff_note:
+            audit_summary = f"{summary} Note: {staff_note}"
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type=action_type,
             actor_id=actor_id,
             actor_role=actor_role,
-            summary=summary,
+            summary=audit_summary,
             previous_value="review_required",
             new_value=status,
             created_at=updated_at,
         )
+        emit_metric("ContentSafetyReviewOverride", dimensions={"status": status})
         return self.get_content_safety_review(ticket_id, staff_principal=staff_principal)
 
     def _committed_safety_ticket(

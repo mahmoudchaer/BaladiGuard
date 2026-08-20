@@ -13,7 +13,11 @@ import { QueueViewsSidebar, type QueueViewId } from '@/components/QueueViewsSide
 import { TicketPreviewPanel } from '@/components/TicketPreviewPanel';
 import { CategoryDistributionChart } from '@/components/CategoryDistributionChart';
 import { DepartmentSummary } from '@/components/DepartmentSummary';
-import { TicketFilters, type SlaFilter } from '@/components/TicketFilters';
+import {
+  TicketFilters,
+  type ContentSafetyFilter,
+  type SlaFilter,
+} from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -58,6 +62,7 @@ function buildServerFilters(input: {
   ticketIds?: string[];
   workerId?: string;
   teamId?: string;
+  contentSafetyStatus?: ContentSafetyFilter;
 }): FetchTicketsFilters {
   const filters: FetchTicketsFilters = {
     status: input.status,
@@ -70,6 +75,10 @@ function buildServerFilters(input: {
     ticketIds: input.ticketIds?.length ? input.ticketIds : undefined,
     workerId: input.workerId,
     teamId: input.teamId,
+    contentSafetyStatus:
+      input.contentSafetyStatus && input.contentSafetyStatus !== 'ALL'
+        ? input.contentSafetyStatus
+        : undefined,
   };
 
   if (input.queueView === 'unassigned') {
@@ -138,6 +147,9 @@ export function TicketListPage() {
   const [slaFilter, setSlaFilter] = useState<SlaFilter>(
     (initialFilters.slaState as SlaFilter) ?? 'ALL',
   );
+  const [contentSafetyFilter, setContentSafetyFilter] = useState<ContentSafetyFilter>(
+    (initialFilters.contentSafetyStatus as ContentSafetyFilter) ?? 'ALL',
+  );
   const [openOnly, setOpenOnly] = useState(Boolean(initialFilters.openOnly));
   const [ticketIds, setTicketIds] = useState<string[]>(initialFilters.ticketIds ?? []);
   const [workerId, setWorkerId] = useState(initialFilters.workerId);
@@ -169,6 +181,7 @@ export function TicketListPage() {
     setUrgencyCsv(filters.urgency?.includes(',') ? filters.urgency : null);
     setDepartmentFilter(filters.departmentId ?? 'ALL');
     setSlaFilter((filters.slaState as SlaFilter) ?? 'ALL');
+    setContentSafetyFilter((filters.contentSafetyStatus as ContentSafetyFilter) ?? 'ALL');
     setOpenOnly(Boolean(filters.openOnly));
     setTicketIds(filters.ticketIds ?? []);
     setWorkerId(filters.workerId);
@@ -187,6 +200,7 @@ export function TicketListPage() {
       urgency: urgencyCsv || (urgencyFilter !== 'ALL' ? urgencyFilter : undefined),
       departmentId: departmentFilter !== 'ALL' ? departmentFilter : undefined,
       slaState: slaFilter !== 'ALL' ? slaFilter : undefined,
+      contentSafetyStatus: contentSafetyFilter !== 'ALL' ? contentSafetyFilter : undefined,
       assignmentState: queueView === 'unassigned' ? 'unassigned' : undefined,
       openOnly: openOnly || undefined,
       ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
@@ -201,6 +215,7 @@ export function TicketListPage() {
       queueView,
       selectedTicketId,
       slaFilter,
+      contentSafetyFilter,
       statusFilter,
       teamId,
       ticketIds,
@@ -216,6 +231,7 @@ export function TicketListPage() {
   const debouncedUrgency = useDebouncedValue(urgencyFilter, FILTER_DEBOUNCE_MS);
   const debouncedDepartment = useDebouncedValue(departmentFilter, FILTER_DEBOUNCE_MS);
   const debouncedSla = useDebouncedValue(slaFilter, FILTER_DEBOUNCE_MS);
+  const debouncedContentSafety = useDebouncedValue(contentSafetyFilter, FILTER_DEBOUNCE_MS);
   const debouncedSearch = useDebouncedValue(searchQuery, FILTER_DEBOUNCE_MS);
   const debouncedQueueView = useDebouncedValue(queueView, FILTER_DEBOUNCE_MS);
 
@@ -227,6 +243,7 @@ export function TicketListPage() {
         urgency: debouncedUrgency,
         department: debouncedDepartment,
         sla: debouncedSla,
+        contentSafetyStatus: debouncedContentSafety,
         queueView: debouncedQueueView,
         search: debouncedSearch,
         urgencyCsv,
@@ -241,6 +258,7 @@ export function TicketListPage() {
       debouncedQueueView,
       debouncedSearch,
       debouncedSla,
+      debouncedContentSafety,
       debouncedStatus,
       debouncedUrgency,
       openOnly,
@@ -257,6 +275,7 @@ export function TicketListPage() {
     (serverFilters.urgency && serverFilters.urgency !== 'ALL') ||
     (serverFilters.departmentId && serverFilters.departmentId !== 'ALL') ||
     (serverFilters.slaState && serverFilters.slaState !== 'ALL') ||
+    (serverFilters.contentSafetyStatus && serverFilters.contentSafetyStatus !== 'ALL') ||
     (serverFilters.assignmentState && serverFilters.assignmentState !== 'ALL') ||
     Boolean(serverFilters.q) ||
     Boolean(serverFilters.openOnly) ||
@@ -271,6 +290,7 @@ export function TicketListPage() {
     urgencyFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
     slaFilter !== 'ALL' ||
+    contentSafetyFilter !== 'ALL' ||
     searchQuery.trim().length > 0 ||
     queueView !== 'all' ||
     openOnly ||
@@ -522,6 +542,7 @@ export function TicketListPage() {
     setUrgencyCsv(null);
     setDepartmentFilter('ALL');
     setSlaFilter('ALL');
+    setContentSafetyFilter('ALL');
     setOpenOnly(false);
     setTicketIds([]);
     setWorkerId(undefined);
@@ -620,6 +641,7 @@ export function TicketListPage() {
               urgencyFilter={urgencyFilter}
               departmentFilter={departmentFilter}
               slaFilter={slaFilter}
+              contentSafetyFilter={contentSafetyFilter}
               categoryOptions={categoryOptions}
               resultCount={pageTickets.length}
               totalCount={totalCount}
@@ -646,6 +668,7 @@ export function TicketListPage() {
                   setQueueView('all');
                 }
               }}
+              onContentSafetyChange={setContentSafetyFilter}
               onClearFilters={clearFilters}
             />
 

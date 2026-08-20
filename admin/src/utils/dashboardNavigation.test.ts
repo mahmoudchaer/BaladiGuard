@@ -37,6 +37,14 @@ describe('dashboardNavigation', () => {
     expect(buildMapPath(parsed)).not.toContain('secret');
   });
 
+  it('bookmarks contentSafetyStatus as a safe list filter', () => {
+    const parsed = parseDashboardSearchParams(
+      new URLSearchParams('contentSafetyStatus=review_required'),
+    );
+    expect(parsed.contentSafetyStatus).toBe('review_required');
+    expect(buildTicketListPath(parsed)).toBe('/?contentSafetyStatus=review_required');
+  });
+
   it('keeps assistant appliedFilters to documented list keys', () => {
     expect(
       assistantFiltersFromApplied({

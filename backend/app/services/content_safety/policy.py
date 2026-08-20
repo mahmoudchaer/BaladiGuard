@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
-from app.schemas.content_safety import ContentSafetySeverity, ContentSafetyStatus
+from app.schemas.content_safety import (
+    ContentSafetyProvenance,
+    ContentSafetySeverity,
+    ContentSafetyStatus,
+)
 from app.schemas.stored_ticket import StoredTicket
 
+CONTENT_SAFETY_HISTORY_CAP = 20
 TERMINAL_TEXT_REJECT = frozenset(
     {
         "TEXT_GARBAGE",
@@ -57,11 +63,16 @@ class SafetyDecision:
     image_labels: tuple[str, ...] = field(default_factory=tuple)
 
 
-def content_safety_allows_public_image(ticket: StoredTicket) -> bool:
-    """Legacy unenrolled tickets keep historical redaction auto-publish."""
+def content_safety_allows_public_ticket(ticket: StoredTicket) -> bool:
+    """Public list/detail/publish require passed screening, or an unenrolled ticket."""
     if not ticket.content_safety_enrolled:
         return True
     return ticket.content_safety_status == "passed"
+
+
+def content_safety_allows_public_image(ticket: StoredTicket) -> bool:
+    """Legacy unenrolled tickets keep historical redaction auto-publish."""
+    return content_safety_allows_public_ticket(ticket)
 
 
 def public_photo_key_if_eligible(ticket: StoredTicket) -> str | None:
@@ -85,7 +96,78 @@ def should_promote_public_image(ticket: StoredTicket, status: ContentSafetyStatu
 
 
 def should_clear_public_image(status: ContentSafetyStatus) -> bool:
-    return status in {"review_required", "private_only", "rejected", "failed"}
+    return status in {"review_required", "private_only", "rejected", "failed", "pending"}
+
+
+def public_unpublish_fields(ticket: StoredTicket) -> dict[str, Any]:
+    """Drop a live public projection when screening is no longer passed.
+
+    DRAFT stays DRAFT. PUBLISHED becomes UNPUBLISHED so the Dynamo public GSI
+    hash moves off the published partition.
+    """
+    fields: dict[str, Any] = {}
+    if ticket.public_status == "PUBLISHED":
+        fields["public_status"] = "UNPUBLISHED"
+    if ticket.public_image_object_key:
+        fields["public_image_object_key"] = None
+    return fields
+
+
+def snapshot_content_safety(
+    ticket: StoredTicket, *, status: ContentSafetyStatus | None = None
+) -> dict[str, Any]:
+    record_status = status or ticket.content_safety_status
+    return ContentSafetyProvenance(
+        generation=ticket.content_safety_generation,
+        status=record_status,
+        outcomeStatus=ticket.content_safety_status,
+        reasonCode=ticket.content_safety_reason_code,
+        severity=ticket.content_safety_severity,
+        textModel=ticket.content_safety_text_model,
+        imageLabels=list(ticket.content_safety_image_labels),
+        authenticityScore=ticket.authenticity_score,
+        authenticityModel=ticket.authenticity_model,
+        authenticityModelVersion=ticket.authenticity_model_version,
+        authenticitySignals=list(ticket.authenticity_signals),
+        completedAt=ticket.content_safety_completed_at,
+        staffNote=ticket.content_safety_staff_note,
+    ).model_dump(by_alias=True)
+
+
+def _history_entries(ticket: StoredTicket) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for item in ticket.content_safety_history:
+        if hasattr(item, "model_dump"):
+            entries.append(item.model_dump(by_alias=True))
+        else:
+            entries.append(dict(item))
+    return entries
+
+
+def append_content_safety_history(
+    ticket: StoredTicket, *, status: ContentSafetyStatus | None = None
+) -> list[dict[str, Any]]:
+    history = _history_entries(ticket)
+    generation = ticket.content_safety_generation
+    if any(int(entry.get("generation") or 0) == generation for entry in history):
+        return history[-CONTENT_SAFETY_HISTORY_CAP:]
+    history.append(snapshot_content_safety(ticket, status=status))
+    return history[-CONTENT_SAFETY_HISTORY_CAP:]
+
+
+def superseded_content_safety_history(ticket: StoredTicket) -> list[dict[str, Any]]:
+    """Keep the prior generation when reprocessing; write superseded provenance."""
+    history = _history_entries(ticket)
+    generation = ticket.content_safety_generation
+    found = False
+    for entry in history:
+        if int(entry.get("generation") or 0) == generation:
+            entry["status"] = "superseded"
+            entry.setdefault("outcomeStatus", ticket.content_safety_status)
+            found = True
+    if not found:
+        history.append(snapshot_content_safety(ticket, status="superseded"))
+    return history[-CONTENT_SAFETY_HISTORY_CAP:]
 
 
 def combine_safety_signals(
@@ -115,6 +197,17 @@ def combine_safety_signals(
             "rejected",
             image.reason_code,
             "high",
+            text,
+            image,
+            authenticity,
+            image_labels,
+        )
+
+    if image.reason_code == "IMAGE_NUDITY_SUGGESTIVE":
+        return _decision(
+            "review_required",
+            image.reason_code,
+            _higher_severity(image.severity, "medium"),
             text,
             image,
             authenticity,
@@ -173,7 +266,7 @@ def combine_safety_signals(
     if image.reason_code in {"IMAGE_DRUGS", "IMAGE_WEAPONS", "IMAGE_OTHER_UNSAFE"}:
         if image.confidence >= 80 and not text.civic_emergency:
             return _decision(
-                "review_required" if text.civic_emergency else "rejected",
+                "rejected",
                 image.reason_code,
                 "high",
                 text,

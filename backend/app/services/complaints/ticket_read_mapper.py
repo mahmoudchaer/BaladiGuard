@@ -121,6 +121,9 @@ def map_ticket_to_list_item(ticket: StoredTicket) -> TicketListItemResponse:
         assignmentState="assigned" if ticket.department_id else "unassigned",
         assignedWorkerId=ticket.assigned_worker_id,
         assignedTeamId=ticket.assigned_team_id,
+        contentSafetyStatus=(
+            ticket.content_safety_status if ticket.content_safety_enrolled else None
+        ),
         location=TicketListLocation(
             latitude=ticket.location.latitude,
             longitude=ticket.location.longitude,

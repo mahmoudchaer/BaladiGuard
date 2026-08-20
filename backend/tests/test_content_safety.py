@@ -12,10 +12,13 @@ from app.config import Settings
 from app.database.memory import InMemoryTicketStore
 from app.database.memory_content_safety_job import InMemoryContentSafetyJobStore
 from app.database.memory_redaction_job import InMemoryRedactionJobStore
-from app.database.serialization import item_to_ticket, ticket_to_item
+from app.database.serialization import is_public_ticket_publishable, item_to_ticket, ticket_to_item
 from app.schemas.stored_ticket import StoredTicket
 from app.services.content_safety.authenticity import OnnxAuthenticityDetector, _fake_score
-from app.services.content_safety.image_moderator import RekognitionImageModerator
+from app.services.content_safety.image_moderator import (
+    RekognitionImageModerator,
+    reason_for_moderation_label,
+)
 from app.services.content_safety.model_assets import (
     authenticity_model_candidates,
     resolve_authenticity_model_path,
@@ -26,12 +29,14 @@ from app.services.content_safety.policy import (
     TextSafetyResult,
     combine_safety_signals,
     content_safety_allows_public_image,
+    content_safety_allows_public_ticket,
 )
 from app.services.content_safety.processor import ContentSafetyProcessor
 from app.services.content_safety.queue import ContentSafetyQueue
 from app.services.content_safety.text_moderator import (
     TextModerationProviderError,
     _parse_payload,
+    sanitize_untrusted_report_text,
 )
 from app.services.content_safety.text_rules import evaluate_text_rules
 from app.services.redaction.processor import ProcessingResult
@@ -224,6 +229,9 @@ def test_eval_fixture_expectations_match_deterministic_gates():
     }
     for civic_id in ("en-civic-crash", "ar-civic-fire", "fr-civic-flood", "arabizi-pothole"):
         assert evaluate_text_rules(by_id[civic_id]["description"]) is None
+    prompt = evaluate_text_rules(by_id["en-prompt-bypass"]["description"])
+    assert prompt is not None
+    assert prompt.reason_code == "TEXT_PROMPT_INJECTION"
 
 
 def test_civic_model_verdict_does_not_quarantine_publishable_text():
@@ -672,3 +680,327 @@ def test_text_moderator_provider_error_is_unavailable():
     )
     assert decision.status == "review_required"
     assert decision.reason_code == "SAFETY_PROVIDER_UNAVAILABLE"
+
+
+def test_non_explicit_and_swimwear_are_not_mapped_as_sexual():
+    assert "explicit" in "non-explicit nudity"
+    assert reason_for_moderation_label("Non-Explicit Nudity") == "IMAGE_NUDITY_SUGGESTIVE"
+    assert (
+        reason_for_moderation_label("Female Swimwear or Underwear", "Non-Explicit Nudity")
+        == "IMAGE_NUDITY_SUGGESTIVE"
+    )
+    assert reason_for_moderation_label("Explicit Nudity") == "IMAGE_SEXUAL"
+    assert reason_for_moderation_label("Nazi Party", "Hate Symbols") == "IMAGE_HATE"
+
+
+def test_eval_image_label_cases_match_policy():
+    cases = json.loads(EVAL_PATH.read_text(encoding="utf-8"))
+    for case in cases:
+        if case.get("modality") != "image_label":
+            continue
+        mapped = reason_for_moderation_label(case["label"], case.get("parent") or "")
+        assert mapped == case["expectReason"]
+        decision = _decision(
+            text=TextSafetyResult(
+                reason_code="TEXT_CIVIC_EMERGENCY",
+                civic_emergency=bool(case.get("civicEmergency")),
+                confidence=0.9,
+            ),
+            image=ImageSafetyResult(
+                reason_code=mapped,
+                labels=("fixture",),
+                confidence=float(case["confidence"]),
+                severity="high",
+            ),
+        )
+        assert decision.status == case["expect"]
+        assert decision.reason_code == case["expectReason"]
+
+
+def test_policy_swimwear_civic_reviews_not_rejects():
+    decision = _decision(
+        text=TextSafetyResult(
+            reason_code="TEXT_CIVIC_EMERGENCY", civic_emergency=True, confidence=0.9
+        ),
+        image=ImageSafetyResult(
+            reason_code="IMAGE_NUDITY_SUGGESTIVE",
+            labels=("female-swimwear-or-underwear",),
+            confidence=92,
+            severity="high",
+        ),
+    )
+    assert decision.status == "review_required"
+    assert decision.reason_code == "IMAGE_NUDITY_SUGGESTIVE"
+
+
+def test_sanitize_strips_citizen_report_delimiters():
+    cases = json.loads(EVAL_PATH.read_text(encoding="utf-8"))
+    raw = next(case["description"] for case in cases if case["id"] == "en-delimiter-break")
+    cleaned = sanitize_untrusted_report_text(raw)
+    assert "CITIZEN_REPORT" not in cleaned
+    assert "Flooded street" in cleaned
+
+
+def test_enrolled_non_passed_ticket_is_not_publicly_publishable():
+    pending = _ticket(status="review_required")
+    pending = pending.model_copy(
+        update={
+            "final_category": "road_damage",
+            "public_status": "PUBLISHED",
+            "public_description": "Staff-approved summary.",
+            "public_location_label": "Hamra",
+            "public_published_at": "2026-08-05T12:00:00Z",
+        }
+    )
+    assert content_safety_allows_public_ticket(pending) is False
+    assert is_public_ticket_publishable(pending) is False
+    passed = pending.model_copy(update={"content_safety_status": "passed"})
+    assert is_public_ticket_publishable(passed) is True
+    unenrolled = pending.model_copy(update={"content_safety_enrolled": False})
+    assert is_public_ticket_publishable(unenrolled) is True
+
+
+def test_enrolled_review_required_ticket_is_absent_from_public_list_and_detail(client):
+    ensure_contribution_ready_citizen(phone="+96170925511", full_name="Public Gate", email=None)
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925511", full_name="Public Gate", email=None
+        ),
+    ).json()
+    from app.database.memory import ticket_store
+
+    stored = ticket_store.get(created["ticketId"])
+    ticket_store.save(
+        stored.model_copy(
+            update={
+                "final_category": "road_damage",
+                "public_status": "PUBLISHED",
+                "public_description": "Staff-approved public summary.",
+                "public_location_label": "Hamra, Beirut",
+                "public_published_at": "2026-08-05T12:00:00Z",
+                "content_safety_status": "review_required",
+            }
+        )
+    )
+    assert client.get(f"/v1/tickets/public/{created['ticketNumber']}").status_code == 404
+    public_numbers = [
+        item["ticketNumber"] for item in client.get("/v1/tickets/public").json()["items"]
+    ]
+    assert created["ticketNumber"] not in public_numbers
+    ticket_store.save(
+        ticket_store.get(created["ticketId"]).model_copy(update={"content_safety_status": "passed"})
+    )
+    listed = client.get("/v1/tickets/public").json()["items"]
+    assert any(item["ticketNumber"] == created["ticketNumber"] for item in listed)
+
+
+def test_staff_reject_persists_note_and_unpublishes(client):
+    ensure_contribution_ready_citizen(phone="+96170925512", full_name="Safety Note", email=None)
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925512", full_name="Safety Note", email=None
+        ),
+    ).json()
+    ticket_id = created["ticketId"]
+    from app.database.memory import ticket_store
+
+    stored = ticket_store.get(ticket_id)
+    ticket_store.save(
+        stored.model_copy(
+            update={
+                "content_safety_status": "review_required",
+                "public_status": "PUBLISHED",
+                "final_category": "road_damage",
+                "public_description": "Should leave the feed.",
+                "public_location_label": "Hamra",
+                "public_published_at": "2026-08-05T12:00:00Z",
+            }
+        )
+    )
+    token = issue_test_staff_token(client, username="admin")
+    headers = {"Authorization": f"Bearer {token}"}
+    rejected = client.post(
+        f"/v1/tickets/{ticket_id}/content-safety/reject",
+        json={"expectedGeneration": 1, "note": "Sexual content, not a civic report."},
+        headers=headers,
+    )
+    assert rejected.status_code == 200, rejected.text
+    body = rejected.json()
+    assert body["status"] == "rejected"
+    assert body["staffNote"] == "Sexual content, not a civic report."
+    assert body["originalImageUrl"] is None
+    stored = ticket_store.get(ticket_id)
+    assert stored.content_safety_status == "rejected"
+    assert stored.content_safety_staff_note == "Sexual content, not a civic report."
+    assert stored.public_status == "UNPUBLISHED"
+    assert stored.content_safety_history
+    assert stored.content_safety_history[0].generation == 1
+    public_numbers = [
+        item["ticketNumber"] for item in client.get("/v1/tickets/public").json()["items"]
+    ]
+    assert created["ticketNumber"] not in public_numbers
+
+
+def test_staff_private_only_and_stale_generation_conflict(client):
+    ensure_contribution_ready_citizen(phone="+96170925513", full_name="Safety Conflict", email=None)
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925513", full_name="Safety Conflict", email=None
+        ),
+    ).json()
+    ticket_id = created["ticketId"]
+    from app.database.memory import ticket_store
+
+    stored = ticket_store.get(ticket_id)
+    ticket_store.save(
+        stored.model_copy(
+            update={
+                "content_safety_status": "review_required",
+                "content_safety_generation": 2,
+            }
+        )
+    )
+    token = issue_test_staff_token(client, username="admin")
+    headers = {"Authorization": f"Bearer {token}"}
+    stale = client.post(
+        f"/v1/tickets/{ticket_id}/content-safety/approve",
+        json={"expectedGeneration": 1},
+        headers=headers,
+    )
+    assert stale.status_code == 409
+    private = client.post(
+        f"/v1/tickets/{ticket_id}/content-safety/private-only",
+        json={"expectedGeneration": 2, "note": "Keep accident photo off the feed."},
+        headers=headers,
+    )
+    assert private.status_code == 200, private.text
+    assert private.json()["status"] == "private_only"
+    stored = ticket_store.get(ticket_id)
+    assert stored.content_safety_status == "private_only"
+    assert stored.content_safety_staff_note == "Keep accident photo off the feed."
+
+
+def test_scoped_staff_cannot_see_out_of_scope_content_safety_review(anonymous_client, client):
+    ensure_contribution_ready_citizen(phone="+96170925514", full_name="Safety Scope", email=None)
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925514", full_name="Safety Scope", email=None
+        ),
+    ).json()
+    from tests.test_staff_authorization import WASTE_MANAGEMENT, _staff_headers, _stamp_ticket_scope
+
+    _stamp_ticket_scope(created["ticketId"], department_id=WASTE_MANAGEMENT, category="waste")
+    municipal = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}/content-safety/review",
+        headers=_staff_headers(anonymous_client, "staff"),
+    )
+    admin = anonymous_client.get(
+        f"/v1/tickets/{created['ticketId']}/content-safety/review",
+        headers=_staff_headers(anonymous_client, "admin"),
+    )
+    assert municipal.status_code == 404
+    assert admin.status_code == 200
+
+
+def test_reprocess_writes_superseded_history_without_dropping_prior_result(client):
+    ensure_contribution_ready_citizen(
+        phone="+96170925515", full_name="Safety Reprocess", email=None
+    )
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925515", full_name="Safety Reprocess", email=None
+        ),
+    ).json()
+    ticket_id = created["ticketId"]
+    from app.database.memory import ticket_store
+
+    stored = ticket_store.get(ticket_id)
+    ticket_store.save(
+        stored.model_copy(
+            update={
+                "content_safety_status": "passed",
+                "content_safety_reason_code": "TEXT_CLEAN",
+                "content_safety_text_model": "amazon.nova-lite-v1:0",
+                "authenticity_score": 0.02,
+            }
+        )
+    )
+    token = issue_test_staff_token(client, username="admin")
+    headers = {"Authorization": f"Bearer {token}"}
+    response = client.post(
+        f"/v1/tickets/{ticket_id}/content-safety/reprocess",
+        headers=headers,
+    )
+    assert response.status_code == 202, response.text
+    stored = ticket_store.get(ticket_id)
+    assert stored.content_safety_status == "pending"
+    assert stored.content_safety_generation == 2
+    assert stored.content_safety_history
+    prior = stored.content_safety_history[0]
+    assert prior.generation == 1
+    assert prior.status == "superseded"
+    assert prior.outcome_status == "passed"
+    assert prior.reason_code == "TEXT_CLEAN"
+
+
+def test_staff_list_projects_and_filters_content_safety_status(client):
+    ensure_contribution_ready_citizen(phone="+96170925516", full_name="Safety List", email=None)
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925516", full_name="Safety List", email=None
+        ),
+    ).json()
+    from app.database.memory import ticket_store
+
+    stored = ticket_store.get(created["ticketId"])
+    ticket_store.save(stored.model_copy(update={"content_safety_status": "review_required"}))
+    token = issue_test_staff_token(client, username="admin")
+    headers = {"Authorization": f"Bearer {token}"}
+    listed = client.get("/v1/tickets?contentSafetyStatus=review_required", headers=headers)
+    assert listed.status_code == 200, listed.text
+    items = listed.json()["items"]
+    assert any(item["ticketId"] == created["ticketId"] for item in items)
+    match = next(item for item in items if item["ticketId"] == created["ticketId"])
+    assert match["contentSafetyStatus"] == "review_required"
+    empty = client.get("/v1/tickets?contentSafetyStatus=rejected", headers=headers)
+    assert empty.status_code == 200
+    assert all(item["ticketId"] != created["ticketId"] for item in empty.json()["items"])
+
+
+def test_review_original_image_is_only_returned_when_flagged(client):
+    ensure_contribution_ready_citizen(phone="+96170925517", full_name="Safety Original", email=None)
+    created = client.post(
+        "/v1/tickets",
+        json=VALID_PAYLOAD,
+        headers=contribution_ready_auth_headers(
+            phone="+96170925517", full_name="Safety Original", email=None
+        ),
+    ).json()
+    ticket_id = created["ticketId"]
+    from app.database.memory import ticket_store
+
+    stored = ticket_store.get(ticket_id)
+    ticket_store.save(stored.model_copy(update={"content_safety_status": "passed"}))
+    token = issue_test_staff_token(client, username="admin")
+    headers = {"Authorization": f"Bearer {token}"}
+    passed = client.get(f"/v1/tickets/{ticket_id}/content-safety/review", headers=headers)
+    assert passed.status_code == 200
+    assert passed.json()["originalImageUrl"] is None
+    ticket_store.save(
+        ticket_store.get(ticket_id).model_copy(update={"content_safety_status": "review_required"})
+    )
+    flagged = client.get(f"/v1/tickets/{ticket_id}/content-safety/review", headers=headers)
+    assert flagged.status_code == 200
+    assert flagged.json()["originalImageUrl"]

@@ -51,16 +51,23 @@ auto-publish is unchanged.
 
 ## Public fail-closed race
 
-Redaction and safety enqueue in parallel on submit. The public mapper
-`_approved_redacted_key` refuses:
+Redaction and safety enqueue in parallel on submit. Public **text and photo**
+are gated:
 
-- raw originals
-- keys outside `reports/redacted/v1/<ticket-scope>/`
-- any key while enrolled content safety is not `passed`
+- `is_public_ticket_publishable()` requires enrolled `contentSafetyStatus=passed`
+  (or an unenrolled pre-#319 ticket) in addition to staff public fields.
+- Staff `PATCH /v1/tickets/{id}/public` refuses `PUBLISHED` until screening passed.
+- `_approved_redacted_key` refuses raw originals, keys outside
+  `reports/redacted/v1/<ticket-scope>/`, and any key while enrolled content
+  safety is not `passed`.
 
 If safety later `passed` and redaction already `completed`, the worker
 promotes the approved candidate to `publicImageObjectKey`. If safety later
-is not `passed`, any public key is cleared.
+is not `passed`, any public key is cleared and a `PUBLISHED` ticket is moved
+to `UNPUBLISHED` so it leaves the public GSI.
+
+Staff list `GET /v1/tickets?contentSafetyStatus=review_required` is the
+exception queue. Unredacted originals are returned only for `review_required`.
 
 ## Authenticity model
 
@@ -112,6 +119,9 @@ python -m app.workers.content_safety_worker --once
 ```
 
 Create the DynamoDB table with `make db-migrate` (`content-safety-jobs`).
+
+Threshold rationale, 311/Nextdoor/marketplace patterns, and FP/FN sampling
+are in `docs/content-safety-research.md`.
 
 ## Out of scope
 

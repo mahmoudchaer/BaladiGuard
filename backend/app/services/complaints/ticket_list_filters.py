@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal, cast, get_args
 
+from app.schemas.content_safety import ContentSafetyStatus
 from app.schemas.stored_ticket import ReportPriority, StoredTicket
 from app.schemas.ticket_status import TICKET_STATUSES, TicketStatus, is_known_ticket_status
 from app.services.ai.categories import allowed_category_ids
@@ -14,6 +15,7 @@ from app.services.routing import department_ids
 URGENCY_LEVELS: tuple[ReportPriority, ...] = ("low", "medium", "high", "critical")
 SLA_STATES = frozenset({"on_track", "due_soon", "overdue", "completed", "unavailable"})
 ASSIGNMENT_STATES = frozenset({"assigned", "unassigned"})
+CONTENT_SAFETY_STATUSES = frozenset(get_args(ContentSafetyStatus))
 MAX_SEARCH_QUERY_LENGTH = 80
 MAX_TICKET_IDS = 20
 MAX_TICKET_ID_LENGTH = 80
@@ -38,6 +40,7 @@ class TicketListFilters:
     q: str | None = None
     open_only: bool = False
     ticket_ids: tuple[str, ...] | None = None
+    content_safety_status: ContentSafetyStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +63,7 @@ def parse_ticket_list_filters(
     q: str | None = None,
     open_only: bool = False,
     ticket_ids: str | None = None,
+    content_safety_status: str | None = None,
 ) -> tuple[TicketListFilters | None, list[TicketListFilterValidationError]]:
     """Validate raw query values and build filters.
 
@@ -78,6 +82,7 @@ def parse_ticket_list_filters(
     parsed_team_id: str | None = None
     parsed_q: str | None = None
     parsed_ticket_ids: tuple[str, ...] | None = None
+    parsed_content_safety_status: ContentSafetyStatus | None = None
 
     if status is not None:
         normalized_status = status.strip()
@@ -277,6 +282,26 @@ def parse_ticket_list_filters(
                     unique.append(part)
             parsed_ticket_ids = tuple(unique)
 
+    if content_safety_status is not None:
+        normalized_safety = content_safety_status.strip()
+        if not normalized_safety:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="contentSafetyStatus",
+                    message="Content safety status filter must not be empty.",
+                )
+            )
+        elif normalized_safety not in CONTENT_SAFETY_STATUSES:
+            supported = ", ".join(sorted(CONTENT_SAFETY_STATUSES))
+            errors.append(
+                TicketListFilterValidationError(
+                    field="contentSafetyStatus",
+                    message=f"Content safety status must be one of: {supported}.",
+                )
+            )
+        else:
+            parsed_content_safety_status = cast(ContentSafetyStatus, normalized_safety)
+
     if errors:
         return None, errors
 
@@ -294,6 +319,7 @@ def parse_ticket_list_filters(
             q=parsed_q,
             open_only=open_only,
             ticket_ids=parsed_ticket_ids,
+            content_safety_status=parsed_content_safety_status,
         ),
         [],
     )
@@ -326,6 +352,11 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
         return False
     if filters.ticket_ids is not None and ticket.ticket_id not in filters.ticket_ids:
         return False
+    if filters.content_safety_status is not None:
+        if not ticket.content_safety_enrolled:
+            return False
+        if ticket.content_safety_status != filters.content_safety_status:
+            return False
     if filters.q is not None:
         needle = filters.q.casefold()
         haystack = " ".join(

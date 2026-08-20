@@ -837,7 +837,9 @@ class DynamoTicketStore:
                 ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
-            return item_to_ticket(response["Attributes"])
+            updated = item_to_ticket(response["Attributes"])
+            self._sync_public_index_fields(updated)
+            return updated
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 return None
@@ -879,13 +881,34 @@ class DynamoTicketStore:
         *,
         expected_municipality_id: str | None,
         expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
     ) -> StoredTicket | None:
-        names: dict[str, str] = {}
-        values: dict[str, Any] = {
-            ":pending": "pending",
-            ":updated": updated_at,
-            ":one": 1,
+        extra = dict(fields or {})
+        increment_generation = "content_safety_generation" not in extra
+        patch_fields: dict[str, Any] = {
+            "content_safety_status": "pending",
+            "updated_at": updated_at,
+            "content_safety_claim_token": None,
+            "content_safety_completed_at": None,
+            "content_safety_reason_code": None,
+            "content_safety_severity": None,
+            "content_safety_text_model": None,
+            "content_safety_image_labels": None,
+            "authenticity_score": None,
+            "authenticity_model": None,
+            "authenticity_model_version": None,
+            "authenticity_signals": None,
+            "content_safety_staff_note": None,
         }
+        patch_fields.update(extra)
+        expression, names, values = build_update_expression(patch_fields)
+        if increment_generation:
+            names["#csg"] = "contentSafetyGeneration"
+            values[":one"] = 1
+            if expression.startswith("SET "):
+                expression = "SET #csg = if_not_exists(#csg,:one)+:one, " + expression[4:]
+            else:
+                expression = "SET #csg = if_not_exists(#csg,:one)+:one " + expression
         scope = append_ticket_access_scope_condition(
             names,
             values,
@@ -895,21 +918,15 @@ class DynamoTicketStore:
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
-                UpdateExpression=(
-                    "SET contentSafetyStatus=:pending, updatedAt=:updated, "
-                    "contentSafetyGeneration=if_not_exists(contentSafetyGeneration,:one)+:one "
-                    "REMOVE contentSafetyClaimToken, contentSafetyCompletedAt, "
-                    "contentSafetyReasonCode, contentSafetySeverity, "
-                    "contentSafetyTextModel, contentSafetyImageLabels, "
-                    "authenticityScore, authenticityModel, authenticityModelVersion, "
-                    "authenticitySignals"
-                ),
+                UpdateExpression=expression,
                 ConditionExpression=f"attribute_exists(ticketId) AND {scope}",
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
-            return item_to_ticket(response["Attributes"])
+            updated = item_to_ticket(response["Attributes"])
+            self._sync_public_index_fields(updated)
+            return updated
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 return None
@@ -956,7 +973,9 @@ class DynamoTicketStore:
                 ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
-            return item_to_ticket(response["Attributes"])
+            updated = item_to_ticket(response["Attributes"])
+            self._sync_public_index_fields(updated)
+            return updated
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 return None

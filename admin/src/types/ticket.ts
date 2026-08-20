@@ -303,6 +303,7 @@ export type ContentSafetyReview = {
   authenticitySignals: string[];
   completedAt?: string | null;
   originalImageUrl?: string | null;
+  staffNote?: string | null;
   publicImageReady: boolean;
   canApprove: boolean;
   canReject: boolean;

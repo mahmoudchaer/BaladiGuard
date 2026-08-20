@@ -11,6 +11,7 @@ const SAFE_STRING_KEYS = [
   'ticketIds',
   'workerId',
   'teamId',
+  'contentSafetyStatus',
   'focusTicket',
 ] as const;
 
@@ -27,6 +28,7 @@ export type DashboardNavigationFilters = {
   ticketIds?: string[];
   workerId?: string;
   teamId?: string;
+  contentSafetyStatus?: string;
   focusTicket?: string;
   south?: number;
   west?: number;
@@ -89,6 +91,10 @@ export function parseDashboardSearchParams(params: URLSearchParams): DashboardNa
   if (teamId && isSafeId(teamId)) {
     filters.teamId = teamId;
   }
+  const contentSafetyStatus = params.get('contentSafetyStatus')?.trim();
+  if (contentSafetyStatus && /^[a-z_]+$/.test(contentSafetyStatus)) {
+    filters.contentSafetyStatus = contentSafetyStatus;
+  }
   const focusTicket = params.get('focusTicket')?.trim();
   if (focusTicket && isSafeId(focusTicket)) {
     filters.focusTicket = focusTicket;
@@ -136,6 +142,9 @@ export function serializeDashboardSearchParams(
   if (filters.teamId && isSafeId(filters.teamId)) {
     params.set('teamId', filters.teamId);
   }
+  if (filters.contentSafetyStatus && filters.contentSafetyStatus !== 'ALL') {
+    params.set('contentSafetyStatus', filters.contentSafetyStatus);
+  }
   if (filters.focusTicket && isSafeId(filters.focusTicket)) {
     params.set('focusTicket', filters.focusTicket);
   }
@@ -160,6 +169,7 @@ export function buildTicketListPath(filters: DashboardNavigationFilters): string
     ticketIds: filters.ticketIds,
     workerId: filters.workerId,
     teamId: filters.teamId,
+    contentSafetyStatus: filters.contentSafetyStatus,
     focusTicket: filters.focusTicket,
   });
   const query = params.toString();

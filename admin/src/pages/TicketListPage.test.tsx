@@ -519,14 +519,12 @@ describe('TicketListPage', () => {
     await waitFor(() =>
       expect(fetchTicketsPage).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          filters: {
+          filters: expect.objectContaining({
             status: 'RESOLVED',
             category: 'waste',
             urgency: 'medium',
             departmentId: 'd2222222-2222-2222-2222-222222222222',
-            slaState: 'ALL',
-            q: undefined,
-          },
+          }),
         }),
       ),
     );

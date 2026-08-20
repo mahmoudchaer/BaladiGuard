@@ -6,19 +6,33 @@ from app.config import Settings, get_settings
 from app.services.content_safety.policy import ImageSafetyResult
 from app.services.redaction.detector import DetectionProviderError
 
-SEXUAL_LABELS = frozenset(
+# Exact Rekognition label names (normalized). Do not substring-match "explicit"
+# — that would classify "Non-Explicit Nudity" as IMAGE_SEXUAL.
+EXPLICIT_SEXUAL_LABELS = frozenset(
     {
-        "explicit nudity",
         "explicit",
-        "nudity",
-        "sexual activity",
-        "sexually suggestive",
-        "non-explicit nudity",
+        "explicit nudity",
+        "explicit sexual activity",
         "graphic female nudity",
         "graphic male nudity",
+        "sexual activity",
         "sexual situations",
+        "sex toys",
         "illustrated nudity or sexual activity",
-        "adult",
+    }
+)
+SUGGESTIVE_NUDITY_LABELS = frozenset(
+    {
+        "non-explicit nudity",
+        "non-explicit nudity of intimate parts and kissing",
+        "sexually suggestive",
+        "female swimwear or underwear",
+        "male swimwear or underwear",
+        "swimwear or underwear",
+        "revealing clothes",
+        "barechested male",
+        "implied nudity",
+        "nudity",
     }
 )
 HATE_LABELS = frozenset(
@@ -91,14 +105,14 @@ class RekognitionImageModerator:
                 raise DetectionProviderError("MALFORMED_MODERATION_OUTPUT") from exc
             if not name or not 0 <= confidence <= 100:
                 continue
-            reason = _reason_for_label(name, parent)
+            reason = reason_for_moderation_label(name, parent)
             if reason:
                 mapped.append((reason, confidence, _bounded_label(name)))
 
         if not mapped:
             return ImageSafetyResult(reason_code="IMAGE_CLEAN", confidence=0.0, severity="none")
 
-        mapped.sort(key=lambda row: row[1], reverse=True)
+        mapped.sort(key=lambda row: (_reason_rank(row[0]), -row[1]))
         reason, confidence, _ = mapped[0]
         bounded_labels = tuple(dict.fromkeys(label for _, __, label in mapped))
         reject_at = self._settings.content_safety_image_reject_confidence
@@ -117,19 +131,42 @@ class RekognitionImageModerator:
         )
 
 
-def _reason_for_label(name: str, parent: str) -> str | None:
-    haystack = f"{name} {parent}".lower()
-    if any(label in haystack for label in SEXUAL_LABELS):
+def reason_for_moderation_label(name: str, parent: str = "") -> str | None:
+    """Map a Rekognition label to a bounded reason. Exact names only."""
+    labels = {_normalize_label(name), _normalize_label(parent)}
+    labels.discard("")
+    if labels & EXPLICIT_SEXUAL_LABELS:
         return "IMAGE_SEXUAL"
-    if any(label in haystack for label in HATE_LABELS):
+    if labels & SUGGESTIVE_NUDITY_LABELS:
+        return "IMAGE_NUDITY_SUGGESTIVE"
+    if labels & HATE_LABELS:
         return "IMAGE_HATE"
-    if any(label in haystack for label in VIOLENCE_LABELS):
+    if labels & VIOLENCE_LABELS:
         return "IMAGE_VIOLENCE_GRAPHIC"
-    if any(label in haystack for label in DRUG_LABELS):
+    if labels & DRUG_LABELS:
         return "IMAGE_DRUGS"
-    if any(label in haystack for label in WEAPON_LABELS):
+    if labels & WEAPON_LABELS:
         return "IMAGE_WEAPONS"
-    return "IMAGE_OTHER_UNSAFE"
+    if name.strip():
+        return "IMAGE_OTHER_UNSAFE"
+    return None
+
+
+def _normalize_label(value: str) -> str:
+    return " ".join(value.lower().split())
+
+
+def _reason_rank(reason: str) -> int:
+    order = {
+        "IMAGE_SEXUAL": 0,
+        "IMAGE_HATE": 1,
+        "IMAGE_VIOLENCE_GRAPHIC": 2,
+        "IMAGE_NUDITY_SUGGESTIVE": 3,
+        "IMAGE_DRUGS": 4,
+        "IMAGE_WEAPONS": 5,
+        "IMAGE_OTHER_UNSAFE": 6,
+    }
+    return order.get(reason, 9)
 
 
 def _bounded_label(name: str) -> str:

@@ -48,6 +48,8 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "authenticity_model_version": "authenticityModelVersion",
     "authenticity_signals": "authenticitySignals",
     "content_safety_completed_at": "contentSafetyCompletedAt",
+    "content_safety_staff_note": "contentSafetyStaffNote",
+    "content_safety_history": "contentSafetyHistory",
     "duplicate_group_id": "duplicateGroupId",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",

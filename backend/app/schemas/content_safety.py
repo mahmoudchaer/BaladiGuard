@@ -40,6 +40,7 @@ IMAGE_REASON_CODES = frozenset(
     {
         "IMAGE_CLEAN",
         "IMAGE_SEXUAL",
+        "IMAGE_NUDITY_SUGGESTIVE",
         "IMAGE_HATE",
         "IMAGE_VIOLENCE_GRAPHIC",
         "IMAGE_DRUGS",
@@ -77,6 +78,26 @@ COMBINED_REASON_CODES = (
         "SAFETY_FAILED",
     }
 )
+
+
+class ContentSafetyProvenance(BaseModel):
+    """Bounded prior-generation snapshot. No image bytes, URLs, or provider essays."""
+
+    generation: int = Field(ge=1)
+    status: ContentSafetyStatus
+    outcome_status: ContentSafetyStatus | None = Field(default=None, alias="outcomeStatus")
+    reason_code: str | None = Field(default=None, alias="reasonCode")
+    severity: ContentSafetySeverity | None = None
+    text_model: str | None = Field(default=None, alias="textModel")
+    image_labels: list[str] = Field(default_factory=list, alias="imageLabels")
+    authenticity_score: float | None = Field(default=None, alias="authenticityScore")
+    authenticity_model: str | None = Field(default=None, alias="authenticityModel")
+    authenticity_model_version: str | None = Field(default=None, alias="authenticityModelVersion")
+    authenticity_signals: list[str] = Field(default_factory=list, alias="authenticitySignals")
+    completed_at: str | None = Field(default=None, alias="completedAt")
+    staff_note: str | None = Field(default=None, alias="staffNote")
+
+    model_config = {"populate_by_name": True}
 
 
 class TicketContentSafety(BaseModel):
@@ -126,6 +147,7 @@ class ContentSafetyReviewResponse(BaseModel):
     completed_at: str | None = Field(default=None, alias="completedAt")
     original_image_url: str | None = Field(default=None, alias="originalImageUrl")
     public_image_ready: bool = Field(alias="publicImageReady")
+    staff_note: str | None = Field(default=None, alias="staffNote")
     can_approve: bool = Field(alias="canApprove")
     can_reject: bool = Field(alias="canReject")
     can_mark_private: bool = Field(alias="canMarkPrivate")

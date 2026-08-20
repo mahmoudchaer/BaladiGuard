@@ -1,4 +1,4 @@
-import type { TicketPriority, TicketStatus } from '@/types/ticket';
+import type { ContentSafetyStatus, TicketPriority, TicketStatus } from '@/types/ticket';
 import { useI18n } from '@/i18n/LocaleProvider';
 import type {
   CategoryFilter,
@@ -13,6 +13,7 @@ import { IconSearch } from '@/components/icons';
 import './TicketFilters.css';
 
 export type SlaFilter = 'ALL' | 'on_track' | 'due_soon' | 'overdue';
+export type ContentSafetyFilter = 'ALL' | ContentSafetyStatus;
 
 type TicketFiltersProps = {
   searchQuery: string;
@@ -21,6 +22,7 @@ type TicketFiltersProps = {
   urgencyFilter: UrgencyFilter;
   departmentFilter: DepartmentFilter;
   slaFilter?: SlaFilter;
+  contentSafetyFilter?: ContentSafetyFilter;
   categoryOptions: CategoryFilterOption[];
   resultCount: number;
   totalCount: number;
@@ -33,6 +35,7 @@ type TicketFiltersProps = {
   onUrgencyChange: (urgency: UrgencyFilter) => void;
   onDepartmentChange: (department: DepartmentFilter) => void;
   onSlaChange?: (sla: SlaFilter) => void;
+  onContentSafetyChange?: (status: ContentSafetyFilter) => void;
   onClearFilters: () => void;
 };
 
@@ -48,6 +51,16 @@ const STATUS_VALUES: StatusFilter[] = [
 
 const URGENCY_VALUES: UrgencyFilter[] = ['ALL', 'low', 'medium', 'high', 'critical'];
 const SLA_VALUES: SlaFilter[] = ['ALL', 'overdue', 'due_soon', 'on_track'];
+const CONTENT_SAFETY_VALUES: ContentSafetyFilter[] = [
+  'ALL',
+  'review_required',
+  'pending',
+  'processing',
+  'passed',
+  'private_only',
+  'rejected',
+  'failed',
+];
 
 export function TicketFilters({
   searchQuery,
@@ -56,6 +69,7 @@ export function TicketFilters({
   urgencyFilter,
   departmentFilter,
   slaFilter = 'ALL',
+  contentSafetyFilter = 'ALL',
   categoryOptions,
   resultCount,
   totalCount,
@@ -67,6 +81,7 @@ export function TicketFilters({
   onUrgencyChange,
   onDepartmentChange,
   onSlaChange = () => undefined,
+  onContentSafetyChange = () => undefined,
   onClearFilters,
 }: TicketFiltersProps) {
   const { t } = useI18n();
@@ -76,7 +91,8 @@ export function TicketFilters({
     categoryFilter !== 'ALL' ||
     urgencyFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
-    slaFilter !== 'ALL';
+    slaFilter !== 'ALL' ||
+    contentSafetyFilter !== 'ALL';
 
   const slaLabel =
     slaFilter === 'overdue'
@@ -101,6 +117,9 @@ export function TicketFilters({
     activeFilterLabels.push(formatDepartment(departmentFilter));
   }
   if (slaFilter !== 'ALL') activeFilterLabels.push(slaLabel);
+  if (contentSafetyFilter !== 'ALL') {
+    activeFilterLabels.push(t(`contentSafety.status.${contentSafetyFilter}`));
+  }
   if (searchQuery.trim()) {
     activeFilterLabels.push(`“${searchQuery.trim()}”`);
   }
@@ -156,6 +175,23 @@ export function TicketFilters({
                       : value === 'due_soon'
                         ? t('filters.dueSoon')
                         : t('filters.onTrack')}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ticket-filters__select-wrap">
+            <span className="ticket-filters__select-label">{t('filters.contentSafety')}</span>
+            <select
+              className="ticket-filters__select"
+              value={contentSafetyFilter}
+              onChange={(e) => onContentSafetyChange(e.target.value as ContentSafetyFilter)}
+            >
+              {CONTENT_SAFETY_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {value === 'ALL'
+                    ? t('filters.allContentSafety')
+                    : t(`contentSafety.status.${value}`)}
                 </option>
               ))}
             </select>

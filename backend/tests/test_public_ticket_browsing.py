@@ -79,6 +79,7 @@ def _publish_report(
             "public_location_label": location_label,
             "public_published_at": published_at,
             "updated_at": published_at,
+            "content_safety_status": "passed",
         },
     )
     assert patched is not None

@@ -19,6 +19,7 @@ from app.database.ticket_store import (
     TicketHistoryPage,
     public_ticket_matches_query,
 )
+from app.schemas.content_safety import ContentSafetyProvenance
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
@@ -545,6 +546,7 @@ class InMemoryTicketStore:
             ):
                 return None
             updated = ticket.model_copy(update={**fields, "content_safety_claim_token": None})
+            updated = _with_coerced_content_safety_history(updated)
             self._tickets[ticket_id] = updated
             return updated
 
@@ -577,30 +579,35 @@ class InMemoryTicketStore:
         *,
         expected_municipality_id: str | None,
         expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
     ) -> StoredTicket | None:
+        extra = dict(fields or {})
+        for field_name in extra:
+            resolve_ticket_attr_name(field_name)
         with self._lock:
             ticket = self._tickets.get(ticket_id)
             if ticket is None or not _ticket_matches_access_scope(
                 ticket, expected_municipality_id, expected_department_id
             ):
                 return None
-            updated = ticket.model_copy(
-                update={
-                    "content_safety_generation": ticket.content_safety_generation + 1,
-                    "content_safety_status": "pending",
-                    "content_safety_claim_token": None,
-                    "content_safety_completed_at": None,
-                    "content_safety_reason_code": None,
-                    "content_safety_severity": None,
-                    "content_safety_text_model": None,
-                    "content_safety_image_labels": [],
-                    "authenticity_score": None,
-                    "authenticity_model": None,
-                    "authenticity_model_version": None,
-                    "authenticity_signals": [],
-                    "updated_at": updated_at,
-                }
-            )
+            updates = {
+                "content_safety_generation": ticket.content_safety_generation + 1,
+                "content_safety_status": "pending",
+                "content_safety_claim_token": None,
+                "content_safety_completed_at": None,
+                "content_safety_reason_code": None,
+                "content_safety_severity": None,
+                "content_safety_text_model": None,
+                "content_safety_image_labels": [],
+                "authenticity_score": None,
+                "authenticity_model": None,
+                "authenticity_model_version": None,
+                "authenticity_signals": [],
+                "content_safety_staff_note": None,
+                "updated_at": updated_at,
+            }
+            updates.update(extra)
+            updated = _with_coerced_content_safety_history(ticket.model_copy(update=updates))
             self._tickets[ticket_id] = updated
             return updated
 
@@ -631,7 +638,7 @@ class InMemoryTicketStore:
             updates = dict(fields)
             if copy_candidate_to_public:
                 updates["public_image_object_key"] = ticket.image_redaction_candidate_object_key
-            updated = ticket.model_copy(update=updates)
+            updated = _with_coerced_content_safety_history(ticket.model_copy(update=updates))
             self._tickets[ticket_id] = updated
             return updated
 
@@ -750,6 +757,16 @@ def _municipal_staff_can_access(
     if ticket.department_id is None:
         return True
     return ticket.department_id in set(department_ids or [])
+
+
+def _with_coerced_content_safety_history(ticket: StoredTicket) -> StoredTicket:
+    history = [
+        item
+        if isinstance(item, ContentSafetyProvenance)
+        else ContentSafetyProvenance.model_validate(item)
+        for item in ticket.content_safety_history
+    ]
+    return ticket.model_copy(update={"content_safety_history": history})
 
 
 def _encode_staff_cursor(staff_sort_key: str) -> str:

@@ -229,6 +229,7 @@ class TicketStore(Protocol):
         *,
         expected_municipality_id: str | None,
         expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
     ) -> StoredTicket | None: ...
 
     def apply_content_safety_review(
