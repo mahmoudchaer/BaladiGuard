@@ -143,8 +143,9 @@ Default seed loads:
 - **8 departments** — roads, waste, lighting, water, noise, traffic, drainage, public facilities
 - **10 categories** — including `PENDING_CLASSIFICATION`; see
   [Complaint Categories](complaint-categories.md) for stable keys, labels, examples, and department mappings
-- **Demo staff accounts** (when `SEED_DEMO_STAFF=true`): `admin` (administrator) and `staff`
-  (municipal_staff for Beirut roads + lighting), password from `DEMO_STAFF_PASSWORD`
+- **Demo staff accounts** (when `SEED_DEMO_STAFF=true`): `admin` (administrator), `staff`
+  (municipal_staff for Beirut roads + lighting), and `operator` (developer_operator for `/ops`),
+  password from `DEMO_STAFF_PASSWORD`
 
 ### Staff password reset (issue #178)
 

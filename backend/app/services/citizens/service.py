@@ -301,13 +301,17 @@ class CitizenService:
             updatedAt=stamped,
         )
         try:
-            return self._resolved_store().create(user)
+            created = self._resolved_store().create(user)
         except PhoneClaimConflictError as exc:
             raise CitizenServiceError(
                 "PHONE_UNAVAILABLE",
                 "Unable to create citizen account for this phone number.",
                 status_code=409,
             ) from exc
+        from app.core.metrics import emit_metric
+
+        emit_metric("CitizensRegistered")
+        return created
 
     def get_by_id(self, user_id: str) -> StoredCitizenUser | None:
         return self._resolved_store().get(user_id)

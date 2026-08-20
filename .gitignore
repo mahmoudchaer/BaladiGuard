@@ -18,3 +18,8 @@ venv/
 backend/models/*.onnx
 
 .DS_Store
+
+# Terraform/OpenTofu local state and provider cache can contain deployment metadata.
+**/.terraform/
+*.tfstate
+*.tfstate.*

@@ -314,6 +314,7 @@ class TicketService:
                     force_release(composite_key)
                 else:
                     idem_store.release(composite_key)
+            emit_metric("ReportsFailed", dimensions={"channel": "api"})
             raise
 
     def _recover_idempotent_submission(
@@ -434,6 +435,8 @@ class TicketService:
 
         if callable(on_ticket_persisted):
             on_ticket_persisted()
+
+        emit_metric("ReportsSubmitted", dimensions={"channel": "api"})
 
         # Complete immediately after durable ticket write — before side effects —
         # so retries always replay instead of re-creating.

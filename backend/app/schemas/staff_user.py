@@ -6,7 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
-StaffRole = Literal["municipal_staff", "administrator"]
+StaffRole = Literal["municipal_staff", "administrator", "developer_operator"]
+MunicipalityAssignableRole = Literal["municipal_staff", "administrator"]
 
 
 class StoredStaffUser(BaseModel):
@@ -45,10 +46,10 @@ class StoredStaffUser(BaseModel):
 
     @model_validator(mode="after")
     def validate_role_scope(self) -> StoredStaffUser:
-        if self.role == "administrator":
+        if self.role in {"administrator", "developer_operator"}:
             if self.municipality_id is not None or self.department_ids is not None:
                 raise ValueError(
-                    "administrator accounts must use municipalityId=null and departmentIds=null."
+                    f"{self.role} accounts must use municipalityId=null and departmentIds=null."
                 )
             return self
         if not self.municipality_id:

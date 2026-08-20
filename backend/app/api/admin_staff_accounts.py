@@ -44,7 +44,8 @@ def _error(request: Request, exc: StaffAccountAdminError) -> JSONResponse:
 
 @router.get("", response_model=list[StaffAccountResponse])
 def list_staff_accounts(principal: AdminStaffDep) -> list[StaffAccountResponse]:
-    return [StaffAccountResponse.from_user(user) for user in get_staff_store().list()]
+    users = [user for user in get_staff_store().list() if user.role != "developer_operator"]
+    return [StaffAccountResponse.from_user(user) for user in users]
 
 
 @router.get("/{staff_id}", response_model=StaffAccountResponse)
@@ -52,7 +53,7 @@ def get_staff_account(
     staff_id: str, request: Request, principal: AdminStaffDep
 ) -> StaffAccountResponse | JSONResponse:
     user = get_staff_store().get(staff_id)
-    if user is None:
+    if user is None or user.role == "developer_operator":
         return build_error_response(
             code="STAFF_ACCOUNT_NOT_FOUND",
             message="Staff account not found.",

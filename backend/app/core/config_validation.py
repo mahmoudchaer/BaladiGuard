@@ -273,15 +273,18 @@ def validate_configuration(
             )
         )
 
-    # Production: no silent development defaults for secrets / persistence / auth.
-    if app_env == "production":
+    # Deployed environments share the real integration boundary. Staging is a
+    # production rehearsal, not a demo mode: it must never silently select
+    # memory persistence, mock providers, sample seeds, or local service endpoints.
+    if app_env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE:
+        env_label = "Production" if app_env == "production" else "Staging"
         backend = (raw_backend or cfg.database_backend).strip().lower()
         if backend != "dynamodb":
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_DATABASE_BACKEND",
                     message=(
-                        "Production requires DATABASE_BACKEND=dynamodb "
+                        f"{env_label} requires DATABASE_BACKEND=dynamodb "
                         "(memory is development-only)."
                     ),
                 )
@@ -293,7 +296,8 @@ def validate_configuration(
                 ConfigIssue(
                     code="UNSAFE_NOTIFICATION_ADAPTER",
                     message=(
-                        "Production requires NOTIFICATION_ADAPTER=real (mock is development-only)."
+                        f"{env_label} requires NOTIFICATION_ADAPTER=real "
+                        "(mock is development-only)."
                     ),
                 )
             )
@@ -303,12 +307,12 @@ def validate_configuration(
                 ConfigIssue(
                     code="MISSING_SES_FROM_EMAIL",
                     message=(
-                        "Production NOTIFICATION_ADAPTER=real requires SES_FROM_EMAIL "
+                        f"{env_label} NOTIFICATION_ADAPTER=real requires SES_FROM_EMAIL "
                         "(verified SES identity)."
                     ),
                 )
             )
-        if cfg.notification_sandbox:
+        if app_env == "production" and cfg.notification_sandbox:
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_NOTIFICATION_SANDBOX",
@@ -326,7 +330,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="UNSAFE_SECRET_KEY",
                     message=(
-                        "Production requires a non-placeholder SECRET_KEY "
+                        f"{env_label} requires a non-placeholder SECRET_KEY "
                         "(do not use empty or development defaults)."
                     ),
                 )
@@ -349,7 +353,7 @@ def validate_configuration(
                     ConfigIssue(
                         code="UNSAFE_STAFF_PASSWORD",
                         message=(
-                            "Production must not seed demo staff with the default "
+                            f"{env_label} must not seed demo staff with the default "
                             "password. Set SEED_DEMO_STAFF=false or provide a strong "
                             "DEMO_STAFF_PASSWORD."
                         ),
@@ -375,7 +379,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="MISSING_LOCATION_PLACE_INDEX_NAME",
                     message=(
-                        "Production requires LOCATION_PLACE_INDEX_NAME "
+                        f"{env_label} requires LOCATION_PLACE_INDEX_NAME "
                         "(empty falls back to the local Beirut index)."
                     ),
                 )
@@ -386,7 +390,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="TRUST_X_FORWARDED_FOR_DISABLED",
                     message=(
-                        "Production is typically behind a trusted proxy/API Gateway. "
+                        f"{env_label} is typically behind a trusted proxy/API Gateway. "
                         "Set TRUST_X_FORWARDED_FOR=true only when that edge overwrites "
                         "client-supplied X-Forwarded-For; leave false for direct ingress."
                     ),
@@ -398,7 +402,7 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="MISSING_AWS_S3_BUCKET",
-                    message="Production requires AWS_S3_BUCKET for photo uploads.",
+                    message=f"{env_label} requires AWS_S3_BUCKET for photo uploads.",
                 )
             )
 
@@ -408,7 +412,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="UNSAFE_DYNAMODB_ENDPOINT_URL",
                     message=(
-                        "Production must not use a localhost DynamoDB endpoint "
+                        f"{env_label} must not use a localhost DynamoDB endpoint "
                         "(leave DYNAMODB_ENDPOINT_URL empty for AWS)."
                     ),
                 )
@@ -418,7 +422,36 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_SEED_SAMPLE_TICKETS",
-                    message="Production must set SEED_SAMPLE_TICKETS=false.",
+                    message=f"{env_label} must set SEED_SAMPLE_TICKETS=false.",
+                )
+            )
+
+        if cfg.otp_dev_plaintext_stdout:
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_OTP_DEV_PLAINTEXT_STDOUT",
+                    message=(
+                        f"{env_label} must set OTP_DEV_PLAINTEXT_STDOUT=false; "
+                        "printing OTP codes is development-only."
+                    ),
+                )
+            )
+
+        if not cfg.image_redaction_enabled:
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_IMAGE_REDACTION_DISABLED",
+                    message=f"{env_label} requires IMAGE_REDACTION_ENABLED=true.",
+                )
+            )
+        if cfg.image_redaction_detector != "aws_rekognition":
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_IMAGE_REDACTION_DETECTOR",
+                    message=(
+                        f"{env_label} requires IMAGE_REDACTION_DETECTOR=aws_rekognition; "
+                        "local/disabled detectors are development-only."
+                    ),
                 )
             )
 

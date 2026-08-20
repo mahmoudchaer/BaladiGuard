@@ -14,6 +14,9 @@ class InMemoryNotificationDeliveryStore:
     def list_all(self) -> list[StoredNotificationDelivery]:
         return list(self._entries)
 
+    def list_recent(self, *, limit: int = 100) -> list[StoredNotificationDelivery]:
+        return list(self._entries[-max(1, min(limit, 200)) :])
+
     def clear(self) -> None:
         self._entries.clear()
 

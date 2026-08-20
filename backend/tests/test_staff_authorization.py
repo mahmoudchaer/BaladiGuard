@@ -457,9 +457,9 @@ def test_expired_bearer_token_is_rejected(anonymous_client):
 def test_department_assignment_auth_integration_point_is_documented():
     """#141 mounts department assignment behind StaffActorDep / require_staff."""
     from app.api.deps import StaffActorDep, require_staff
-    from app.core.staff_auth import StaffDep
+    from app.core.staff_auth import MunicipalStaffDep
     from app.core.staff_auth import require_staff as core_require_staff
 
     assert callable(require_staff)
     assert require_staff is core_require_staff
-    assert StaffActorDep is StaffDep
+    assert StaffActorDep is MunicipalStaffDep

@@ -422,6 +422,24 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
         "global_secondary_indexes": [],
     },
+    {
+        "suffix": "ops-alert-acks",
+        "key_schema": [{"AttributeName": "alarmName", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "alarmName", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "ops-error-groups",
+        "key_schema": [{"AttributeName": "errorKey", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "errorKey", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "ops-audit",
+        "key_schema": [{"AttributeName": "auditId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "auditId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
 ]
 
 

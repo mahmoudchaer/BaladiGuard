@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from 'react';
 import { Link, Navigate, type Location, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
+import { homePathForRole } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -15,7 +16,7 @@ type LoginLocationState = {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, login } = useStaffAuth();
+  const { isAuthenticated, login, session } = useStaffAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,8 +32,17 @@ export function LoginPage() {
     : '/';
   const resetSuccess = state?.resetSuccess;
 
+  const home = homePathForRole(session?.role);
   if (isAuthenticated) {
-    return <Navigate to={returnTo} replace />;
+    const destination =
+      session?.role === 'developer_operator'
+        ? returnTo.startsWith('/ops')
+          ? returnTo
+          : home
+        : returnTo.startsWith('/ops')
+          ? home
+          : returnTo;
+    return <Navigate to={destination} replace />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -56,7 +66,16 @@ export function LoginPage() {
         return;
       }
 
-      navigate(returnTo, { replace: true });
+      navigate(
+        result.session.role === 'developer_operator'
+          ? returnTo.startsWith('/ops')
+            ? returnTo
+            : '/ops'
+          : returnTo.startsWith('/ops')
+            ? '/'
+            : returnTo,
+        { replace: true },
+      );
     } finally {
       setIsSubmitting(false);
     }

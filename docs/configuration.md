@@ -27,8 +27,8 @@ fail-closed rules.
 
 | Area | `local` / `development` / `test` | `staging` / `production` |
 | --- | --- | --- |
-| Persistence | `DATABASE_BACKEND=memory` allowed | Production: must be `dynamodb`. Staging may use memory for demos. |
-| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Production: must be `real`. Staging may mock for demos. |
+| Persistence | `DATABASE_BACKEND=memory` allowed | Staging and production must use `dynamodb`. |
+| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Staging and production must use the real adapter (staging may use provider sandbox/allowlists). |
 | Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Production: non-placeholder `SECRET_KEY` required |
 | Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Production: non-demo credentials required |
 | Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Production: real Amazon Location index required |
@@ -70,6 +70,8 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `CONTENT_SAFETY_JOB_TIMEOUT_SECONDS` | No | `300` | Claim timeout before stale recovery |
 | `CONTENT_SAFETY_JOB_BACKOFF_BASE_SECONDS` | No | `5` | First retry delay |
 | `CONTENT_SAFETY_JOB_BACKOFF_MAX_SECONDS` | No | `300` | Upper bound for retry delay |
+| `IMAGE_REDACTION_ENABLED` | No | `true` | Must remain enabled in staging/production. |
+| `IMAGE_REDACTION_DETECTOR` | No | `aws_rekognition` | Deployed environments require Rekognition; disabled/local detectors are development-only. |
 | `LOCATION_PLACE_INDEX_NAME` | Production | empty → local index | Geocoding |
 | `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` | No | `300` | Integer ≥ 1 |
 | `AI_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
@@ -106,8 +108,10 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `RATE_LIMIT_SMOKE_BYPASS_TOKEN` | No | empty | Optional smoke header token; never a global disable |
 | `RATE_LIMIT_SMOKE_LIMIT` | No | `1000` | Higher still-enforced quota for smoke token clients |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
-| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin` + `staff` accounts (#175) |
+| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin`, `staff`, and `operator` accounts (#175 / #320) |
 | `DEMO_STAFF_PASSWORD` | When seeding demos | `staff-demo-password` | Password used only to hash demo staff accounts; never used as shared login |
+| `DEVELOPER_OPERATOR_USERNAME` / `DEVELOPER_OPERATOR_PASSWORD` | Production bootstrap | empty | Creates the first `developer_operator` if the username is unused (#320) |
+| `DEVELOPER_OPERATOR_EMAIL` | With operator bootstrap | `ops@example.com` | Email on the bootstrapped operator account |
 | `STAFF_PASSWORD` | Legacy alias | same as demo default | Deprecated alias for `DEMO_STAFF_PASSWORD` |
 | `STAFF_USERNAME` | Legacy | `staff` | Deprecated; ignored for authentication |
 | `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |
@@ -130,10 +134,11 @@ Production observability (dashboards, alarms, retention, staging drill) is docum
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | `http://localhost:8000` | Backend base URL |
+| `VITE_APP_ENV` | `local` | Staging/production enable fail-closed build validation. |
+| `VITE_API_BASE_URL` | `http://localhost:8000` | Staging/production require an HTTPS non-localhost backend origin. |
 | `VITE_USE_MOCK_DATA` | `false` | Opt-in mock fixtures |
-| `VITE_STAFF_USERNAME` | `staff` | Demo credential for local #71 auth |
-| `VITE_STAFF_PASSWORD` | `staff-demo-password` | **Local only** — never ship demo password to production builds |
+| `VITE_STAFF_USERNAME` | `staff` | Local mock credential; must be absent from staging/production builds. |
+| `VITE_STAFF_PASSWORD` | `staff-demo-password` | Local mock credential; must be absent from staging/production builds. |
 
 Vite embeds these values in the browser bundle. They are not backend secrets.
 
@@ -190,7 +195,7 @@ Before deploy (#74):
 9. `SEED_SAMPLE_TICKETS=false`
 10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links). Staging uses the same rule with `APP_ENV=staging`.
 11. `CORS_ALLOWED_ORIGINS=https://admin…,https://citizen…` (explicit https non-localhost browser origins for admin + citizen-web, `#263`)
-12. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
+12. Admin production build: omit `VITE_STAFF_*`; browser-bundled credentials are mock-only
 13. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
 14. Confirm process starts (validation aborts on failure) and `/health` is `ok`
 15. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).

@@ -44,6 +44,7 @@ ENV_TARGETS: tuple[str, ...] = (
     "backend/.env",
     "mobile/.env",
     "admin/.env",
+    "citizen-web/.env",
 )
 
 # Machine-specific keys: keep local values on pull; never publish local values on push
@@ -295,8 +296,33 @@ def parse_bundle(payload: dict[str, Any]) -> dict[str, str]:
     if not isinstance(files, dict) or not files:
         raise EnvSyncError(
             "Secret payload is missing a non-empty 'files' object. "
-            "Expected keys like '.env', 'backend/.env', 'mobile/.env', 'admin/.env'."
+            "Expected keys like '.env', 'backend/.env', 'mobile/.env', 'admin/.env', "
+            "and 'citizen-web/.env'."
         )
+
+    # Bundles written before #312 had no citizen-web target. Migrate them in
+    # memory so an ordinary pull upgrades the local tree without breaking every
+    # developer first. The next push stores the fifth file explicitly.
+    if "citizen-web/.env" not in files and all(
+        relative in files for relative in ENV_TARGETS if relative != "citizen-web/.env"
+    ):
+        mobile_entry = files.get("mobile/.env", "")
+        mobile_values = (
+            parse_env_text(mobile_entry) if isinstance(mobile_entry, str) else mobile_entry
+        )
+        mobile_api = str(mobile_values.get("EXPO_PUBLIC_API_BASE_URL", "")).strip()
+        web_api = mobile_api[:-3] if mobile_api.endswith("/v1") else mobile_api
+        app_env = str(mobile_values.get("EXPO_PUBLIC_APP_ENV", "local")).strip() or "local"
+        mock_mode = str(mobile_values.get("EXPO_PUBLIC_ENABLE_MOCK_API", "false")).strip()
+        files = {
+            **files,
+            "citizen-web/.env": (
+                "# Migrated from the pre-#312 four-file environment bundle.\n"
+                f"VITE_APP_ENV={format_env_value(app_env)}\n"
+                f"VITE_API_BASE_URL={format_env_value(web_api)}\n"
+                f"VITE_USE_MOCK_DATA={format_env_value(mock_mode)}\n"
+            ),
+        }
 
     missing = [relative for relative in ENV_TARGETS if relative not in files]
     if missing:

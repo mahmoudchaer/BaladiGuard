@@ -7,7 +7,7 @@ from app.api.deps import ContributionReadyCitizenDep, StaffActorDep
 from app.core.citizen_auth import unauthorized
 from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
-from app.core.staff_auth import StaffDep
+from app.core.staff_auth import MunicipalStaffDep as StaffDep
 from app.database.store_factory import get_citizen_store
 from app.schemas.content_safety import (
     ContentSafetyDecisionRequest,

@@ -16,6 +16,7 @@ from app.database.memory_citizen_session import citizen_session_store
 from app.database.memory_content_safety_job import content_safety_job_store
 from app.database.memory_duplicate_group import duplicate_group_store
 from app.database.memory_notification_delivery import notification_delivery_store
+from app.database.memory_ops import ops_alert_ack_store, ops_audit_store, ops_error_store
 from app.database.memory_redaction_job import redaction_job_store
 from app.database.memory_staff import staff_store
 from app.database.memory_staff_comments import staff_comment_store
@@ -293,3 +294,42 @@ def build_resolution_review_store(settings: Settings | None = None) -> Resolutio
 
 def get_resolution_review_store() -> ResolutionReviewStore:
     return build_resolution_review_store(get_settings())
+
+
+def build_ops_alert_ack_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_ops_store import DynamoOpsAlertAckStore
+
+        return DynamoOpsAlertAckStore(settings)
+    return ops_alert_ack_store
+
+
+def build_ops_error_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_ops_store import DynamoOpsErrorStore
+
+        return DynamoOpsErrorStore(settings)
+    return ops_error_store
+
+
+def build_ops_audit_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_ops_store import DynamoOpsAuditStore
+
+        return DynamoOpsAuditStore(settings)
+    return ops_audit_store
+
+
+def get_ops_alert_ack_store():
+    return build_ops_alert_ack_store(get_settings())
+
+
+def get_ops_error_store():
+    return build_ops_error_store(get_settings())
+
+
+def get_ops_audit_store():
+    return build_ops_audit_store(get_settings())

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "check:production-build": "node scripts/check-production-build.mjs",
     "preview": "vite preview",
     "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales && node ../scripts/check-hardcoded-ui.mjs src",
     "test": "npm run check:i18n && vitest run",

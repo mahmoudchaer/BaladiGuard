@@ -15,11 +15,14 @@ key order, and quoting are preserved across push/pull.
 | `backend/.env` | DynamoDB / Bedrock / backend settings |
 | `mobile/.env` | Expo API URL and mock flags |
 | `admin/.env` | Vite API URL and mock flags |
+| `citizen-web/.env` | Citizen web environment, API URL, and mock flag |
 
 Default secret name: `baladiguard/local-dev/env` (override with `--secret-id` or
 `ENV_SYNC_SECRET_ID`).
 
-All four files are required in the secret bundle. A partial secret fails loudly.
+All five files are required in new secret bundles. Older four-file bundles are
+migrated safely on pull by deriving the citizen-web local values from mobile;
+the next push persists the explicit fifth file.
 
 ## One-time AWS access
 
@@ -88,7 +91,7 @@ macOS / Linux:
 backend/.venv/bin/python scripts/sync_env.py
 ```
 
-This writes/updates all four local env files. Secret values are never printed.
+This writes/updates all five local env files. Secret values are never printed.
 
 `EXPO_PUBLIC_API_BASE_URL` is preserved on pull when already set locally (phone LAN IP
 is not overwritten by `localhost`).
