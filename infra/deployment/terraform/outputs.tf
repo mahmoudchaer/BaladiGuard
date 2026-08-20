@@ -1,0 +1,11 @@
+output "ecr_repository_url" { value = data.aws_ecr_repository.backend.repository_url }
+output "ecs_cluster_name" { value = aws_ecs_cluster.this.name }
+output "api_service_name" { value = aws_ecs_service.api.name }
+output "worker_service_names" { value = [for service in aws_ecs_service.worker : service.name] }
+output "migration_task_family" { value = aws_ecs_task_definition.backend["migration"].family }
+output "task_subnet_ids" { value = values(aws_subnet.public)[*].id }
+output "task_security_group_id" { value = aws_security_group.tasks.id }
+output "admin_bucket" { value = aws_s3_bucket.admin.bucket }
+output "admin_distribution_id" { value = aws_cloudfront_distribution.admin.id }
+output "api_url" { value = "https://${var.api_domain_name}" }
+output "admin_url" { value = "https://${var.admin_domain_name}" }
