@@ -24,9 +24,13 @@ TASK_DEFINITION_FIELDS = {
 
 
 def aws(*args: str) -> dict[str, Any]:
-    result = subprocess.run(
-        ["aws", *args, "--output", "json"], check=True, capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            ["aws", *args, "--output", "json"], check=True, capture_output=True, text=True
+        )
+    except subprocess.CalledProcessError as error:
+        detail = (error.stderr or error.stdout or "unknown AWS CLI error").strip()
+        raise RuntimeError(f"AWS {' '.join(args[:2])} failed: {detail}") from error
     return json.loads(result.stdout or "{}")
 
 
@@ -59,8 +63,10 @@ def register(family: str, image: str, version: str) -> tuple[str, str]:
     return current["taskDefinitionArn"], registered["taskDefinition"]["taskDefinitionArn"]
 
 
-def running_task_definition_arns(cluster: str, services: list[str]) -> dict[str, str]:
-    """Return {service_name: task_definition_arn} for each service currently running."""
+def running_task_definition_arns(
+    cluster: str, services: list[str], *, healthy_only: bool = False
+) -> dict[str, str]:
+    """Return service task definitions, optionally only established running releases."""
     if not services:
         return {}
     described = aws(
@@ -70,9 +76,11 @@ def running_task_definition_arns(cluster: str, services: list[str]) -> dict[str,
     for svc in described.get("services", []):
         name = svc["serviceName"]
         td_arn = svc.get("taskDefinition")
-        if td_arn:
+        if td_arn and (not healthy_only or svc.get("runningCount", 0) > 0):
             result[name] = td_arn
-    missing = sorted(set(services) - set(result))
+    # An initial deployment has no previous healthy task definition to restore.
+    # It must still be allowed to promote the first immutable application image.
+    missing = [] if healthy_only else sorted(set(services) - set(result))
     if missing:
         failures = described.get("failures", [])
         details = "; ".join(
@@ -192,7 +200,7 @@ def main() -> int:
     services = ["api", "ai-worker", "redaction-worker"]
     try:
         # Snapshot the currently-running task definitions BEFORE registering new ones.
-        previous = running_task_definition_arns(args.cluster, services)
+        previous = running_task_definition_arns(args.cluster, services, healthy_only=True)
         for name, family in families.items():
             _, promoted[name] = register(family, args.image, args.version)
         run_migration(
@@ -204,11 +212,20 @@ def main() -> int:
         verify_promoted(args.cluster, services, promoted)
         readiness(args.api_url)
     except Exception:
+        rollback_errors: list[str] = []
         for service in services:
             if service in previous:
-                update_service(args.cluster, service, previous[service])
+                try:
+                    update_service(args.cluster, service, previous[service])
+                except Exception as rollback_error:
+                    rollback_errors.append(f"{service}: {rollback_error}")
         if previous:
-            wait_stable(args.cluster, [s for s in services if s in previous])
+            try:
+                wait_stable(args.cluster, [s for s in services if s in previous])
+            except Exception as rollback_error:
+                rollback_errors.append(f"wait for rollback: {rollback_error}")
+        if rollback_errors:
+            print("rollback incomplete: " + "; ".join(rollback_errors), file=sys.stderr)
         raise
 
     manifest = {
