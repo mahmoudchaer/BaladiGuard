@@ -374,7 +374,7 @@ resource "aws_lb_listener" "https" {
 
 locals {
   commands = {
-    api              = ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    api              = ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ai-worker        = ["python", "-m", "app.workers.ai_worker"]
     redaction-worker = ["python", "-m", "app.workers.image_redaction_worker"]
     migration        = ["python", "scripts/db/migrate.py"]
