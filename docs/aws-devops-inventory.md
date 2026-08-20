@@ -8,7 +8,7 @@ For infrastructure code and release mechanics, see [deployment-infrastructure.md
 
 | Environment | API | Staff admin | Citizen web | Purpose |
 | --- | --- | --- | --- | --- |
-| Staging | `https://api.staging.baladiguard.site` | `https://admin.staging.baladiguard.site` | Not deployed | Release validation before production |
+| Staging | `https://api.staging.baladiguard.site` | `https://admin.staging.baladiguard.site` | `https://staging.baladiguard.site` | Release validation before production |
 | Production | `https://api.baladiguard.site` | `https://admin.baladiguard.site` | `https://baladiguard.site` | Public MVP |
 
 The API readiness probe is available at `/health/ready`. All public endpoints use HTTPS. DNS is hosted in Route 53; the domain registrar delegates `baladiguard.site` to the Route 53 nameservers.
@@ -42,7 +42,7 @@ Staging and production do not share application data, runtime secrets, ECS clust
 | ECR | One immutable backend repository per environment | Stores digest-pinned backend images built by GitHub Actions |
 | DynamoDB | Environment-prefixed application tables, plus a Terraform state-lock table | Tickets, accounts, OTP/session state, workforce data, queues, audit/history, rate limiting, and deployment locking |
 | S3 | Environment photo buckets; admin buckets; production citizen-web bucket; Terraform state bucket | Private report photos, static web assets, and encrypted/versioned Terraform state |
-| CloudFront | Admin distribution per environment and the production citizen-web distribution | HTTPS static-site delivery, SPA route fallback, caching, HSTS, CSP, and other browser security headers |
+| CloudFront | Admin and citizen-web distributions per environment | HTTPS static-site delivery, SPA route fallback, caching, HSTS, CSP, and other browser security headers |
 | Secrets Manager | `baladiguard/staging/runtime` and `baladiguard/production/runtime` | Runtime-only configuration such as application signing key, CORS origins, SES settings, and smoke token; injected into ECS without exposing values to CI/Terraform |
 | IAM and GitHub OIDC | Dedicated staging and production GitHub deploy roles; ECS task/execution roles | Short-lived credentials for CI and least-privilege service access; no long-lived deployment key is used |
 | CloudWatch | ECS log groups and Container Insights | API/worker/migration logs and runtime diagnostics |
@@ -67,7 +67,7 @@ Staging and production do not share application data, runtime secrets, ECS clust
 
 The workflow builds an immutable backend image, applies Terraform with remote state, runs the idempotent database migration, promotes ECS services, verifies API readiness, then publishes the staff admin build. Deployment manifests and Terraform outputs are retained as GitHub Action artifacts for 90 days.
 
-The production citizen web is currently provisioned by the reviewed CloudFormation template at [`citizen-web/infra/cloudfront-spa.json`](../citizen-web/infra/cloudfront-spa.json). Its production bundle must use:
+Citizen web in both environments is provisioned by the reviewed CloudFormation template at [`citizen-web/infra/cloudfront-spa.json`](../citizen-web/infra/cloudfront-spa.json). Its production bundle must use:
 
 ```text
 VITE_APP_ENV=production
