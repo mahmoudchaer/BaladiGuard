@@ -162,8 +162,11 @@ resource "aws_iam_role_policy" "deploy" {
       {
         Effect = "Allow"
         Action = [
+          # Bucket metadata only; object reads remain separately restricted below.
+          "s3:Get*",
           "s3:CreateBucket", "s3:DeleteBucket", "s3:ListBucket",
-          "s3:GetBucketAcl", "s3:GetBucketLocation", "s3:GetBucketVersioning",
+          "s3:GetAccelerateConfiguration", "s3:GetBucketAcl", "s3:GetBucketLocation",
+          "s3:GetBucketObjectLockConfiguration", "s3:GetBucketVersioning",
           "s3:GetBucketEncryption", "s3:GetBucketPublicAccessBlock",
           "s3:GetBucketCORS", "s3:GetBucketLifecycleConfiguration",
           "s3:GetBucketLogging", "s3:GetBucketNotification",
