@@ -35,8 +35,10 @@ def test_legal_document_fetch_en_ar_fr_and_fallback(anonymous_client: TestClient
         assert body["id"] == "privacy"
         assert body["lang"] == lang
         assert body["version"] == CURRENT_LEGAL_VERSION
-        assert "Product draft" in body["markdown"] or "مسودة منتج" in body["markdown"] or (
-            "Brouillon produit" in body["markdown"]
+        assert (
+            "Product draft" in body["markdown"]
+            or "مسودة منتج" in body["markdown"]
+            or ("Brouillon produit" in body["markdown"])
         )
         assert "privacy@baladiguard.app" in body["markdown"]
 
