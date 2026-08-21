@@ -22,6 +22,7 @@ ALLOWED_ENVIRONMENTS = frozenset({"local", "development", "staging", "production
 _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "production"})
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
+ALLOWED_WHATSAPP_PROVIDERS = frozenset({"mock", "cloud"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
 # Common typos / short forms normalize before validation and production checks.
@@ -273,6 +274,52 @@ def validate_configuration(
                 message="AWS_REGION must be a non-empty region id (for example us-east-1).",
             )
         )
+
+    raw_wa_provider = _raw(env_map, "WHATSAPP_PROVIDER")
+    if raw_wa_provider is not None and raw_wa_provider.strip():
+        if raw_wa_provider.strip().lower() not in ALLOWED_WHATSAPP_PROVIDERS:
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_WHATSAPP_PROVIDER",
+                    message="WHATSAPP_PROVIDER must be 'mock' or 'cloud'.",
+                )
+            )
+
+    whatsapp_enabled = bool(cfg.whatsapp_enabled)
+    raw_wa_enabled = _raw(env_map, "WHATSAPP_ENABLED")
+    if raw_wa_enabled is not None and raw_wa_enabled.strip():
+        whatsapp_enabled = raw_wa_enabled.strip().lower() == "true"
+
+    if whatsapp_enabled:
+        provider = (raw_wa_provider or cfg.whatsapp_provider or "mock").strip().lower() or "mock"
+        missing_required = []
+        if not (cfg.whatsapp_verify_token or "").strip():
+            missing_required.append("WHATSAPP_VERIFY_TOKEN")
+        if not (cfg.whatsapp_app_secret or "").strip():
+            missing_required.append("WHATSAPP_APP_SECRET")
+        if not (cfg.whatsapp_phone_number_id or "").strip():
+            missing_required.append("WHATSAPP_PHONE_NUMBER_ID")
+        if provider == "cloud" and not (cfg.whatsapp_access_token or "").strip():
+            missing_required.append("WHATSAPP_ACCESS_TOKEN")
+        if missing_required:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_WHATSAPP_CONFIG",
+                    message=(
+                        "WHATSAPP_ENABLED=true requires: " + ", ".join(missing_required) + "."
+                    ),
+                )
+            )
+        if app_env in {"staging", "production"} and provider != "cloud":
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_WHATSAPP_PROVIDER",
+                    message=(
+                        "Staging/production WhatsApp requires WHATSAPP_PROVIDER=cloud "
+                        "(mock is local/test only)."
+                    ),
+                )
+            )
 
     # Deployed environments share the real integration boundary. Staging is a
     # production rehearsal, not a demo mode: it must never silently select

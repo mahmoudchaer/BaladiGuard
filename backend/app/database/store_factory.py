@@ -361,3 +361,33 @@ def build_department_store(settings: Settings | None = None):
 
 def get_department_store():
     return build_department_store(get_settings())
+
+
+def build_whatsapp_conversation_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_whatsapp_store import DynamoWhatsAppConversationStore
+
+        return DynamoWhatsAppConversationStore(settings)
+    from app.database.memory_whatsapp import whatsapp_conversation_store
+
+    return whatsapp_conversation_store
+
+
+def get_whatsapp_conversation_store():
+    return build_whatsapp_conversation_store(get_settings())
+
+
+def build_whatsapp_dedup_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_whatsapp_store import DynamoWhatsAppDedupStore
+
+        return DynamoWhatsAppDedupStore(settings)
+    from app.database.memory_whatsapp import whatsapp_dedup_store
+
+    return whatsapp_dedup_store
+
+
+def get_whatsapp_dedup_store():
+    return build_whatsapp_dedup_store(get_settings())

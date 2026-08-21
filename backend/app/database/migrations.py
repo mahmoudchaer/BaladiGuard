@@ -59,6 +59,16 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
         wait_for_table(client, submission_claims_table)
     _ensure_ttl(client, submission_claims_table, attribute_name="ttl")
 
+    whatsapp_conversations = build_table_name(prefix, "whatsapp-conversations")
+    if whatsapp_conversations not in created_tables:
+        wait_for_table(client, whatsapp_conversations)
+    _ensure_ttl(client, whatsapp_conversations, attribute_name="ttl")
+
+    whatsapp_dedup = build_table_name(prefix, "whatsapp-inbound-dedup")
+    if whatsapp_dedup not in created_tables:
+        wait_for_table(client, whatsapp_dedup)
+    _ensure_ttl(client, whatsapp_dedup, attribute_name="ttl")
+
     return created_tables
 
 

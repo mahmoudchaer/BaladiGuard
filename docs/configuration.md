@@ -98,6 +98,10 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
 | `CITIZEN_APP_BASE_URL` | Staging + production | local/dev/test: `http://localhost:8081` when unset | Citizen app base for notification deep links (`/t/{trackingCode}`); staging/production must be https and non-localhost (#257) |
+| `WHATSAPP_ENABLED` | No | `false` | Kill switch for WhatsApp report channel (#296). See [whatsapp-channel.md](./whatsapp-channel.md). |
+| `WHATSAPP_PROVIDER` | When enabled | `mock` | `mock` (local/tests) or `cloud` (Meta Graph). Staging/production require `cloud`. |
+| `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` | When enabled | empty | Required when `WHATSAPP_ENABLED=true` (never commit real values). |
+| `WHATSAPP_ACCESS_TOKEN` | When `cloud` | empty | Graph send/media token for production Meta. |
 | `CORS_ALLOWED_ORIGINS` | Staging + production | local/dev/test: Vite admin `:5173`, citizen-web `:5174`, Expo ports when unset | Comma-separated browser origins for CORS (#263). Staging/production must set explicit https non-localhost origins (admin + citizen-web). |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |

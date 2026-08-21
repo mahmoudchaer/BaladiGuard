@@ -85,6 +85,42 @@ class PhotoUploadService:
                 message="The image contents do not match the declared file type.",
             )
 
+        return self._store_sanitized_report_photo(image, owner_user_id=owner_user_id)
+
+    def upload_report_photo_bytes(
+        self,
+        contents: bytes,
+        *,
+        owner_user_id: str,
+        content_type: str | None = None,
+        filename: str | None = None,
+    ) -> str:
+        """Sanitize provider image bytes and store under the owner-scoped orphan contract."""
+        if len(contents) > MAX_IMAGE_SIZE_BYTES:
+            raise InvalidUploadError(
+                code="FILE_TOO_LARGE",
+                message="Image file must be 5MB or smaller.",
+            )
+        if content_type:
+            self._validate_content_type(content_type)
+        image = self._sanitize_image(contents)
+        if content_type and content_type != image.content_type:
+            raise InvalidUploadError(
+                code="IMAGE_TYPE_MISMATCH",
+                message="The image contents do not match the declared file type.",
+            )
+        if filename:
+            claimed_extension = self._get_extension(filename)
+            if claimed_extension == "jpeg":
+                claimed_extension = "jpg"
+            if claimed_extension != image.extension:
+                raise InvalidUploadError(
+                    code="IMAGE_TYPE_MISMATCH",
+                    message="The image contents do not match the declared file type.",
+                )
+        return self._store_sanitized_report_photo(image, owner_user_id=owner_user_id)
+
+    def _store_sanitized_report_photo(self, image: SanitizedImage, *, owner_user_id: str) -> str:
         owner_scope = self.owner_scope(owner_user_id)
         storage_key = f"{KEY_PREFIX}/{owner_scope}/{uuid4().hex}.{image.extension}"
         tags = urlencode(

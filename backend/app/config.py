@@ -311,6 +311,32 @@ class Settings:
         # Production must set an explicit non-localhost https URL.
         self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None
 
+        # WhatsApp Cloud API report channel (issue #296). Disabled by default until
+        # production Meta credentials are configured. Use WHATSAPP_PROVIDER=mock for
+        # local/tests without a real Business number.
+        self.whatsapp_enabled = os.getenv("WHATSAPP_ENABLED", "false").strip().lower() == "true"
+        self.whatsapp_provider = os.getenv("WHATSAPP_PROVIDER", "mock").strip().lower() or "mock"
+        self.whatsapp_phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip() or None
+        self.whatsapp_business_account_id = (
+            os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID", "").strip() or None
+        )
+        self.whatsapp_app_id = os.getenv("WHATSAPP_APP_ID", "").strip() or None
+        self.whatsapp_app_secret = os.getenv("WHATSAPP_APP_SECRET", "").strip() or None
+        self.whatsapp_verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip() or None
+        self.whatsapp_access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "").strip() or None
+        self.whatsapp_graph_api_version = (
+            os.getenv("WHATSAPP_GRAPH_API_VERSION", "v21.0").strip() or "v21.0"
+        )
+        self.whatsapp_conversation_ttl_hours = self._int_setting(
+            "WHATSAPP_CONVERSATION_TTL_HOURS", default=24, minimum=1
+        )
+        self.whatsapp_dedup_ttl_seconds = self._int_setting(
+            "WHATSAPP_DEDUP_TTL_SECONDS", default=86_400, minimum=60
+        )
+        self.whatsapp_max_webhook_bytes = self._int_setting(
+            "WHATSAPP_MAX_WEBHOOK_BYTES", default=1_048_576, minimum=1024
+        )
+
         # Browser CORS allowlist (issue #263). Comma-separated origins.
         # Staging/production require an explicit non-localhost list.
         self.cors_allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip() or None
