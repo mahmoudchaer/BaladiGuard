@@ -76,10 +76,18 @@ describe('OtpVerifyForm', () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('123456');
     });
     await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
+    });
+    await act(async () => {
       findButton(screen, 'Verify code').props.onPress();
     });
 
-    expect(verifyCitizenOtp).toHaveBeenCalledWith({ challengeId: 'ch_1', code: '123456' });
+    expect(verifyCitizenOtp).toHaveBeenCalledWith({
+      challengeId: 'ch_1',
+      code: '123456',
+      acceptLegal: true,
+      legalLocale: 'en',
+    });
     expect(onVerified).toHaveBeenCalledWith(verifyResponse);
   });
 
@@ -99,6 +107,9 @@ describe('OtpVerifyForm', () => {
 
     await act(async () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('000000');
+    });
+    await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
     });
     await act(async () => {
       findButton(screen, 'Verify code').props.onPress();

@@ -441,6 +441,12 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        "suffix": "privacy-request-audit",
+        "key_schema": [{"AttributeName": "requestId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "requestId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
         # Deterministic WhatsApp conversation state (issue #296). TTL on ttl.
         "suffix": "whatsapp-conversations",
         "key_schema": [{"AttributeName": "conversationKey", "KeyType": "HASH"}],

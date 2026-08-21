@@ -9,15 +9,20 @@ import {
 } from 'react';
 import { ApiError, setUnauthorizedHandler } from '@/services/api';
 import { getMe, logout as logoutApi, updateMe, verifyOtp } from '@/services/citizenAuth';
-import type { CitizenProfile, CitizenProfilePatch } from '@/types/citizen';
+import type { CitizenProfile, CitizenProfilePatch, OtpVerifyOptions } from '@/types/citizen';
 
 type AuthValue = {
   profile: CitizenProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  applyOtp: (challengeId: string, code: string) => Promise<CitizenProfile>;
+  applyOtp: (
+    challengeId: string,
+    code: string,
+    options: OtpVerifyOptions,
+  ) => Promise<CitizenProfile>;
   refresh: () => Promise<CitizenProfile | null>;
   updateProfile: (patch: CitizenProfilePatch) => Promise<CitizenProfile>;
+  setProfile: (profile: CitizenProfile | null) => void;
   logout: () => Promise<void>;
 };
 
@@ -52,8 +57,8 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       profile,
       isLoading,
       isAuthenticated: Boolean(profile),
-      applyOtp: async (challengeId, code) => {
-        const next = await verifyOtp(challengeId, code);
+      applyOtp: async (challengeId, code, options) => {
+        const next = await verifyOtp(challengeId, code, options);
         setProfile(next);
         return next;
       },
@@ -63,6 +68,7 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
         setProfile(next);
         return next;
       },
+      setProfile,
       logout: async () => {
         try {
           await logoutApi();

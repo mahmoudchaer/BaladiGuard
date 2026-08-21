@@ -195,3 +195,36 @@ class RunbookEntry(BaseModel):
     url: str
 
     model_config = {"populate_by_name": True}
+
+
+class PrivacyRequestCreateRequest(BaseModel):
+    """Manual privacy-request audit entry for developer ops (#321)."""
+
+    action: Literal[
+        "manual_export",
+        "manual_delete",
+        "correction",
+        "other",
+        "citizen_export",
+        "citizen_delete",
+    ] = "other"
+    subject_user_id: str | None = Field(default=None, alias="subjectUserId")
+    summary: str = Field(min_length=1, max_length=500)
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("summary")
+    @classmethod
+    def strip_summary(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("summary is required.")
+        return trimmed
+
+    @field_validator("subject_user_id")
+    @classmethod
+    def strip_subject(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None

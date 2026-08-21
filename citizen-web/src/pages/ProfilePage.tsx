@@ -1,14 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
-import { requestOtp } from '@/services/citizenAuth';
+import {
+  acceptLegal as acceptLegalApi,
+  deleteMe,
+  exportMe,
+  requestOtp,
+} from '@/services/citizenAuth';
 import { clearDraft, loadDraft } from '@/services/reportDraft';
 import type { TicketUpdatesPreference } from '@/types/citizen';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 export function ProfilePage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const auth = useCitizenAuth();
   const navigate = useNavigate();
   const profile = auth.profile!;
@@ -26,6 +31,7 @@ export function ProfilePage() {
   const [newPhone, setNewPhone] = useState('');
   const [challenge, setChallenge] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -91,6 +97,63 @@ export function ProfilePage() {
     navigate('/');
   }
 
+  async function handleExport() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const data = await exportMe();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `baladiguard-export-${profile.userId}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage(t('profile.exportReady'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('profile.exportFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAcceptLegal() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const next = await acceptLegalApi({ acceptLegal: true, locale });
+      auth.setProfile(next);
+      setMessage(t('profile.legalAccepted'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('profile.legalAcceptFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    const typedOk = deleteConfirm.trim().toUpperCase() === 'DELETE';
+    if (!typedOk) {
+      const confirmed = window.confirm(t('profile.deleteConfirmPrompt'));
+      if (!confirmed) return;
+    } else if (!window.confirm(t('profile.deleteConfirmPrompt'))) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteMe();
+      await clearDraft(profile.userId);
+      auth.setProfile(null);
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('profile.deleteFailed'));
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="page page-enter narrow-page">
       <div className="page-heading">
@@ -104,6 +167,22 @@ export function ProfilePage() {
         </div>
       </div>
       <LanguageSwitcher />
+
+      {profile.legalAcceptanceRequired ? (
+        <div className="notice notice-error" role="alert">
+          <p style={{ margin: '0 0 0.75rem' }}>{t('profile.legalRequiredBanner')}</p>
+          <p style={{ margin: '0 0 0.75rem' }}>
+            <Link to="/terms">{t('shell.terms')}</Link>
+            {' · '}
+            <Link to="/privacy">{t('shell.privacy')}</Link>
+            {' · '}
+            <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
+          </p>
+          <button className="button" type="button" disabled={busy} onClick={() => void handleAcceptLegal()}>
+            {busy ? t('profile.acceptingLegal') : t('profile.acceptLegal')}
+          </button>
+        </div>
+      ) : null}
 
       {message ? (
         <div className="notice notice-success" role="status">
@@ -245,6 +324,43 @@ export function ProfilePage() {
             )}
           </div>
         ) : null}
+        <button
+          className="setting-action"
+          type="button"
+          disabled={busy}
+          onClick={() => void handleExport()}
+        >
+          <span>
+            <strong>{t('profile.exportData')}</strong>
+            <small>{t('profile.exportDataHint')}</small>
+          </span>
+          <span>↓</span>
+        </button>
+        <div className="phone-flow" style={{ padding: '0.75rem 0' }}>
+          <label className="field-label" htmlFor="delete-confirm">
+            {t('profile.deleteTypeLabel')}
+          </label>
+          <input
+            id="delete-confirm"
+            className="input"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={t('profile.deleteTypePlaceholder')}
+            autoComplete="off"
+          />
+          <button
+            className="setting-action danger-action"
+            type="button"
+            disabled={busy}
+            onClick={() => void handleDelete()}
+          >
+            <span>
+              <strong>{t('profile.deleteAccount')}</strong>
+              <small>{t('profile.deleteAccountHint')}</small>
+            </span>
+            <span>!</span>
+          </button>
+        </div>
         <button
           className="setting-action danger-action"
           type="button"

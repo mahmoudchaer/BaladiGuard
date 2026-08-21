@@ -1,8 +1,34 @@
 # Citizen data privacy lifecycle (MVP)
 
-Authoritative MVP privacy lifecycle for issue #190. Aligns with the phone-first
+Authoritative MVP privacy lifecycle for issue #190, extended by issue #321
+(legal package, consent, TTL, privacy-request audit). Aligns with the phone-first
 identity contract in `docs/MVP_API_CONTRACT.md` (Sprint 6) and staff authorization
 in issues #168 / #176.
+
+**Legal package version:** `2026-08-22` (Terms, Privacy Policy, Acceptable Use) under
+`docs/legal/{en,ar,fr}/`. These texts are product drafts for owner/legal counsel
+review — not a GDPR/compliance certification. Contact: `privacy@baladiguard.app`.
+Service intended for users **16+**. Controllers: BaladiGuard platform operator
+(citizen accounts); participating municipalities (municipal ticket records).
+
+Authoritative data-class inventory: `docs/data-inventory.md`.
+
+## Legal documents and consent (#321)
+
+| Surface | Behavior |
+| --- | --- |
+| Catalog | `GET /v1/legal` |
+| Document body | `GET /v1/legal/{documentId}?lang=en\|ar\|fr` (fallback to `en`) |
+| OTP verify (`LOGIN_OR_SIGNUP`) | Requires `acceptLegal: true`; persists `legalAcceptance` for the current package version |
+| Profile | Exposes `legalAcceptance` and `legalAcceptanceRequired` (true when missing or version mismatch) |
+| Re-accept | `POST /v1/citizen/me/legal-acceptance` |
+| Account anonymize | Clears `legalAcceptance` |
+
+### DynamoDB TTL (#321)
+
+Migrations enable TTL attribute `ttl` on `citizen-sessions` and
+`citizen-otp-challenges` (idempotent `_ensure_ttl`), matching the retention table
+below.
 
 ## Citizen-facing privacy notice
 
@@ -19,6 +45,7 @@ infrastructure reports.
 | Notification preferences | How we contact you about your reports |
 | Report content | Description, location, and photo needed to investigate and resolve the issue |
 | Contact snapshot on each ticket | Immutable copy at submission for operational follow-up |
+| Legal acceptance | Evidence you accepted the current Terms, Privacy Policy, and Acceptable Use |
 | Session records | Keep you signed in and revoke access on logout, phone change, or deletion |
 | Device / client metadata on submit | Abuse resistance and support diagnostics (not used for marketing) |
 
@@ -32,13 +59,15 @@ infrastructure reports.
 **Your controls**
 
 - View and update your profile (`GET` / `PATCH /v1/citizen/me`)
+- Read current legal documents (`GET /v1/legal`, `GET /v1/legal/{documentId}`)
+- Re-accept updated legal terms (`POST /v1/citizen/me/legal-acceptance`)
 - Export a machine-readable copy of your account and owned tickets
   (`GET /v1/citizen/me/export`)
 - Delete (anonymize) your account (`POST /v1/citizen/me/delete`)
 - Turn off public name attribution (`publicNameVisible`, default `false`)
 
-A short in-app summary ships in the mobile Privacy notice screen. The full policy
-lives in this document.
+A short in-app summary ships in the mobile Privacy notice screen. The published
+legal package lives under `docs/legal/`; this document describes lifecycle behavior.
 
 ## Retention periods
 
@@ -72,6 +101,7 @@ Citizens delete their account through `POST /v1/citizen/me/delete` (authenticate
 - Phone claim released so the number can be used by a new account
 - Phone replaced with a non-login tombstone (`ANON:{userId}`)
 - `fullName` and `email` cleared
+- `legalAcceptance` cleared
 - Notification preferences reset to `ticketUpdates=NONE`, `announcements=false`
 - `publicNameVisible=false`
 - `active=false`
@@ -121,9 +151,25 @@ production read access may fulfill a verified request by:
    equivalent out-of-band municipal verification
 2. Reading only that `userId`'s profile and owned tickets from the operational store
 3. Delivering the JSON (or equivalent) over an access-controlled channel
-4. Logging the request id, fulfiller staff id, and timestamp in the privacy request log
+4. Logging the request via developer ops:
+   `POST /v1/ops/privacy-requests` (developer-operator auth), recording request id,
+   action (`export` / `delete` / `manual_export` / `correction` / other),
+   requester `userId` when known, fulfiller staff id, and timestamp
+
+Citizen self-service export and delete also append privacy-request audit rows
+automatically when those endpoints succeed.
 
 No bulk export of unrelated citizens is permitted.
+
+### Privacy request audit log (#321)
+
+| Access | Path |
+| --- | --- |
+| Record (ops / manual) | `POST /v1/ops/privacy-requests` |
+| List recent | `GET /v1/ops/privacy-requests` |
+| Storage | Memory store in tests/local; DynamoDB table `privacy-request-audit` when enabled |
+
+Self-service events use action types `citizen_export` and `citizen_delete`.
 
 ## Staff access to personal data
 
@@ -181,6 +227,8 @@ process defined by the municipality.
 
 ## Related documents
 
+- `docs/legal/README.md` — legal package versioning and client loading
+- `docs/data-inventory.md` — authoritative data-class inventory
 - `docs/MVP_API_CONTRACT.md` — identity, privacy, and route contract
 - `docs/database.md` — ownership vs contact snapshot
 - `docs/production-backup-restore.md` — backup retention and restore isolation

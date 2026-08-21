@@ -39,11 +39,16 @@ describe('citizen web authentication API', () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify(profile), { status: 200 }));
-    await expect(verifyOtp('chl_1', '123456')).resolves.toEqual(profile);
+    await expect(verifyOtp('chl_1', '123456', { acceptLegal: true, legalLocale: 'en' })).resolves.toEqual(
+      profile,
+    );
     const init = fetchMock.mock.calls[0]?.[1];
     expect(new Headers(init?.headers).get('X-Citizen-Session-Mode')).toBe('cookie');
     expect(new Headers(init?.headers).has('Authorization')).toBe(false);
     expect(init?.credentials).toBe('include');
+    expect(init?.body).toBe(
+      JSON.stringify({ challengeId: 'chl_1', code: '123456', acceptLegal: true, legalLocale: 'en' }),
+    );
   });
 
   it('restores the browser session through the profile endpoint', async () => {

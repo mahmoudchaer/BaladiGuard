@@ -12,6 +12,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { StaffAccountsPage } from '@/pages/StaffAccountsPage';
+import { StaffLegalPage } from '@/pages/StaffLegalPage';
 import '@/pages/TicketListPage.css';
 
 export function App() {
@@ -52,6 +53,16 @@ export function App() {
               element={
                 <ProtectedRoute role="administrator">
                   <StaffAccountsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/legal"
+              element={
+                <ProtectedRoute
+                  allowedRoles={['municipal_staff', 'administrator', 'developer_operator']}
+                >
+                  <StaffLegalPage />
                 </ProtectedRoute>
               }
             />

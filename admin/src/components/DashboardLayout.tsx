@@ -8,7 +8,7 @@ import { GlobalSearch } from '@/components/GlobalSearch';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { StaffAssistantPanel } from '@/components/StaffAssistantPanel';
 import { useI18n } from '@/i18n/LocaleProvider';
-import { IconAnalytics, IconMap, IconPeople, IconSparkles, IconTickets } from '@/components/icons';
+import { IconAnalytics, IconDocument, IconMap, IconPeople, IconSparkles, IconTickets } from '@/components/icons';
 import './BrandMark.css';
 import './DashboardLayout.css';
 
@@ -106,6 +106,16 @@ export function DashboardLayout({
             );
           })}
         </nav>
+
+        <NavLink
+          to="/legal"
+          className={`dashboard-rail__link${pathname === '/legal' || pathname.startsWith('/legal/') ? ' dashboard-rail__link--active' : ''}`}
+          aria-current={pathname === '/legal' ? 'page' : undefined}
+          title={t('nav.legal')}
+        >
+          <IconDocument />
+          <span className="dashboard-rail__link-label">{t('nav.legal')}</span>
+        </NavLink>
       </aside>
 
       <div className="dashboard-shell" inert={assistantOpen}>

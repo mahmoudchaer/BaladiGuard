@@ -16,6 +16,8 @@ os.environ["READINESS_PROBE_PUBLISHER"] = "false"
 # Tests must use the curated local place index even when the shared team .env
 # configures a live Amazon Location index.
 os.environ["LOCATION_PLACE_INDEX_NAME"] = ""
+# Keep citizen OTP on the mock channel even when local .env selects WhatsApp/SNS.
+os.environ["CITIZEN_OTP_DELIVERY_CHANNEL"] = "mock"
 # Deterministic staff credentials for issue #72 authorization tests.
 os.environ["SECRET_KEY"] = "test-secret-key-for-ci"
 os.environ["STAFF_USERNAME"] = "staff"
@@ -43,6 +45,7 @@ from app.database.memory_ops import (  # noqa: E402
     ops_audit_store,
     ops_error_store,
 )
+from app.database.memory_privacy_request import privacy_request_audit_store  # noqa: E402
 from app.database.memory_photo_claim import photo_claim_store  # noqa: E402
 from app.database.memory_resolution_review import resolution_review_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
@@ -140,6 +143,7 @@ def authenticated_test_client() -> TestClient:
 def force_mock_notification_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep HTTP workflow tests on the mock adapter even if local `.env` sets real SES/SNS."""
     monkeypatch.setenv("NOTIFICATION_ADAPTER", "mock")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "mock")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -185,6 +189,7 @@ def reset_ticket_store() -> None:
     ops_alert_ack_store.clear()
     ops_error_store.clear()
     ops_audit_store.clear()
+    privacy_request_audit_store.clear()
     clear_metric_samples()
     ensure_demo_staff_accounts()
     clear_rate_limiter_cache()

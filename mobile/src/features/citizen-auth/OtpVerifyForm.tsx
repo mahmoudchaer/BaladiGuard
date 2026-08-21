@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Banner, Button, HelperText, Text } from 'react-native-paper';
+import { Banner, Button, Checkbox, HelperText, Text } from 'react-native-paper';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Link, type Href } from 'expo-router';
 
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import {
@@ -68,9 +69,11 @@ export function OtpVerifyForm({
   const [secondsLeft, setSecondsLeft] = useState(expiresIn);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  const [acceptLegal, setAcceptLegal] = useState(false);
   const [activeDeliveryChannel, setActiveDeliveryChannel] = useState(deliveryChannel);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const requestInFlight = useRef(false);
+  const requiresLegal = purpose === 'LOGIN_OR_SIGNUP';
 
   useEffect(() => {
     setActiveDeliveryChannel(deliveryChannel);
@@ -110,6 +113,11 @@ export function OtpVerifyForm({
   const mapError = useCallback(
     (error: unknown) => {
       if (error instanceof CitizenAuthApiError) {
+        if (error.code === 'LEGAL_ACCEPTANCE_REQUIRED') {
+          setFormError(t('auth.legalRequired'));
+          setRetryAfterSeconds(null);
+          return;
+        }
         setFormError(error.message);
         setRetryAfterSeconds(error.retryAfterSeconds);
         return;
@@ -123,6 +131,10 @@ export function OtpVerifyForm({
     if (requestInFlight.current) {
       return;
     }
+    if (requiresLegal && !acceptLegal) {
+      setFormError(t('auth.legalRequired'));
+      return;
+    }
     requestInFlight.current = true;
     setFormError(null);
     setRetryAfterSeconds(null);
@@ -131,6 +143,7 @@ export function OtpVerifyForm({
       const response = await verifyCitizenOtp({
         challengeId,
         code: values.code.trim(),
+        ...(requiresLegal ? { acceptLegal: true, legalLocale: locale } : {}),
       });
       onVerified(response);
     } catch (error) {
@@ -213,11 +226,40 @@ export function OtpVerifyForm({
         </HelperText>
       ) : null}
 
+      {requiresLegal ? (
+        <View style={styles.legalRow}>
+          <Checkbox
+            status={acceptLegal ? 'checked' : 'unchecked'}
+            onPress={() => setAcceptLegal((prev) => !prev)}
+            testID="accept-legal-checkbox"
+          />
+          <Text
+            style={styles.legalText}
+            accessibilityRole="text"
+            accessibilityLabel={t('auth.legalCheckboxA11y')}
+          >
+            {t('auth.legalAgreePrefix')}{' '}
+            <Link href={'/terms' as Href} style={styles.legalLink}>
+              {t('legal.termsTitle')}
+            </Link>
+            {t('auth.legalAgreeJoin1')}
+            <Link href={'/privacy' as Href} style={styles.legalLink}>
+              {t('legal.privacyTitle')}
+            </Link>
+            {t('auth.legalAgreeJoin2')}
+            <Link href={'/acceptable-use' as Href} style={styles.legalLink}>
+              {t('legal.acceptableUseTitle')}
+            </Link>
+            {t('auth.legalAgreeSuffix')}
+          </Text>
+        </View>
+      ) : null}
+
       <Button
         mode="contained"
         onPress={handleSubmit(onSubmit)}
         loading={isSubmitting}
-        disabled={isSubmitting || expired}
+        disabled={isSubmitting || expired || (requiresLegal && !acceptLegal)}
         style={styles.button}
         contentStyle={styles.controlContent}
         labelStyle={styles.controlLabel}
@@ -260,6 +302,22 @@ const styles = StyleSheet.create({
   banner: {
     marginBottom: spacing[1],
     borderRadius: radii.md,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[1],
+  },
+  legalText: {
+    flex: 1,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    paddingTop: 6,
+  },
+  legalLink: {
+    color: colors.brandDark,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   button: {
     width: '100%',
