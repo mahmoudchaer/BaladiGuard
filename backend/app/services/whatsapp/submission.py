@@ -13,6 +13,7 @@ from app.schemas.ticket import (
 from app.schemas.whatsapp_conversation import WhatsAppConversation
 from app.services.ai_job_queue import ai_job_queue
 from app.services.complaints.ticket_service import ticket_service
+from app.services.content_safety.queue import content_safety_queue
 from app.services.notifications.deep_links import build_ticket_notification_deep_link
 from app.services.redaction.queue import image_redaction_queue
 
@@ -70,6 +71,13 @@ def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConver
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "WhatsApp image redaction queue write deferred error=%s",
+            type(exc).__name__,
+        )
+    try:
+        content_safety_queue.enqueue(response.ticket_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "WhatsApp content safety queue write deferred error=%s",
             type(exc).__name__,
         )
 

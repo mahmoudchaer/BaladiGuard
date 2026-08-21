@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.database.memory import ticket_store
+from app.database.memory_content_safety_job import content_safety_job_store
 from app.database.memory_whatsapp import whatsapp_conversation_store, whatsapp_dedup_store
 from app.main import create_app
 from app.services.whatsapp.fsm import WhatsAppFlowEngine
@@ -32,11 +33,13 @@ def whatsapp_env(monkeypatch):
     get_settings.cache_clear()
     whatsapp_conversation_store.clear()
     whatsapp_dedup_store.clear()
+    content_safety_job_store.clear()
     reset_mock_graph_client()
     yield
     get_settings.cache_clear()
     whatsapp_conversation_store.clear()
     whatsapp_dedup_store.clear()
+    content_safety_job_store.clear()
     reset_mock_graph_client()
 
 
@@ -193,6 +196,41 @@ def test_failed_processing_releases_dedup_so_retry_is_processed(wa_client, monke
     assert retried.json()["duplicates"] == 0
 
 
+def test_outbound_graph_failure_keeps_webhook_retryable(wa_client, monkeypatch):
+    payload = _message_payload(
+        message_id="wamid.outbound.fail",
+        wa_id="96170111114",
+        message={"type": "text", "text": {"body": "hello"}},
+    )
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": sign_meta_payload(app_secret=APP_SECRET, raw_body=raw),
+    }
+    mock = get_mock_graph_client()
+    original = mock.send_text
+    should_fail = {"value": True}
+
+    def maybe_fail(*, phone_number_id: str, to_wa_id: str, body: str):
+        if should_fail["value"]:
+            raise RuntimeError("graph down")
+        return original(phone_number_id=phone_number_id, to_wa_id=to_wa_id, body=body)
+
+    monkeypatch.setattr(mock, "send_text", maybe_fail)
+    failed = wa_client.post("/v1/whatsapp/webhook", content=raw, headers=headers)
+    assert failed.status_code == 503, failed.text
+    assert failed.json()["failed"] == 1
+    assert failed.json()["accepted"] == 0
+    assert mock.sent == []
+
+    should_fail["value"] = False
+    retried = wa_client.post("/v1/whatsapp/webhook", content=raw, headers=headers)
+    assert retried.status_code == 200, retried.text
+    assert retried.json()["accepted"] == 1
+    assert retried.json()["duplicates"] == 0
+    assert mock.sent
+
+
 def test_flow_advances_and_submits_ticket(wa_client, monkeypatch):
     wa_id = "96170999888"
     mock = get_mock_graph_client()
@@ -247,7 +285,10 @@ def test_flow_advances_and_submits_ticket(wa_client, monkeypatch):
 
     # Ticket persisted for the reconciled WhatsApp phone owner.
     tickets = list(ticket_store._tickets.values())  # noqa: SLF001 - test inspection
-    assert any("pothole" in ticket.description.lower() for ticket in tickets)
+    submitted = [ticket for ticket in tickets if "pothole" in ticket.description.lower()]
+    assert submitted
+    safety_ticket_ids = {job.ticket_id for job in content_safety_job_store.list()}
+    assert submitted[0].ticket_id in safety_ticket_ids
 
 
 def test_disabled_channel_returns_503(monkeypatch):

@@ -36,6 +36,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_TTL_HOURS = 24
 
 
+class WhatsAppOutboundError(RuntimeError):
+    """Graph send failed; webhook must release dedup and remain retryable."""
+
+
 class WhatsAppFlowEngine:
     def __init__(
         self,
@@ -94,7 +98,12 @@ class WhatsAppFlowEngine:
             self._reply(conversation, prompt_for(conversation.state, conversation))
             return
 
+        if event.message_id and conversation.last_inbound_message_id == event.message_id:
+            self._reply(conversation, prompt_for(conversation.state, conversation))
+            return
+
         expected_version = conversation.version
+        conversation.last_inbound_message_id = event.message_id
         command = parse_command(event.text) if event.kind == "text" else None
         try:
             if command == "help":
@@ -456,6 +465,7 @@ class WhatsAppFlowEngine:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("WhatsApp outbound failed error=%s", type(exc).__name__)
+            raise WhatsAppOutboundError("WhatsApp outbound send failed.") from exc
 
     @staticmethod
     def _is_expired(conversation: WhatsAppConversation, now: datetime) -> bool:
