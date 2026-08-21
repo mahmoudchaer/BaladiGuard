@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from io import BytesIO
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 import pytest
 from botocore.exceptions import ClientError
@@ -257,6 +257,48 @@ def test_whatsapp_http_error_raises_in_production(monkeypatch):
     assert exc_info.value.category == "whatsapp_auth"
 
 
+def test_whatsapp_http_error_raises_in_local_template_mode(monkeypatch):
+    def fake_urlopen(request, timeout=0):  # noqa: ARG001
+        raise HTTPError(request.full_url, 401, "Unauthorized", hdrs=None, fp=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("app.services.citizens.otp_delivery.urlopen", fake_urlopen)
+    settings = _settings(
+        citizen_otp_delivery_channel="whatsapp",
+        citizen_otp_whatsapp_message_mode="template",
+        citizen_otp_whatsapp_access_token="meta-token",
+        citizen_otp_whatsapp_phone_number_id="pnid_1",
+        citizen_otp_whatsapp_template_name="baladiguard_auth",
+        notification_sandbox=False,
+        app_env="local",
+        otp_dev_plaintext_stdout=False,
+    )
+
+    with pytest.raises(OtpDeliveryError) as exc_info:
+        deliver_citizen_otp(phone="+9613408680", region="LB", code="343434", settings=settings)
+    assert exc_info.value.category == "whatsapp_auth"
+
+
+def test_whatsapp_network_error_raises_in_local_template_mode(monkeypatch):
+    def fake_urlopen(request, timeout=0):  # noqa: ARG001
+        raise URLError("timed out")
+
+    monkeypatch.setattr("app.services.citizens.otp_delivery.urlopen", fake_urlopen)
+    settings = _settings(
+        citizen_otp_delivery_channel="whatsapp",
+        citizen_otp_whatsapp_message_mode="template",
+        citizen_otp_whatsapp_access_token="meta-token",
+        citizen_otp_whatsapp_phone_number_id="pnid_1",
+        citizen_otp_whatsapp_template_name="baladiguard_auth",
+        notification_sandbox=False,
+        app_env="development",
+        otp_dev_plaintext_stdout=False,
+    )
+
+    with pytest.raises(OtpDeliveryError) as exc_info:
+        deliver_citizen_otp(phone="+9613408680", region="LB", code="343434", settings=settings)
+    assert exc_info.value.category == "whatsapp_transient"
+
+
 def test_whatsapp_and_sns_never_both_called(monkeypatch):
     sns = FakeSnsClient()
     monkeypatch.setattr(
@@ -432,6 +474,41 @@ def test_whatsapp_sandbox_block_returns_503_and_invalidates_challenge(monkeypatc
     assert response.status_code == 503, response.text
     body = response.json()
     assert body["error"]["code"] == "OTP_DELIVERY_FAILED"
+    challenges = list(citizen_otp_store._challenges.values())  # noqa: SLF001
+    assert challenges
+    assert all(row.superseded_at for row in challenges)
+    assert all(citizen_service.peek_dev_otp_code(row.challenge_id) is None for row in challenges)
+    get_settings.cache_clear()
+
+
+def test_whatsapp_template_graph_failure_returns_503_and_invalidates_challenge(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.database.memory_citizen_otp import citizen_otp_store
+    from app.main import create_app
+    from app.services.citizens.service import citizen_service
+
+    def fake_urlopen(request, timeout=0):  # noqa: ARG001
+        raise HTTPError(request.full_url, 401, "Unauthorized", hdrs=None, fp=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("app.services.citizens.otp_delivery.urlopen", fake_urlopen)
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "whatsapp")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "template")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "pnid_1")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "meta-token")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_NAME", "baladiguard_auth")
+    monkeypatch.setenv("NOTIFICATION_SANDBOX", "true")
+    monkeypatch.setenv("NOTIFICATION_ALLOWLIST_PHONES", "+96170123456")
+    get_settings.cache_clear()
+    citizen_otp_store.clear()
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/citizen/auth/otp/request",
+        json={"phone": "+96170123456", "region": "LB", "purpose": "LOGIN_OR_SIGNUP"},
+    )
+    assert response.status_code == 503, response.text
+    assert response.json()["error"]["code"] == "OTP_DELIVERY_FAILED"
     challenges = list(citizen_otp_store._challenges.values())  # noqa: SLF001
     assert challenges
     assert all(row.superseded_at for row in challenges)

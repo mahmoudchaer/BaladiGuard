@@ -242,25 +242,14 @@ class WhatsAppCitizenOtpDeliveryProvider:
                 exc.code,
                 _mask_phone(canonical_phone),
             )
-            # Session-text testers must see window-closed failures; do not swallow them.
-            if session_text or settings.app_env not in {"local", "development"}:
-                raise OtpDeliveryError(category) from exc
-            _emit_dev_plaintext(
-                canonical_phone, code, reason="whatsapp_publish_failed", cfg=settings
-            )
-            return
+            raise OtpDeliveryError(category) from exc
         except (URLError, TimeoutError) as exc:
             logger.warning(
                 "Citizen OTP WhatsApp delivery timeout/network phone=%s error=%s",
                 _mask_phone(canonical_phone),
                 type(exc).__name__,
             )
-            if session_text or settings.app_env not in {"local", "development"}:
-                raise OtpDeliveryError("whatsapp_transient") from exc
-            _emit_dev_plaintext(
-                canonical_phone, code, reason="whatsapp_publish_failed", cfg=settings
-            )
-            return
+            raise OtpDeliveryError("whatsapp_transient") from exc
 
         logger.info("Citizen OTP WhatsApp published phone=%s", _mask_phone(canonical_phone))
         _emit_dev_plaintext(canonical_phone, code, reason="whatsapp_published", cfg=settings)
