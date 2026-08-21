@@ -31,6 +31,8 @@ export type CitizenOtpRequestResponse = {
   challengeId: string;
   expiresIn: number;
   message: string;
+  /** Server-configured delivery hint for UI copy (`sms` | `whatsapp` | `dev`). */
+  deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
 };
 
 export type CitizenOtpVerifyPayload = {

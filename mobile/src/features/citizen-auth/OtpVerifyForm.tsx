@@ -25,7 +25,12 @@ type OtpVerifyFormProps = {
   phone: string;
   region?: string;
   purpose?: CitizenOtpPurpose;
-  onChallengeReplaced: (next: { challengeId: string; expiresIn: number }) => void;
+  deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
+  onChallengeReplaced: (next: {
+    challengeId: string;
+    expiresIn: number;
+    deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
+  }) => void;
   onVerified: (response: CitizenOtpVerifyResponse) => void;
 };
 
@@ -35,12 +40,26 @@ function formatCountdown(totalSeconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function otpSubtitleKey(channel: 'sms' | 'whatsapp' | 'dev' | undefined): string {
+  if (channel === 'whatsapp') {
+    return 'auth.otpSubtitleWhatsapp';
+  }
+  if (channel === 'dev') {
+    return 'auth.otpSubtitleDev';
+  }
+  if (channel === 'sms') {
+    return 'auth.otpSubtitleSms';
+  }
+  return 'auth.otpSubtitle';
+}
+
 export function OtpVerifyForm({
   challengeId,
   expiresIn,
   phone,
   region,
   purpose = 'LOGIN_OR_SIGNUP',
+  deliveryChannel,
   onChallengeReplaced,
   onVerified,
 }: OtpVerifyFormProps) {
@@ -49,8 +68,13 @@ export function OtpVerifyForm({
   const [secondsLeft, setSecondsLeft] = useState(expiresIn);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  const [activeDeliveryChannel, setActiveDeliveryChannel] = useState(deliveryChannel);
   const { t } = useI18n();
   const requestInFlight = useRef(false);
+
+  useEffect(() => {
+    setActiveDeliveryChannel(deliveryChannel);
+  }, [deliveryChannel, challengeId]);
 
   useEffect(() => {
     setSecondsLeft(expiresIn);
@@ -133,7 +157,9 @@ export function OtpVerifyForm({
       onChallengeReplaced({
         challengeId: response.challengeId,
         expiresIn: response.expiresIn,
+        deliveryChannel: response.deliveryChannel,
       });
+      setActiveDeliveryChannel(response.deliveryChannel);
       reset(defaultOtpVerifyValues);
       setResendCooldown(30);
       setSecondsLeft(response.expiresIn);
@@ -152,7 +178,7 @@ export function OtpVerifyForm({
         {t('auth.otpTitle')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        {t('auth.otpSubtitle')} {phone} · {formatCountdown(secondsLeft)}
+        {t(otpSubtitleKey(activeDeliveryChannel))} {phone} · {formatCountdown(secondsLeft)}
       </Text>
 
       {formError ? (

@@ -32,7 +32,7 @@ from app.schemas.resolution_feedback import (
     CitizenResolutionFeedbackResponse,
     SubmitResolutionFeedbackRequest,
 )
-from app.services.citizens.otp_delivery import deliver_citizen_otp
+from app.services.citizens.otp_delivery import OtpDeliveryError, deliver_citizen_otp
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
     CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
@@ -135,11 +135,19 @@ def request_citizen_otp(
     # HTTP response stays code-free; delivery is side-effect only.
     # If real delivery raises, invalidate the unused challenge so it cannot linger.
     try:
-        deliver_citizen_otp(
+        delivery_channel = deliver_citizen_otp(
             phone=payload.phone,
             region=payload.region,
             code=code,
             settings=settings,
+        )
+    except OtpDeliveryError:
+        citizen_service.invalidate_otp_challenge(challenge_id)
+        return build_error_response(
+            code="OTP_DELIVERY_FAILED",
+            message="Could not send the verification code. Try again in a moment.",
+            request_id=get_request_id(request),
+            status_code=503,
         )
     except Exception:
         citizen_service.invalidate_otp_challenge(challenge_id)
@@ -149,6 +157,7 @@ def request_citizen_otp(
         challengeId=challenge_id,
         expiresIn=expires_in,
         message=GENERIC_OTP_MESSAGE,
+        deliveryChannel=delivery_channel,
     )
 
 

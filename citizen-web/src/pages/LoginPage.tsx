@@ -17,6 +17,7 @@ export function LoginPage() {
   const [region, setRegion] = useState('LB');
   const [phone, setPhone] = useState('');
   const [challengeId, setChallengeId] = useState('');
+  const [deliveryChannel, setDeliveryChannel] = useState<'sms' | 'whatsapp' | 'dev' | undefined>();
   const [code, setCode] = useState('');
   const [expiresAt, setExpiresAt] = useState(0);
   const [now, setNow] = useState(0);
@@ -46,6 +47,7 @@ export function LoginPage() {
     try {
       const result = await requestOtp(phone.trim(), region);
       setChallengeId(result.challengeId);
+      setDeliveryChannel(result.deliveryChannel);
       setExpiresAt(Date.now() + result.expiresIn * 1000);
       setNow(Date.now());
       setStep('code');
@@ -94,7 +96,18 @@ export function LoginPage() {
           {step === 'phone' ? t('auth.phoneTitle') : t('auth.otpTitle')}
         </h1>
         <p className="lede">
-          {step === 'phone' ? t('auth.phoneLede') : t('auth.otpLede', { phone })}
+          {step === 'phone'
+            ? t('auth.phoneLede')
+            : t(
+                deliveryChannel === 'whatsapp'
+                  ? 'auth.otpLedeWhatsapp'
+                  : deliveryChannel === 'dev'
+                    ? 'auth.otpLedeDev'
+                    : deliveryChannel === 'sms'
+                      ? 'auth.otpLedeSms'
+                      : 'auth.otpLede',
+                { phone },
+              )}
         </p>
 
         {error ? (

@@ -307,6 +307,46 @@ class Settings:
             os.getenv("OTP_DEV_PLAINTEXT_STDOUT", "false").strip().lower() == "true"
         )
 
+        # Citizen OTP delivery channel (issue #297). Separate from NOTIFICATION_ADAPTER
+        # and from WhatsApp report submission (#296). Empty = legacy auto (mock unless
+        # NOTIFICATION_ADAPTER=real → sns).
+        raw_otp_channel = os.getenv("CITIZEN_OTP_DELIVERY_CHANNEL", "").strip().lower()
+        self.citizen_otp_delivery_channel = raw_otp_channel or None
+        self.citizen_otp_whatsapp_phone_number_id = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "").strip() or None
+        )
+        self.citizen_otp_whatsapp_access_token = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "").strip() or None
+        )
+        self.citizen_otp_whatsapp_template_name = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_NAME", "").strip() or None
+        )
+        self.citizen_otp_whatsapp_template_language = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_LANGUAGE", "en").strip() or "en"
+        )
+        self.citizen_otp_whatsapp_graph_api_version = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_GRAPH_API_VERSION", "v21.0").strip() or "v21.0"
+        )
+        button_raw = os.getenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_BUTTON_INDEX", "").strip()
+        if button_raw == "":
+            self.citizen_otp_whatsapp_template_button_index: int | None = 0
+        elif button_raw.lower() in {"none", "off", "false"}:
+            self.citizen_otp_whatsapp_template_button_index = None
+        else:
+            try:
+                self.citizen_otp_whatsapp_template_button_index = max(0, int(button_raw))
+            except ValueError:
+                self.citizen_otp_whatsapp_template_button_index = 0
+        self.citizen_otp_whatsapp_timeout_seconds = self._float_setting(
+            "CITIZEN_OTP_WHATSAPP_TIMEOUT_SECONDS", default=15.0, minimum=1.0, maximum=60.0
+        )
+        # template = approved Meta auth template (issue #297 completion).
+        # session_text = sandbox-only free-form body inside the 24h customer window.
+        raw_wa_mode = os.getenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "template").strip().lower()
+        self.citizen_otp_whatsapp_message_mode = (
+            raw_wa_mode if raw_wa_mode in {"template", "session_text"} else "template"
+        )
+
         # Citizen-facing HTTPS base for notification deep links (issue #257).
         # Production must set an explicit non-localhost https URL.
         self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None

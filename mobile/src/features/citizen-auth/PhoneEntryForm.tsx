@@ -23,6 +23,7 @@ export type PhoneEntrySuccess = {
   expiresIn: number;
   phone: string;
   region?: string;
+  deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
 };
 
 type PhoneEntryFormProps = {
@@ -92,6 +93,7 @@ export function PhoneEntryForm({
         expiresIn: response.expiresIn,
         phone: validated.phone,
         region: validated.region,
+        deliveryChannel: response.deliveryChannel,
       });
     } catch (error) {
       if (error instanceof CitizenAuthApiError) {

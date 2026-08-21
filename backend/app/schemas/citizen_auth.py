@@ -41,6 +41,11 @@ class CitizenOtpRequestResponse(BaseModel):
     challenge_id: str = Field(alias="challengeId")
     expires_in: int = Field(alias="expiresIn")
     message: str
+    # Adaptable UI hint only — never proves delivery success or account existence (#297).
+    delivery_channel: Literal["sms", "whatsapp", "dev"] = Field(
+        default="sms",
+        alias="deliveryChannel",
+    )
 
     model_config = {"populate_by_name": True}
 

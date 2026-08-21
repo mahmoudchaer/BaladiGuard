@@ -51,6 +51,7 @@ export default function LoginScreen() {
               expiresIn={challenge.expiresIn}
               phone={challenge.phone}
               region={challenge.region}
+              deliveryChannel={challenge.deliveryChannel}
               onChallengeReplaced={(next) =>
                 setChallenge((prev) =>
                   prev
@@ -58,6 +59,7 @@ export default function LoginScreen() {
                         ...prev,
                         challengeId: next.challengeId,
                         expiresIn: next.expiresIn,
+                        deliveryChannel: next.deliveryChannel ?? prev.deliveryChannel,
                       }
                     : prev,
                 )

@@ -53,6 +53,7 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
           phone={challenge.phone}
           region={challenge.region}
           purpose="CHANGE_PHONE"
+          deliveryChannel={challenge.deliveryChannel}
           onChallengeReplaced={(next) =>
             setChallenge((prev) =>
               prev
@@ -60,6 +61,7 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
                     ...prev,
                     challengeId: next.challengeId,
                     expiresIn: next.expiresIn,
+                    deliveryChannel: next.deliveryChannel ?? prev.deliveryChannel,
                   }
                 : prev,
             )
