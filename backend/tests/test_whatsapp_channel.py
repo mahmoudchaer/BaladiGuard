@@ -291,6 +291,95 @@ def test_flow_advances_and_submits_ticket(wa_client, monkeypatch):
     assert submitted[0].ticket_id in safety_ticket_ids
 
 
+def test_submitting_ack_failure_resumes_submit_on_retry(wa_client, monkeypatch):
+    wa_id = "96170111115"
+    mock = get_mock_graph_client()
+
+    def fake_upload(contents: bytes, *, owner_user_id: str, content_type=None, filename=None):
+        return f"reports/temp/wa/{owner_user_id}/photo.jpg"
+
+    monkeypatch.setattr(
+        "app.services.whatsapp.fsm.photo_upload_service.upload_report_photo_bytes",
+        fake_upload,
+    )
+    setup_steps = [
+        ("wamid.sub.1", {"type": "text", "text": {"body": "hi"}}),
+        ("wamid.sub.2", {"type": "text", "text": {"body": "YES"}}),
+        ("wamid.sub.3", {"type": "text", "text": {"body": "EN"}}),
+        (
+            "wamid.sub.4",
+            {
+                "type": "text",
+                "text": {"body": "Broken streetlight on the corner after midnight."},
+            },
+        ),
+        (
+            "wamid.sub.5",
+            {
+                "type": "location",
+                "location": {
+                    "latitude": 33.896112,
+                    "longitude": 35.478419,
+                    "name": "Hamra",
+                    "address": "Near AUB Main Gate, Hamra, Beirut",
+                },
+            },
+        ),
+        (
+            "wamid.sub.6",
+            {"type": "image", "image": {"id": "media_1", "mime_type": "image/jpeg"}},
+        ),
+        ("wamid.sub.7", {"type": "text", "text": {"body": "SKIP"}}),
+    ]
+    for message_id, message in setup_steps:
+        result = _post_event(
+            wa_client,
+            _message_payload(message_id=message_id, wa_id=wa_id, message=message),
+        )
+        assert result["accepted"] == 1
+
+    original = mock.send_text
+
+    def fail_submitting_ack(*, phone_number_id: str, to_wa_id: str, body: str):
+        if "Submitting" in body or "جارٍ إرسال" in body:
+            raise RuntimeError("graph down on submitting ack")
+        return original(phone_number_id=phone_number_id, to_wa_id=to_wa_id, body=body)
+
+    monkeypatch.setattr(mock, "send_text", fail_submitting_ack)
+    confirm_payload = _message_payload(
+        message_id="wamid.sub.8",
+        wa_id=wa_id,
+        message={"type": "text", "text": {"body": "CONFIRM"}},
+    )
+    raw = json.dumps(confirm_payload, separators=(",", ":")).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": sign_meta_payload(app_secret=APP_SECRET, raw_body=raw),
+    }
+    failed = wa_client.post("/v1/whatsapp/webhook", content=raw, headers=headers)
+    assert failed.status_code == 503, failed.text
+    assert failed.json()["failed"] == 1
+    tickets_before = [
+        ticket
+        for ticket in ticket_store._tickets.values()  # noqa: SLF001
+        if "streetlight" in ticket.description.lower()
+    ]
+    assert tickets_before == []
+
+    monkeypatch.setattr(mock, "send_text", original)
+    retried = wa_client.post("/v1/whatsapp/webhook", content=raw, headers=headers)
+    assert retried.status_code == 200, retried.text
+    assert retried.json()["accepted"] == 1
+    assert retried.json()["duplicates"] == 0
+    tickets_after = [
+        ticket
+        for ticket in ticket_store._tickets.values()  # noqa: SLF001
+        if "streetlight" in ticket.description.lower()
+    ]
+    assert tickets_after
+    assert any("Report submitted" in msg.body or "Ticket:" in msg.body for msg in mock.sent)
+
+
 def test_disabled_channel_returns_503(monkeypatch):
     monkeypatch.setenv("WHATSAPP_ENABLED", "false")
     get_settings.cache_clear()

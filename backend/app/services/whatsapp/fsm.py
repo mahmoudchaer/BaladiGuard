@@ -99,7 +99,10 @@ class WhatsAppFlowEngine:
             return
 
         if event.message_id and conversation.last_inbound_message_id == event.message_id:
-            self._reply(conversation, prompt_for(conversation.state, conversation))
+            if conversation.state == "submitting":
+                self._submit(conversation, expected_version=conversation.version)
+            else:
+                self._reply(conversation, prompt_for(conversation.state, conversation))
             return
 
         expected_version = conversation.version
@@ -140,9 +143,11 @@ class WhatsAppFlowEngine:
         expected_version: int,
     ) -> WhatsAppConversation:
         state = conversation.state
-        if state in {"completed", "cancelled", "submitting"}:
+        if state in {"completed", "cancelled"}:
             self._reply(conversation, prompt_for(state, conversation))
             return conversation
+        if state == "submitting":
+            return self._submit(conversation, expected_version=expected_version)
 
         if state == "welcome":
             text = (event.text or "").strip().casefold()
