@@ -146,9 +146,7 @@ def whatsapp_otp_uses_session_text(settings: Settings) -> bool:
 
 
 def session_otp_text_body(code: str) -> str:
-    return (
-        f"BaladiGuard verification code: {code}. It expires in 5 minutes. Do not share it."
-    )
+    return f"BaladiGuard verification code: {code}. It expires in 5 minutes. Do not share it."
 
 
 def build_whatsapp_otp_payload(*, canonical_phone: str, code: str, settings: Settings) -> dict:
