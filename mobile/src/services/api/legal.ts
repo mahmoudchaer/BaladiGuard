@@ -12,10 +12,13 @@ async function legalFetch(path: string): Promise<Response> {
       headers: getAuthHeaders(),
     });
   } catch {
-    throw new CitizenAuthApiError('Unable to reach the server. Check your connection and try again.', {
-      code: 'NETWORK_ERROR',
-      status: 0,
-    });
+    throw new CitizenAuthApiError(
+      'Unable to reach the server. Check your connection and try again.',
+      {
+        code: 'NETWORK_ERROR',
+        status: 0,
+      },
+    );
   }
 }
 
