@@ -173,7 +173,12 @@ class TicketStore(Protocol):
     def requeue_ai_processing(self, ticket_id: str, updated_at: str) -> StoredTicket | None: ...
 
     def patch_ai_fields(
-        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+        self,
+        ticket_id: str,
+        claim_token: str,
+        fields: dict[str, object],
+        *,
+        expected_values: dict[str, object] | None = None,
     ) -> StoredTicket | None: ...
 
     def claim_image_redaction(

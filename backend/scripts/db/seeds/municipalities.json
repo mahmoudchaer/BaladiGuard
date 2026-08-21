@@ -2,8 +2,81 @@
   {
     "municipalityId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     "name": "Beirut Municipality",
+    "legalName": "Municipality of Beirut",
+    "description": "General municipal services for Beirut including roads, waste, lighting, drainage, traffic, noise, and public facilities. Does not operate water distribution or electricity networks.",
     "city": "Beirut",
     "governorate": "Beirut",
-    "createdAt": "2026-01-01T00:00:00Z"
+    "serviceDomains": ["roads", "waste", "lighting", "noise", "traffic", "drainage", "facilities"],
+    "bounds": {
+      "minLatitude": 33.84,
+      "maxLatitude": 33.93,
+      "minLongitude": 35.45,
+      "maxLongitude": 35.58
+    },
+    "categoryIds": [],
+    "active": true,
+    "profileVersion": 1,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  {
+    "municipalityId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "name": "Beirut Water Authority",
+    "legalName": "Beirut Water Establishment",
+    "description": "Public water distribution and leak response inside Beirut. Does not repair roads or electrical networks.",
+    "city": "Beirut",
+    "governorate": "Beirut",
+    "serviceDomains": ["water"],
+    "bounds": {
+      "minLatitude": 33.84,
+      "maxLatitude": 33.93,
+      "minLongitude": 35.45,
+      "maxLongitude": 35.58
+    },
+    "categoryIds": ["water_leak"],
+    "active": true,
+    "profileVersion": 1,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  {
+    "municipalityId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    "name": "Beirut Electricity Authority",
+    "legalName": "Electricite du Liban - Beirut",
+    "description": "Electrical distribution and power-outage response inside Beirut.",
+    "city": "Beirut",
+    "governorate": "Beirut",
+    "serviceDomains": ["electricity"],
+    "bounds": {
+      "minLatitude": 33.84,
+      "maxLatitude": 33.93,
+      "minLongitude": 35.45,
+      "maxLongitude": 35.58
+    },
+    "categoryIds": ["power_outage"],
+    "active": true,
+    "profileVersion": 1,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  {
+    "municipalityId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    "name": "Tripoli Electricity Authority",
+    "legalName": "Electricite du Liban - Tripoli",
+    "description": "Electrical distribution and power-outage response inside Tripoli.",
+    "city": "Tripoli",
+    "governorate": "North",
+    "serviceDomains": ["electricity"],
+    "bounds": {
+      "minLatitude": 34.40,
+      "maxLatitude": 34.48,
+      "minLongitude": 35.80,
+      "maxLongitude": 35.88
+    },
+    "categoryIds": ["power_outage"],
+    "active": true,
+    "profileVersion": 1,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
   }
 ]

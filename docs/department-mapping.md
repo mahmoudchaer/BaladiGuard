@@ -3,11 +3,10 @@
 This document defines the MVP department list and category→department routing rules for
 BaladiGuard.
 
-These departments are **functional routing domains** for the Beirut pilot municipality. They are
-aligned with common municipal service types (roads, waste, lighting, water, noise, traffic,
-drainage, public amenities), not a scrape of every Lebanese baladiye HR org chart. Municipality
-partners should validate names and ownership before production rollout. Multi-municipality overlays
-can reuse the same categories with different department IDs later.
+These departments are **functional routing domains** per municipality profile.
+Issue #322 routes tickets first to a municipality (geography + service domain),
+then to that municipality's department. Global category→department ids remain
+the Beirut Municipality defaults when no municipality is assigned.
 
 ## Scope Split
 
@@ -23,18 +22,22 @@ the department for that category.
 
 ## Department List
 
-Municipality: Beirut Municipality (`bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb`).
+Departments belong to a municipality. Beirut Municipality keeps the original eight
+operational desks. Utility authorities add their own distribution desks.
 
-| Department ID | Name |
-| --- | --- |
-| `d1111111-1111-1111-1111-111111111111` | Road Maintenance |
-| `d2222222-2222-2222-2222-222222222222` | Waste Management |
-| `d3333333-3333-3333-3333-333333333333` | Street Lighting |
-| `d4444444-4444-4444-4444-444444444444` | Water Services |
-| `d5555555-5555-5555-5555-555555555555` | Noise Control |
-| `d6666666-6666-6666-6666-666666666666` | Traffic Management |
-| `d7777777-7777-7777-7777-777777777777` | Drainage |
-| `d8888888-8888-8888-8888-888888888888` | Public Facilities |
+| Department ID | Name | Municipality |
+| --- | --- | --- |
+| `d1111111-1111-1111-1111-111111111111` | Road Maintenance | Beirut Municipality |
+| `d2222222-2222-2222-2222-222222222222` | Waste Management | Beirut Municipality |
+| `d3333333-3333-3333-3333-333333333333` | Street Lighting | Beirut Municipality |
+| `d4444444-4444-4444-4444-444444444444` | Water Services | Beirut Municipality |
+| `d5555555-5555-5555-5555-555555555555` | Noise Control | Beirut Municipality |
+| `d6666666-6666-6666-6666-666666666666` | Traffic Management | Beirut Municipality |
+| `d7777777-7777-7777-7777-777777777777` | Drainage | Beirut Municipality |
+| `d8888888-8888-8888-8888-888888888888` | Public Facilities | Beirut Municipality |
+| `d9999999-9999-4999-8999-999999999999` | Water Distribution | Beirut Water Authority |
+| `daaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa` | Power Distribution | Beirut Electricity Authority |
+| `dbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb` | Power Distribution | Tripoli Electricity Authority |
 
 ## Category → Department Map
 
@@ -49,6 +52,7 @@ Municipality: Beirut Municipality (`bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb`).
 | `traffic_signal` | Traffic Management |
 | `drainage` | Drainage |
 | `public_facilities` | Public Facilities |
+| `power_outage` | Power Distribution for the assigned electricity authority |
 | `PENDING_CLASSIFICATION` | None until classified or reviewed |
 
 ## Department Responsibilities

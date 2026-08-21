@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.database.serialization import prepare_dynamodb_value
+
 # StoredTicket Python field name -> DynamoDB / JSON alias
 TICKET_FIELD_ALIASES: dict[str, str] = {
     "cleaned_description": "cleanedDescription",
@@ -51,6 +53,10 @@ TICKET_FIELD_ALIASES: dict[str, str] = {
     "content_safety_staff_note": "contentSafetyStaffNote",
     "content_safety_history": "contentSafetyHistory",
     "duplicate_group_id": "duplicateGroupId",
+    "municipality_id": "municipalityId",
+    "municipality_routing_status": "municipalityRoutingStatus",
+    "municipality_routing": "municipalityRouting",
+    "municipality_routing_history": "municipalityRoutingHistory",
     "updated_at": "updatedAt",
     "updated_by": "updatedBy",
     "status": "status",
@@ -103,7 +109,14 @@ def build_update_expression(fields: dict[str, Any]) -> tuple[str, dict[str, str]
             continue
         value_key = f":v{index}"
         set_parts.append(f"{name_key} = {value_key}")
-        values[value_key] = value
+        values[value_key] = prepare_dynamodb_value(value)
+
+    if "municipality_id" in fields:
+        from app.database.serialization import STAFF_SCOPE_KEY, UNSCOPED_MUNICIPALITY_KEY
+
+        names["#staffScopeKey"] = STAFF_SCOPE_KEY
+        values[":staffScopeKey"] = fields["municipality_id"] or UNSCOPED_MUNICIPALITY_KEY
+        set_parts.append("#staffScopeKey = :staffScopeKey")
 
     clauses: list[str] = []
     if set_parts:

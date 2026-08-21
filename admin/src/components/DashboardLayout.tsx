@@ -36,6 +36,12 @@ const MUNICIPAL_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
 
 const OPERATOR_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
   { id: 'ops', labelKey: 'nav.ops', Icon: IconAnalytics, to: '/ops' },
+  {
+    id: 'municipalities',
+    labelKey: 'nav.municipalities',
+    Icon: IconPeople,
+    to: '/ops/municipalities',
+  },
 ];
 
 function isNavActive(pathname: string, to: string): boolean {
@@ -99,15 +105,6 @@ export function DashboardLayout({
               </NavLink>
             );
           })}
-          {operator ? (
-            <span
-              className="dashboard-rail__link dashboard-rail__link--disabled"
-              title={t('nav.municipalitiesSoon')}
-            >
-              <IconPeople />
-              <span className="dashboard-rail__link-label">{t('nav.municipalities')}</span>
-            </span>
-          ) : null}
         </nav>
       </aside>
 

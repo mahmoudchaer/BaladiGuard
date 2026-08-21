@@ -27,7 +27,6 @@ from app.schemas.workforce import (
 from app.services.complaints.sla import derive_ticket_sla
 from app.services.complaints.ticket_list_filters import OPEN_TICKET_STATUSES
 from app.services.routing import department_ids as catalog_department_ids
-from app.services.staff.bootstrap import BEIRUT_MUNICIPALITY_ID
 
 QUEUED_STATUSES = frozenset({"SUBMITTED", "UNDER_REVIEW"})
 ASSIGNED_STATUSES = frozenset({"ASSIGNED"})
@@ -97,7 +96,13 @@ def resolve_municipality_scope(principal: StaffPrincipal, municipality_id: str |
                 code="FORBIDDEN",
             )
         return principal.municipality_id
-    scoped = (municipality_id or "").strip() or BEIRUT_MUNICIPALITY_ID
+    scoped = (municipality_id or "").strip() or principal.municipality_id
+    if not scoped:
+        raise WorkforceError(
+            "municipalityId is required.",
+            status_code=400,
+            code="VALIDATION_ERROR",
+        )
     return scoped
 
 

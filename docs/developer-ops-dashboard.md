@@ -31,7 +31,9 @@ staff, municipality administrators, and citizens cannot use it.
 | Errors | Grouped 5xx / job failures | Request/job ids only — no ticket text, contacts, OTPs, or images |
 | Product | Aggregate ticket/notification counts | No citizen identifiers |
 
-Municipality management navigation is visible but disabled until issue #322.
+Municipality management lives at `/ops/municipalities` (issue #322). Only
+developer operators can create profiles and the first municipality
+administrator.
 
 ## API
 
@@ -46,6 +48,12 @@ All routes require `Authorization: Bearer` for a `developer_operator` session:
 - `GET /v1/ops/errors`
 - `GET /v1/ops/product`
 - `GET /v1/ops/runbooks`
+- `GET /v1/ops/municipalities`
+- `POST /v1/ops/municipalities`
+- `PUT /v1/ops/municipalities/{municipalityId}`
+- `POST /v1/ops/municipalities/{municipalityId}/admin`
+- `POST /v1/ops/municipalities/preview`
+- `POST /v1/ops/tickets/{ticketId}/municipality/override`
 
 Query filters are allowlisted (`range=1h|6h|24h|7d`, bounded `service`,
 `severity`, `jobType`, UUID `municipalityId`). Unknown values return 400.

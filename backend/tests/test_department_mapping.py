@@ -30,6 +30,7 @@ EXPECTED_MAP = {
     "traffic_signal": "d6666666-6666-6666-6666-666666666666",
     "drainage": "d7777777-7777-7777-7777-777777777777",
     "public_facilities": "d8888888-8888-8888-8888-888888888888",
+    "power_outage": "daaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 }
 
 
@@ -60,7 +61,7 @@ def test_seed_files_and_routing_module_stay_consistent() -> None:
     seeded_department_ids = {item["departmentId"] for item in departments}
 
     assert {item["departmentId"] for item in load_department_catalog()} == seeded_department_ids
-    assert len(load_department_catalog()) == 8
+    assert len(load_department_catalog()) == 11
 
     for item in categories:
         category_id = item["categoryId"]

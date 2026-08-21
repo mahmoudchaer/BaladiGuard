@@ -1,4 +1,4 @@
-"""Curated Beirut place index used when Amazon Location is not configured."""
+"""Curated Lebanon place index used when Amazon Location is not configured."""
 
 from __future__ import annotations
 
@@ -51,15 +51,32 @@ LOCAL_PLACES: tuple[LocalPlace, ...] = (
         longitude=35.5287,
         aliases=("mar mikhael", "marmikhael"),
     ),
+    LocalPlace(
+        label="Al Tall Square",
+        address_text="Al Tall Square, Tripoli",
+        latitude=34.4361,
+        longitude=35.8372,
+        aliases=("tripoli", "al tall", "el mina", "mina"),
+    ),
 )
 
-# Rough Beirut metro bounding box used for local coordinate checks.
+# Seeded municipality bounding boxes used for local coordinate checks.
+# Routing still uses per-municipality profiles; this union only gates intake.
 BEIRUT_BOUNDS = {
     "min_latitude": 33.84,
     "max_latitude": 33.93,
     "min_longitude": 35.45,
     "max_longitude": 35.58,
 }
+
+TRIPOLI_BOUNDS = {
+    "min_latitude": 34.40,
+    "max_latitude": 34.48,
+    "min_longitude": 35.80,
+    "max_longitude": 35.88,
+}
+
+SERVICE_AREA_BOUNDS: tuple[dict[str, float], ...] = (BEIRUT_BOUNDS, TRIPOLI_BOUNDS)
 
 
 def _normalize(text: str) -> str:
@@ -119,8 +136,30 @@ def search_local_places_by_position(
     return nearest
 
 
-def is_within_beirut_bounds(latitude: float, longitude: float) -> bool:
+def _in_bounds(latitude: float, longitude: float, bounds: dict[str, float]) -> bool:
     return (
-        BEIRUT_BOUNDS["min_latitude"] <= latitude <= BEIRUT_BOUNDS["max_latitude"]
-        and BEIRUT_BOUNDS["min_longitude"] <= longitude <= BEIRUT_BOUNDS["max_longitude"]
+        bounds["min_latitude"] <= latitude <= bounds["max_latitude"]
+        and bounds["min_longitude"] <= longitude <= bounds["max_longitude"]
     )
+
+
+def is_within_beirut_bounds(latitude: float, longitude: float) -> bool:
+    return _in_bounds(latitude, longitude, BEIRUT_BOUNDS)
+
+
+def is_within_service_area(latitude: float, longitude: float) -> bool:
+    """Accept coordinates covered by any active municipality, not only Beirut."""
+    if any(_in_bounds(latitude, longitude, box) for box in SERVICE_AREA_BOUNDS):
+        return True
+    try:
+        from app.database.store_factory import get_municipality_store
+        from app.services.routing.geo import municipality_covers_point
+
+        for profile in get_municipality_store().list_all():
+            if profile.active and municipality_covers_point(
+                profile, latitude=latitude, longitude=longitude
+            ):
+                return True
+    except Exception:  # pragma: no cover - store unavailable during early boot
+        return False
+    return False

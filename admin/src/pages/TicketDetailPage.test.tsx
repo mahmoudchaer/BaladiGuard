@@ -17,6 +17,8 @@ import {
   updateTicketStatus,
   fetchImageRedactionReview,
   fetchContentSafetyReview,
+  claimTicketMunicipality,
+  rejectTicketMunicipality,
 } from '@/services/tickets';
 import { fetchResolutionFeedback } from '@/services/resolutionFeedback';
 import {
@@ -50,6 +52,8 @@ vi.mock('@/services/tickets', () => ({
   fetchTicketComments: vi.fn(),
   fetchImageRedactionReview: vi.fn(),
   fetchContentSafetyReview: vi.fn(),
+  claimTicketMunicipality: vi.fn(),
+  rejectTicketMunicipality: vi.fn(),
 }));
 
 vi.mock('@/services/workforce', () => ({
@@ -1868,5 +1872,81 @@ describe('TicketDetailPage work orders and outcome reasons', () => {
     expect(screen.getByText(/The hole is still there/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep resolved after review' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Return to in progress' })).toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage municipality routing', () => {
+  it('claims an unassigned ticket for the signed-in municipality', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      municipalityRouting: {
+        status: 'unassigned',
+        canClaim: true,
+        canReject: false,
+        canOverride: false,
+        decision: {
+          status: 'unassigned',
+          reason: 'Overlapping electricity mandates',
+          reasonCode: 'ROUTE_AMBIGUOUS',
+        },
+      },
+    });
+    vi.mocked(claimTicketMunicipality).mockResolvedValue({
+      ...ticket,
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      municipalityRouting: {
+        status: 'assigned',
+        canClaim: false,
+        canReject: true,
+        canOverride: false,
+      },
+    });
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    await user.click(screen.getByRole('button', { name: 'Claim for my municipality' }));
+
+    await waitFor(() => {
+      expect(claimTicketMunicipality).toHaveBeenCalledWith('tkt_123', {
+        reasonCode: 'CONFIRMED_GEOGRAPHY',
+      });
+    });
+  });
+
+  it('rejects ownership with a required reason', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'prompt').mockReturnValue('This is a water leak, not a road.');
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      municipalityRouting: {
+        status: 'assigned',
+        canClaim: false,
+        canReject: true,
+        canOverride: false,
+      },
+    });
+    vi.mocked(rejectTicketMunicipality).mockResolvedValue({
+      ...ticket,
+      municipalityId: null,
+      municipalityRouting: {
+        status: 'unassigned',
+        canClaim: true,
+        canReject: false,
+        canOverride: false,
+      },
+    });
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    await user.click(screen.getByRole('button', { name: 'Reject ownership' }));
+
+    await waitFor(() => {
+      expect(rejectTicketMunicipality).toHaveBeenCalledWith('tkt_123', {
+        reasonCode: 'OUT_OF_GEOGRAPHY',
+        note: 'This is a water leak, not a road.',
+      });
+    });
   });
 });

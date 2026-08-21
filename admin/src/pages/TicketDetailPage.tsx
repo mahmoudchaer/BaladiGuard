@@ -20,6 +20,8 @@ import {
   mergeDuplicateTickets,
   reviewTicketCategory,
   updateTicketStatus,
+  claimTicketMunicipality,
+  rejectTicketMunicipality,
 } from '@/services/tickets';
 import {
   assignWorkOrder,
@@ -1547,6 +1549,55 @@ export function TicketDetailPage({
                     });
                   }}
                 />
+              </div>
+
+              <div className="ticket-detail__card">
+                <h4 className="ticket-detail__card-title">{t('ticket.review.routingTitle')}</h4>
+                <p className="ticket-detail__card-hint">{t('ticket.review.routingHint')}</p>
+                <p className="ticket-detail__current-value">
+                  {ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}
+                  {ticket.municipalityId
+                    ? ` · ${ticket.municipalityId}`
+                    : ` · ${t('ticket.review.unassignedQueue')}`}
+                </p>
+                {ticket.municipalityRouting?.decision?.reason ? (
+                  <p className="ticket-detail__card-hint">
+                    {ticket.municipalityRouting.decision.reason}
+                  </p>
+                ) : null}
+                {ticket.municipalityRouting?.canClaim ? (
+                  <button
+                    type="button"
+                    className="ticket-detail__primary-button"
+                    onClick={() => {
+                      void claimTicketMunicipality(ticket.ticketId, {
+                        reasonCode: 'CONFIRMED_GEOGRAPHY',
+                      }).then((next) => {
+                        if (next) setTicket(next);
+                      });
+                    }}
+                  >
+                    {t('ticket.review.claim')}
+                  </button>
+                ) : null}
+                {ticket.municipalityRouting?.canReject ? (
+                  <button
+                    type="button"
+                    className="ticket-detail__secondary-button"
+                    onClick={() => {
+                      const note = window.prompt(t('ticket.review.rejectPrompt'));
+                      if (!note) return;
+                      void rejectTicketMunicipality(ticket.ticketId, {
+                        reasonCode: 'OUT_OF_GEOGRAPHY',
+                        note,
+                      }).then((next) => {
+                        if (next) setTicket(next);
+                      });
+                    }}
+                  >
+                    {t('ticket.review.rejectOwnership')}
+                  </button>
+                ) : null}
               </div>
 
               <div className="ticket-detail__card">

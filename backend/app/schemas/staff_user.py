@@ -46,11 +46,18 @@ class StoredStaffUser(BaseModel):
 
     @model_validator(mode="after")
     def validate_role_scope(self) -> StoredStaffUser:
-        if self.role in {"administrator", "developer_operator"}:
+        if self.role == "developer_operator":
             if self.municipality_id is not None or self.department_ids is not None:
                 raise ValueError(
-                    f"{self.role} accounts must use municipalityId=null and departmentIds=null."
+                    "developer_operator accounts must use municipalityId=null "
+                    "and departmentIds=null."
                 )
+            return self
+        if self.role == "administrator":
+            if not self.municipality_id:
+                raise ValueError("administrator accounts require municipalityId.")
+            if self.department_ids is not None:
+                raise ValueError("administrator accounts must use departmentIds=null.")
             return self
         if not self.municipality_id:
             raise ValueError("municipal_staff accounts require municipalityId.")

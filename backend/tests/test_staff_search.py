@@ -211,7 +211,7 @@ def test_staff_search_work_order_id_requires_ticket_access(
     ticket_store.save(
         stored.model_copy(
             update={
-                "municipality_id": OTHER_MUNICIPALITY,
+                "municipality_id": BEIRUT,
                 "department_id": ROADS,
                 "status": "IN_PROGRESS",
             }
@@ -223,6 +223,9 @@ def test_staff_search_work_order_id_requires_ticket_access(
         headers=_headers(anonymous_client),
     )
     assert work_order.status_code == 201
+    owned = ticket_store.get(ticket_id)
+    assert owned is not None
+    ticket_store.save(owned.model_copy(update={"municipality_id": OTHER_MUNICIPALITY}))
     hidden = _search(anonymous_client, work_order.json()["workOrderId"], username="staff")
     assert hidden.json()["workOrders"] == []
 

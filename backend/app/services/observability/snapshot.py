@@ -59,9 +59,10 @@ from app.services.observability.safe import (
 logger = logging.getLogger(__name__)
 
 MUNICIPALITY_NAV = {
-    "available": False,
+    "available": True,
     "issue": "322",
-    "label": "Municipality management is owned by the multi-municipality control-plane issue.",
+    "label": "Municipality management",
+    "path": "/ops/municipalities",
 }
 
 OPEN_TICKET_STATUSES = {"SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS"}

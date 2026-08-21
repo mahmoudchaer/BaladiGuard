@@ -61,6 +61,10 @@
     "ai-multi-015-public-facilities-en-informal": {
       "category": "public_facilities",
       "cleanedDescription": "The playground slide in the municipal playground has cracked plastic and a sharp edge."
+    },
+    "ai-multi-016-power-outage-en": {
+      "category": "power_outage",
+      "cleanedDescription": "A power outage in Hamra since 6pm has left a dark street."
     }
   }
 }

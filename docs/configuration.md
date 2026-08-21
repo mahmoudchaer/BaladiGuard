@@ -31,7 +31,7 @@ fail-closed rules.
 | Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Staging and production must use the real adapter (staging may use provider sandbox/allowlists). |
 | Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Production: non-placeholder `SECRET_KEY` required |
 | Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Production: non-demo credentials required |
-| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Production: real Amazon Location index required |
+| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Lebanon place index | Production: real Amazon Location index required |
 | Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | Production: `AWS_S3_BUCKET` required |
 | Dynamo endpoint | Localhost Docker URL allowed | Production must not point at localhost |
 | Sample seed | Optional synthetic mocks only | Production: `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
@@ -59,6 +59,10 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `ACTIVITY_TIMELINE_USE_GSI` | No | `false` | Enable only after timeline GSIs are ACTIVE and `backfill_activity_timeline_keys.py` has finished for status, audit, and comments. See `docs/staff-comments-and-activity.md`. |
 | `SEED_SAMPLE_TICKETS` | No | `false` | Must be `false` in production |
 | `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | AI classification / cleaning |
+| `MUNICIPALITY_ROUTING_ENABLED` | No | `true` | Auto-assign tickets after classification (#322) |
+| `MUNICIPALITY_ROUTING_USE_MODEL` | No | `false` | Optional Bedrock tie-break; keep false in CI |
+| `MUNICIPALITY_ROUTING_MODEL_ID` | No | `BEDROCK_MODEL_ID` | Structured municipality routing tool |
+| `MUNICIPALITY_ROUTING_HIGH_CONFIDENCE` | No | `0.85` | Model-path assign threshold (0.5–1.0) |
 | `CONTENT_SAFETY_ENABLED` | No | `true` | Enroll new tickets in content-safety screening (#319) |
 | `CONTENT_SAFETY_FAIL_CLOSED` | No | `true` except local/test/development | Provider outage → `review_required`, never public `passed` |
 | `CONTENT_SAFETY_TEXT_MODEL_ID` | No | `BEDROCK_MODEL_ID` | Bedrock structured moderation model |

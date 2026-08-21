@@ -4,20 +4,20 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { LoadingState } from '@/components/LoadingState';
 import { useI18n } from '@/i18n/LocaleProvider';
-import { DEPARTMENT_NAMES } from '@/data/departments';
+import {
+  DEPARTMENT_NAMES,
+  MUNICIPALITY_NAMES,
+  departmentsForMunicipality,
+} from '@/data/departments';
 import {
   createStaffAccount,
   listStaffAccounts,
+  listStaffDepartments,
   setStaffAccountActive,
   updateStaffAccount,
 } from '@/services/staffAccounts';
 import type { StaffAccount, StaffAccountRole } from '@/types/staffAccount';
 import './StaffAccountsPage.css';
-
-const DEPARTMENT_OPTIONS = Object.entries(DEPARTMENT_NAMES);
-const MUNICIPALITY_OPTIONS = [
-  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'Beirut Municipality' },
-];
 
 type CreateForm = {
   username: string;
@@ -49,8 +49,12 @@ function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function departmentLabel(ids: string[], unknownLabel: string): string {
-  return ids.map((id) => DEPARTMENT_NAMES[id] ?? `${unknownLabel} ${id}`).join(', ');
+function departmentLabel(
+  ids: string[],
+  unknownLabel: string,
+  names: Record<string, string> = DEPARTMENT_NAMES,
+): string {
+  return ids.map((id) => names[id] ?? `${unknownLabel} ${id}`).join(', ');
 }
 
 function roleLabel(role: StaffAccountRole, t: (key: string) => string): string {
@@ -65,8 +69,8 @@ function validateScope(
   departmentIds: string[],
   t: (key: string) => string,
 ): string | null {
-  if (role === 'administrator') {
-    return null;
+  if (role !== 'municipal_staff') {
+    return t('staffAccounts.municipalStaffOnly');
   }
   if (!municipalityId.trim()) {
     return t('staffAccounts.municipalityRequired');
@@ -78,50 +82,38 @@ function validateScope(
 }
 
 function ScopeFields({
-  role,
   municipalityId,
   departmentIds,
+  departmentOptions,
   hintId,
-  onMunicipalityChange,
   onDepartmentsChange,
 }: {
-  role: StaffAccountRole;
   municipalityId: string;
   departmentIds: string[];
+  departmentOptions: Array<[string, string]>;
   hintId: string;
-  onMunicipalityChange: (value: string) => void;
   onDepartmentsChange: (value: string[]) => void;
 }) {
   const { t } = useI18n();
-  const isAdministrator = role === 'administrator';
   return (
     <div className="staff-accounts__scope">
       <label className="staff-accounts__field">
         <span>{t('staffAccounts.municipality')}</span>
-        <select
-          value={isAdministrator ? '' : municipalityId}
-          onChange={(event) => onMunicipalityChange(event.target.value)}
-          disabled={isAdministrator}
-          aria-describedby={hintId}
-          required={!isAdministrator}
-        >
+        <select value={municipalityId} disabled aria-describedby={hintId} required>
           <option value="">{t('staffAccounts.selectMunicipality')}</option>
-          {MUNICIPALITY_OPTIONS.map((municipality) => (
-            <option key={municipality.id} value={municipality.id}>
-              {municipality.name}
-            </option>
-          ))}
+          <option value={municipalityId}>
+            {MUNICIPALITY_NAMES[municipalityId] ?? municipalityId}
+          </option>
         </select>
       </label>
       <fieldset className="staff-accounts__departments">
         <legend>{t('staffAccounts.departments')}</legend>
         <div className="staff-accounts__department-grid">
-          {DEPARTMENT_OPTIONS.map(([id, name]) => (
+          {departmentOptions.map(([id, name]) => (
             <label key={id}>
               <input
                 type="checkbox"
-                checked={!isAdministrator && departmentIds.includes(id)}
-                disabled={isAdministrator}
+                checked={departmentIds.includes(id)}
                 onChange={() => onDepartmentsChange(toggleValue(departmentIds, id))}
               />
               {name}
@@ -130,7 +122,7 @@ function ScopeFields({
         </div>
       </fieldset>
       <p id={hintId} className="staff-accounts__hint">
-        {isAdministrator ? t('staffAccounts.globalScope') : t('staffAccounts.municipalScope')}
+        {t('staffAccounts.municipalScope')}
       </p>
     </div>
   );
@@ -149,6 +141,8 @@ export function StaffAccountsPage() {
   const [savingCreate, setSavingCreate] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [departmentOptions, setDepartmentOptions] = useState<Array<[string, string]>>([]);
+  const [departmentNames, setDepartmentNames] = useState<Record<string, string>>(DEPARTMENT_NAMES);
   const createInFlight = useRef(false);
   const mutationInFlight = useRef<Set<string>>(new Set());
 
@@ -169,6 +163,31 @@ export function StaffAccountsPage() {
     // The translation function is stable for the active locale; this is a route-entry load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const scopedMunicipalityId = session?.municipalityId ?? '';
+
+  useEffect(() => {
+    setDepartmentOptions(departmentsForMunicipality(scopedMunicipalityId));
+    void listStaffDepartments()
+      .then((items) => {
+        if (items.length === 0) return;
+        setDepartmentOptions(items.map((item) => [item.departmentId, item.name]));
+        setDepartmentNames((current) => ({
+          ...current,
+          ...Object.fromEntries(items.map((item) => [item.departmentId, item.name])),
+        }));
+      })
+      .catch(() => {
+        // Seed catalog remains available when the live list cannot be loaded.
+      });
+  }, [scopedMunicipalityId]);
+
+  useEffect(() => {
+    if (!scopedMunicipalityId) return;
+    setCreateForm((current) =>
+      current.municipalityId ? current : { ...current, municipalityId: scopedMunicipalityId },
+    );
+  }, [scopedMunicipalityId]);
 
   const visibleAccounts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -198,7 +217,7 @@ export function StaffAccountsPage() {
     setSuccessMessage(null);
     const scopeError = validateScope(
       createForm.role,
-      createForm.municipalityId,
+      scopedMunicipalityId,
       createForm.departmentIds,
       t,
     );
@@ -215,12 +234,11 @@ export function StaffAccountsPage() {
         email: createForm.email.trim(),
         password: createForm.password,
         role: createForm.role,
-        municipalityId:
-          createForm.role === 'administrator' ? null : createForm.municipalityId.trim(),
-        departmentIds: createForm.role === 'administrator' ? null : createForm.departmentIds,
+        municipalityId: scopedMunicipalityId,
+        departmentIds: createForm.departmentIds,
       });
       setAccounts((current) => [created, ...current]);
-      setCreateForm(EMPTY_CREATE);
+      setCreateForm({ ...EMPTY_CREATE, municipalityId: scopedMunicipalityId });
       setSuccessMessage(t('staffAccounts.created'));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : t('staffAccounts.createError'));
@@ -245,7 +263,7 @@ export function StaffAccountsPage() {
     if (!editForm || mutationInFlight.current.has(account.staffId)) return;
     const scopeError = validateScope(
       editForm.role,
-      editForm.municipalityId,
+      scopedMunicipalityId,
       editForm.departmentIds,
       t,
     );
@@ -270,8 +288,8 @@ export function StaffAccountsPage() {
     try {
       const updated = await updateStaffAccount(account.staffId, {
         ...(roleChanged ? { role: editForm.role } : {}),
-        municipalityId: editForm.role === 'administrator' ? null : editForm.municipalityId.trim(),
-        departmentIds: editForm.role === 'administrator' ? null : editForm.departmentIds,
+        municipalityId: scopedMunicipalityId,
+        departmentIds: editForm.departmentIds,
       });
       setAccounts((current) =>
         current.map((item) => (item.staffId === updated.staffId ? updated : item)),
@@ -404,15 +422,13 @@ export function StaffAccountsPage() {
                 onChange={(e) => updateCreate('role', e.target.value as StaffAccountRole)}
               >
                 <option value="municipal_staff">{roleLabel('municipal_staff', t)}</option>
-                <option value="administrator">{roleLabel('administrator', t)}</option>
               </select>
             </label>
             <ScopeFields
               hintId="create-staff-scope-hint"
-              role={createForm.role}
-              municipalityId={createForm.municipalityId}
+              municipalityId={scopedMunicipalityId || createForm.municipalityId}
               departmentIds={createForm.departmentIds}
-              onMunicipalityChange={(value) => updateCreate('municipalityId', value)}
+              departmentOptions={departmentOptions}
               onDepartmentsChange={(value) => updateCreate('departmentIds', value)}
             />
             <div className="staff-accounts__form-actions">
@@ -504,7 +520,6 @@ export function StaffAccountsPage() {
                               <option value="municipal_staff">
                                 {roleLabel('municipal_staff', t)}
                               </option>
-                              <option value="administrator">{roleLabel('administrator', t)}</option>
                             </select>
                           ) : (
                             roleLabel(account.role, t)
@@ -514,25 +529,24 @@ export function StaffAccountsPage() {
                           {editing ? (
                             <ScopeFields
                               hintId={`edit-${account.staffId}-scope-hint`}
-                              role={editForm.role}
-                              municipalityId={editForm.municipalityId}
+                              municipalityId={scopedMunicipalityId || editForm.municipalityId}
                               departmentIds={editForm.departmentIds}
-                              onMunicipalityChange={(value) =>
-                                setEditForm({ ...editForm, municipalityId: value })
-                              }
+                              departmentOptions={departmentOptions}
                               onDepartmentsChange={(value) =>
                                 setEditForm({ ...editForm, departmentIds: value })
                               }
                             />
-                          ) : account.role === 'administrator' ? (
-                            t('staffAccounts.global')
                           ) : (
                             <>
-                              <span>{account.municipalityId}</span>
+                              <span>
+                                {MUNICIPALITY_NAMES[account.municipalityId ?? ''] ??
+                                  account.municipalityId}
+                              </span>
                               <span className="staff-accounts__meta">
                                 {departmentLabel(
                                   account.departmentIds ?? [],
                                   t('staffAccounts.unknownDepartment'),
+                                  departmentNames,
                                 )}
                               </span>
                             </>

@@ -22,9 +22,19 @@ vi.mock('@/services/tickets', () => ({
 
 vi.mock('@/services/staffAccounts', () => ({
   listStaffAccounts: vi.fn(),
+  listStaffDepartments: vi.fn(async () => []),
   createStaffAccount: vi.fn(),
   updateStaffAccount: vi.fn(),
   setStaffAccountActive: vi.fn(),
+}));
+
+vi.mock('@/services/municipalities', () => ({
+  listMunicipalities: vi.fn(async () => []),
+  createMunicipality: vi.fn(),
+  updateMunicipality: vi.fn(),
+  provisionMunicipalityAdmin: vi.fn(),
+  previewMunicipalityRouting: vi.fn(),
+  overrideTicketMunicipality: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -105,10 +115,26 @@ function signInAdministratorSession() {
       name: 'Demo Administrator',
       staffId: 'staff_admin_001',
       role: 'administrator',
-      municipalityId: null,
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
       departmentIds: null,
       signedInAt: '2026-07-27T08:00:00Z',
       accessToken: 'test-admin-token',
+    }),
+  );
+}
+
+function signInOperatorSession() {
+  window.localStorage.setItem(
+    'baladiguard.staffSession',
+    JSON.stringify({
+      username: 'operator',
+      name: 'Demo Developer Operator',
+      staffId: 'staff_ops_001',
+      role: 'developer_operator',
+      municipalityId: null,
+      departmentIds: null,
+      signedInAt: '2026-08-19T08:00:00Z',
+      accessToken: 'test-ops-token',
     }),
   );
 }
@@ -379,6 +405,16 @@ describe('App staff authentication', () => {
       await screen.findByRole('heading', { name: 'Staff accounts', level: 2 }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Staff accounts' })).toBeInTheDocument();
+  });
+
+  it('shows operator navigation and renders the municipalities route', async () => {
+    signInOperatorSession();
+    renderApp('/ops/municipalities');
+    expect(
+      await screen.findByRole('heading', { name: 'Municipalities', level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Municipalities' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Operations' })).toBeInTheDocument();
   });
 
   it('denies municipal staff who enter the staff-account URL directly', async () => {

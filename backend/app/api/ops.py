@@ -7,6 +7,12 @@ from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
 from app.core.staff_auth import DeveloperOperatorDep
+from app.schemas.municipality import (
+    MunicipalityOverrideRequest,
+    ProvisionMunicipalityAdminRequest,
+    RoutingPreviewRequest,
+    UpsertMunicipalityRequest,
+)
 from app.schemas.ops import AcknowledgeAlertRequest, OpsOverviewResponse
 from app.services.observability.safe import (
     ALLOWED_ERROR_CATEGORIES,
@@ -232,3 +238,146 @@ def ops_product(
 @router.get("/runbooks")
 def ops_runbooks(principal: DeveloperOperatorDep):
     return {"items": [item.model_dump(by_alias=True) for item in all_runbooks()]}
+
+
+@router.get("/municipalities")
+def ops_list_municipalities(principal: DeveloperOperatorDep):
+    from app.services.municipalities.departments import municipality_response
+    from app.services.municipalities.service import municipality_control_service
+
+    items = municipality_control_service.list_profiles()
+    return {"items": [municipality_response(item).model_dump(by_alias=True) for item in items]}
+
+
+@router.post("/municipalities", status_code=201)
+def ops_create_municipality(
+    payload: UpsertMunicipalityRequest,
+    request: Request,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.municipalities.departments import municipality_response
+    from app.services.municipalities.service import (
+        MunicipalityControlError,
+        municipality_control_service,
+    )
+
+    try:
+        created = municipality_control_service.create_profile(principal, payload)
+    except MunicipalityControlError as exc:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return municipality_response(created).model_dump(by_alias=True)
+
+
+@router.get("/municipalities/{municipality_id}")
+def ops_get_municipality(municipality_id: str, request: Request, principal: DeveloperOperatorDep):
+    from app.services.municipalities.departments import municipality_response
+    from app.services.municipalities.service import (
+        MunicipalityControlError,
+        municipality_control_service,
+    )
+
+    try:
+        profile = municipality_control_service.get_profile(municipality_id)
+    except MunicipalityControlError as exc:
+        return build_error_response(
+            code="NOT_FOUND",
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return municipality_response(profile).model_dump(by_alias=True)
+
+
+@router.put("/municipalities/{municipality_id}")
+def ops_update_municipality(
+    municipality_id: str,
+    payload: UpsertMunicipalityRequest,
+    request: Request,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.municipalities.departments import municipality_response
+    from app.services.municipalities.service import (
+        MunicipalityControlError,
+        municipality_control_service,
+    )
+
+    try:
+        updated = municipality_control_service.update_profile(principal, municipality_id, payload)
+    except MunicipalityControlError as exc:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return municipality_response(updated).model_dump(by_alias=True)
+
+
+@router.post("/municipalities/{municipality_id}/admin")
+def ops_provision_municipality_admin(
+    municipality_id: str,
+    payload: ProvisionMunicipalityAdminRequest,
+    request: Request,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.municipalities.service import (
+        MunicipalityControlError,
+        municipality_control_service,
+    )
+
+    try:
+        created = municipality_control_service.provision_admin(principal, municipality_id, payload)
+    except MunicipalityControlError as exc:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return created.model_dump(by_alias=True)
+
+
+@router.post("/municipalities/preview")
+def ops_preview_municipality_routing(
+    payload: RoutingPreviewRequest, principal: DeveloperOperatorDep
+):
+    from app.services.municipalities.service import municipality_control_service
+
+    return municipality_control_service.preview(payload).model_dump(by_alias=True)
+
+
+@router.post("/tickets/{ticket_id}/municipality/override")
+def ops_override_ticket_municipality(
+    ticket_id: str,
+    payload: MunicipalityOverrideRequest,
+    request: Request,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.complaints.ticket_service import TicketNotFoundError, ticket_service
+    from app.services.municipalities.ticket_routing import (
+        MunicipalityRoutingError,
+        override_ticket,
+    )
+
+    try:
+        updated = override_ticket(ticket_id, principal, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except MunicipalityRoutingError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return ticket_service._map_ticket(updated).model_dump(by_alias=True)

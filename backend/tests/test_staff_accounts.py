@@ -16,6 +16,7 @@ from app.core.staff_auth import (
 )
 from app.database.memory_staff import staff_store
 from app.schemas.staff_user import StoredStaffUser
+from app.services.staff.bootstrap import BEIRUT_MUNICIPALITY_ID
 
 
 def test_password_hash_is_salted_and_verifiable() -> None:
@@ -49,7 +50,7 @@ def test_staff_login_returns_role_aware_claims(anonymous_client: TestClient) -> 
     assert "passwordHash" not in body
 
 
-def test_admin_login_returns_global_scope_sentinels(anonymous_client: TestClient) -> None:
+def test_admin_login_returns_municipality_scope(anonymous_client: TestClient) -> None:
     response = anonymous_client.post(
         "/v1/staff/login",
         json={"username": "admin", "password": "staff-demo-password"},
@@ -57,7 +58,7 @@ def test_admin_login_returns_global_scope_sentinels(anonymous_client: TestClient
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["role"] == "administrator"
-    assert body["municipalityId"] is None
+    assert body["municipalityId"] == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     assert body["departmentIds"] is None
 
 
@@ -92,7 +93,7 @@ def test_token_carries_role_claims_on_verify() -> None:
     verified = verify_staff_access_token(token)
     assert verified.staff_id == user.staff_id
     assert verified.role == "administrator"
-    assert verified.municipality_id is None
+    assert verified.municipality_id == BEIRUT_MUNICIPALITY_ID
     assert verified.department_ids is None
 
 

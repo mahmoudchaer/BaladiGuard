@@ -13,6 +13,11 @@ from app.schemas.image_redaction import (
     RedactionProvenance,
     StoredRedactionRegion,
 )
+from app.schemas.stored_municipality import (
+    MunicipalityRoutingDecision,
+    MunicipalityRoutingProvenance,
+    MunicipalityRoutingStatus,
+)
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
 
@@ -115,6 +120,15 @@ class StoredTicket(BaseModel):
     urgency_reason: str | None = Field(default=None, alias="urgencyReason")
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
+    municipality_routing_status: MunicipalityRoutingStatus | None = Field(
+        default=None, alias="municipalityRoutingStatus"
+    )
+    municipality_routing: MunicipalityRoutingDecision | None = Field(
+        default=None, alias="municipalityRouting"
+    )
+    municipality_routing_history: list[MunicipalityRoutingProvenance] = Field(
+        default_factory=list, alias="municipalityRoutingHistory"
+    )
     department_id: str | None = Field(default=None, alias="departmentId")
     suggested_department_id: str | None = Field(default=None, alias="suggestedDepartmentId")
     assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")

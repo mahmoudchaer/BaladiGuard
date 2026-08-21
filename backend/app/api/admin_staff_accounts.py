@@ -6,16 +6,18 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.core.errors import build_error_response, get_request_id
-from app.core.staff_auth import AdminStaffDep
-from app.database.store_factory import get_staff_store
+from app.core.staff_auth import AdminStaffDep, MunicipalStaffDep
 from app.schemas.admin_staff_accounts import (
     CreateStaffAccountRequest,
     StaffAccountResponse,
     UpdateStaffAccountRequest,
 )
+from app.schemas.municipality import DepartmentListResponse, DepartmentResponse
+from app.services.municipalities.departments import departments_for_municipality
 from app.services.staff.admin_accounts import StaffAccountAdminError, staff_account_admin_service
 
 router = APIRouter(prefix="/v1/admin/staff-accounts", tags=["administrator-staff-accounts"])
+departments_router = APIRouter(prefix="/v1/staff", tags=["staff-departments"])
 
 
 def _error(request: Request, exc: StaffAccountAdminError) -> JSONResponse:
@@ -42,24 +44,34 @@ def _error(request: Request, exc: StaffAccountAdminError) -> JSONResponse:
     )
 
 
+@departments_router.get("/departments", response_model=DepartmentListResponse)
+def list_staff_departments(principal: MunicipalStaffDep) -> DepartmentListResponse:
+    if not principal.municipality_id:
+        return DepartmentListResponse(items=[])
+    return DepartmentListResponse(
+        items=[
+            DepartmentResponse.from_stored(item)
+            for item in departments_for_municipality(principal.municipality_id)
+        ]
+    )
+
+
 @router.get("", response_model=list[StaffAccountResponse])
 def list_staff_accounts(principal: AdminStaffDep) -> list[StaffAccountResponse]:
-    users = [user for user in get_staff_store().list() if user.role != "developer_operator"]
-    return [StaffAccountResponse.from_user(user) for user in users]
+    return [
+        StaffAccountResponse.from_user(user)
+        for user in staff_account_admin_service.list_managed(principal)
+    ]
 
 
 @router.get("/{staff_id}", response_model=StaffAccountResponse)
 def get_staff_account(
     staff_id: str, request: Request, principal: AdminStaffDep
 ) -> StaffAccountResponse | JSONResponse:
-    user = get_staff_store().get(staff_id)
-    if user is None or user.role == "developer_operator":
-        return build_error_response(
-            code="STAFF_ACCOUNT_NOT_FOUND",
-            message="Staff account not found.",
-            request_id=get_request_id(request),
-            status_code=404,
-        )
+    try:
+        user = staff_account_admin_service.get_managed(principal, staff_id)
+    except StaffAccountAdminError as exc:
+        return _error(request, exc)
     return StaffAccountResponse.from_user(user)
 
 
@@ -87,6 +99,7 @@ def update_staff_account(
             status_code=400,
         )
     try:
+        existing = staff_account_admin_service.get_managed(principal, staff_id)
         if "role" in fields:
             user = staff_account_admin_service.change_role(
                 principal,
@@ -96,14 +109,6 @@ def update_staff_account(
                 department_ids=payload.department_ids,
             )
         else:
-            existing = get_staff_store().get(staff_id)
-            if existing is None:
-                return build_error_response(
-                    code="STAFF_ACCOUNT_NOT_FOUND",
-                    message="Staff account not found.",
-                    request_id=get_request_id(request),
-                    status_code=404,
-                )
             user = staff_account_admin_service.change_scope(
                 principal,
                 staff_id=staff_id,

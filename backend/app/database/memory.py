@@ -20,6 +20,10 @@ from app.database.ticket_store import (
     public_ticket_matches_query,
 )
 from app.schemas.content_safety import ContentSafetyProvenance
+from app.schemas.stored_municipality import (
+    MunicipalityRoutingDecision,
+    MunicipalityRoutingProvenance,
+)
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.services.complaints.ticket_list_filters import TicketListFilters, filter_stored_tickets
@@ -99,7 +103,14 @@ class InMemoryTicketStore:
             candidates = list(self._tickets.values())
 
         if browse_mode == "admin":
-            scoped = candidates
+            if municipality_id:
+                scoped = [
+                    ticket
+                    for ticket in candidates
+                    if ticket.municipality_id in {None, municipality_id}
+                ]
+            else:
+                scoped = candidates
         else:
             scoped = [
                 ticket
@@ -257,7 +268,7 @@ class InMemoryTicketStore:
                 ticket
             ):
                 return None
-            updated_ticket = ticket.model_copy(update=fields)
+            updated_ticket = _with_coerced_municipality_routing(ticket.model_copy(update=fields))
             self._tickets[ticket_id] = updated_ticket
             return updated_ticket
 
@@ -372,7 +383,12 @@ class InMemoryTicketStore:
             return updated_ticket
 
     def patch_ai_fields(
-        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+        self,
+        ticket_id: str,
+        claim_token: str,
+        fields: dict[str, object],
+        *,
+        expected_values: dict[str, Any] | None = None,
     ) -> StoredTicket | None:
         with self._lock:
             ticket = self._tickets.get(ticket_id)
@@ -382,9 +398,11 @@ class InMemoryTicketStore:
                 or ticket.ai_processing_claim_token != claim_token
             ):
                 return None
+            if expected_values and not ticket_matches_expected_values(ticket, expected_values):
+                return None
             updated = ticket.model_copy(update={**fields, "ai_processing_claim_token": None})
-            self._tickets[ticket_id] = updated
-            return updated
+            self._tickets[ticket_id] = _with_coerced_municipality_routing(updated)
+            return self._tickets[ticket_id]
 
     def claim_image_redaction(
         self, ticket_id: str, generation: int, claim_token: str, updated_at: str
@@ -754,6 +772,8 @@ def _municipal_staff_can_access(
     """Mirror ``staff_can_access_ticket`` for municipal browse without a principal."""
     if ticket.municipality_id is not None and ticket.municipality_id != municipality_id:
         return False
+    if department_ids is None:
+        return True
     if ticket.department_id is None:
         return True
     return ticket.department_id in set(department_ids or [])
@@ -767,6 +787,21 @@ def _with_coerced_content_safety_history(ticket: StoredTicket) -> StoredTicket:
         for item in ticket.content_safety_history
     ]
     return ticket.model_copy(update={"content_safety_history": history})
+
+
+def _with_coerced_municipality_routing(ticket: StoredTicket) -> StoredTicket:
+    decision = ticket.municipality_routing
+    if isinstance(decision, dict):
+        decision = MunicipalityRoutingDecision.model_validate(decision)
+    history = [
+        item
+        if isinstance(item, MunicipalityRoutingProvenance)
+        else MunicipalityRoutingProvenance.model_validate(item)
+        for item in ticket.municipality_routing_history
+    ]
+    return ticket.model_copy(
+        update={"municipality_routing": decision, "municipality_routing_history": history}
+    )
 
 
 def _encode_staff_cursor(staff_sort_key: str) -> str:

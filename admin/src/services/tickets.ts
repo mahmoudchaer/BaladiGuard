@@ -953,6 +953,10 @@ const AUDIT_ACTION_TYPES: readonly TicketAuditActionType[] = [
   'WORK_ORDER_EVIDENCE_ADD',
   'RESOLUTION_FEEDBACK_SUBMIT',
   'RESOLUTION_FEEDBACK_REVIEW',
+  'MUNICIPALITY_ASSIGN',
+  'MUNICIPALITY_CLAIM',
+  'MUNICIPALITY_REJECT',
+  'MUNICIPALITY_OVERRIDE',
 ];
 
 function normalizeAuditActionType(value: unknown): TicketAuditActionType | null {
@@ -960,7 +964,9 @@ function normalizeAuditActionType(value: unknown): TicketAuditActionType | null 
 }
 
 function normalizeAuditActorRole(value: unknown): TicketStaffRole | undefined {
-  return value === 'municipal_staff' || value === 'administrator' ? value : undefined;
+  return value === 'municipal_staff' || value === 'administrator' || value === 'developer_operator'
+    ? value
+    : undefined;
 }
 
 function optionalTrimmedString(value: unknown): string | undefined {
@@ -1176,6 +1182,7 @@ function normalizeTicketFromApi(data: unknown): Ticket {
         : null,
     createdBy: typeof data.createdBy === 'string' ? data.createdBy : null,
     municipalityId: typeof data.municipalityId === 'string' ? data.municipalityId : null,
+    municipalityRouting: normalizeMunicipalityRouting(data.municipalityRouting),
     departmentId: resolvedDepartmentId,
     assignedWorkerId: typeof data.assignedWorkerId === 'string' ? data.assignedWorkerId : null,
     assignedTeamId: typeof data.assignedTeamId === 'string' ? data.assignedTeamId : null,
@@ -1254,6 +1261,32 @@ function normalizeImageRedaction(data: unknown): Ticket['imageRedaction'] {
     plateCount: typeof data.plateCount === 'number' ? data.plateCount : 0,
     completedAt: typeof data.completedAt === 'string' ? data.completedAt : null,
     reasonCode: typeof data.reasonCode === 'string' ? data.reasonCode : null,
+  };
+}
+
+function normalizeMunicipalityRouting(data: unknown): Ticket['municipalityRouting'] {
+  if (!isRecord(data)) return null;
+  const decision = isRecord(data.decision) ? data.decision : null;
+  return {
+    status: typeof data.status === 'string' ? data.status : null,
+    decision: decision
+      ? {
+          status: typeof decision.status === 'string' ? decision.status : 'unassigned',
+          municipalityId:
+            typeof decision.municipalityId === 'string' ? decision.municipalityId : null,
+          suggestedMunicipalityId:
+            typeof decision.suggestedMunicipalityId === 'string'
+              ? decision.suggestedMunicipalityId
+              : null,
+          confidence: typeof decision.confidence === 'number' ? decision.confidence : null,
+          method: typeof decision.method === 'string' ? decision.method : undefined,
+          reasonCode: typeof decision.reasonCode === 'string' ? decision.reasonCode : undefined,
+          reason: typeof decision.reason === 'string' ? decision.reason : undefined,
+        }
+      : null,
+    canClaim: data.canClaim === true,
+    canReject: data.canReject === true,
+    canOverride: data.canOverride === true,
   };
 }
 
@@ -1836,6 +1869,48 @@ async function reviewTicketCategoryFromApi(
 
   const data: unknown = await response.json();
   const ticket = normalizeTicketFromApi(data);
+  invalidateCachesForTicket(ticketId);
+  return ticket;
+}
+
+export async function claimTicketMunicipality(
+  ticketId: string,
+  input: { reasonCode: string; note?: string },
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/municipality/claim`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getStaffAuthHeaders() },
+      body: JSON.stringify(input),
+    },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to claim this ticket.');
+  }
+  const ticket = normalizeTicketFromApi(await response.json());
+  invalidateCachesForTicket(ticketId);
+  return ticket;
+}
+
+export async function rejectTicketMunicipality(
+  ticketId: string,
+  input: { reasonCode: string; note?: string },
+): Promise<Ticket | null> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/municipality/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getStaffAuthHeaders() },
+      body: JSON.stringify(input),
+    },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to reject this ticket.');
+  }
+  const ticket = normalizeTicketFromApi(await response.json());
   invalidateCachesForTicket(ticketId);
   return ticket;
 }

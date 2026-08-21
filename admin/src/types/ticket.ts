@@ -92,9 +92,13 @@ export type TicketAuditActionType =
   | 'WORK_ORDER_CANCEL'
   | 'WORK_ORDER_EVIDENCE_ADD'
   | 'RESOLUTION_FEEDBACK_SUBMIT'
-  | 'RESOLUTION_FEEDBACK_REVIEW';
+  | 'RESOLUTION_FEEDBACK_REVIEW'
+  | 'MUNICIPALITY_ASSIGN'
+  | 'MUNICIPALITY_CLAIM'
+  | 'MUNICIPALITY_REJECT'
+  | 'MUNICIPALITY_OVERRIDE';
 
-export type TicketStaffRole = 'municipal_staff' | 'administrator';
+export type TicketStaffRole = 'municipal_staff' | 'administrator' | 'developer_operator';
 
 /**
  * Staff-only audit entry returned by the ticket read endpoint.
@@ -321,6 +325,32 @@ export type TicketSla = {
   policyKey?: TicketPriority | null;
 };
 
+export type TicketMunicipalityRouting = {
+  status?: string | null;
+  decision?: {
+    status: string;
+    municipalityId?: string | null;
+    suggestedMunicipalityId?: string | null;
+    confidence?: number | null;
+    method?: string;
+    reasonCode?: string;
+    reason?: string;
+  } | null;
+  history?: Array<{
+    status: string;
+    municipalityId?: string | null;
+    reasonCode?: string;
+    reason?: string;
+    method?: string;
+    actorRole?: string | null;
+    note?: string | null;
+    recordedAt?: string;
+  }>;
+  canClaim: boolean;
+  canReject: boolean;
+  canOverride: boolean;
+};
+
 export type Ticket = {
   ticketId: string;
   ticketNumber: string;
@@ -336,6 +366,7 @@ export type Ticket = {
   priority: TicketPriority | null;
   createdBy: string | null;
   municipalityId: string | null;
+  municipalityRouting?: TicketMunicipalityRouting | null;
   departmentId: string | null;
   assignedWorkerId?: string | null;
   assignedTeamId?: string | null;

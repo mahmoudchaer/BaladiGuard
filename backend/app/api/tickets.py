@@ -19,6 +19,7 @@ from app.schemas.image_redaction import (
     ImageRedactionReviewResponse,
     ReprocessImageResponse,
 )
+from app.schemas.municipality import MunicipalityClaimRequest, MunicipalityRejectRequest
 from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
 from app.schemas.staff_comment import (
     ActivityTimelineResponse,
@@ -1059,3 +1060,65 @@ def merge_duplicate_tickets(
             request_id=get_request_id(request),
             status_code=400,
         )
+
+
+@router.post("/tickets/{ticket_id}/municipality/claim", response_model=TicketResponse)
+def claim_ticket_municipality(
+    ticket_id: str,
+    payload: MunicipalityClaimRequest,
+    request: Request,
+    principal: StaffDep,
+):
+    from app.services.municipalities.ticket_routing import (
+        MunicipalityRoutingError,
+        claim_ticket,
+    )
+
+    try:
+        updated = claim_ticket(ticket_id, principal, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except MunicipalityRoutingError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return ticket_service._map_ticket(updated)
+
+
+@router.post("/tickets/{ticket_id}/municipality/reject", response_model=TicketResponse)
+def reject_ticket_municipality(
+    ticket_id: str,
+    payload: MunicipalityRejectRequest,
+    request: Request,
+    principal: StaffDep,
+):
+    from app.services.municipalities.ticket_routing import (
+        MunicipalityRoutingError,
+        reject_ticket,
+    )
+
+    try:
+        updated = reject_ticket(ticket_id, principal, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except MunicipalityRoutingError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return ticket_service._map_ticket(updated)

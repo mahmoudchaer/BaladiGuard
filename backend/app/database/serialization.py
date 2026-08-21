@@ -88,7 +88,9 @@ def prepare_dynamodb_value(value: Any) -> Any:
     if isinstance(value, float):
         return Decimal(str(value))
     if isinstance(value, dict):
-        return {key: prepare_dynamodb_value(item) for key, item in value.items()}
+        return {
+            key: prepare_dynamodb_value(item) for key, item in value.items() if item is not None
+        }
     if isinstance(value, list):
         return [prepare_dynamodb_value(item) for item in value]
     return value

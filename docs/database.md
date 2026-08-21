@@ -224,8 +224,8 @@ or returned by any API. Username uniqueness is enforced by a transactional
 | `name` | string | Yes | Display name for the admin UI. |
 | `email` | string | Yes | Staff contact email (not a citizen identity). |
 | `passwordHash` | string | Yes | PBKDF2-HMAC-SHA256 credential metadata. Never returned from APIs or written to logs. |
-| `role` | enum | Yes | `municipal_staff` or `administrator`. |
-| `municipalityId` | string, nullable | Conditional | Required for `municipal_staff`; null for global administrators. |
+| `role` | enum | Yes | `municipal_staff`, `administrator`, or `developer_operator`. |
+| `municipalityId` | string, nullable | Conditional | Required for `municipal_staff` and `administrator`; null for `developer_operator`. |
 | `departmentIds` | string[] or null | Conditional | Assigned departments for `municipal_staff`; `null` for administrators, meaning all departments. An empty array is not a valid administrator sentinel. |
 | `active` | boolean | Yes | Inactive staff cannot authenticate; deactivation increments `sessionEpoch`. |
 | `sessionEpoch` | number | Yes | Monotonic generation checked on every authenticated request (`ConsistentRead`). Logout and deactivation increment it. |
