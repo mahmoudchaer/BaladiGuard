@@ -32,24 +32,43 @@ _DOCUMENT_TITLES: dict[str, dict[str, str]] = {
 }
 
 
-def find_legal_docs_root() -> Path:
-    """Locate ``docs/legal`` by walking parents of this file (and cwd)."""
-    candidates: list[Path] = []
-    here = Path(__file__).resolve()
-    candidates.extend(here.parents)
-    cwd = Path.cwd().resolve()
-    candidates.append(cwd)
-    candidates.extend(cwd.parents)
+def _is_legal_package(path: Path) -> bool:
+    """True when ``path`` has the packaged ``{lang}/{document}.md`` layout."""
+    english = path / DEFAULT_LANG
+    if not english.is_dir():
+        return False
+    return any((english / f"{document_id}.md").is_file() for document_id in DOCUMENT_IDS)
+
+
+def find_legal_docs_root(
+    *,
+    start_file: Path | None = None,
+    cwd: Path | None = None,
+) -> Path:
+    """Locate packaged legal markdown for checkout and the backend image.
+
+    Production image layout (``backend`` Docker context): ``/app/legal``.
+    Checkout also keeps a browsable copy at repository-root ``docs/legal``.
+    Packaged ``legal/`` is preferred so public ``/v1/legal`` works without the
+    repo-root docs tree.
+    """
+    here = (start_file or Path(__file__)).resolve()
+    working = (cwd or Path.cwd()).resolve()
+    search_roots: list[Path] = [here.parent, *here.parents, working, *working.parents]
     seen: set[Path] = set()
-    for parent in candidates:
+    for parent in search_roots:
         if parent in seen:
             continue
         seen.add(parent)
-        candidate = parent / "docs" / "legal"
-        if candidate.is_dir():
-            return candidate
+        packaged = parent / "legal"
+        if _is_legal_package(packaged):
+            return packaged
+        checkout = parent / "docs" / "legal"
+        if _is_legal_package(checkout):
+            return checkout
     raise FileNotFoundError(
-        "docs/legal not found relative to the backend package or working directory."
+        "Packaged legal documents not found. Expected backend/legal "
+        "(copied into /app/legal in the backend image) or docs/legal."
     )
 
 

@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.services.legal.documents import (
     CURRENT_LEGAL_VERSION,
     DOCUMENT_IDS,
+    SUPPORTED_LANGS,
     clear_document_cache,
+    find_legal_docs_root,
     load_document,
 )
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = BACKEND_ROOT.parent
+DOCKERFILE = BACKEND_ROOT / "Dockerfile"
+PACKAGED_LEGAL = BACKEND_ROOT / "legal"
 
 
 def test_legal_catalog_lists_current_package(anonymous_client: TestClient) -> None:
@@ -59,3 +68,35 @@ def test_load_document_reads_repo_markdown() -> None:
     assert loaded is not None
     assert loaded["id"] == "acceptable-use"
     assert "16" in loaded["markdown"]
+
+
+def test_backend_image_packages_legal_documents() -> None:
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    assert "COPY legal ./legal" in dockerfile
+    for lang in SUPPORTED_LANGS:
+        for document_id in DOCUMENT_IDS:
+            packaged = PACKAGED_LEGAL / lang / f"{document_id}.md"
+            checkout = REPO_ROOT / "docs" / "legal" / lang / f"{document_id}.md"
+            assert packaged.is_file(), packaged
+            assert checkout.is_file(), checkout
+            assert packaged.read_text(encoding="utf-8") == checkout.read_text(encoding="utf-8")
+
+
+def test_find_legal_docs_root_uses_image_layout_without_repo_docs(tmp_path: Path) -> None:
+    fake_module = tmp_path / "app" / "services" / "legal" / "documents.py"
+    fake_module.parent.mkdir(parents=True)
+    fake_module.write_text("# stub\n", encoding="utf-8")
+    packaged = tmp_path / "legal"
+    for lang in SUPPORTED_LANGS:
+        (packaged / lang).mkdir(parents=True)
+        for document_id in DOCUMENT_IDS:
+            (packaged / lang / f"{document_id}.md").write_text(
+                f"# {document_id}\n",
+                encoding="utf-8",
+            )
+    isolated_cwd = tmp_path / "isolated-cwd"
+    isolated_cwd.mkdir()
+
+    root = find_legal_docs_root(start_file=fake_module, cwd=isolated_cwd)
+    assert root == packaged
+    assert not (isolated_cwd / "docs" / "legal").exists()

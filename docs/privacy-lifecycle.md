@@ -6,7 +6,7 @@ identity contract in `docs/MVP_API_CONTRACT.md` (Sprint 6) and staff authorizati
 in issues #168 / #176.
 
 **Legal package version:** `2026-08-22` (Terms, Privacy Policy, Acceptable Use) under
-`docs/legal/{en,ar,fr}/`. These texts are product drafts for owner/legal counsel
+`backend/legal/{en,ar,fr}/` (copied into the backend image) and `docs/legal/{en,ar,fr}/`. These texts are product drafts for owner/legal counsel
 review — not a GDPR/compliance certification. Contact: `privacy@baladiguard.app`.
 Service intended for users **16+**. Controllers: BaladiGuard platform operator
 (citizen accounts); participating municipalities (municipal ticket records).
@@ -67,7 +67,7 @@ infrastructure reports.
 - Turn off public name attribution (`publicNameVisible`, default `false`)
 
 A short in-app summary ships in the mobile Privacy notice screen. The published
-legal package lives under `docs/legal/`; this document describes lifecycle behavior.
+legal package lives under `backend/legal/` (runtime) and `docs/legal/` (checkout); this document describes lifecycle behavior.
 
 ## Retention periods
 

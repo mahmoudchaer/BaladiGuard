@@ -49,6 +49,7 @@ COPY --from=builder /install /usr/local
 COPY --from=builder /models /opt/models
 COPY app ./app
 COPY scripts ./scripts
+COPY legal ./legal
 
 USER app
 EXPOSE 8000

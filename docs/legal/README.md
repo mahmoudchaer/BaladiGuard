@@ -13,11 +13,11 @@
 ## Layout
 
 ```
-docs/legal/
+backend/legal/          # packaged into the backend image as /app/legal
+  en|ar|fr/{terms,privacy,acceptable-use}.md
+docs/legal/             # browsable checkout copy — keep in sync with backend/legal
   README.md
-  en/{terms,privacy,acceptable-use}.md
-  ar/{terms,privacy,acceptable-use}.md
-  fr/{terms,privacy,acceptable-use}.md
+  en|ar|fr/{terms,privacy,acceptable-use}.md
 ```
 
 Every document opens with a draft/review banner. Keep that banner when editing.
@@ -36,7 +36,7 @@ Every document opens with a draft/review banner. Keep that banner when editing.
 | Full markdown body | `GET /v1/legal/{documentId}?lang=en\|ar\|fr` |
 | Unsupported `lang` | Falls back to English |
 
-The API resolves files from `docs/legal/{lang}/{documentId}.md` relative to the project root (or a parent of the backend working directory that contains `docs/legal`).
+The API prefers `backend/legal/{lang}/{documentId}.md` (copied to `/app/legal` in the production image). Checkout still accepts `docs/legal/` as a fallback.
 
 ## Consent
 
