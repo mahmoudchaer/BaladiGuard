@@ -203,8 +203,7 @@ class WhatsAppCitizenOtpDeliveryProvider:
                     _mask_phone(canonical_phone),
                     not allowlist,
                 )
-                _emit_dev_plaintext(canonical_phone, code, reason="sandbox_block", cfg=settings)
-                return
+                raise OtpDeliveryError("sandbox_blocked")
 
         session_text = whatsapp_otp_uses_session_text(settings)
         if session_text:

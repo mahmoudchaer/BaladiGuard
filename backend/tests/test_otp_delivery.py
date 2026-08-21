@@ -390,3 +390,50 @@ def test_build_template_payload_unchanged_by_session_helper():
     )
     assert payload["type"] == "template"
     assert payload["template"]["name"] == "baladiguard_auth"
+
+
+def test_whatsapp_sandbox_block_raises_delivery_error():
+    settings = _settings(
+        citizen_otp_delivery_channel="whatsapp",
+        citizen_otp_whatsapp_message_mode="session_text",
+        citizen_otp_whatsapp_access_token="meta-token",
+        citizen_otp_whatsapp_phone_number_id="pnid_1",
+        notification_sandbox=True,
+        notification_allowlist_phones=frozenset({"+9613408680"}),
+        app_env="local",
+        otp_dev_plaintext_stdout=False,
+    )
+    with pytest.raises(OtpDeliveryError) as exc_info:
+        deliver_citizen_otp(phone="+96170123456", region="LB", code="111222", settings=settings)
+    assert exc_info.value.category == "sandbox_blocked"
+
+
+def test_whatsapp_sandbox_block_returns_503_and_invalidates_challenge(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.database.memory_citizen_otp import citizen_otp_store
+    from app.main import create_app
+    from app.services.citizens.service import citizen_service
+
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "whatsapp")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "session_text")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "pnid_1")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "meta-token")
+    monkeypatch.setenv("NOTIFICATION_SANDBOX", "true")
+    monkeypatch.setenv("NOTIFICATION_ALLOWLIST_PHONES", "+9613408680")
+    get_settings.cache_clear()
+    citizen_otp_store.clear()
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/citizen/auth/otp/request",
+        json={"phone": "+96170123456", "region": "LB", "purpose": "LOGIN_OR_SIGNUP"},
+    )
+    assert response.status_code == 503, response.text
+    body = response.json()
+    assert body["error"]["code"] == "OTP_DELIVERY_FAILED"
+    challenges = list(citizen_otp_store._challenges.values())  # noqa: SLF001
+    assert challenges
+    assert all(row.superseded_at for row in challenges)
+    assert all(citizen_service.peek_dev_otp_code(row.challenge_id) is None for row in challenges)
+    get_settings.cache_clear()

@@ -403,3 +403,19 @@ def test_staging_startup_aborts_without_citizen_app_base_url(monkeypatch):
 
     monkeypatch.setenv("APP_ENV", "test")
     get_settings.cache_clear()
+
+
+def test_sandbox_whatsapp_otp_requires_allowlisted_phone(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "whatsapp")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "session_text")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "pnid_1")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "meta-token")
+    monkeypatch.setenv("NOTIFICATION_SANDBOX", "true")
+    monkeypatch.delenv("NOTIFICATION_ALLOWLIST_PHONES", raising=False)
+    settings = _settings_from_env()
+    result = validate_configuration(settings, environ=dict(os.environ))
+    assert any(
+        issue.code == "MISSING_CITIZEN_OTP_WHATSAPP_SANDBOX_ALLOWLIST" for issue in result.issues
+    )

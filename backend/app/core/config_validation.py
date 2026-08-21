@@ -389,6 +389,16 @@ def validate_configuration(
                         ),
                     )
                 )
+        if cfg.notification_sandbox and not cfg.notification_allowlist_phones:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CITIZEN_OTP_WHATSAPP_SANDBOX_ALLOWLIST",
+                    message=(
+                        "Sandbox WhatsApp OTP requires at least one phone on "
+                        "NOTIFICATION_ALLOWLIST_PHONES."
+                    ),
+                )
+            )
         if app_env in {"staging", "production"}:
             token = (cfg.citizen_otp_whatsapp_access_token or "").strip().lower()
             if token and any(
