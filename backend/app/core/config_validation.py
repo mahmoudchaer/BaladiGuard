@@ -24,6 +24,7 @@ ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_WHATSAPP_PROVIDERS = frozenset({"mock", "cloud"})
 ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp"})
+ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES = frozenset({"template", "session_text"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
 # Common typos / short forms normalize before validation and production checks.
@@ -336,13 +337,25 @@ def validate_configuration(
     from app.services.citizens.otp_delivery import resolve_citizen_otp_delivery_channel
 
     effective_otp_channel = resolve_citizen_otp_delivery_channel(cfg)
+    raw_wa_mode = _raw(env_map, "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE")
+    if raw_wa_mode is not None and raw_wa_mode.strip():
+        if raw_wa_mode.strip().lower() not in ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES:
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_CITIZEN_OTP_WHATSAPP_MESSAGE_MODE",
+                    message=(
+                        "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE must be 'template' or 'session_text'."
+                    ),
+                )
+            )
+    wa_mode = (cfg.citizen_otp_whatsapp_message_mode or "template").strip().lower()
     if effective_otp_channel == "whatsapp":
         missing_otp_wa = []
         if not (cfg.citizen_otp_whatsapp_phone_number_id or "").strip():
             missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID")
         if not (cfg.citizen_otp_whatsapp_access_token or "").strip():
             missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN")
-        if not (cfg.citizen_otp_whatsapp_template_name or "").strip():
+        if wa_mode != "session_text" and not (cfg.citizen_otp_whatsapp_template_name or "").strip():
             missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_TEMPLATE_NAME")
         if missing_otp_wa:
             result.issues.append(
@@ -355,6 +368,27 @@ def validate_configuration(
                     ),
                 )
             )
+        if wa_mode == "session_text":
+            if app_env == "production":
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT",
+                        message=(
+                            "Production WhatsApp OTP must use an approved authentication "
+                            "template, not session_text."
+                        ),
+                    )
+                )
+            elif not cfg.notification_sandbox:
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT",
+                        message=(
+                            "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text requires "
+                            "NOTIFICATION_SANDBOX=true and an allowlisted tester phone."
+                        ),
+                    )
+                )
         if app_env in {"staging", "production"}:
             token = (cfg.citizen_otp_whatsapp_access_token or "").strip().lower()
             if token and any(

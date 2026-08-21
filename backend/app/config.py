@@ -340,6 +340,12 @@ class Settings:
         self.citizen_otp_whatsapp_timeout_seconds = self._float_setting(
             "CITIZEN_OTP_WHATSAPP_TIMEOUT_SECONDS", default=15.0, minimum=1.0, maximum=60.0
         )
+        # template = approved Meta auth template (issue #297 completion).
+        # session_text = sandbox-only free-form body inside the 24h customer window.
+        raw_wa_mode = os.getenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "template").strip().lower()
+        self.citizen_otp_whatsapp_message_mode = (
+            raw_wa_mode if raw_wa_mode in {"template", "session_text"} else "template"
+        )
 
         # Citizen-facing HTTPS base for notification deep links (issue #257).
         # Production must set an explicit non-localhost https URL.

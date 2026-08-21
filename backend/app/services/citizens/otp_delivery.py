@@ -139,8 +139,59 @@ class SnsCitizenOtpDeliveryProvider:
             raise OtpDeliveryError("sns_publish_failed") from exc
 
 
+def whatsapp_otp_uses_session_text(settings: Settings) -> bool:
+    return (settings.citizen_otp_whatsapp_message_mode or "template").strip().lower() == (
+        "session_text"
+    )
+
+
+def session_otp_text_body(code: str) -> str:
+    return (
+        f"BaladiGuard verification code: {code}. It expires in 5 minutes. Do not share it."
+    )
+
+
+def build_whatsapp_otp_payload(*, canonical_phone: str, code: str, settings: Settings) -> dict:
+    """Build Graph send payload. Never logged; tests inspect the returned dict."""
+    destination = canonical_phone[1:] if canonical_phone.startswith("+") else canonical_phone
+    if whatsapp_otp_uses_session_text(settings):
+        return {
+            "messaging_product": "whatsapp",
+            "to": destination,
+            "type": "text",
+            "text": {"preview_url": False, "body": session_otp_text_body(code)},
+        }
+    template = settings.citizen_otp_whatsapp_template_name
+    language = settings.citizen_otp_whatsapp_template_language or "en"
+    components: list[dict] = [
+        {
+            "type": "body",
+            "parameters": [{"type": "text", "text": code}],
+        }
+    ]
+    if settings.citizen_otp_whatsapp_template_button_index is not None:
+        components.append(
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": str(settings.citizen_otp_whatsapp_template_button_index),
+                "parameters": [{"type": "text", "text": code}],
+            }
+        )
+    return {
+        "messaging_product": "whatsapp",
+        "to": destination,
+        "type": "template",
+        "template": {
+            "name": template,
+            "language": {"code": language},
+            "components": components,
+        },
+    }
+
+
 class WhatsAppCitizenOtpDeliveryProvider:
-    """Meta Cloud API authentication-template OTP delivery."""
+    """Meta Cloud API OTP delivery (auth template, or sandbox session text)."""
 
     def deliver(self, *, canonical_phone: str, code: str, settings: Settings) -> None:
         if settings.notification_sandbox:
@@ -155,42 +206,24 @@ class WhatsAppCitizenOtpDeliveryProvider:
                 _emit_dev_plaintext(canonical_phone, code, reason="sandbox_block", cfg=settings)
                 return
 
+        session_text = whatsapp_otp_uses_session_text(settings)
+        if session_text:
+            if settings.app_env == "production" or not settings.notification_sandbox:
+                raise OtpDeliveryError("whatsapp_session_text_forbidden")
+
         token = settings.citizen_otp_whatsapp_access_token
         phone_number_id = settings.citizen_otp_whatsapp_phone_number_id
         template = settings.citizen_otp_whatsapp_template_name
-        language = settings.citizen_otp_whatsapp_template_language or "en"
         version = settings.citizen_otp_whatsapp_graph_api_version or "v21.0"
-        if not token or not phone_number_id or not template:
+        if not token or not phone_number_id:
+            raise OtpDeliveryError("whatsapp_misconfigured")
+        if not session_text and not template:
             raise OtpDeliveryError("whatsapp_misconfigured")
 
-        # Graph WhatsApp ``to`` field expects digits without a leading '+'.
-        destination = canonical_phone[1:] if canonical_phone.startswith("+") else canonical_phone
         url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
-        components: list[dict] = [
-            {
-                "type": "body",
-                "parameters": [{"type": "text", "text": code}],
-            }
-        ]
-        if settings.citizen_otp_whatsapp_template_button_index is not None:
-            components.append(
-                {
-                    "type": "button",
-                    "sub_type": "url",
-                    "index": str(settings.citizen_otp_whatsapp_template_button_index),
-                    "parameters": [{"type": "text", "text": code}],
-                }
-            )
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": destination,
-            "type": "template",
-            "template": {
-                "name": template,
-                "language": {"code": language},
-                "components": components,
-            },
-        }
+        payload = build_whatsapp_otp_payload(
+            canonical_phone=canonical_phone, code=code, settings=settings
+        )
         request = Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
@@ -202,40 +235,47 @@ class WhatsAppCitizenOtpDeliveryProvider:
         )
         try:
             with urlopen(request, timeout=settings.citizen_otp_whatsapp_timeout_seconds) as resp:
-                # Read body for transport completeness; never log it (may echo template params).
+                # Read body for transport completeness; never log it (may echo OTP params).
                 resp.read(4096)
         except HTTPError as exc:
-            category = _classify_whatsapp_http_error(exc.code)
+            category = _classify_whatsapp_http_error(exc)
             logger.warning(
                 "Citizen OTP WhatsApp delivery failed category=%s status=%s phone=%s",
                 category,
                 exc.code,
                 _mask_phone(canonical_phone),
             )
-            if settings.app_env in {"local", "development"}:
-                _emit_dev_plaintext(
-                    canonical_phone, code, reason="whatsapp_publish_failed", cfg=settings
-                )
-                return
-            raise OtpDeliveryError(category) from exc
+            # Session-text testers must see window-closed failures; do not swallow them.
+            if session_text or settings.app_env not in {"local", "development"}:
+                raise OtpDeliveryError(category) from exc
+            _emit_dev_plaintext(
+                canonical_phone, code, reason="whatsapp_publish_failed", cfg=settings
+            )
+            return
         except (URLError, TimeoutError) as exc:
             logger.warning(
                 "Citizen OTP WhatsApp delivery timeout/network phone=%s error=%s",
                 _mask_phone(canonical_phone),
                 type(exc).__name__,
             )
-            if settings.app_env in {"local", "development"}:
-                _emit_dev_plaintext(
-                    canonical_phone, code, reason="whatsapp_publish_failed", cfg=settings
-                )
-                return
-            raise OtpDeliveryError("whatsapp_transient") from exc
+            if session_text or settings.app_env not in {"local", "development"}:
+                raise OtpDeliveryError("whatsapp_transient") from exc
+            _emit_dev_plaintext(
+                canonical_phone, code, reason="whatsapp_publish_failed", cfg=settings
+            )
+            return
 
         logger.info("Citizen OTP WhatsApp published phone=%s", _mask_phone(canonical_phone))
         _emit_dev_plaintext(canonical_phone, code, reason="whatsapp_published", cfg=settings)
 
 
-def _classify_whatsapp_http_error(status: int) -> str:
+def _classify_whatsapp_http_error(exc: HTTPError) -> str:
+    graph_code = _whatsapp_graph_error_code(exc)
+    if graph_code == 131047:
+        return "whatsapp_session_window_closed"
+    if graph_code == 131030:
+        return "whatsapp_not_in_allowed_list"
+    status = exc.code
     if status in {401, 403}:
         return "whatsapp_auth"
     if status == 404:
@@ -245,6 +285,27 @@ def _classify_whatsapp_http_error(status: int) -> str:
     if status >= 500:
         return "whatsapp_transient"
     return "whatsapp_permanent"
+
+
+def _whatsapp_graph_error_code(exc: HTTPError) -> int | None:
+    try:
+        raw = exc.read(4096)
+    except Exception:
+        return None
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return None
+    code = error.get("code")
+    try:
+        return int(code)
+    except (TypeError, ValueError):
+        return None
 
 
 def build_citizen_otp_delivery_provider(

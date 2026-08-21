@@ -11,7 +11,15 @@ report submission (#296).
 | unset (legacy) | `mock` when `NOTIFICATION_ADAPTER!=real` or `APP_ENV=test`; otherwise `sns` |
 | `mock` | No provider call (local/CI). Codes via `peek_dev_otp_code` / optional stdout |
 | `sns` | Amazon SNS SMS (existing path) |
-| `whatsapp` | Meta Cloud API **authentication template** to the canonical E.164 phone |
+| `whatsapp` | Meta Cloud API: approved **authentication template**, or sandbox `session_text` |
+
+`CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text` is the agreed path for the Meta **test number**, which cannot create custom templates. It sends a free-form text OTP through the real Graph API and only works if:
+
+- `NOTIFICATION_SANDBOX=true`
+- the destination is on `NOTIFICATION_ALLOWLIST_PHONES`
+- that WhatsApp user messaged the test business number within the last 24 hours
+
+Production rejects `session_text` and still requires an approved authentication template. SNS remains the rollback (`CITIZEN_OTP_DELIVERY_CHANNEL=sns`).
 
 Exactly one channel is used per OTP request. There is **no** automatic WhatsApp→SNS fallback.
 
@@ -28,10 +36,10 @@ CITIZEN_OTP_WHATSAPP_TEMPLATE_LANGUAGE=en
 CITIZEN_OTP_WHATSAPP_GRAPH_API_VERSION=v21.0
 # CITIZEN_OTP_WHATSAPP_TEMPLATE_BUTTON_INDEX=0   # or none/off to omit button component
 # CITIZEN_OTP_WHATSAPP_TIMEOUT_SECONDS=15
+# CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text  # Meta test number; tester must message first
 ```
 
-Staging/production fail closed when `whatsapp` is selected without credentials/template,
-or when the channel resolves to `mock`.
+When `session_text` is selected, a template name is not required. Staging may use it with `NOTIFICATION_SANDBOX=true`. Production rejects it.
 
 Sandbox allowlisting (`NOTIFICATION_SANDBOX` + `NOTIFICATION_ALLOWLIST_PHONES`) still
 applies to both `sns` and `whatsapp` real sends.
@@ -52,12 +60,11 @@ so mobile/web can adapt copy. Verification remains `POST /v1/citizen/auth/otp/ve
 Set `CITIZEN_OTP_DELIVERY_CHANNEL=sns` and redeploy. No OTP hash, citizen, or session
 migration required.
 
-## Live completion (manual)
+## Live completion (sandbox / test number)
 
-1. Approve WhatsApp authentication template in Meta Business Manager.
-2. Store tokens in Secrets Manager / env sync.
-3. Deploy with `CITIZEN_OTP_DELIVERY_CHANNEL=whatsapp`.
-4. Prove: phone entry → WhatsApp OTP → verify → session (non-prod destination first).
-5. Record evidence without publishing phone, code, or credentials.
+1. Add tester phones in Meta API Setup and in `NOTIFICATION_ALLOWLIST_PHONES`.
+2. Tester sends any message to the Meta test number (opens the 24h window).
+3. Request OTP on citizen login with that same number.
+4. Real Graph session text delivers the 6-digit code; verify as usual.
 
-Mock-only demos do **not** satisfy #297 completion.
+A future production cutover still needs an approved authentication template and `CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=template`. Mock-only demos are not this path.
