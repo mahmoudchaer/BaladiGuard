@@ -11,19 +11,37 @@ CATEGORY_SEED_PATH = SEEDS_DIR / "categories.json"
 DEPARTMENT_SEED_PATH = SEEDS_DIR / "departments.json"
 
 
+def _catalog_row(item: dict[str, object]) -> dict[str, str]:
+    domain = item.get("serviceDomain") or ""
+    return {
+        "departmentId": str(item["departmentId"]),
+        "municipalityId": str(item["municipalityId"]),
+        "name": str(item["name"]),
+        "description": str(item["description"]),
+        "serviceDomain": str(domain),
+    }
+
+
 @lru_cache
-def load_department_catalog() -> tuple[dict[str, str], ...]:
+def _seed_department_catalog() -> tuple[dict[str, str], ...]:
     raw = json.loads(DEPARTMENT_SEED_PATH.read_text(encoding="utf-8"))
-    return tuple(
-        {
-            "departmentId": item["departmentId"],
-            "municipalityId": item["municipalityId"],
-            "name": item["name"],
-            "description": item["description"],
-            "serviceDomain": item.get("serviceDomain") or "",
+    return tuple(_catalog_row(item) for item in raw)
+
+
+def load_department_catalog() -> tuple[dict[str, str], ...]:
+    """Seed catalog plus runtime departments created for provisioned municipalities."""
+    merged = {item["departmentId"]: dict(item) for item in _seed_department_catalog()}
+    from app.database.store_factory import get_department_store
+
+    for item in get_department_store().list_all():
+        merged[item.department_id] = {
+            "departmentId": item.department_id,
+            "municipalityId": item.municipality_id,
+            "name": item.name,
+            "description": item.description,
+            "serviceDomain": item.service_domain,
         }
-        for item in raw
-    )
+    return tuple(merged.values())
 
 
 @lru_cache

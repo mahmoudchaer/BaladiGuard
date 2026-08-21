@@ -22,6 +22,7 @@ vi.mock('@/services/tickets', () => ({
 
 vi.mock('@/services/staffAccounts', () => ({
   listStaffAccounts: vi.fn(),
+  listStaffDepartments: vi.fn(async () => []),
   createStaffAccount: vi.fn(),
   updateStaffAccount: vi.fn(),
   setStaffAccountActive: vi.fn(),

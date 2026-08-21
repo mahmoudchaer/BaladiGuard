@@ -22,6 +22,7 @@ from app.schemas.stored_municipality import (
     GeoPolygon,
     StoredMunicipality,
 )
+from app.services.municipalities.departments import ensure_departments_for_profile
 from app.services.routing.municipality_router import route_ticket_to_municipality
 from app.services.staff.account_audit import account_audit_service
 
@@ -105,6 +106,7 @@ class MunicipalityControlService:
         except ValidationError as exc:
             raise MunicipalityControlError("Municipality profile is invalid.") from exc
         stored = self.store().put(profile)
+        ensure_departments_for_profile(stored)
         self._audit.record_safe(
             action_type="STAFF_CREATED",
             actor=actor,
@@ -145,6 +147,7 @@ class MunicipalityControlService:
         except ValidationError as exc:
             raise MunicipalityControlError("Municipality profile is invalid.") from exc
         stored = self.store().put(updated)
+        ensure_departments_for_profile(stored)
         if current.active and not stored.active:
             self._park_active_tickets(actor, stored, stamped)
         return stored

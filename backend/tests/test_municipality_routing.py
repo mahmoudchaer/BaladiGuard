@@ -27,8 +27,8 @@ POWER_PAYLOAD = {
 }
 
 
-def _headers(client, username: str) -> dict[str, str]:
-    token = issue_test_staff_token(client, username=username)
+def _headers(client, username: str, password: str = "staff-demo-password") -> dict[str, str]:
+    token = issue_test_staff_token(client, username=username, password=password)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -224,6 +224,7 @@ def test_operator_can_create_municipality_and_provision_admin(anonymous_client):
     )
     assert created.status_code == 201, created.text
     municipality_id = created.json()["municipalityId"]
+    assert {item["serviceDomain"] for item in created.json()["departments"]} == {"roads", "waste"}
     admin = anonymous_client.post(
         f"/v1/ops/municipalities/{municipality_id}/admin",
         json={
@@ -251,6 +252,164 @@ def test_operator_can_create_municipality_and_provision_admin(anonymous_client):
         headers=_headers(anonymous_client, "admin"),
     )
     assert forbidden.status_code == 400
+
+
+def test_admin_cannot_mutate_staff_in_another_municipality(anonymous_client):
+    operator = _headers(anonymous_client, "operator")
+    created = anonymous_client.post(
+        "/v1/ops/municipalities",
+        json={
+            "name": "Byblos Municipality",
+            "description": "General municipal services for Byblos including roads.",
+            "serviceDomains": ["roads"],
+            "bounds": {
+                "minLatitude": 34.10,
+                "maxLatitude": 34.16,
+                "minLongitude": 35.62,
+                "maxLongitude": 35.68,
+            },
+            "active": True,
+        },
+        headers=operator,
+    )
+    assert created.status_code == 201, created.text
+    municipality_id = created.json()["municipalityId"]
+    roads_id = created.json()["departments"][0]["departmentId"]
+    provisioned = anonymous_client.post(
+        f"/v1/ops/municipalities/{municipality_id}/admin",
+        json={
+            "username": "byblos.admin",
+            "name": "Byblos Admin",
+            "email": "byblos@example.com",
+            "password": "byblos-admin-password",
+        },
+        headers=operator,
+    )
+    assert provisioned.status_code == 200, provisioned.text
+    other_admin = _headers(anonymous_client, "byblos.admin", "byblos-admin-password")
+    staff = anonymous_client.post(
+        "/v1/admin/staff-accounts",
+        json={
+            "username": "byblos.roads",
+            "name": "Byblos Roads",
+            "email": "byblos.roads@example.com",
+            "password": "byblos-staff-password",
+            "role": "municipal_staff",
+            "municipalityId": municipality_id,
+            "departmentIds": [roads_id],
+        },
+        headers=other_admin,
+    )
+    assert staff.status_code == 201, staff.text
+    target_id = staff.json()["staffId"]
+    beirut_admin = _headers(anonymous_client, "admin")
+
+    listed = anonymous_client.get("/v1/admin/staff-accounts", headers=beirut_admin)
+    assert listed.status_code == 200
+    assert target_id not in {item["staffId"] for item in listed.json()}
+    assert provisioned.json()["staffId"] not in {item["staffId"] for item in listed.json()}
+
+    hidden = anonymous_client.get(f"/v1/admin/staff-accounts/{target_id}", headers=beirut_admin)
+    assert hidden.status_code == 404
+    role = anonymous_client.patch(
+        f"/v1/admin/staff-accounts/{target_id}",
+        json={"role": "municipal_staff", "departmentIds": [roads_id]},
+        headers=beirut_admin,
+    )
+    assert role.status_code == 404
+    scope = anonymous_client.patch(
+        f"/v1/admin/staff-accounts/{target_id}",
+        json={"departmentIds": [roads_id]},
+        headers=beirut_admin,
+    )
+    assert scope.status_code == 404
+    deactivated = anonymous_client.post(
+        f"/v1/admin/staff-accounts/{target_id}/deactivate",
+        headers=beirut_admin,
+    )
+    assert deactivated.status_code == 404
+
+
+def test_created_municipality_gets_departments_and_routes_tickets(
+    client, anonymous_client, monkeypatch
+):
+    operator = _headers(anonymous_client, "operator")
+    created = anonymous_client.post(
+        "/v1/ops/municipalities",
+        json={
+            "name": "Sidon Roads Authority",
+            "description": "Road maintenance for Sidon.",
+            "serviceDomains": ["roads"],
+            "bounds": {
+                "minLatitude": 33.54,
+                "maxLatitude": 33.60,
+                "minLongitude": 35.36,
+                "maxLongitude": 35.42,
+            },
+            "active": True,
+        },
+        headers=operator,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    municipality_id = body["municipalityId"]
+    assert {item["serviceDomain"] for item in body["departments"]} == {"roads"}
+    department_id = body["departments"][0]["departmentId"]
+    assert department_id not in {
+        "d1111111-1111-1111-1111-111111111111",
+        "d2222222-2222-2222-2222-222222222222",
+    }
+
+    provisioned = anonymous_client.post(
+        f"/v1/ops/municipalities/{municipality_id}/admin",
+        json={
+            "username": "sidon.roads.admin",
+            "name": "Sidon Roads Admin",
+            "email": "sidon.roads@example.com",
+            "password": "sidon-roads-password",
+        },
+        headers=operator,
+    )
+    assert provisioned.status_code == 200, provisioned.text
+    admin_headers = _headers(anonymous_client, "sidon.roads.admin", "sidon-roads-password")
+    departments = anonymous_client.get("/v1/staff/departments", headers=admin_headers)
+    assert departments.status_code == 200, departments.text
+    assert {item["departmentId"] for item in departments.json()["items"]} == {department_id}
+
+    staff = anonymous_client.post(
+        "/v1/admin/staff-accounts",
+        json={
+            "username": "sidon.roads.staff",
+            "name": "Sidon Roads Staff",
+            "email": "sidon.staff@example.com",
+            "password": "sidon-staff-password",
+            "role": "municipal_staff",
+            "municipalityId": municipality_id,
+            "departmentIds": [department_id],
+        },
+        headers=admin_headers,
+    )
+    assert staff.status_code == 201, staff.text
+    assert staff.json()["departmentIds"] == [department_id]
+
+    _classify(monkeypatch, "road_damage")
+    ticket = _submit(
+        client,
+        {
+            **VALID_PAYLOAD,
+            "description": "Deep pothole on Riad El Solh Street in Sidon.",
+            "location": {
+                "latitude": 33.563,
+                "longitude": 35.372,
+                "addressText": "Riad El Solh Street, Sidon",
+                "source": "GPS",
+            },
+        },
+    )
+    stored = ticket_store.get(ticket["ticketId"])
+    assert stored is not None
+    assert stored.municipality_id == municipality_id
+    assert stored.department_id == department_id
 
 
 def test_operator_can_override_assignment(client, anonymous_client):

@@ -235,6 +235,11 @@ export function MunicipalitiesPage() {
                     {item.serviceDomains.join(', ')} · v{item.profileVersion} ·{' '}
                     {item.active ? t('municipalities.active') : t('municipalities.inactive')}
                   </p>
+                  {item.departments && item.departments.length > 0 ? (
+                    <p className="ops-page__meta">
+                      {item.departments.map((department) => department.name).join(', ')}
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"

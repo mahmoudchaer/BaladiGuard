@@ -69,3 +69,22 @@ export async function setStaffAccountActive(
   );
   return parseAccount(response, `Unable to ${active ? 'reactivate' : 'deactivate'} staff account.`);
 }
+
+export type StaffDepartment = {
+  departmentId: string;
+  municipalityId: string;
+  name: string;
+  description: string;
+  serviceDomain: string;
+};
+
+export async function listStaffDepartments(): Promise<StaffDepartment[]> {
+  const response = await fetch(`${config.apiBaseUrl}/v1/staff/departments`, {
+    headers: getStaffAuthHeaders(),
+  });
+  if (!response.ok) {
+    await readError(response, 'Unable to load departments.');
+  }
+  const body = (await response.json()) as { items?: StaffDepartment[] };
+  return Array.isArray(body.items) ? body.items : [];
+}

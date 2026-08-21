@@ -14,6 +14,7 @@ from app.database.memory_citizen import citizen_store
 from app.database.memory_citizen_otp import citizen_otp_store
 from app.database.memory_citizen_session import citizen_session_store
 from app.database.memory_content_safety_job import content_safety_job_store
+from app.database.memory_department import department_store
 from app.database.memory_duplicate_group import duplicate_group_store
 from app.database.memory_municipality import municipality_store
 from app.database.memory_notification_delivery import notification_delivery_store
@@ -347,3 +348,16 @@ def build_municipality_store(settings: Settings | None = None):
 
 def get_municipality_store():
     return build_municipality_store(get_settings())
+
+
+def build_department_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_department_store import DynamoDepartmentStore
+
+        return DynamoDepartmentStore(settings)
+    return department_store
+
+
+def get_department_store():
+    return build_department_store(get_settings())

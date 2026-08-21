@@ -16,6 +16,7 @@ import {
   updateTeam,
   updateWorker,
 } from '@/services/workforce';
+import { listStaffDepartments } from '@/services/staffAccounts';
 import type { WorkforceTeam, WorkforceWorker, WorkloadSnapshot } from '@/types/workforce';
 import { formatStatus } from '@/utils/labels';
 import type { TicketStatus } from '@/types/ticket';
@@ -23,8 +24,11 @@ import './WorkforcePage.css';
 
 type TabId = 'directory' | 'workload';
 
-function formatDepartments(ids: string[]): string {
-  return ids.map((id) => DEPARTMENT_NAMES[id] ?? id).join(', ');
+function formatDepartments(
+  ids: string[],
+  names: Record<string, string> = DEPARTMENT_NAMES,
+): string {
+  return ids.map((id) => names[id] ?? id).join(', ');
 }
 
 function countLine(
@@ -79,7 +83,10 @@ export function WorkforcePage() {
   const { session } = useStaffAuth();
   const isAdmin = session?.role === 'administrator';
   const municipalityId = session?.municipalityId ?? '';
-  const departmentOptions = departmentsForMunicipality(municipalityId);
+  const [departmentOptions, setDepartmentOptions] = useState<Array<[string, string]>>(() =>
+    departmentsForMunicipality(municipalityId),
+  );
+  const [departmentNames, setDepartmentNames] = useState<Record<string, string>>(DEPARTMENT_NAMES);
   const [tab, setTab] = useState<TabId>(focusWorkerId || focusTeamId ? 'directory' : 'workload');
   const [workers, setWorkers] = useState<WorkforceWorker[]>([]);
   const [teams, setTeams] = useState<WorkforceTeam[]>([]);
@@ -116,6 +123,25 @@ export function WorkforcePage() {
       setLoadState('error');
     }
   }
+
+  useEffect(() => {
+    setDepartmentOptions(departmentsForMunicipality(municipalityId));
+    void listStaffDepartments()
+      .then((items) => {
+        if (items.length === 0) return;
+        const next = items.map((item) => [item.departmentId, item.name] as [string, string]);
+        setDepartmentOptions(next);
+        setDepartmentNames((current) => ({
+          ...current,
+          ...Object.fromEntries(next),
+        }));
+        setWorkerDepartment((current) => current || next[0]?.[0] || '');
+        setTeamDepartment((current) => current || next[0]?.[0] || '');
+      })
+      .catch(() => {
+        // Seed catalog remains available when the live list cannot be loaded.
+      });
+  }, [municipalityId]);
 
   useEffect(() => {
     void reload();
@@ -377,7 +403,7 @@ export function WorkforcePage() {
                       ) : (
                         <>
                           <td>{worker.displayName}</td>
-                          <td>{formatDepartments(worker.departmentIds)}</td>
+                          <td>{formatDepartments(worker.departmentIds, departmentNames)}</td>
                           <td>{worker.active ? t('workforce.active') : t('workforce.inactive')}</td>
                           {isAdmin ? (
                             <td>

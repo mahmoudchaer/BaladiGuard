@@ -30,6 +30,12 @@ export type MunicipalityProfile = {
   profileVersion: number;
   createdAt: string;
   updatedAt: string;
+  departments?: Array<{
+    departmentId: string;
+    municipalityId: string;
+    name: string;
+    serviceDomain: string;
+  }>;
 };
 
 export type UpsertMunicipalityInput = {

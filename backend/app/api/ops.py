@@ -242,15 +242,11 @@ def ops_runbooks(principal: DeveloperOperatorDep):
 
 @router.get("/municipalities")
 def ops_list_municipalities(principal: DeveloperOperatorDep):
-    from app.schemas.municipality import MunicipalityResponse
+    from app.services.municipalities.departments import municipality_response
     from app.services.municipalities.service import municipality_control_service
 
     items = municipality_control_service.list_profiles()
-    return {
-        "items": [
-            MunicipalityResponse.from_stored(item).model_dump(by_alias=True) for item in items
-        ]
-    }
+    return {"items": [municipality_response(item).model_dump(by_alias=True) for item in items]}
 
 
 @router.post("/municipalities", status_code=201)
@@ -259,7 +255,7 @@ def ops_create_municipality(
     request: Request,
     principal: DeveloperOperatorDep,
 ):
-    from app.schemas.municipality import MunicipalityResponse
+    from app.services.municipalities.departments import municipality_response
     from app.services.municipalities.service import (
         MunicipalityControlError,
         municipality_control_service,
@@ -274,12 +270,12 @@ def ops_create_municipality(
             request_id=get_request_id(request),
             status_code=exc.status_code,
         )
-    return MunicipalityResponse.from_stored(created).model_dump(by_alias=True)
+    return municipality_response(created).model_dump(by_alias=True)
 
 
 @router.get("/municipalities/{municipality_id}")
 def ops_get_municipality(municipality_id: str, request: Request, principal: DeveloperOperatorDep):
-    from app.schemas.municipality import MunicipalityResponse
+    from app.services.municipalities.departments import municipality_response
     from app.services.municipalities.service import (
         MunicipalityControlError,
         municipality_control_service,
@@ -294,7 +290,7 @@ def ops_get_municipality(municipality_id: str, request: Request, principal: Deve
             request_id=get_request_id(request),
             status_code=exc.status_code,
         )
-    return MunicipalityResponse.from_stored(profile).model_dump(by_alias=True)
+    return municipality_response(profile).model_dump(by_alias=True)
 
 
 @router.put("/municipalities/{municipality_id}")
@@ -304,7 +300,7 @@ def ops_update_municipality(
     request: Request,
     principal: DeveloperOperatorDep,
 ):
-    from app.schemas.municipality import MunicipalityResponse
+    from app.services.municipalities.departments import municipality_response
     from app.services.municipalities.service import (
         MunicipalityControlError,
         municipality_control_service,
@@ -319,7 +315,7 @@ def ops_update_municipality(
             request_id=get_request_id(request),
             status_code=exc.status_code,
         )
-    return MunicipalityResponse.from_stored(updated).model_dump(by_alias=True)
+    return municipality_response(updated).model_dump(by_alias=True)
 
 
 @router.post("/municipalities/{municipality_id}/admin")

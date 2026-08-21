@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.stored_department import StoredDepartment
 from app.schemas.stored_municipality import (
     MunicipalityBounds,
     MunicipalityContact,
@@ -35,6 +36,24 @@ MunicipalityOverrideReason = Literal[
 ]
 
 
+class DepartmentResponse(BaseModel):
+    department_id: str = Field(alias="departmentId")
+    municipality_id: str = Field(alias="municipalityId")
+    name: str
+    description: str
+    service_domain: ServiceDomain = Field(alias="serviceDomain")
+
+    model_config = {"populate_by_name": True}
+
+    @classmethod
+    def from_stored(cls, item: StoredDepartment) -> DepartmentResponse:
+        return cls.model_validate(item.model_dump(by_alias=True))
+
+
+class DepartmentListResponse(BaseModel):
+    items: list[DepartmentResponse]
+
+
 class MunicipalityResponse(BaseModel):
     municipality_id: str = Field(alias="municipalityId")
     name: str
@@ -51,11 +70,17 @@ class MunicipalityResponse(BaseModel):
     profile_version: int = Field(alias="profileVersion")
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
+    departments: list[DepartmentResponse] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
     @classmethod
-    def from_stored(cls, item: StoredMunicipality) -> MunicipalityResponse:
+    def from_stored(
+        cls,
+        item: StoredMunicipality,
+        *,
+        departments: list[StoredDepartment] | None = None,
+    ) -> MunicipalityResponse:
         polygon = None
         if item.polygon is not None:
             polygon = {"coordinates": item.polygon.coordinates}
@@ -63,6 +88,9 @@ class MunicipalityResponse(BaseModel):
             {
                 **item.model_dump(by_alias=True),
                 "polygon": polygon,
+                "departments": [
+                    DepartmentResponse.from_stored(department) for department in (departments or [])
+                ],
             }
         )
 

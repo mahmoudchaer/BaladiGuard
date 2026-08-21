@@ -14,6 +14,7 @@ import type { StaffAccount } from '@/types/staffAccount';
 vi.mock('@/services/staffAccounts', () => ({
   createStaffAccount: vi.fn(),
   listStaffAccounts: vi.fn(),
+  listStaffDepartments: vi.fn(async () => []),
   setStaffAccountActive: vi.fn(),
   updateStaffAccount: vi.fn(),
 }));

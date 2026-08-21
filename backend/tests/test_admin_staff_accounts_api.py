@@ -144,3 +144,12 @@ def test_admin_routes_are_safe_for_guests_invalid_sessions_and_municipal_staff(a
     municipal = anonymous_client.get(route, headers=_headers(anonymous_client, "staff"))
     assert municipal.status_code == 403
     assert municipal.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_admin_staff_department_catalog_is_municipality_scoped(anonymous_client):
+    headers = _headers(anonymous_client, "admin")
+    response = anonymous_client.get("/v1/staff/departments", headers=headers)
+    assert response.status_code == 200, response.text
+    items = response.json()["items"]
+    assert items
+    assert {item["municipalityId"] for item in items} == {"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}

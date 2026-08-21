@@ -12,6 +12,7 @@ import {
 import {
   createStaffAccount,
   listStaffAccounts,
+  listStaffDepartments,
   setStaffAccountActive,
   updateStaffAccount,
 } from '@/services/staffAccounts';
@@ -48,8 +49,12 @@ function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function departmentLabel(ids: string[], unknownLabel: string): string {
-  return ids.map((id) => DEPARTMENT_NAMES[id] ?? `${unknownLabel} ${id}`).join(', ');
+function departmentLabel(
+  ids: string[],
+  unknownLabel: string,
+  names: Record<string, string> = DEPARTMENT_NAMES,
+): string {
+  return ids.map((id) => names[id] ?? `${unknownLabel} ${id}`).join(', ');
 }
 
 function roleLabel(role: StaffAccountRole, t: (key: string) => string): string {
@@ -79,16 +84,17 @@ function validateScope(
 function ScopeFields({
   municipalityId,
   departmentIds,
+  departmentOptions,
   hintId,
   onDepartmentsChange,
 }: {
   municipalityId: string;
   departmentIds: string[];
+  departmentOptions: Array<[string, string]>;
   hintId: string;
   onDepartmentsChange: (value: string[]) => void;
 }) {
   const { t } = useI18n();
-  const departmentOptions = departmentsForMunicipality(municipalityId);
   return (
     <div className="staff-accounts__scope">
       <label className="staff-accounts__field">
@@ -135,6 +141,8 @@ export function StaffAccountsPage() {
   const [savingCreate, setSavingCreate] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [departmentOptions, setDepartmentOptions] = useState<Array<[string, string]>>([]);
+  const [departmentNames, setDepartmentNames] = useState<Record<string, string>>(DEPARTMENT_NAMES);
   const createInFlight = useRef(false);
   const mutationInFlight = useRef<Set<string>>(new Set());
 
@@ -157,6 +165,22 @@ export function StaffAccountsPage() {
   }, []);
 
   const scopedMunicipalityId = session?.municipalityId ?? '';
+
+  useEffect(() => {
+    setDepartmentOptions(departmentsForMunicipality(scopedMunicipalityId));
+    void listStaffDepartments()
+      .then((items) => {
+        if (items.length === 0) return;
+        setDepartmentOptions(items.map((item) => [item.departmentId, item.name]));
+        setDepartmentNames((current) => ({
+          ...current,
+          ...Object.fromEntries(items.map((item) => [item.departmentId, item.name])),
+        }));
+      })
+      .catch(() => {
+        // Seed catalog remains available when the live list cannot be loaded.
+      });
+  }, [scopedMunicipalityId]);
 
   useEffect(() => {
     if (!scopedMunicipalityId) return;
@@ -404,6 +428,7 @@ export function StaffAccountsPage() {
               hintId="create-staff-scope-hint"
               municipalityId={scopedMunicipalityId || createForm.municipalityId}
               departmentIds={createForm.departmentIds}
+              departmentOptions={departmentOptions}
               onDepartmentsChange={(value) => updateCreate('departmentIds', value)}
             />
             <div className="staff-accounts__form-actions">
@@ -506,6 +531,7 @@ export function StaffAccountsPage() {
                               hintId={`edit-${account.staffId}-scope-hint`}
                               municipalityId={scopedMunicipalityId || editForm.municipalityId}
                               departmentIds={editForm.departmentIds}
+                              departmentOptions={departmentOptions}
                               onDepartmentsChange={(value) =>
                                 setEditForm({ ...editForm, departmentIds: value })
                               }
@@ -520,6 +546,7 @@ export function StaffAccountsPage() {
                                 {departmentLabel(
                                   account.departmentIds ?? [],
                                   t('staffAccounts.unknownDepartment'),
+                                  departmentNames,
                                 )}
                               </span>
                             </>

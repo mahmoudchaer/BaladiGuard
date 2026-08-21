@@ -49,9 +49,22 @@ def _require_admin(actor: StaffPrincipal) -> None:
     _guard_municipality_admin_scope(actor)
 
 
+NOT_FOUND_MESSAGE = "Staff account not found."
+
+
 def _reject_operator_target(user: StoredStaffUser) -> None:
     if user.role == "developer_operator":
-        raise StaffAccountAdminError("Staff account not found.")
+        raise StaffAccountAdminError(NOT_FOUND_MESSAGE)
+
+
+def _require_managed_target(actor: StaffPrincipal, user: StoredStaffUser | None) -> StoredStaffUser:
+    """Hide accounts outside the actor's municipality with the same not-found error."""
+    if user is None:
+        raise StaffAccountAdminError(NOT_FOUND_MESSAGE)
+    _reject_operator_target(user)
+    if not actor.municipality_id or user.municipality_id != actor.municipality_id:
+        raise StaffAccountAdminError(NOT_FOUND_MESSAGE)
+    return user
 
 
 def _snapshot(user: StoredStaffUser) -> dict:
@@ -77,6 +90,20 @@ class StaffAccountAdminService:
         from app.database.store_factory import get_staff_store
 
         return get_staff_store()
+
+    def list_managed(self, actor: StaffPrincipal) -> list[StoredStaffUser]:
+        _require_admin(actor)
+        if not actor.municipality_id:
+            return []
+        return [
+            user
+            for user in self._store().list()
+            if user.role != "developer_operator" and user.municipality_id == actor.municipality_id
+        ]
+
+    def get_managed(self, actor: StaffPrincipal, staff_id: str) -> StoredStaffUser:
+        _require_admin(actor)
+        return _require_managed_target(actor, self._store().get(staff_id))
 
     def create_staff(
         self,
@@ -148,10 +175,7 @@ class StaffAccountAdminService:
     ) -> StoredStaffUser:
         _require_admin(actor)
         store = self._store()
-        user = store.get(staff_id)
-        if user is None:
-            raise StaffAccountAdminError("Staff account not found.")
-        _reject_operator_target(user)
+        user = _require_managed_target(actor, store.get(staff_id))
         if role == "developer_operator":
             raise StaffAccountAdminError(
                 "Municipality administrators cannot create or assign developer-operator access."
@@ -179,7 +203,7 @@ class StaffAccountAdminService:
                 "Invalid staff role, municipality, or department scope."
             ) from exc
         except StaffNotFoundError as exc:
-            raise StaffAccountAdminError("Staff account not found.") from exc
+            raise StaffAccountAdminError(NOT_FOUND_MESSAGE) from exc
 
         self._audit.record_safe(
             action_type="STAFF_ROLE_CHANGED",
@@ -202,10 +226,7 @@ class StaffAccountAdminService:
     ) -> StoredStaffUser:
         _require_admin(actor)
         store = self._store()
-        user = store.get(staff_id)
-        if user is None:
-            raise StaffAccountAdminError("Staff account not found.")
-        _reject_operator_target(user)
+        user = _require_managed_target(actor, store.get(staff_id))
         if user.role == "administrator":
             raise StaffAccountAdminError(
                 "Municipality administrator scope is fixed; provision a new administrator instead."
@@ -234,7 +255,7 @@ class StaffAccountAdminService:
                 "Invalid staff role, municipality, or department scope."
             ) from exc
         except StaffNotFoundError as exc:
-            raise StaffAccountAdminError("Staff account not found.") from exc
+            raise StaffAccountAdminError(NOT_FOUND_MESSAGE) from exc
 
         self._audit.record_safe(
             action_type="STAFF_SCOPE_CHANGED",
@@ -256,10 +277,7 @@ class StaffAccountAdminService:
     ) -> StoredStaffUser:
         _require_admin(actor)
         store = self._store()
-        user = store.get(staff_id)
-        if user is None:
-            raise StaffAccountAdminError("Staff account not found.")
-        _reject_operator_target(user)
+        user = _require_managed_target(actor, store.get(staff_id))
 
         previous = _snapshot(user)
         stamped = _iso_now()
@@ -272,7 +290,7 @@ class StaffAccountAdminService:
         try:
             updated = store.update(user.model_copy(update=update))
         except StaffNotFoundError as exc:
-            raise StaffAccountAdminError("Staff account not found.") from exc
+            raise StaffAccountAdminError(NOT_FOUND_MESSAGE) from exc
 
         action = "STAFF_REACTIVATED" if active else "STAFF_DEACTIVATED"
         self._audit.record_safe(

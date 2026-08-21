@@ -48,6 +48,11 @@ authorization.
   kept; ticket returns to the unassigned queue.
 - `POST /v1/ops/tickets/{id}/municipality/override` — developer operators only.
 
+Creating or updating a municipality **auto-creates one department per service
+domain** so routing and staff scopes have mappings immediately. Administrators
+list those departments at `GET /v1/staff/departments`. Staff-account reads and
+mutations return `404` for accounts outside the actor's municipality.
+
 Unassigned staff GET responses omit citizen contact. Assigned tickets in another
 municipality return `404`.
 
