@@ -172,8 +172,7 @@ export function LoginPage() {
             />
             <label className="toggle-row" htmlFor="accept-legal">
               <span>
-                {t('auth.legalAgreePrefix')}{' '}
-                <Link to="/terms">{t('shell.terms')}</Link>
+                {t('auth.legalAgreePrefix')} <Link to="/terms">{t('shell.terms')}</Link>
                 {t('auth.legalAgreeJoin1')}
                 <Link to="/privacy">{t('shell.privacy')}</Link>
                 {t('auth.legalAgreeJoin2')}

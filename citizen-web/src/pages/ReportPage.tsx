@@ -389,8 +389,7 @@ export function ReportPage() {
             </p>
           </div>
           <p className="helper" style={{ marginTop: '0.5rem' }}>
-            {t('report.privacyJit')}{' '}
-            <Link to="/privacy">{t('report.privacyJitLink')}</Link>
+            {t('report.privacyJit')} <Link to="/privacy">{t('report.privacyJitLink')}</Link>
           </p>
           <button className="button button-large" disabled={busy} type="submit">
             {busy ? t('report.pleaseWait') : t('report.submit')} <span aria-hidden>→</span>

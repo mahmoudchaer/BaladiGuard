@@ -8,7 +8,14 @@ import { GlobalSearch } from '@/components/GlobalSearch';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { StaffAssistantPanel } from '@/components/StaffAssistantPanel';
 import { useI18n } from '@/i18n/LocaleProvider';
-import { IconAnalytics, IconDocument, IconMap, IconPeople, IconSparkles, IconTickets } from '@/components/icons';
+import {
+  IconAnalytics,
+  IconDocument,
+  IconMap,
+  IconPeople,
+  IconSparkles,
+  IconTickets,
+} from '@/components/icons';
 import './BrandMark.css';
 import './DashboardLayout.css';
 

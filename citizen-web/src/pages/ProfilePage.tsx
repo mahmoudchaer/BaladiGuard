@@ -178,7 +178,12 @@ export function ProfilePage() {
             {' · '}
             <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
           </p>
-          <button className="button" type="button" disabled={busy} onClick={() => void handleAcceptLegal()}>
+          <button
+            className="button"
+            type="button"
+            disabled={busy}
+            onClick={() => void handleAcceptLegal()}
+          >
             {busy ? t('profile.acceptingLegal') : t('profile.acceptLegal')}
           </button>
         </div>

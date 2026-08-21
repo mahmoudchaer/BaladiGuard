@@ -45,8 +45,8 @@ from app.database.memory_ops import (  # noqa: E402
     ops_audit_store,
     ops_error_store,
 )
-from app.database.memory_privacy_request import privacy_request_audit_store  # noqa: E402
 from app.database.memory_photo_claim import photo_claim_store  # noqa: E402
+from app.database.memory_privacy_request import privacy_request_audit_store  # noqa: E402
 from app.database.memory_resolution_review import resolution_review_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
 from app.database.memory_staff_comments import staff_comment_store  # noqa: E402

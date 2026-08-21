@@ -91,21 +91,30 @@ export function SimpleMarkdown({ markdown, className }: { markdown: string; clas
         const key = `${block.type}-${index}`;
         if (block.type === 'h1') {
           return (
-            <h2 key={key} style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '1.35rem' }}>
+            <h2
+              key={key}
+              style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '1.35rem' }}
+            >
               {inlineText(block.text)}
             </h2>
           );
         }
         if (block.type === 'h2') {
           return (
-            <h3 key={key} style={{ marginTop: '1.1rem', marginBottom: '0.4rem', fontSize: '1.15rem' }}>
+            <h3
+              key={key}
+              style={{ marginTop: '1.1rem', marginBottom: '0.4rem', fontSize: '1.15rem' }}
+            >
               {inlineText(block.text)}
             </h3>
           );
         }
         if (block.type === 'h3') {
           return (
-            <h4 key={key} style={{ marginTop: '1rem', marginBottom: '0.35rem', fontSize: '1.05rem' }}>
+            <h4
+              key={key}
+              style={{ marginTop: '1rem', marginBottom: '0.35rem', fontSize: '1.05rem' }}
+            >
               {inlineText(block.text)}
             </h4>
           );
