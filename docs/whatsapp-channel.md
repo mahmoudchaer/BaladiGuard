@@ -5,10 +5,13 @@ This is **not** an AI chatbot.
 
 ## Status
 
-Code lands with `WHATSAPP_PROVIDER=mock` so local/CI can exercise the full state machine
-**without** a real Meta Business number. Production completion still requires:
+Code can run with `WHATSAPP_PROVIDER=mock` for local/CI. The agreed live path for this PR is the Meta **test number** (sandbox): the citizen messages first, which opens the 24h session window so outbound prompts can be session text. A production WABA + approved templates remain a later cutover.
 
-1. Meta Cloud API app + approved WhatsApp number
+Inbound webhook dedup claims the Meta `message_id` before processing and **releases it if processing fails**. The webhook then returns **503** so Meta can retry instead of silently dropping the report.
+
+Production completion still requires:
+
+1. Meta Cloud API app + sandbox or approved WhatsApp number
 2. Secrets in AWS Secrets Manager (`WHATSAPP_*`)
 3. Public HTTPS webhook → deployed backend
 4. Live end-to-end evidence (ticket in Dynamo/S3 + admin + same-phone OTP history)

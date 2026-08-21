@@ -30,4 +30,7 @@ class WhatsAppDedupStore(Protocol):
     def try_record(self, *, message_id: str, ttl_seconds: int) -> bool:
         """Return True if this message_id is newly recorded; False if duplicate."""
 
+    def release(self, *, message_id: str) -> None:
+        """Drop a claimed id so Meta can retry after a processing failure."""
+
     def clear(self) -> None: ...

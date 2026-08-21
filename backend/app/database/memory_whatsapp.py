@@ -65,6 +65,10 @@ class InMemoryWhatsAppDedupStore:
                 self._seen.pop(key, None)
             return True
 
+    def release(self, *, message_id: str) -> None:
+        with self._lock:
+            self._seen.pop(message_id, None)
+
     def clear(self) -> None:
         with self._lock:
             self._seen.clear()

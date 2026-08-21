@@ -87,3 +87,6 @@ class DynamoWhatsAppDedupStore:
             if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 return False
             raise
+
+    def release(self, *, message_id: str) -> None:
+        self._table.delete_item(Key={"messageId": message_id})

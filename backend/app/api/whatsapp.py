@@ -70,7 +70,9 @@ async def receive_whatsapp_webhook(request: Request) -> Response:
     if not isinstance(payload, dict):
         return JSONResponse(status_code=400, content={"detail": "Malformed JSON object."})
 
-    # Acknowledge quickly; process synchronously for mock/local and small loads.
-    # Production may move heavy media/submit work to a worker later.
+    # Process synchronously, but only 200 after success so Meta retries stay possible.
+    # Dedup is claimed before handle_event and released if processing fails.
     result = whatsapp_ingestion_service.process_webhook_payload(payload)
+    if result.get("failed", 0) > 0:
+        return JSONResponse(status_code=503, content={"ok": False, **result})
     return JSONResponse(status_code=200, content={"ok": True, **result})

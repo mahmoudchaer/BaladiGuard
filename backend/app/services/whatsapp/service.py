@@ -32,6 +32,7 @@ class WhatsAppIngestionService:
         accepted = 0
         duplicates = 0
         ignored = 0
+        failed = 0
         for event in events:
             if event.kind == "status":
                 ignored += 1
@@ -52,13 +53,26 @@ class WhatsAppIngestionService:
                 accepted += 1
                 emit_metric("WhatsAppMessageAccepted", dimensions={"kind": event.kind})
             except Exception as exc:  # noqa: BLE001
+                try:
+                    dedup.release(message_id=event.message_id)
+                except Exception:
+                    logger.warning(
+                        "WhatsApp dedup release failed kind=%s",
+                        event.kind,
+                    )
+                failed += 1
                 logger.warning(
                     "WhatsApp event processing failed kind=%s error=%s",
                     event.kind,
                     type(exc).__name__,
                 )
                 emit_metric("WhatsAppProcessingFailure", dimensions={"kind": event.kind})
-        return {"accepted": accepted, "duplicates": duplicates, "ignored": ignored}
+        return {
+            "accepted": accepted,
+            "duplicates": duplicates,
+            "ignored": ignored,
+            "failed": failed,
+        }
 
 
 whatsapp_ingestion_service = WhatsAppIngestionService()

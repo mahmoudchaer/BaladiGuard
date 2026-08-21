@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.database.memory import ticket_store
 from app.database.memory_whatsapp import whatsapp_conversation_store, whatsapp_dedup_store
 from app.main import create_app
+from app.services.whatsapp.fsm import WhatsAppFlowEngine
 from app.services.whatsapp.graph import get_mock_graph_client, reset_mock_graph_client
 from app.services.whatsapp.signature import sign_meta_payload
 from app.services.whatsapp.states import parse_command, previous_editable_state
@@ -158,6 +159,38 @@ def test_duplicate_message_is_deduped(wa_client):
     assert first["accepted"] == 1
     assert second["duplicates"] == 1
     assert second["accepted"] == 0
+
+
+def test_failed_processing_releases_dedup_so_retry_is_processed(wa_client, monkeypatch):
+    payload = _message_payload(
+        message_id="wamid.retry.1",
+        wa_id="96170111113",
+        message={"type": "text", "text": {"body": "hello"}},
+    )
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": sign_meta_payload(app_secret=APP_SECRET, raw_body=raw),
+    }
+    original = WhatsAppFlowEngine.handle_event
+    should_fail = {"value": True}
+
+    def maybe_fail(self, event):
+        if should_fail["value"]:
+            raise RuntimeError("transient graph/s3 failure")
+        return original(self, event)
+
+    monkeypatch.setattr(WhatsAppFlowEngine, "handle_event", maybe_fail)
+    failed = wa_client.post("/v1/whatsapp/webhook", content=raw, headers=headers)
+    assert failed.status_code == 503, failed.text
+    assert failed.json()["failed"] == 1
+    assert failed.json()["accepted"] == 0
+
+    should_fail["value"] = False
+    retried = wa_client.post("/v1/whatsapp/webhook", content=raw, headers=headers)
+    assert retried.status_code == 200, retried.text
+    assert retried.json()["accepted"] == 1
+    assert retried.json()["duplicates"] == 0
 
 
 def test_flow_advances_and_submits_ticket(wa_client, monkeypatch):
