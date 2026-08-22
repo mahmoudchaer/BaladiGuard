@@ -21,6 +21,7 @@
     "optional": "Facultatif",
     "copy": "Copier",
     "copied": "Copié",
+    "copyFailed": "Impossible de copier. Sélectionnez le code et copiez-le manuellement.",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer le menu"
   },
@@ -248,7 +249,7 @@
     "sendFailed": "Impossible d’envoyer un code.",
     "phoneUpdated": "Téléphone mis à jour. Veuillez vous reconnecter avec votre nouveau numéro.",
     "phoneFailed": "Impossible de changer votre téléphone.",
-    "keepDraft": "Conserver le brouillon de signalement de ce compte pour votre prochaine connexion ? Choisissez Annuler pour l’effacer avant de vous déconnecter.",
+    "keepDraft": "Conserver le brouillon de signalement de ce compte pour votre prochaine connexion ? Annuler reste connecté et laisse le brouillon inchangé.",
     "identity": "Identité",
     "verifiedPhone": "Téléphone vérifié",
     "verified": "✓ Vérifié",

@@ -196,10 +196,17 @@ export async function getPublicMapViewport(
   };
 }
 
-export async function getPublicTicketByNumber(ticketNumber: string): Promise<PublicTicketResponse> {
+export async function getPublicTicketByNumber(
+  ticketNumber: string,
+  options?: { signal?: AbortSignal },
+): Promise<PublicTicketResponse> {
   const normalized = ticketNumber.trim().toUpperCase();
   if (!normalized) {
     throw new Error(PUBLIC_TICKET_NOT_FOUND_MESSAGE);
+  }
+
+  if (options?.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
   }
 
   if (config.useMockData) {
@@ -210,8 +217,12 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
   try {
     response = await fetch(apiUrl(`/tickets/public/${encodeURIComponent(normalized)}`), {
       method: 'GET',
+      signal: options?.signal,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     if (isOfflineError(error)) {
       throw new Error(PUBLIC_TICKET_NETWORK_MESSAGE, { cause: error });
     }

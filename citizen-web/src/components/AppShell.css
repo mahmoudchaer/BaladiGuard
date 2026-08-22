@@ -600,10 +600,31 @@ a {
   border-radius: 14px;
   background: #f7f8fa;
 }
+.draft-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgb(15 23 42 / 0.45);
+}
 .draft-dialog {
-  margin-top: 0.75rem;
+  width: min(28rem, 100%);
+  margin: 0;
   border: 1px solid var(--border);
   background: #fff;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 0.18);
+}
+.copy-control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.copy-control__error {
+  color: var(--danger, #b42318);
+  font-size: 0.9rem;
 }
 .track-code-row {
   display: flex;

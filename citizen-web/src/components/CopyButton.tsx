@@ -8,21 +8,28 @@ type CopyButtonProps = {
 
 export function CopyButton({ value, label }: CopyButtonProps) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      setStatus('copied');
+      window.setTimeout(() => setStatus('idle'), 2000);
     } catch {
-      // Clipboard can be unavailable in older browsers or insecure contexts.
+      setStatus('failed');
     }
   }
 
   return (
-    <button type="button" className="text-button" onClick={() => void copy()}>
-      {copied ? t('common.copied') : (label ?? t('common.copy'))}
-    </button>
+    <span className="copy-control">
+      <button type="button" className="text-button" onClick={() => void copy()}>
+        {status === 'copied' ? t('common.copied') : (label ?? t('common.copy'))}
+      </button>
+      {status === 'failed' ? (
+        <span className="copy-control__error" role="alert">
+          {t('common.copyFailed')}
+        </span>
+      ) : null}
+    </span>
   );
 }

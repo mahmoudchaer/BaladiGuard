@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { PublicPhoto } from '@/components/PublicPhoto';
 import { StatusChip } from '@/components/StatusChip';
@@ -17,34 +17,41 @@ export function PublicDetailPage() {
   const [report, setReport] = useState<PublicTicketResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestGeneration = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(() => {
-    let cancelled = false;
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
-    void getPublicTicketByNumber(ticketNumber)
+    setReport(null);
+    void getPublicTicketByNumber(ticketNumber, { signal: controller.signal })
       .then((item) => {
-        if (!cancelled) setReport(item);
+        if (generation === requestGeneration.current) setReport(item);
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          setReport(null);
-          setError(
-            err instanceof Error
-              ? err.message === PUBLIC_TICKET_NOT_FOUND_MESSAGE
-                ? t('public.detailNotFound')
-                : err.message === PUBLIC_TICKET_NETWORK_MESSAGE
-                  ? t('public.detailNetwork')
-                  : err.message
-              : t('public.detailNetwork'),
-          );
-        }
+        if (generation !== requestGeneration.current) return;
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setReport(null);
+        setError(
+          err instanceof Error
+            ? err.message === PUBLIC_TICKET_NOT_FOUND_MESSAGE
+              ? t('public.detailNotFound')
+              : err.message === PUBLIC_TICKET_NETWORK_MESSAGE
+                ? t('public.detailNetwork')
+                : err.message
+            : t('public.detailNetwork'),
+        );
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (generation === requestGeneration.current) setLoading(false);
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [ticketNumber, t]);
 

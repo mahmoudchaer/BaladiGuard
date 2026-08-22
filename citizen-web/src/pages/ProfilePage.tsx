@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import {
@@ -11,6 +11,89 @@ import { clearDraft, loadDraft } from '@/services/reportDraft';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { CountryRegionSelect } from '@/components/CountryRegionSelect';
 import { useI18n } from '@/i18n/LocaleProvider';
+
+function DraftSignOutDialog({
+  onKeep,
+  onClear,
+  onDismiss,
+}: {
+  onKeep: () => void;
+  onClear: () => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useI18n();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  useEffect(() => {
+    previouslyFocused.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const root = dialogRef.current;
+    const focusables = () =>
+      Array.from(
+        root?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => !element.hasAttribute('disabled'));
+    focusables()[0]?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onDismissRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      previouslyFocused.current?.focus();
+    };
+  }, []);
+
+  return (
+    <div className="draft-dialog-backdrop">
+      <div
+        ref={dialogRef}
+        className="draft-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="draft-dialog-title"
+        aria-describedby="draft-dialog-desc"
+      >
+        <p id="draft-dialog-title">{t('profile.keepDraftTitle')}</p>
+        <p id="draft-dialog-desc" className="helper">
+          {t('profile.keepDraft')}
+        </p>
+        <div className="button-row">
+          <button className="button" type="button" onClick={onKeep}>
+            {t('profile.keepDraftKeep')}
+          </button>
+          <button className="button button-secondary" type="button" onClick={onClear}>
+            {t('profile.keepDraftClear')}
+          </button>
+          <button className="text-button" type="button" onClick={onDismiss}>
+            {t('common.cancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ProfilePage() {
   const { t, locale } = useI18n();
@@ -161,6 +244,7 @@ export function ProfilePage() {
 
   return (
     <section className="page page-enter narrow-page">
+      <div inert={draftChoice ? true : undefined} aria-hidden={draftChoice || undefined}>
       <div className="page-heading">
         <div>
           <span className="eyebrow">{t('profile.eyebrow')}</span>
@@ -438,25 +522,15 @@ export function ProfilePage() {
           </span>
           <span>→</span>
         </button>
-        {draftChoice ? (
-          <div className="draft-dialog" role="dialog" aria-labelledby="draft-dialog-title">
-            <p id="draft-dialog-title">{t('profile.keepDraftTitle')}</p>
-            <p className="helper">{t('profile.keepDraft')}</p>
-            <div className="button-row">
-              <button className="button" type="button" onClick={() => void signOut(true)}>
-                {t('profile.keepDraftKeep')}
-              </button>
-              <button
-                className="button button-secondary"
-                type="button"
-                onClick={() => void signOut(false)}
-              >
-                {t('profile.keepDraftClear')}
-              </button>
-            </div>
-          </div>
-        ) : null}
       </div>
+      </div>
+      {draftChoice ? (
+        <DraftSignOutDialog
+          onKeep={() => void signOut(true)}
+          onClear={() => void signOut(false)}
+          onDismiss={() => setDraftChoice(false)}
+        />
+      ) : null}
     </section>
   );
 }

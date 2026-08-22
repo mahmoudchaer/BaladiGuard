@@ -21,6 +21,7 @@
     "optional": "Optional",
     "copy": "Copy",
     "copied": "Copied",
+    "copyFailed": "Couldn't copy. Select the code and copy it manually.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
   },
@@ -248,7 +249,7 @@
     "sendFailed": "Unable to send a code.",
     "phoneUpdated": "Phone updated. Please sign in again with your new number.",
     "phoneFailed": "Unable to change your phone.",
-    "keepDraft": "Keep this account’s saved report draft for your next sign-in? Choose Cancel to clear it before signing out.",
+    "keepDraft": "Keep this account’s saved report draft for your next sign-in? Cancel stays signed in and leaves the draft unchanged.",
     "identity": "Identity",
     "verifiedPhone": "Verified phone",
     "verified": "✓ Verified",

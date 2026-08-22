@@ -147,7 +147,10 @@ describe('citizen web public browsing', () => {
     renderApp('/reports');
     await user.click(await screen.findByRole('link', { name: /BG-100001/i }));
     expect(await screen.findByTestId('public-detail')).toBeInTheDocument();
-    expect(getPublicTicketByNumber).toHaveBeenCalledWith('BG-100001');
+    expect(getPublicTicketByNumber).toHaveBeenCalledWith(
+      'BG-100001',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('loads only the visible map viewport', async () => {
