@@ -104,7 +104,9 @@ export function RequireContributionReady({ children, returnTo }: RequireContribu
                 await acceptCitizenLegal(accessToken, { acceptLegal: true, locale });
                 await refreshProfile();
               } catch (error) {
-                setLegalError(error instanceof Error ? error.message : t('profile.legalAcceptFailed'));
+                setLegalError(
+                  error instanceof Error ? error.message : t('profile.legalAcceptFailed'),
+                );
               } finally {
                 setLegalBusy(false);
               }

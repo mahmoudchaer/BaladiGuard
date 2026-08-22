@@ -81,7 +81,12 @@ export default function PublicReportDetailScreen() {
 
         {error ? (
           <>
-            <Banner visible icon="alert-circle" style={styles.errorBanner} testID="public-report-detail-error">
+            <Banner
+              visible
+              icon="alert-circle"
+              style={styles.errorBanner}
+              testID="public-report-detail-error"
+            >
               {error}
             </Banner>
             <Button

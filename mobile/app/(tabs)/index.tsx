@@ -130,7 +130,11 @@ export default function HomeScreen() {
                 style={styles.signInButton}
               >
                 <Text style={styles.signInText}>{t('home.signInCreate')}</Text>
-                <Icon source={isRtl ? 'arrow-left' : 'arrow-right'} size={21} color={colors.textInverse} />
+                <Icon
+                  source={isRtl ? 'arrow-left' : 'arrow-right'}
+                  size={21}
+                  color={colors.textInverse}
+                />
               </TactilePressable>
             </Link>
             <Link href={'/explore' as Href} asChild>
@@ -293,7 +297,11 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.reportTrailing}>
                   <StatusChip status={report.status} />
-                  <Icon source={isRtl ? 'chevron-left' : 'chevron-right'} size={18} color={colors.textMuted} />
+                  <Icon
+                    source={isRtl ? 'chevron-left' : 'chevron-right'}
+                    size={18}
+                    color={colors.textMuted}
+                  />
                 </View>
               </TactilePressable>
             ))}
