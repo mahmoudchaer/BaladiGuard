@@ -97,7 +97,18 @@ class ProductionNotificationAdapter:
             },
             headers,
         )
-        ticket = data.get("data") or {}
+        ticket_payload = data.get("data")
+        if (
+            not isinstance(ticket_payload, list)
+            or len(ticket_payload) != 1
+            or not isinstance(ticket_payload[0], dict)
+        ):
+            raise NotificationDeliveryError(
+                "Expo Push API returned a malformed ticket response.",
+                category="transient_provider_error",
+                transient=True,
+            )
+        ticket = ticket_payload[0]
         if ticket.get("status") == "error":
             details = ticket.get("details") or {}
             permanent = details.get("error") == "DeviceNotRegistered"
