@@ -1,12 +1,13 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setLocale, t } from '@/i18n';
+import { resetLocaleForTests, setLocale, t } from '@/i18n';
 
 import { TicketListPage } from '@/pages/TicketListPage';
 import { queryStaffAssistant } from '@/services/staffAssistant';
 import {
   assignTicketDepartment,
+  bulkAssignTicketDepartment,
   fetchTicketAggregates,
   fetchTicketById,
   fetchTicketsPage,
@@ -37,6 +38,9 @@ vi.mock('@/services/tickets', async () => {
     acceptAiCategory: vi.fn(),
     updateTicketCategory: vi.fn(),
     reviewTicketCategory: vi.fn(),
+    bulkAssignTicketDepartment: vi.fn(),
+    bulkAssignTicketWorkforce: vi.fn(),
+    fetchAssignmentHistory: vi.fn(async () => ({ ticketId: '', items: [] })),
   };
 });
 
@@ -211,6 +215,7 @@ function applyFetchFilters(items: Ticket[], options: FetchPageOptions = {}) {
 
 describe('TicketListPage', () => {
   beforeEach(() => {
+    resetLocaleForTests();
     vi.clearAllMocks();
     vi.mocked(fetchTicketsPage).mockImplementation(async (options) =>
       pageFromTickets(applyFetchFilters(tickets, options)),
@@ -271,6 +276,119 @@ describe('TicketListPage', () => {
     expect(
       screen.getByRole('heading', { level: 2, name: t('tickets.citizenReports') }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      t('tickets.opsCounts', {
+        queued: 0,
+        assigned: 0,
+        inProgress: 0,
+        dueSoon: 0,
+        workforceUnassigned: 0,
+        completed: 0,
+        cancelled: 0,
+      }),
+    );
+  });
+
+  it('lets staff select tickets, preview a bulk assignment, then commit it', async () => {
+    const user = userEvent.setup();
+    vi.mocked(bulkAssignTicketDepartment).mockResolvedValue({
+      dryRun: true,
+      attempted: 1,
+      succeeded: 1,
+      failed: 0,
+      items: [{ ticketId: 'tkt_road', ok: true, code: 'PREVIEW' }],
+    });
+
+    renderWithProviders(<TicketListPage />);
+    await screen.findByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' });
+
+    await user.click(screen.getByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' }));
+    expect(screen.getByLabelText('Bulk assignment')).toBeInTheDocument();
+
+    const { DEPARTMENT_OPTIONS } = await import('@/utils/departments');
+    const bulk = within(screen.getByLabelText('Bulk assignment'));
+    await user.selectOptions(
+      bulk.getByRole('combobox', { name: 'Department' }),
+      DEPARTMENT_OPTIONS[0]!.departmentId,
+    );
+    await user.click(bulk.getByRole('button', { name: 'Preview' }));
+    expect(await bulk.findByText(/1 succeeded/)).toBeInTheDocument();
+
+    vi.mocked(bulkAssignTicketDepartment).mockResolvedValue({
+      dryRun: false,
+      attempted: 1,
+      succeeded: 1,
+      failed: 0,
+      items: [{ ticketId: 'tkt_road', ok: true }],
+    });
+    const pageCallsBeforeCommit = vi.mocked(fetchTicketsPage).mock.calls.length;
+    const aggregateCallsBeforeCommit = vi.mocked(fetchTicketAggregates).mock.calls.length;
+    await user.click(bulk.getByRole('button', { name: 'Commit' }));
+
+    await waitFor(() => {
+      expect(vi.mocked(fetchTicketsPage).mock.calls.length).toBeGreaterThan(pageCallsBeforeCommit);
+      expect(vi.mocked(fetchTicketAggregates).mock.calls.length).toBeGreaterThan(
+        aggregateCallsBeforeCommit,
+      );
+    });
+    expect(screen.queryByLabelText('Bulk assignment')).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' }),
+    ).not.toBeChecked();
+  });
+
+  it('keeps per-ticket results visible when a bulk commit only partly succeeds', async () => {
+    const user = userEvent.setup();
+    vi.mocked(bulkAssignTicketDepartment).mockResolvedValue({
+      dryRun: true,
+      attempted: 2,
+      succeeded: 1,
+      failed: 1,
+      items: [
+        { ticketId: 'tkt_road', ok: true, code: 'PREVIEW' },
+        { ticketId: 'tkt_waste', ok: false, code: 'FORBIDDEN', message: 'Out of scope.' },
+      ],
+    });
+
+    renderWithProviders(<TicketListPage />);
+    await screen.findByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' });
+    await user.click(screen.getByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Add BG-2026-0002 to bulk assignment' }));
+
+    const { DEPARTMENT_OPTIONS } = await import('@/utils/departments');
+    const bulk = within(screen.getByLabelText('Bulk assignment'));
+    await user.selectOptions(
+      bulk.getByRole('combobox', { name: 'Department' }),
+      DEPARTMENT_OPTIONS[0]!.departmentId,
+    );
+    await user.click(bulk.getByRole('button', { name: 'Preview' }));
+    expect(await bulk.findByText(/1 succeeded/)).toBeInTheDocument();
+
+    vi.mocked(bulkAssignTicketDepartment).mockResolvedValue({
+      dryRun: false,
+      attempted: 2,
+      succeeded: 1,
+      failed: 1,
+      items: [
+        { ticketId: 'tkt_road', ok: true },
+        { ticketId: 'tkt_waste', ok: false, code: 'FORBIDDEN', message: 'Out of scope.' },
+      ],
+    });
+    const pageCallsBeforeCommit = vi.mocked(fetchTicketsPage).mock.calls.length;
+    await user.click(bulk.getByRole('button', { name: 'Commit' }));
+
+    await waitFor(() => {
+      expect(vi.mocked(fetchTicketsPage).mock.calls.length).toBeGreaterThan(pageCallsBeforeCommit);
+    });
+    const committed = within(screen.getByLabelText('Bulk assignment'));
+    expect(committed.getByText(/Committed/)).toBeInTheDocument();
+    expect(committed.getByText(/Out of scope/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: 'Add BG-2026-0002 to bulk assignment' }),
+    ).toBeChecked();
   });
 
   const assistantListAnswer: StaffAssistantResponse = {

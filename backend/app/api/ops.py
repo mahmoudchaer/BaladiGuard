@@ -18,6 +18,7 @@ from app.schemas.ops import (
     OpsOverviewResponse,
     PrivacyRequestCreateRequest,
 )
+from app.schemas.rewards import OpsRewardAdjustmentRequest
 from app.services.observability.safe import (
     ALLOWED_ERROR_CATEGORIES,
     ALLOWED_JOB_TYPES,
@@ -412,4 +413,47 @@ def ops_override_ticket_municipality(
             request_id=get_request_id(request),
             status_code=exc.status_code,
         )
+    from app.services.rewards.observe import observe_ticket_rewards
+
+    observe_ticket_rewards(updated)
     return ticket_service._map_ticket(updated).model_dump(by_alias=True)
+
+
+@router.get("/rewards/citizens/{citizen_user_id}")
+def ops_citizen_rewards(
+    citizen_user_id: str,
+    request: Request,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.rewards.service import RewardsServiceError, rewards_service
+
+    del principal
+    try:
+        return rewards_service.ops_citizen_ledger(citizen_user_id).model_dump(by_alias=True)
+    except RewardsServiceError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+
+
+@router.post("/rewards/adjustments")
+def ops_rewards_adjustment(
+    payload: OpsRewardAdjustmentRequest,
+    request: Request,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.rewards.service import RewardsServiceError, rewards_service
+
+    try:
+        result = rewards_service.apply_ops_adjustment(payload, actor_id=principal.staff_id)
+        return result.model_dump(by_alias=True)
+    except RewardsServiceError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )

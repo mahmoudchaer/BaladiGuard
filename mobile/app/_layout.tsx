@@ -60,6 +60,8 @@ function LocalizedStack() {
       <Stack.Screen name="terms/index" options={{ title: t('screens.terms') }} />
       <Stack.Screen name="acceptable-use/index" options={{ title: t('screens.acceptableUse') }} />
       <Stack.Screen name="public/[ticketNumber]" options={{ title: t('screens.publicReport') }} />
+      <Stack.Screen name="rewards/index" options={{ title: t('screens.rewards') }} />
+      <Stack.Screen name="leaderboard/index" options={{ title: t('screens.leaderboard') }} />
     </Stack>
   );
 }

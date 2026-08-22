@@ -69,5 +69,12 @@ export type TicketAggregates = {
   highCount: number;
   unassignedCount: number;
   overdueCount: number;
+  queuedCount?: number;
+  assignedCount?: number;
+  inProgressCount?: number;
+  dueSoonCount?: number;
+  completedCount?: number;
+  cancelledCount?: number;
+  workforceUnassignedCount?: number;
   approximate: boolean;
 };

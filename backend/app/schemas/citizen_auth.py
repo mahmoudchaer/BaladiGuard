@@ -107,6 +107,7 @@ class CitizenOtpVerifyResponse(BaseModel):
     email: str | None = None
     notification_preferences: NotificationPreferences = Field(alias="notificationPreferences")
     public_name_visible: bool = Field(alias="publicNameVisible")
+    leaderboard_opt_in: bool = Field(alias="leaderboardOptIn")
     active: bool
     contribution_ready: bool = Field(alias="contributionReady")
     legal_acceptance: LegalAcceptance | None = Field(default=None, alias="legalAcceptance")
@@ -135,6 +136,7 @@ class CitizenOtpVerifyResponse(BaseModel):
             email=profile.email,
             notificationPreferences=profile.notification_preferences,
             publicNameVisible=profile.public_name_visible,
+            leaderboardOptIn=profile.leaderboard_opt_in,
             active=profile.active,
             contributionReady=profile.contribution_ready,
             legalAcceptance=profile.legal_acceptance,

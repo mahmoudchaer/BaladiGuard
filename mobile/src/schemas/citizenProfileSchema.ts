@@ -45,6 +45,7 @@ export const profileEditSchema = z
     actionRequests: z.boolean(),
     announcements: z.boolean(),
     publicNameVisible: z.boolean(),
+    leaderboardOptIn: z.boolean(),
   })
   .superRefine((data, ctx) => {
     const trimmedEmail = data.email.trim();
@@ -77,6 +78,13 @@ export const profileEditSchema = z
         path: ['publicNameVisible'],
       });
     }
+    if (data.leaderboardOptIn && (!data.publicNameVisible || !data.fullName)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: PUBLIC_NAME_REQUIRES_NAME_MESSAGE,
+        path: ['leaderboardOptIn'],
+      });
+    }
   });
 
 export type ProfileEditValues = z.infer<typeof profileEditSchema>;
@@ -99,5 +107,6 @@ export function profileToEditValues(profile: CitizenProfile): ProfileEditValues 
     actionRequests: profile.notificationPreferences.actionRequests ?? true,
     announcements: profile.notificationPreferences.announcements,
     publicNameVisible: profile.publicNameVisible,
+    leaderboardOptIn: profile.leaderboardOptIn,
   };
 }

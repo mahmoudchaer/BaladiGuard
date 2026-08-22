@@ -26,11 +26,12 @@ from app.schemas.workforce import (
 )
 from app.services.complaints.sla import derive_ticket_sla
 from app.services.complaints.ticket_list_filters import OPEN_TICKET_STATUSES
+from app.services.complaints.workload_buckets import (
+    count_operational_buckets,
+    is_workforce_unassigned,
+)
 from app.services.routing import department_ids as catalog_department_ids
 
-QUEUED_STATUSES = frozenset({"SUBMITTED", "UNDER_REVIEW"})
-ASSIGNED_STATUSES = frozenset({"ASSIGNED"})
-IN_PROGRESS_STATUSES = frozenset({"IN_PROGRESS"})
 ASSIGNMENT_CLAIM_ATTEMPTS = 5
 
 
@@ -229,11 +230,13 @@ class WorkforceService:
             displayName=payload.display_name.strip(),
             departmentIds=departments,
             workerIds=_unique(payload.worker_ids),
+            leadWorkerId=_normalize_lead(payload.lead_worker_id),
             active=True,
             createdAt=now,
             updatedAt=now,
         )
         self._assert_workers_compatible(team)
+        self._assert_lead_compatible(team)
         saved = self.store().save_team(team)
         self._sync_team_workers(saved, previous_worker_ids=[])
         return TeamResponse.from_team(self.store().get_team(saved.team_id) or saved)
@@ -251,10 +254,13 @@ class WorkforceService:
             updates["department_ids"] = _validate_departments(payload.department_ids)
         if payload.worker_ids is not None:
             updates["worker_ids"] = _unique(payload.worker_ids)
+        if "lead_worker_id" in payload.model_fields_set:
+            updates["lead_worker_id"] = _normalize_lead(payload.lead_worker_id)
         if payload.municipality_id is not None and payload.municipality_id != team.municipality_id:
             raise WorkforceError("municipalityId cannot be changed.")
         updated = _revalidate_team(team, updates)
         self._assert_workers_compatible(updated)
+        self._assert_lead_compatible(updated)
         saved = self.store().save_team(updated)
         self._sync_team_workers(saved, previous_worker_ids=previous_workers)
         return TeamResponse.from_team(self.store().get_team(saved.team_id) or saved)
@@ -355,9 +361,7 @@ class WorkforceService:
         unassigned_open = [
             ticket
             for ticket in tickets
-            if ticket.status in OPEN_TICKET_STATUSES
-            and not ticket.assigned_worker_id
-            and not ticket.assigned_team_id
+            if ticket.status in OPEN_TICKET_STATUSES and is_workforce_unassigned(ticket)
         ]
         worker_subjects = [
             self._subject_for_worker(
@@ -410,6 +414,17 @@ class WorkforceService:
                 )
             if worker.municipality_id != team.municipality_id:
                 raise WorkforceError("Workers and teams must belong to the same municipality.")
+
+    def _assert_lead_compatible(self, team: StoredTeam) -> None:
+        if not team.lead_worker_id:
+            return
+        if team.lead_worker_id not in team.worker_ids:
+            raise WorkforceError("Team lead must be a member of the team.")
+        lead = self.store().get_worker(team.lead_worker_id)
+        if lead is None:
+            raise WorkforceError("Worker was not found.", status_code=404, code="WORKER_NOT_FOUND")
+        if lead.municipality_id != team.municipality_id:
+            raise WorkforceError("Team lead must belong to the same municipality.")
 
     def _sync_worker_teams(self, worker: StoredWorker, *, previous_team_ids: list[str]) -> None:
         desired = set(worker.team_ids)
@@ -481,7 +496,7 @@ class WorkforceService:
             displayName=worker.display_name,
             departmentIds=worker.department_ids,
             active=worker.active,
-            counts=_counts_for(open_tickets),
+            counts=_counts_for(tickets),
             tickets=_ticket_refs(open_tickets),
         )
 
@@ -493,30 +508,29 @@ class WorkforceService:
             displayName=team.display_name,
             departmentIds=team.department_ids,
             active=team.active,
-            counts=_counts_for(open_tickets),
+            counts=_counts_for(tickets),
             tickets=_ticket_refs(open_tickets),
         )
 
 
 def _counts_for(tickets: list[StoredTicket]) -> WorkloadCounts:
-    queued = sum(1 for ticket in tickets if ticket.status in QUEUED_STATUSES)
-    assigned = sum(1 for ticket in tickets if ticket.status in ASSIGNED_STATUSES)
-    in_progress = sum(1 for ticket in tickets if ticket.status in IN_PROGRESS_STATUSES)
-    due_soon = 0
-    overdue = 0
-    for ticket in tickets:
-        state = derive_ticket_sla(ticket).state
-        if state == "due_soon":
-            due_soon += 1
-        elif state == "overdue":
-            overdue += 1
+    buckets = count_operational_buckets(tickets)
     return WorkloadCounts(
-        queued=queued,
-        assigned=assigned,
-        inProgress=in_progress,
-        dueSoon=due_soon,
-        overdue=overdue,
+        queued=buckets["queued"],
+        assigned=buckets["assigned"],
+        inProgress=buckets["in_progress"],
+        dueSoon=buckets["due_soon"],
+        overdue=buckets["overdue"],
+        completed=buckets["completed"],
+        cancelled=buckets["cancelled"],
     )
+
+
+def _normalize_lead(value: str | None) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed or None
 
 
 def _ticket_refs(tickets: list[StoredTicket]) -> list[WorkloadTicketRef]:

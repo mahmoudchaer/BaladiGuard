@@ -41,6 +41,8 @@ function countLine(
     inProgress: counts.inProgress,
     dueSoon: counts.dueSoon,
     overdue: counts.overdue,
+    completed: counts.completed ?? 0,
+    cancelled: counts.cancelled ?? 0,
   });
 }
 
@@ -104,6 +106,7 @@ export function WorkforcePage() {
   const [editTeamName, setEditTeamName] = useState('');
   const [editTeamDepartments, setEditTeamDepartments] = useState<string[]>([]);
   const [editTeamWorkerIds, setEditTeamWorkerIds] = useState<string[]>([]);
+  const [editTeamLeadId, setEditTeamLeadId] = useState('');
 
   async function reload() {
     setLoadState('loading');
@@ -176,6 +179,7 @@ export function WorkforcePage() {
     setEditTeamName(team.displayName);
     setEditTeamDepartments([...team.departmentIds]);
     setEditTeamWorkerIds([...team.workerIds]);
+    setEditTeamLeadId(team.leadWorkerId ?? '');
   }
 
   async function handleCreateWorker() {
@@ -241,6 +245,7 @@ export function WorkforcePage() {
         displayName: editTeamName.trim(),
         departmentIds: editTeamDepartments,
         workerIds: editTeamWorkerIds,
+        leadWorkerId: editTeamLeadId || null,
       });
       setEditingTeamId(null);
       await reload();
@@ -469,6 +474,7 @@ export function WorkforcePage() {
                   <tr>
                     <th>{t('workforce.name')}</th>
                     <th>{t('workforce.members')}</th>
+                    <th>{t('workforce.teamLead', { defaultValue: 'Team lead' })}</th>
                     <th>{t('workforce.status')}</th>
                     {isAdmin ? <th>{t('workforce.actions')}</th> : null}
                   </tr>
@@ -481,7 +487,7 @@ export function WorkforcePage() {
                       className={focusTeamId === team.teamId ? 'workforce-row--focus' : undefined}
                     >
                       {editingTeamId === team.teamId ? (
-                        <td colSpan={isAdmin ? 4 : 3}>
+                        <td colSpan={isAdmin ? 5 : 4}>
                           <form
                             className="workforce-form"
                             onSubmit={(event) => {
@@ -519,6 +525,23 @@ export function WorkforcePage() {
                                 </label>
                               ))}
                             </fieldset>
+                            <label>
+                              {t('workforce.teamLead', { defaultValue: 'Team lead' })}
+                              <select
+                                value={editTeamLeadId}
+                                onChange={(event) => setEditTeamLeadId(event.target.value)}
+                                aria-label={t('workforce.teamLead', { defaultValue: 'Team lead' })}
+                              >
+                                <option value="">{t('workforce.none')}</option>
+                                {workers
+                                  .filter((worker) => editTeamWorkerIds.includes(worker.workerId))
+                                  .map((worker) => (
+                                    <option key={worker.workerId} value={worker.workerId}>
+                                      {worker.displayName}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
                             <div className="workforce-form__actions">
                               <button type="submit">{t('workforce.saveTeam')}</button>
                               <button type="button" onClick={() => setEditingTeamId(null)}>
@@ -533,6 +556,11 @@ export function WorkforcePage() {
                           <td>
                             {team.workerIds.map((id) => workerLookup[id] ?? id).join(', ') ||
                               t('workforce.none')}
+                          </td>
+                          <td>
+                            {team.leadWorkerId
+                              ? (workerLookup[team.leadWorkerId] ?? team.leadWorkerId)
+                              : t('workforce.none')}
                           </td>
                           <td>{team.active ? t('workforce.active') : t('workforce.inactive')}</td>
                           {isAdmin ? (

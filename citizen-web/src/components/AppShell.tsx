@@ -12,11 +12,14 @@ export function AppShell() {
     ? [
         { to: '/', label: t('shell.home'), end: true },
         { to: '/history', label: t('shell.myReports'), end: false },
+        { to: '/rewards', label: t('shell.rewards'), end: false },
+        { to: '/leaderboard', label: t('shell.leaderboard'), end: false },
         { to: '/report', label: t('shell.newReport'), end: false },
       ]
     : [
         { to: '/', label: t('shell.home'), end: true },
         { to: '/reports', label: t('shell.explore'), end: false },
+        { to: '/leaderboard', label: t('shell.leaderboard'), end: false },
       ];
   return (
     <div className="shell">

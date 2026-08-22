@@ -249,6 +249,9 @@ function buildProfilePatchBody(patch: CitizenProfileUpdatePayload): Record<strin
   if (patch.publicNameVisible !== undefined) {
     body.publicNameVisible = patch.publicNameVisible;
   }
+  if (patch.leaderboardOptIn !== undefined) {
+    body.leaderboardOptIn = patch.leaderboardOptIn;
+  }
   if (patch.phone !== undefined) {
     body.phone = patch.phone;
   }
@@ -294,6 +297,7 @@ export function profileFromVerifyResponse(response: CitizenOtpVerifyResponse): C
     email: response.email,
     notificationPreferences: response.notificationPreferences,
     publicNameVisible: response.publicNameVisible,
+    leaderboardOptIn: response.leaderboardOptIn,
     active: response.active,
     contributionReady: response.contributionReady,
     legalAcceptance: response.legalAcceptance ?? null,

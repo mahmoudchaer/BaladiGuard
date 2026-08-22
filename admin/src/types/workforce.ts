@@ -17,6 +17,7 @@ export type WorkforceTeam = {
   displayName: string;
   departmentIds: string[];
   workerIds: string[];
+  leadWorkerId?: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -28,6 +29,8 @@ export type WorkloadCounts = {
   inProgress: number;
   dueSoon: number;
   overdue: number;
+  completed?: number;
+  cancelled?: number;
 };
 
 export type WorkloadTicketRef = {

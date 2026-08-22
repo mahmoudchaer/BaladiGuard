@@ -100,6 +100,13 @@ class TicketAggregatesResponse(BaseModel):
     high_count: int = Field(alias="highCount", ge=0)
     unassigned_count: int = Field(alias="unassignedCount", ge=0)
     overdue_count: int = Field(alias="overdueCount", ge=0)
+    queued_count: int = Field(default=0, alias="queuedCount", ge=0)
+    assigned_count: int = Field(default=0, alias="assignedCount", ge=0)
+    in_progress_count: int = Field(default=0, alias="inProgressCount", ge=0)
+    due_soon_count: int = Field(default=0, alias="dueSoonCount", ge=0)
+    completed_count: int = Field(default=0, alias="completedCount", ge=0)
+    cancelled_count: int = Field(default=0, alias="cancelledCount", ge=0)
+    workforce_unassigned_count: int = Field(default=0, alias="workforceUnassignedCount", ge=0)
     approximate: bool = False
 
     model_config = {"populate_by_name": True}

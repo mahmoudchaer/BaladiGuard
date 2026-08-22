@@ -21,6 +21,13 @@ from app.database.store_factory import (
     get_ticket_store,
 )
 from app.database.ticket_store import TicketStore
+from app.schemas.assignment_history import AssignmentHistoryItem, AssignmentHistoryResponse
+from app.schemas.bulk_ticket_ops import (
+    BulkDepartmentAssignmentRequest,
+    BulkItemResult,
+    BulkMutationResponse,
+    BulkWorkforceAssignmentRequest,
+)
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
 from app.schemas.content_safety import (
@@ -74,7 +81,6 @@ from app.schemas.ticket_status import TicketStatus
 from app.schemas.workforce import AssignWorkforceRequest
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
-from app.services.complaints.sla import derive_ticket_sla
 from app.services.complaints.status_workflow import (
     MissingDepartmentAssignmentError,
     validate_status_transition,
@@ -88,8 +94,8 @@ from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_public_response,
     map_ticket_to_response,
 )
+from app.services.complaints.workload_buckets import count_operational_buckets
 from app.services.duplicates import (
-    OPEN_TICKET_STATUSES,
     find_nearby_duplicates,
     haversine_meters,
 )
@@ -504,7 +510,9 @@ class TicketService:
             ticket_number=ticket_number,
             recipient=ticket_notification_recipient(stored_ticket, event="ticket_created"),
         )
+        from app.services.rewards.observe import observe_ticket_rewards
 
+        observe_ticket_rewards(stored_ticket)
         return response
 
     def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
@@ -957,37 +965,22 @@ class TicketService:
         )
 
     def ticket_aggregates(self, staff_principal: StaffPrincipal) -> TicketAggregatesResponse:
-        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
-        tickets, approximate = self._collect_staff_candidates_with_approx(
-            browse_mode=browse_mode,
-            municipality_id=municipality_id,
-            department_ids=department_ids,
-            filters=None,
-            budget=STAFF_AGGREGATE_SAMPLE_LIMIT,
-        )
-        open_count = 0
-        critical_count = 0
-        high_count = 0
-        unassigned_count = 0
-        overdue_count = 0
-        for ticket in tickets:
-            if ticket.status in OPEN_TICKET_STATUSES:
-                open_count += 1
-            if ticket.priority == "critical":
-                critical_count += 1
-            elif ticket.priority == "high":
-                high_count += 1
-            if ticket.department_id is None:
-                unassigned_count += 1
-            if derive_ticket_sla(ticket).state == "overdue":
-                overdue_count += 1
+        tickets = self.collect_all_staff_tickets(staff_principal)
+        buckets = count_operational_buckets(tickets)
         return TicketAggregatesResponse(
-            openCount=open_count,
-            criticalCount=critical_count,
-            highCount=high_count,
-            unassignedCount=unassigned_count,
-            overdueCount=overdue_count,
-            approximate=approximate,
+            openCount=buckets["open_count"],
+            criticalCount=buckets["critical"],
+            highCount=buckets["high"],
+            unassignedCount=buckets["department_unassigned"],
+            overdueCount=buckets["overdue"],
+            queuedCount=buckets["queued"],
+            assignedCount=buckets["assigned"],
+            inProgressCount=buckets["in_progress"],
+            dueSoonCount=buckets["due_soon"],
+            completedCount=buckets["completed"],
+            cancelledCount=buckets["cancelled"],
+            workforceUnassignedCount=buckets["workforce_unassigned"],
+            approximate=False,
         )
 
     def collect_all_staff_tickets(self, staff_principal: StaffPrincipal) -> list[StoredTicket]:
@@ -1366,6 +1359,11 @@ class TicketService:
             )
             from app.services.work_orders.reasons import OutcomeReasonError
 
+            if ticket.active_work_order_id:
+                raise OutcomeReasonError(
+                    "Cancel or complete the active work order before closing the ticket.",
+                    code="ACTIVE_WORK_ORDER",
+                )
             try:
                 assert_closure_allowed(ticket)
             except ResolutionFeedbackError as exc:
@@ -1465,6 +1463,9 @@ class TicketService:
             ticket_number=updated_ticket.ticket_number,
             recipient=ticket_notification_recipient(updated_ticket, event=preference_event),
         )
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        observe_ticket_rewards(updated_ticket)
         return self._map_ticket(updated_ticket)
 
     def save_ticket_ai_output(
@@ -2190,6 +2191,9 @@ class TicketService:
         from app.services.content_safety.review import ContentSafetyReviewConflictError
 
         if updated is not None:
+            from app.services.rewards.observe import observe_ticket_rewards
+
+            observe_ticket_rewards(updated)
             return updated
         if staff_principal is None:
             raise TicketNotFoundError(ticket_id)
@@ -2256,6 +2260,7 @@ class TicketService:
         payload: AssignTicketDepartmentRequest,
         *,
         staff_principal: StaffPrincipal | None = None,
+        dry_run: bool = False,
     ) -> TicketResponse:
         """Persist a staff department assignment without clearing the AI suggestion."""
         ticket = self._store.get(ticket_id)
@@ -2266,6 +2271,8 @@ class TicketService:
                 raise TicketNotFoundError(ticket_id)
             if not staff_can_assign_department(staff_principal, payload.department_id):
                 raise StaffScopeForbiddenError(payload.department_id)
+        if dry_run:
+            return self._map_ticket(ticket)
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -2300,6 +2307,7 @@ class TicketService:
         payload: AssignWorkforceRequest,
         *,
         staff_principal: StaffPrincipal | None = None,
+        dry_run: bool = False,
     ) -> TicketResponse:
         """Persist a worker XOR team assignment without rewriting history on deactivate."""
         from app.services.workforce.service import WorkforceError, workforce_service
@@ -2390,6 +2398,25 @@ class TicketService:
                 code="CONFLICT",
             )
 
+        if dry_run:
+            current = _authorized_ticket()
+            worker_id, team_id = workforce_service.resolve_ticket_assignment(
+                staff_principal, current, payload
+            )
+            store = workforce_service.store()
+            if worker_id:
+                worker = store.get_worker(worker_id)
+                if worker is None:
+                    raise WorkforceError(
+                        "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
+                    )
+            elif team_id:
+                team = store.get_team(team_id)
+                if team is None:
+                    raise WorkforceError(
+                        "Team was not found.", status_code=404, code="TEAM_NOT_FOUND"
+                    )
+            return self._map_ticket(current)
         return workforce_service.store().run_exclusive(_assign)
 
     def _complete_workforce_assignment(
@@ -2559,6 +2586,10 @@ class TicketService:
         updated_canonical = self._store.get(canonical_id)
         if updated_canonical is None:
             raise TicketNotFoundError(canonical_id)
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        for member_id in group.ticket_ids:
+            observe_ticket_rewards(self._store.get(member_id))
         return self._map_ticket(updated_canonical)
 
     def _map_ticket(
@@ -2786,6 +2817,143 @@ class TicketService:
                 ticket_id,
                 action_type,
             )
+
+    def list_assignment_history(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> AssignmentHistoryResponse:
+        ticket = self._store.get(ticket_id)
+        if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+            raise TicketNotFoundError(ticket_id)
+        allowed = {"WORKFORCE_ASSIGN", "WORK_ORDER_ASSIGN", "DEPARTMENT_ASSIGN"}
+        items = [
+            AssignmentHistoryItem(
+                eventId=row.audit_id,
+                actionType=row.action_type,
+                actorId=row.actor_id,
+                actorRole=row.actor_role,
+                previousValue=row.previous_value,
+                newValue=row.new_value,
+                summary=row.summary,
+                occurredAt=row.created_at,
+            )
+            for row in self._list_audit_history_safe(ticket_id)
+            if row.action_type in allowed
+        ]
+        items.sort(key=lambda item: (item.occurred_at, item.event_id))
+        return AssignmentHistoryResponse(ticketId=ticket_id, items=items)
+
+    def bulk_assign_workforce(
+        self,
+        payload: BulkWorkforceAssignmentRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> BulkMutationResponse:
+        return self._bulk_mutate(
+            payload.ticket_ids,
+            staff_principal=staff_principal,
+            dry_run=payload.dry_run,
+            mutate=lambda ticket_id: self.assign_ticket_workforce(
+                ticket_id,
+                payload,
+                staff_principal=staff_principal,
+                dry_run=payload.dry_run,
+            ),
+        )
+
+    def bulk_assign_department(
+        self,
+        payload: BulkDepartmentAssignmentRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> BulkMutationResponse:
+        verified = payload.model_copy(update={"updated_by": staff_principal.staff_id})
+        return self._bulk_mutate(
+            payload.ticket_ids,
+            staff_principal=staff_principal,
+            dry_run=payload.dry_run,
+            mutate=lambda ticket_id: self.assign_ticket_department(
+                ticket_id,
+                verified,
+                staff_principal=staff_principal,
+                dry_run=payload.dry_run,
+            ),
+        )
+
+    def _bulk_mutate(
+        self,
+        ticket_ids: list[str],
+        *,
+        staff_principal: StaffPrincipal,
+        dry_run: bool,
+        mutate,
+    ) -> BulkMutationResponse:
+        from app.services.workforce.service import WorkforceError
+
+        items: list[BulkItemResult] = []
+        for raw_id in ticket_ids:
+            ticket_id = raw_id.strip()
+            if not ticket_id:
+                items.append(
+                    BulkItemResult(
+                        ticketId=raw_id,
+                        ok=False,
+                        code="VALIDATION_ERROR",
+                        message="Ticket id is required.",
+                    )
+                )
+                continue
+            try:
+                ticket = self._store.get(ticket_id)
+                if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+                    raise TicketNotFoundError(ticket_id)
+                mutate(ticket_id)
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=True,
+                        code="PREVIEW" if dry_run else None,
+                    )
+                )
+            except TicketNotFoundError:
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=False,
+                        code="TICKET_NOT_FOUND",
+                        message="Ticket was not found.",
+                    )
+                )
+            except WorkforceError as exc:
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=False,
+                        code=exc.code,
+                        message=exc.message,
+                    )
+                )
+            except Exception as exc:
+                code = getattr(exc, "code", "VALIDATION_ERROR")
+                message = getattr(exc, "message", str(exc)) or "Request failed."
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=False,
+                        code=str(code),
+                        message=str(message),
+                    )
+                )
+        succeeded = sum(1 for item in items if item.ok)
+        return BulkMutationResponse(
+            dryRun=dry_run,
+            attempted=len(items),
+            succeeded=succeeded,
+            failed=len(items) - succeeded,
+            items=items,
+        )
 
     def _list_audit_history_safe(self, ticket_id: str) -> list[StoredAuditHistory]:
         """Load audit rows for staff responses without failing the primary read/mutation."""

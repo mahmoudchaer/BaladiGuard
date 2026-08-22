@@ -38,6 +38,7 @@ class StoredTeam(BaseModel):
     display_name: str = Field(alias="displayName")
     department_ids: list[BoundedId] = Field(alias="departmentIds", max_length=40)
     worker_ids: list[BoundedId] = Field(default_factory=list, alias="workerIds", max_length=80)
+    lead_worker_id: BoundedId | None = Field(default=None, alias="leadWorkerId")
     active: bool = True
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
@@ -76,6 +77,7 @@ class TeamResponse(BaseModel):
     display_name: str = Field(alias="displayName")
     department_ids: list[str] = Field(alias="departmentIds")
     worker_ids: list[str] = Field(alias="workerIds")
+    lead_worker_id: str | None = Field(default=None, alias="leadWorkerId")
     active: bool
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
@@ -115,6 +117,7 @@ class UpsertTeamRequest(BaseModel):
         default=None, alias="departmentIds", max_length=40
     )
     worker_ids: list[BoundedId] | None = Field(default=None, alias="workerIds", max_length=80)
+    lead_worker_id: BoundedId | None = Field(default=None, alias="leadWorkerId")
 
     model_config = {"populate_by_name": True}
 
@@ -143,6 +146,8 @@ class WorkloadCounts(BaseModel):
     in_progress: int = Field(default=0, alias="inProgress")
     due_soon: int = Field(default=0, alias="dueSoon")
     overdue: int = 0
+    completed: int = 0
+    cancelled: int = 0
 
     model_config = {"populate_by_name": True}
 

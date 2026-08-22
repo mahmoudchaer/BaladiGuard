@@ -43,6 +43,8 @@ def match_path_rate_limit_policy(request: Request) -> str | None:
         return "citizen-data-export"
     if path == "/v1/citizen/me/delete" and method == "POST":
         return "citizen-data-delete"
+    if path.startswith("/v1/rewards"):
+        return "public-ticket-browsing"
     if path.startswith("/v1/ops"):
         return "ops-dashboard"
     if method in _STAFF_WRITE_METHODS:

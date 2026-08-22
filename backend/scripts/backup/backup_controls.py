@@ -49,6 +49,8 @@ DEFAULT_TABLE_SUFFIXES = (
     "ops-error-groups",
     "ops-audit",
     "privacy-request-audit",
+    "rewards-ledger",
+    "rewards-projection",
 )
 
 

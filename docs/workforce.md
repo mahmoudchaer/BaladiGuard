@@ -7,6 +7,7 @@ Field **workers** and **teams** are a municipality-scoped operational directory.
 | Resource | Who writes | Who reads |
 | --- | --- | --- |
 | Worker / team directory | Administrators only | Authenticated staff in the same municipality |
+| Team lead (`leadWorkerId`) | Administrators; must be a current team member | Same as directory |
 | Ticket worker/team assignment | Municipal staff (own municipality + permitted department) and administrators | Same staff ticket read rules |
 | Workload | Same as assignment | Counts only operational ticket fields |
 
@@ -54,6 +55,10 @@ Active statuses: `SUBMITTED`, `UNDER_REVIEW`, `ASSIGNED`, `IN_PROGRESS`. `RESOLV
 - assigned: `ASSIGNED`
 - inProgress: `IN_PROGRESS`
 - dueSoon / overdue: derived SLA (`derive_ticket_sla`); these can overlap status buckets
+- completed: `RESOLVED` + `CLOSED` tickets assigned to that subject
+- cancelled: `CLOSED` without `resolvedAt`
+
+Dashboard aggregates use the same bucket definitions ([ticketing-lifecycle.md](./ticketing-lifecycle.md)).
 
 Unassigned is the open-ticket bucket with no worker and no team. Team tickets are counted on the team row only, not copied onto member workers unless the ticket is assigned to that worker.
 

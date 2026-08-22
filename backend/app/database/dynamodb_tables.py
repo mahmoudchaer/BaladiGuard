@@ -464,6 +464,59 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         ],
         "global_secondary_indexes": [],
     },
+    {
+        "suffix": "rewards-ledger",
+        "key_schema": [
+            {"AttributeName": "citizenUserId", "KeyType": "HASH"},
+            {"AttributeName": "eventKey", "KeyType": "RANGE"},
+        ],
+        "attribute_definitions": [
+            {"AttributeName": "citizenUserId", "AttributeType": "S"},
+            {"AttributeName": "eventKey", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "eventKey-index",
+                "KeySchema": [{"AttributeName": "eventKey", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
+        "suffix": "rewards-projection",
+        "key_schema": [{"AttributeName": "citizenUserId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "citizenUserId", "AttributeType": "S"},
+            {"AttributeName": "publicBoardKey", "AttributeType": "S"},
+            {"AttributeName": "allTimeSortKey", "AttributeType": "S"},
+            {"AttributeName": "monthlyBoardKey", "AttributeType": "S"},
+            {"AttributeName": "monthlySortKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "publicAllTime-index",
+                "KeySchema": [
+                    {"AttributeName": "publicBoardKey", "KeyType": "HASH"},
+                    {"AttributeName": "allTimeSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "publicMonthly-index",
+                "KeySchema": [
+                    {"AttributeName": "monthlyBoardKey", "KeyType": "HASH"},
+                    {"AttributeName": "monthlySortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
 ]
 
 

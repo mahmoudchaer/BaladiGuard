@@ -331,6 +331,9 @@ def override_ticket(
     if updated is None:
         raise TicketNotFoundError(ticket_id)
     _record_audit(updated, principal, "MUNICIPALITY_OVERRIDE", previous, updated.municipality_id)
+    from app.services.rewards.observe import observe_ticket_rewards
+
+    observe_ticket_rewards(updated)
     return updated
 
 

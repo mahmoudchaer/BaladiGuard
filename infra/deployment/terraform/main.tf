@@ -31,6 +31,7 @@ locals {
     { name = "LOG_FORMAT", value = "json" },
     { name = "METRICS_EMF", value = "true" },
     { name = "TRUST_X_FORWARDED_FOR", value = "true" },
+    { name = "ALLOWED_HOSTS", value = var.api_domain_name },
   ]
   runtime_secrets = [
     for key in var.runtime_secret_keys : {

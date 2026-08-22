@@ -68,6 +68,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
           announcements: values.announcements,
         },
         publicNameVisible: trimmedName ? values.publicNameVisible : false,
+        leaderboardOptIn: trimmedName && values.publicNameVisible ? values.leaderboardOptIn : false,
       });
       setSuccessMessage(PROFILE_UPDATE_SUCCESS_MESSAGE);
     } catch (error) {
@@ -236,6 +237,27 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
                 {t('profile.publicNameHelp')}
               </HelperText>
             )}
+          </View>
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="leaderboardOptIn"
+        render={({ field: { value, onChange } }) => (
+          <View style={styles.switchBlock}>
+            <View style={styles.switchRow}>
+              <Text variant="bodyLarge">{t('profile.leaderboardOptIn')}</Text>
+              <Switch
+                value={value}
+                onValueChange={onChange}
+                color={colors.brand}
+                testID="edit-leaderboard-opt-in-switch"
+              />
+            </View>
+            <HelperText type="info" visible>
+              {t('profile.leaderboardOptInHelp')}
+            </HelperText>
           </View>
         )}
       />

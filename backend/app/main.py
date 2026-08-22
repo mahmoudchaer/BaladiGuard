@@ -16,6 +16,7 @@ from app.api.legal import router as legal_router
 from app.api.locations import router as locations_router
 from app.api.ops import router as ops_router
 from app.api.resolution_feedback import router as resolution_feedback_router
+from app.api.rewards import router as rewards_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
@@ -322,6 +323,7 @@ def create_app() -> FastAPI:
     app.include_router(staff_departments_router)
     app.include_router(ops_router)
     app.include_router(citizen_router)
+    app.include_router(rewards_router)
     app.include_router(legal_router)
     app.include_router(tickets_router)
     app.include_router(workforce_router)

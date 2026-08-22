@@ -32,6 +32,7 @@ export type CitizenProfile = {
   notificationPreferences: NotificationPreferences;
   pushAvailable?: boolean;
   publicNameVisible: boolean;
+  leaderboardOptIn: boolean;
   active: boolean;
   contributionReady: boolean;
   legalAcceptance?: LegalAcceptance | null;
@@ -83,6 +84,7 @@ export type CitizenProfileUpdatePayload = {
   email?: string | null;
   notificationPreferences?: Partial<NotificationPreferences>;
   publicNameVisible?: boolean;
+  leaderboardOptIn?: boolean;
   phone?: string;
   region?: string;
   phoneChangeChallengeId?: string;

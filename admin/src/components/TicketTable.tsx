@@ -6,6 +6,7 @@ import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { formatDepartment } from '@/utils/departments';
 import { formatTicketAge } from '@/utils/labels';
+import { useI18n } from '@/i18n/LocaleProvider';
 import './TicketTable.css';
 
 function QueueThumb({ ticket }: { ticket: Ticket }) {
@@ -36,6 +37,9 @@ type TicketTableProps = {
   title?: string;
   selectedTicketId?: string | null;
   onSelectTicket?: (ticketId: string) => void;
+  checkedTicketIds?: string[];
+  onToggleChecked?: (ticketId: string) => void;
+  onToggleAllChecked?: () => void;
 };
 
 function departmentLabel(ticket: Ticket): string {
@@ -62,8 +66,12 @@ export function TicketTable({
   title = 'Citizen reports',
   selectedTicketId = null,
   onSelectTicket,
+  checkedTicketIds = [],
+  onToggleChecked,
+  onToggleAllChecked,
 }: TicketTableProps) {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const openTicket = (ticketId: string) => {
     navigate(`/tickets/${ticketId}`);
@@ -77,6 +85,19 @@ export function TicketTable({
           <p className="ticket-table-panel__subtitle">
             Select a report to preview · open for full municipal actions
           </p>
+          {onToggleAllChecked ? (
+            <label className="ticket-queue__select-all">
+              <input
+                type="checkbox"
+                checked={
+                  tickets.length > 0 &&
+                  tickets.every((ticket) => checkedTicketIds.includes(ticket.ticketId))
+                }
+                onChange={onToggleAllChecked}
+              />
+              {t('tickets.bulk.selectAll')}
+            </label>
+          ) : null}
         </div>
         <Link to="/map" className="ticket-table-panel__map-link">
           Open map view
@@ -102,6 +123,16 @@ export function TicketTable({
                 .join(' ')}
               role="listitem"
             >
+              {onToggleChecked ? (
+                <label className="ticket-queue__bulk">
+                  <input
+                    type="checkbox"
+                    checked={checkedTicketIds.includes(ticket.ticketId)}
+                    onChange={() => onToggleChecked(ticket.ticketId)}
+                    aria-label={t('tickets.bulk.selectTicket', { number: ticket.ticketNumber })}
+                  />
+                </label>
+              ) : null}
               <button
                 type="button"
                 className="ticket-queue__select"

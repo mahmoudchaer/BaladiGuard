@@ -9,6 +9,7 @@ import {
 } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { TicketTable } from '@/components/TicketTable';
+import { BulkTicketAssignmentBar } from '@/components/BulkTicketAssignmentBar';
 import { QueueViewsSidebar, type QueueViewId } from '@/components/QueueViewsSidebar';
 import { TicketPreviewPanel } from '@/components/TicketPreviewPanel';
 import { CategoryDistributionChart } from '@/components/CategoryDistributionChart';
@@ -158,6 +159,8 @@ export function TicketListPage() {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
     initialFilters.focusTicket ?? null,
   );
+  const [checkedTicketIds, setCheckedTicketIds] = useState<string[]>([]);
+  const [queueEpoch, setQueueEpoch] = useState(0);
   const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
   const [previewForId, setPreviewForId] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -380,7 +383,7 @@ export function TicketListPage() {
     return () => {
       controller.abort();
     };
-  }, [cursor, hasActiveServerFilters, serverFilters, t]);
+  }, [cursor, hasActiveServerFilters, queueEpoch, serverFilters, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -398,7 +401,7 @@ export function TicketListPage() {
 
     void loadAggregates();
     return () => controller.abort();
-  }, [pageTickets]);
+  }, [pageTickets, queueEpoch]);
 
   const attentionStats = useMemo(() => aggregatesToAttentionStats(aggregates), [aggregates]);
   const categoryOptions = useMemo(
@@ -618,6 +621,20 @@ export function TicketListPage() {
         </div>
       )}
 
+      {loadState === 'success' && aggregates && (
+        <p className="ticket-list-page__ops-counts" role="status">
+          {t('tickets.opsCounts', {
+            queued: aggregates.queuedCount ?? 0,
+            assigned: aggregates.assignedCount ?? 0,
+            inProgress: aggregates.inProgressCount ?? 0,
+            dueSoon: aggregates.dueSoonCount ?? 0,
+            workforceUnassigned: aggregates.workforceUnassignedCount ?? 0,
+            completed: aggregates.completedCount ?? 0,
+            cancelled: aggregates.cancelledCount ?? 0,
+          })}
+        </p>
+      )}
+
       {loadState === 'success' && (
         <div
           className={
@@ -693,12 +710,45 @@ export function TicketListPage() {
             )}
 
             {pageTickets.length > 0 && (
-              <TicketTable
-                tickets={pageTickets}
-                title={queueTitle}
-                selectedTicketId={selectedTicketId}
-                onSelectTicket={setSelectedTicketId}
-              />
+              <>
+                <BulkTicketAssignmentBar
+                  selectedTicketIds={checkedTicketIds}
+                  ticketNumbers={Object.fromEntries(
+                    pageTickets.map((ticket) => [ticket.ticketId, ticket.ticketNumber]),
+                  )}
+                  onClear={() => setCheckedTicketIds([])}
+                  onCommitted={(committed) => {
+                    const succeeded = new Set(
+                      committed.items.filter((item) => item.ok).map((item) => item.ticketId),
+                    );
+                    setCheckedTicketIds((current) => current.filter((id) => !succeeded.has(id)));
+                    setQueueEpoch((current) => current + 1);
+                  }}
+                />
+                <TicketTable
+                  tickets={pageTickets}
+                  title={queueTitle}
+                  selectedTicketId={selectedTicketId}
+                  onSelectTicket={setSelectedTicketId}
+                  checkedTicketIds={checkedTicketIds}
+                  onToggleChecked={(ticketId) => {
+                    setCheckedTicketIds((current) =>
+                      current.includes(ticketId)
+                        ? current.filter((id) => id !== ticketId)
+                        : [...current, ticketId],
+                    );
+                  }}
+                  onToggleAllChecked={() => {
+                    const pageIds = pageTickets.map((ticket) => ticket.ticketId);
+                    const allChecked = pageIds.every((id) => checkedTicketIds.includes(id));
+                    setCheckedTicketIds(
+                      allChecked
+                        ? checkedTicketIds.filter((id) => !pageIds.includes(id))
+                        : [...new Set([...checkedTicketIds, ...pageIds])],
+                    );
+                  }}
+                />
+              </>
             )}
 
             {(nextCursor || canGoPrevious) && (

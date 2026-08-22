@@ -130,6 +130,18 @@ export default function MoreScreen() {
             />
             <MenuRow
               divider
+              icon="trophy-outline"
+              label={t('more.rewards')}
+              onPress={() => router.push('/rewards' as Href)}
+            />
+            <MenuRow
+              divider
+              icon="podium"
+              label={t('more.leaderboard')}
+              onPress={() => router.push('/leaderboard' as Href)}
+            />
+            <MenuRow
+              divider
               icon="shield-check-outline"
               label={t('more.privacy')}
               detail={t('more.privacyDetail')}

@@ -60,11 +60,25 @@
 
 .ticket-queue__item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.35rem;
   align-items: stretch;
   padding: 0.2rem 0.55rem;
   border-bottom: 1px solid var(--color-border-light);
+}
+
+.ticket-queue__bulk,
+.ticket-queue__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.ticket-queue__bulk {
+  padding: 0.75rem 0.15rem 0.75rem 0.35rem;
 }
 
 .ticket-queue__item:last-child {

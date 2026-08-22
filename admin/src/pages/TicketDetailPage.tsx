@@ -43,6 +43,7 @@ import { TicketPhoto } from '@/components/TicketPhoto';
 import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
 import { ImageRedactionReviewPanel } from '@/components/ImageRedactionReview';
 import { ContentSafetyReviewPanel } from '@/components/ContentSafetyReview';
+import { TicketAssignmentHistory } from '@/components/TicketAssignmentHistory';
 import { StatusBadge } from '@/components/StatusBadge';
 import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
@@ -1885,6 +1886,7 @@ export function TicketDetailPage({
                       </p>
                     )}
                   </div>
+                  <TicketAssignmentHistory ticketId={ticket.ticketId} />
                 </div>
               </div>
 
