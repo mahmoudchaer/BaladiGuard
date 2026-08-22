@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Banner, Button, Text } from 'react-native-paper';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,10 @@ import { ProfileEditForm } from '@/features/profile/ProfileEditForm';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
 import { useI18n } from '@/i18n/LocaleProvider';
 import {
+  acceptCitizenLegal,
   CitizenAuthApiError,
+  deleteCitizenMe,
+  exportCitizenMe,
   OTP_NETWORK_MESSAGE,
   PROFILE_UPDATE_SUCCESS_MESSAGE,
 } from '@/services/api/citizenAuth';
@@ -22,10 +25,12 @@ import type { CitizenOtpVerifyResponse, CitizenProfileUpdatePayload } from '@/ty
 type ProfileMode = 'view' | 'edit' | 'changePhone';
 
 export default function ProfileScreen() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const {
+    accessToken,
     applyVerifyResponse,
+    clearSessionLocally,
     isAuthenticated,
     isLoading,
     logout,
@@ -37,6 +42,7 @@ export default function ProfileScreen() {
   const [mode, setMode] = useState<ProfileMode>('view');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isPrivacyBusy, setIsPrivacyBusy] = useState(false);
   const [loadErrorKey, setLoadErrorKey] = useState<'unableLoad' | 'unableRefresh' | null>(null);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isOfflineCached, setIsOfflineCached] = useState(false);
@@ -122,6 +128,75 @@ export default function ProfileScreen() {
     await applyVerifyResponse(response);
     setSuccessMessage(t('profile.phoneUpdated', { phone: response.phone }));
     setMode('view');
+  };
+
+  const handleExportData = () => {
+    void (async () => {
+      if (!accessToken) return;
+      setIsPrivacyBusy(true);
+      setSuccessMessage(null);
+      try {
+        const data = await exportCitizenMe(accessToken);
+        await Share.share({
+          message: JSON.stringify(data, null, 2),
+          title: t('profile.exportData'),
+        });
+        setSuccessMessage(t('profile.exportReady'));
+      } catch (error) {
+        Alert.alert(
+          t('profile.exportFailed'),
+          error instanceof Error ? error.message : t('errors.generic'),
+        );
+      } finally {
+        setIsPrivacyBusy(false);
+      }
+    })();
+  };
+
+  const handleAcceptLegal = () => {
+    void (async () => {
+      if (!accessToken) return;
+      setIsPrivacyBusy(true);
+      try {
+        await acceptCitizenLegal(accessToken, { acceptLegal: true, locale });
+        await refreshProfile();
+        setSuccessMessage(t('profile.legalAccepted'));
+      } catch (error) {
+        Alert.alert(
+          t('profile.legalAcceptFailed'),
+          error instanceof Error ? error.message : t('errors.generic'),
+        );
+      } finally {
+        setIsPrivacyBusy(false);
+      }
+    })();
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(t('profile.deleteAccount'), t('profile.deleteConfirmPrompt'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.deleteAccount'),
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            if (!accessToken) return;
+            setIsPrivacyBusy(true);
+            try {
+              await deleteCitizenMe(accessToken);
+              await clearSessionLocally({ retainReportDraft: false });
+              router.replace('/' as Href);
+            } catch (error) {
+              Alert.alert(
+                t('profile.deleteFailed'),
+                error instanceof Error ? error.message : t('errors.generic'),
+              );
+              setIsPrivacyBusy(false);
+            }
+          })();
+        },
+      },
+    ]);
   };
 
   const loadError =
@@ -232,7 +307,11 @@ export default function ProfileScreen() {
                 setMode('changePhone');
               }}
               onLogout={() => void handleLogout()}
+              onExportData={handleExportData}
+              onDeleteAccount={handleDeleteAccount}
+              onAcceptLegal={handleAcceptLegal}
               isLoggingOut={isLoggingOut}
+              isPrivacyBusy={isPrivacyBusy}
             />
           )}
 

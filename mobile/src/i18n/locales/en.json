@@ -37,7 +37,9 @@
     "reportLink": "Report link",
     "signIn": "Sign in",
     "profile": "Profile",
-    "privacy": "Privacy notice",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "acceptableUse": "Acceptable use",
     "publicReport": "Public report"
   },
   "auth": {
@@ -71,7 +73,27 @@
     "searchCountriesPlaceholder": "Lebanon, LB, or 961",
     "noCountries": "No countries match that search.",
     "closeCountryList": "Close country list",
-    "verificationCode": "Verification code"
+    "verificationCode": "Verification code",
+    "legalAgreePrefix": "I agree to the",
+    "legalAgreeJoin1": ", ",
+    "legalAgreeJoin2": ", and ",
+    "legalAgreeSuffix": ".",
+    "legalRequired": "You must accept the Terms, Privacy Policy, and Acceptable Use Policy to continue.",
+    "legalCheckboxA11y": "Agree to Terms, Privacy Policy, and Acceptable Use"
+  },
+  "legal": {
+    "termsTitle": "Terms of Service",
+    "privacyTitle": "Privacy Policy",
+    "acceptableUseTitle": "Acceptable Use",
+    "version": "Version {version}",
+    "loadFailed": "Unable to load this legal document."
+  },
+  "privacy": {
+    "title": "Privacy",
+    "scopeTitle": "Public data scope",
+    "publicScope": "Public browsing shows only the citizen-safe projection of approved report details.",
+    "internalRestriction": "Internal IDs, tracking codes from browse responses, contact details, and private image keys are never shown on public surfaces.",
+    "trackingScope": "Possession-based tracking requires your 6-character code and returns only that report’s status timeline."
   },
   "more": {
     "title": "More",
@@ -156,6 +178,16 @@
     "edit": "Edit profile",
     "changePhone": "Change phone number",
     "privacy": "Privacy notice",
+    "exportData": "Export my data",
+    "exportReady": "Share or save your data export from the sheet that opened.",
+    "exportFailed": "Unable to export your data",
+    "deleteAccount": "Delete account",
+    "deleteConfirmPrompt": "Delete your account? Your profile will be anonymized. Municipal ticket records needed for operations may remain.",
+    "deleteFailed": "Unable to delete your account",
+    "legalRequiredBanner": "Updated legal terms require your acceptance before you continue using BaladiGuard.",
+    "acceptLegal": "Accept current Terms, Privacy, and Acceptable Use",
+    "legalAccepted": "Legal acceptance recorded.",
+    "legalAcceptFailed": "Unable to record legal acceptance",
     "editLede": "Update your optional name, optional email, notifications, and public-name visibility. A verified phone is enough to submit reports.",
     "editNameHelp": "Optional. Not required to sign in, recover your account, own tickets, or submit reports.",
     "editEmailHelp": "Email is optional for notifications only. It is not used to sign in or recover your phone.",
@@ -256,6 +288,8 @@
     "describePlaceholder": "e.g. Large pothole blocking the right lane near the school gate.",
     "photo": "Photo",
     "photoHelper": "Attach a clear photo of the infrastructure issue so crews know what to expect.",
+    "privacyJit": "Photos and location are processed so the municipality can handle your report.",
+    "privacyJitLink": "Read the privacy policy",
     "takePhoto": "Take photo",
     "choosePhoto": "Choose photo",
     "replacePhoto": "Replace photo",

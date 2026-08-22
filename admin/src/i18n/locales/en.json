@@ -54,7 +54,26 @@
     "mainNav": "Main navigation",
     "home": "BaladiGuard home",
     "ops": "Operations",
-    "municipalities": "Municipalities"
+    "municipalities": "Municipalities",
+    "legal": "Legal"
+  },
+  "legal": {
+    "eyebrow": "Staff responsibilities",
+    "title": "Data handling & legal",
+    "subtitle": "How staff must treat citizen and municipal data",
+    "lede": "BaladiGuard staff access citizen reports only to route, investigate, and resolve municipal infrastructure issues. Treat personal data as confidential and limited to operational need.",
+    "dutiesTitle": "Your duties",
+    "dutyMinimize": "Collect and view only what you need to handle a ticket.",
+    "dutyNeedToKnow": "Do not share citizen contact details, private photos, or tracking codes outside authorized municipal channels.",
+    "dutyNoExport": "Do not export, scrape, or store citizen data on personal devices or unapproved tools.",
+    "dutyRedaction": "Respect redaction and content-safety controls; never publish private originals to public surfaces.",
+    "dutyRetention": "Follow municipal retention rules; escalate privacy deletion or export requests through approved procedures.",
+    "docsTitle": "Citizen-facing policies",
+    "docsBody": "Citizens accept Terms, Privacy, and Acceptable Use when they sign in. Open the public copies when you need the current wording.",
+    "linkPrivacy": "Citizen privacy policy",
+    "linkTerms": "Citizen terms of service",
+    "linkAcceptableUse": "Citizen acceptable use",
+    "citizenUrlMissing": "Set VITE_CITIZEN_WEB_URL to link the public citizen legal pages from this desk. Internal policy docs live under docs/legal and docs/privacy-lifecycle.md."
   },
   "topbar": {
     "product": "BaladiGuard",

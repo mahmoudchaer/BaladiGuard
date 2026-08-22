@@ -44,6 +44,8 @@
     "trackCode": "Track with a code",
     "about": "About",
     "privacy": "Privacy",
+    "terms": "Terms",
+    "acceptableUse": "Acceptable use",
     "yourProfile": "Your profile",
     "citizenSignIn": "Citizen sign in",
     "footerTagline": "Built for clearer, safer civic reporting.",
@@ -117,6 +119,11 @@
     "expired": "That code expired. Request a new one.",
     "verifyFailed": "Unable to verify that code.",
     "privacyNote": "Your phone verifies account ownership. Your name and email stay optional.",
+    "legalAgreePrefix": "I agree to the",
+    "legalAgreeJoin1": ", ",
+    "legalAgreeJoin2": ", and ",
+    "legalAgreeSuffix": ".",
+    "legalRequired": "You must accept the Terms, Privacy Policy, and Acceptable Use Policy to continue.",
     "lebanon": "Lebanon (+961)",
     "unitedStates": "United States (+1)",
     "france": "France (+33)",
@@ -189,6 +196,8 @@
     "photoTooLarge": "Photo must be 5 MB or smaller.",
     "protected": "Protected upload",
     "protectedBody": "Staff receive the private original. Public views only receive an approved redacted version.",
+    "privacyJit": "Photos and location are processed so the municipality can handle your report.",
+    "privacyJitLink": "Read the privacy policy",
     "pleaseWait": "Please wait…",
     "submit": "Submit report",
     "discard": "Discard draft"
@@ -247,7 +256,36 @@
     "sendCode": "Send verification code",
     "verifyPhone": "Verify new phone",
     "signOut": "Sign out",
-    "draftsPrivate": "Drafts remain private to this account"
+    "draftsPrivate": "Drafts remain private to this account",
+    "exportData": "Export my data",
+    "exportDataHint": "Download a JSON copy of your profile and reports",
+    "exportReady": "Your data export downloaded.",
+    "exportFailed": "Unable to export your data.",
+    "deleteAccount": "Delete account",
+    "deleteAccountHint": "Anonymizes your profile; municipal ticket records may remain",
+    "deleteTypeLabel": "Type DELETE to confirm account deletion",
+    "deleteTypePlaceholder": "DELETE",
+    "deleteConfirmPrompt": "Delete your account? Your profile will be anonymized. Municipal ticket records needed for operations may remain.",
+    "deleteFailed": "Unable to delete your account.",
+    "legalRequiredBanner": "Updated legal terms require your acceptance before you continue using BaladiGuard.",
+    "acceptLegal": "Accept current Terms, Privacy, and Acceptable Use",
+    "acceptingLegal": "Recording acceptance…",
+    "legalAccepted": "Legal acceptance recorded.",
+    "legalAcceptFailed": "Unable to record legal acceptance."
+  },
+  "legal": {
+    "loadingTitle": "Legal document",
+    "termsTitle": "Terms of Service",
+    "acceptableUseTitle": "Acceptable Use",
+    "version": "Version {version}",
+    "loadFailed": "Unable to load this legal document."
+  },
+  "privacy": {
+    "title": "Privacy",
+    "scopeTitle": "Public data scope",
+    "publicScope": "Public browsing shows only the citizen-safe projection: ticket number, status, category, description, public address text, map coordinates approved for publication, department name when assigned, attribution display name, and approved public photo URLs.",
+    "internalRestriction": "Internal ticket IDs, tracking codes from browse responses, contact details, private location precision, staff history, and private image keys are never shown on public surfaces.",
+    "trackingScope": "Possession-based tracking requires your 6-character code and returns only the status timeline for that report."
   },
   "public": {
     "title": "Public reports",
@@ -285,12 +323,6 @@
     "network": "Unable to load public reports right now. Check your connection and try again.",
     "detailNetwork": "Unable to load that public report right now. Check your connection and try again.",
     "detailNotFound": "We could not find that public report. It may have been unpublished or the link is incorrect."
-  },
-  "privacy": {
-    "title": "Privacy",
-    "publicScope": "Public browsing shows only the citizen-safe projection: ticket number, status, category, description, public address text, map coordinates approved for publication, department name when assigned, attribution display name, and approved public photo URLs.",
-    "internalRestriction": "Internal ticket IDs, tracking codes from browse responses, contact details, private location precision, staff history, and private image keys are never shown on public surfaces.",
-    "trackingScope": "Possession-based tracking requires your 6-character code and returns only the status timeline for that report."
   },
   "notFound": {
     "title": "Page not found",

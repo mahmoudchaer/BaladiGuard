@@ -7,6 +7,8 @@ const ALLOWED_PATHS = new Set([
   '/reports',
   '/map',
   '/privacy',
+  '/terms',
+  '/acceptable-use',
 ]);
 
 const SAFE_QUERY = /^[a-zA-Z0-9=_&%.-]*$/;

@@ -34,6 +34,7 @@ def test_backup_scope_covers_persistent_mvp_data():
         "ops-alert-acks",
         "ops-error-groups",
         "ops-audit",
+        "privacy-request-audit",
     }.issubset(DEFAULT_TABLE_SUFFIXES)
 
 

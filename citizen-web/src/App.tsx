@@ -5,7 +5,7 @@ import { MapPage } from '@/pages/MapPage';
 import { PublicDetailPage } from '@/pages/PublicDetailPage';
 import { PublicReportsPage } from '@/pages/PublicReportsPage';
 import { TrackPage } from '@/pages/TrackPage';
-import { PrivacyPage } from '@/pages/PrivacyPage';
+import { AcceptableUsePage, PrivacyPage, TermsPage } from '@/pages/PrivacyPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ProfilePage } from '@/pages/ProfilePage';
@@ -33,6 +33,8 @@ function RouteTree() {
           <Route path="t/:code" element={<NotificationLinkPage />} />
           <Route path="track" element={<TrackPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
+          <Route path="acceptable-use" element={<AcceptableUsePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="report" element={<ReportPage />} />
           <Route

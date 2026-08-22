@@ -19,6 +19,7 @@ from app.database.memory_duplicate_group import duplicate_group_store
 from app.database.memory_municipality import municipality_store
 from app.database.memory_notification_delivery import notification_delivery_store
 from app.database.memory_ops import ops_alert_ack_store, ops_audit_store, ops_error_store
+from app.database.memory_privacy_request import privacy_request_audit_store
 from app.database.memory_redaction_job import redaction_job_store
 from app.database.memory_staff import staff_store
 from app.database.memory_staff_comments import staff_comment_store
@@ -335,6 +336,19 @@ def get_ops_error_store():
 
 def get_ops_audit_store():
     return build_ops_audit_store(get_settings())
+
+
+def build_privacy_request_audit_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_privacy_request import DynamoPrivacyRequestAuditStore
+
+        return DynamoPrivacyRequestAuditStore(settings)
+    return privacy_request_audit_store
+
+
+def get_privacy_request_audit_store():
+    return build_privacy_request_audit_store(get_settings())
 
 
 def build_municipality_store(settings: Settings | None = None):

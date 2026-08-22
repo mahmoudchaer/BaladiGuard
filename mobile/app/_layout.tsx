@@ -57,6 +57,8 @@ function LocalizedStack() {
       <Stack.Screen name="login/index" options={{ title: t('screens.signIn') }} />
       <Stack.Screen name="profile/index" options={{ title: t('screens.profile') }} />
       <Stack.Screen name="privacy/index" options={{ title: t('screens.privacy') }} />
+      <Stack.Screen name="terms/index" options={{ title: t('screens.terms') }} />
+      <Stack.Screen name="acceptable-use/index" options={{ title: t('screens.acceptableUse') }} />
       <Stack.Screen name="public/[ticketNumber]" options={{ title: t('screens.publicReport') }} />
     </Stack>
   );

@@ -12,7 +12,11 @@ type ProfileSummaryProps = {
   onEdit: () => void;
   onChangePhone: () => void;
   onLogout: () => void;
+  onExportData?: () => void;
+  onDeleteAccount?: () => void;
+  onAcceptLegal?: () => void;
   isLoggingOut?: boolean;
+  isPrivacyBusy?: boolean;
 };
 
 function formatPreference(
@@ -57,7 +61,11 @@ export function ProfileSummary({
   onEdit,
   onChangePhone,
   onLogout,
+  onExportData,
+  onDeleteAccount,
+  onAcceptLegal,
   isLoggingOut = false,
+  isPrivacyBusy = false,
 }: ProfileSummaryProps) {
   const { t, locale } = useI18n();
   const accountStatus = !profile.active
@@ -68,6 +76,25 @@ export function ProfileSummary({
 
   return (
     <View style={styles.container} testID="profile-summary">
+      {profile.legalAcceptanceRequired ? (
+        <View style={styles.legalBanner} testID="legal-required-banner">
+          <Text variant="bodyMedium" style={styles.legalBannerText}>
+            {t('profile.legalRequiredBanner')}
+          </Text>
+          <Button
+            mode="contained"
+            onPress={onAcceptLegal}
+            loading={isPrivacyBusy}
+            disabled={isPrivacyBusy || !onAcceptLegal}
+            buttonColor={colors.brand}
+            textColor={colors.textInverse}
+            testID="accept-legal-button"
+          >
+            {t('profile.acceptLegal')}
+          </Button>
+        </View>
+      ) : null}
+
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>
           {t('profile.title')}
@@ -177,6 +204,54 @@ export function ProfileSummary({
             {t('profile.privacy')}
           </Button>
         </Link>
+        <Link href={'/terms' as Href} asChild>
+          <Button
+            mode="text"
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.textSecondary}
+          >
+            {t('legal.termsTitle')}
+          </Button>
+        </Link>
+        <Link href={'/acceptable-use' as Href} asChild>
+          <Button
+            mode="text"
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.textSecondary}
+          >
+            {t('legal.acceptableUseTitle')}
+          </Button>
+        </Link>
+        {onExportData ? (
+          <Button
+            mode="outlined"
+            onPress={onExportData}
+            loading={isPrivacyBusy}
+            disabled={isPrivacyBusy}
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.brandDark}
+            testID="export-data-button"
+          >
+            {t('profile.exportData')}
+          </Button>
+        ) : null}
+        {onDeleteAccount ? (
+          <Button
+            mode="outlined"
+            onPress={onDeleteAccount}
+            loading={isPrivacyBusy}
+            disabled={isPrivacyBusy}
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.danger}
+            testID="delete-account-button"
+          >
+            {t('profile.deleteAccount')}
+          </Button>
+        ) : null}
         <Button
           mode="text"
           onPress={onLogout}
@@ -197,6 +272,16 @@ export function ProfileSummary({
 const styles = StyleSheet.create({
   container: {
     gap: spacing[5],
+  },
+  legalBanner: {
+    gap: spacing[3],
+    padding: spacing[4],
+    borderRadius: radii.md,
+    backgroundColor: colors.dangerSoft,
+  },
+  legalBannerText: {
+    color: colors.text,
+    lineHeight: 20,
   },
   header: {
     gap: spacing[1],
