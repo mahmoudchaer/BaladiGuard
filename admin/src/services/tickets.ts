@@ -617,6 +617,14 @@ function normalizeTicketAggregates(data: unknown): TicketAggregates {
     highCount: typeof data.highCount === 'number' ? data.highCount : 0,
     unassignedCount: typeof data.unassignedCount === 'number' ? data.unassignedCount : 0,
     overdueCount: typeof data.overdueCount === 'number' ? data.overdueCount : 0,
+    queuedCount: typeof data.queuedCount === 'number' ? data.queuedCount : 0,
+    assignedCount: typeof data.assignedCount === 'number' ? data.assignedCount : 0,
+    inProgressCount: typeof data.inProgressCount === 'number' ? data.inProgressCount : 0,
+    dueSoonCount: typeof data.dueSoonCount === 'number' ? data.dueSoonCount : 0,
+    completedCount: typeof data.completedCount === 'number' ? data.completedCount : 0,
+    cancelledCount: typeof data.cancelledCount === 'number' ? data.cancelledCount : 0,
+    workforceUnassignedCount:
+      typeof data.workforceUnassignedCount === 'number' ? data.workforceUnassignedCount : 0,
     approximate: Boolean(data.approximate),
   };
 }

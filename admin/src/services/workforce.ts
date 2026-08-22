@@ -14,6 +14,7 @@ export type UpsertTeamInput = {
   displayName?: string;
   departmentIds?: string[];
   workerIds?: string[];
+  leadWorkerId?: string | null;
 };
 
 async function throwApiError(response: Response, fallback: string): Promise<never> {

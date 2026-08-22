@@ -618,6 +618,12 @@ export function TicketListPage() {
         </div>
       )}
 
+      {loadState === 'success' && aggregates && (
+        <p className="ticket-list-page__ops-counts" role="status">
+          {`Queued ${aggregates.queuedCount ?? 0} · Assigned ${aggregates.assignedCount ?? 0} · In progress ${aggregates.inProgressCount ?? 0} · Due soon ${aggregates.dueSoonCount ?? 0} · Workforce unassigned ${aggregates.workforceUnassignedCount ?? 0} · Completed ${aggregates.completedCount ?? 0} · Cancelled ${aggregates.cancelledCount ?? 0}`}
+        </p>
+      )}
+
       {loadState === 'success' && (
         <div
           className={
