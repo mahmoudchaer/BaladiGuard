@@ -11,7 +11,8 @@ vi.mock('@/services/api/legal', () => ({
     version: '2026-08-22',
     updatedAt: '2026-08-22T00:00:00Z',
     lang: 'en',
-    markdown: '# Privacy Policy\n\nCitizen data handling details.',
+    markdown:
+      '> **Product draft.**\n\n| Data | Purpose |\n| --- | --- |\n| Phone | Identity |\n\nUses `acceptLegal`.',
   })),
 }));
 
