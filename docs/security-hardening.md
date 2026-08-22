@@ -59,10 +59,11 @@ Stored keys are HMAC fingerprints.
 
 - **CORS:** staging/production require explicit https, non-localhost
   `CORS_ALLOWED_ORIGINS` ([cors.py](../backend/app/core/cors.py)).
-- **Trusted Host:** staging/production require `ALLOWED_HOSTS`. Local/test default
-  to `*` so TestClient (`Host: testserver`) works. `/health`, `/health/live`, and
-  `/health/ready` are exempt so ALB probes that send the instance IP as `Host`
-  do not fail the target group.
+- **Trusted Host:** staging/production require `ALLOWED_HOSTS`. Terraform injects
+  it from `var.api_domain_name` on every backend task (not Secrets Manager).
+  Local/test default to `*` so TestClient (`Host: testserver`) works. `/health`,
+  `/health/live`, and `/health/ready` are exempt so ALB probes that send the
+  instance IP as `Host` do not fail the target group.
 - **HTTPS:** TLS terminates at the load balancer / API Gateway. The API process
   does not redirect HTTP. Staging/production still emit HSTS on API responses.
 - **API security headers:** `X-Content-Type-Options`, `X-Frame-Options`,

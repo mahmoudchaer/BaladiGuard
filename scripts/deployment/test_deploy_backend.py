@@ -19,6 +19,7 @@ from unittest.mock import ANY, patch
 from deploy_backend import (
     TASK_DEFINITION_FIELDS,
     aws,
+    collect_stabilization_diagnostics,
     main,
     next_task_definition,
     parse_args,
@@ -328,6 +329,69 @@ class ServiceUpdateTests(unittest.TestCase):
         self.assertIn("services-stable", cmd)
         self.assertIn("api", cmd)
         self.assertIn("ai-worker", cmd)
+
+    def test_wait_stable_timeout_includes_events_stopped_tasks_and_logs(self):
+        waiter_error = subprocess.CalledProcessError(
+            255,
+            ["aws", "ecs", "wait", "services-stable"],
+            stderr="Waiter ServicesStable failed: Max attempts exceeded",
+        )
+
+        def fake_aws(*args):
+            if args[:2] == ("ecs", "describe-services"):
+                return {
+                    "services": [
+                        {
+                            "serviceName": "api",
+                            "events": [
+                                {
+                                    "createdAt": "2026-08-22T10:40:00Z",
+                                    "message": "service api: task failed container health checks",
+                                }
+                            ],
+                            "deployments": [
+                                {
+                                    "status": "PRIMARY",
+                                    "rolloutState": "FAILED",
+                                    "failedTasks": 3,
+                                    "runningCount": 0,
+                                    "desiredCount": 1,
+                                    "taskDefinition": "arn:...:api:99",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            if args[:2] == ("ecs", "list-tasks"):
+                return {"taskArns": ["arn:aws:ecs:us-east-1:1:task/api-stopped"]}
+            if args[:2] == ("ecs", "describe-tasks"):
+                return {
+                    "tasks": [
+                        {
+                            "taskArn": "arn:aws:ecs:us-east-1:1:task/api-stopped",
+                            "stoppedReason": "Essential container in task exited",
+                            "containers": [
+                                {
+                                    "name": "api",
+                                    "reason": "CannotStartContainerError: ALLOWED_HOSTS missing",
+                                    "exitCode": 1,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            raise AssertionError(args)
+
+        with patch("subprocess.run", side_effect=waiter_error), patch(
+            "deploy_backend.aws", side_effect=fake_aws
+        ):
+            with self.assertRaises(RuntimeError) as ctx:
+                wait_stable("baladiguard-staging", ["api"])
+        message = str(ctx.exception)
+        self.assertIn("Max attempts exceeded", message)
+        self.assertIn("task failed container health checks", message)
+        self.assertIn("ALLOWED_HOSTS missing", message)
+        self.assertIn("/ecs/baladiguard-staging/api", message)
 
 
 # ---------------------------------------------------------------------------

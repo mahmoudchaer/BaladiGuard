@@ -136,11 +136,89 @@ def update_service(cluster: str, service: str, task_definition: str) -> None:
     )
 
 
-def wait_stable(cluster: str, services: list[str]) -> None:
-    subprocess.run(
-        ["aws", "ecs", "wait", "services-stable", "--cluster", cluster, "--services", *services],
-        check=True,
+def _format_service_events(events: list[dict[str, Any]], *, limit: int = 8) -> str:
+    if not events:
+        return "no recent events"
+    lines = []
+    for event in events[:limit]:
+        when = event.get("createdAt", "?")
+        message = (event.get("message") or "").strip()
+        lines.append(f"{when}: {message}")
+    return "; ".join(lines)
+
+
+def _format_stopped_task(task: dict[str, Any]) -> str:
+    containers = task.get("containers") or []
+    container_reasons = ", ".join(
+        f"{container.get('name', 'container')}: "
+        f"{container.get('reason') or container.get('exitCode', 'unknown')}"
+        for container in containers
+    ) or "no container details"
+    return (
+        f"{task.get('taskArn', 'unknown-task')} "
+        f"stoppedReason={task.get('stoppedReason') or 'unknown'}; {container_reasons}"
     )
+
+
+def collect_stabilization_diagnostics(cluster: str, services: list[str]) -> str:
+    """Collect ECS events, stopped-task reasons, and CloudWatch log group names."""
+    parts = [
+        f"CloudWatch logs: {', '.join(f'/ecs/{cluster}/{service}' for service in services)}"
+    ]
+    try:
+        described = aws("ecs", "describe-services", "--cluster", cluster, "--services", *services)
+    except Exception as error:
+        parts.append(f"describe-services failed: {error}")
+        return " | ".join(parts)
+
+    for service in described.get("services", []):
+        name = service.get("serviceName", "unknown")
+        parts.append(f"{name} events: {_format_service_events(service.get('events') or [])}")
+        for deployment in service.get("deployments") or []:
+            parts.append(
+                f"{name} deployment status={deployment.get('status')} "
+                f"rollout={deployment.get('rolloutState')} "
+                f"failedTasks={deployment.get('failedTasks')} "
+                f"running={deployment.get('runningCount')}/"
+                f"{deployment.get('desiredCount')} "
+                f"taskDef={deployment.get('taskDefinition')}"
+            )
+
+    for service in services:
+        try:
+            listed = aws(
+                "ecs",
+                "list-tasks",
+                "--cluster",
+                cluster,
+                "--service-name",
+                service,
+                "--desired-status",
+                "STOPPED",
+            )
+            task_arns = listed.get("taskArns") or []
+            if not task_arns:
+                continue
+            stopped = aws("ecs", "describe-tasks", "--cluster", cluster, "--tasks", *task_arns)
+            for task in stopped.get("tasks") or []:
+                parts.append(f"{service} stopped task: {_format_stopped_task(task)}")
+        except Exception as error:
+            parts.append(f"{service} stopped-task lookup failed: {error}")
+    return " | ".join(parts)
+
+
+def wait_stable(cluster: str, services: list[str]) -> None:
+    try:
+        subprocess.run(
+            ["aws", "ecs", "wait", "services-stable", "--cluster", cluster, "--services", *services],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        waiter_output = (error.stderr or error.stdout or str(error)).strip()
+        details = collect_stabilization_diagnostics(cluster, services)
+        raise RuntimeError(f"services did not stabilize ({waiter_output}). {details}") from error
 
 
 def verify_promoted(cluster: str, services: list[str], promoted: dict[str, str]) -> None:
