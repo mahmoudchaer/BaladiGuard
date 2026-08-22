@@ -7,6 +7,7 @@ gets a JSON/body ceiling so Starlette never buffers an unbounded payload.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request
@@ -130,6 +131,32 @@ def json_nesting_too_deep(value: object, *, max_depth: int, _depth: int = 0) -> 
             json_nesting_too_deep(item, max_depth=max_depth, _depth=_depth + 1) for item in value
         )
     return False
+
+
+def _is_json_content_type(request: Request) -> bool:
+    content_type = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+    return content_type == "application/json"
+
+
+async def reject_deep_json_body(request: Request, *, max_depth: int) -> JSONResponse | None:
+    """Reject JSON writes whose object/array nesting exceeds ``max_depth``."""
+    if not should_limit_json_body(request) or not _is_json_content_type(request):
+        return None
+    body = await request.body()
+    if not body.strip():
+        return None
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    if not json_nesting_too_deep(parsed, max_depth=max_depth):
+        return None
+    return build_error_response(
+        code="PAYLOAD_TOO_NESTED",
+        message="Request JSON exceeds the allowed nesting depth.",
+        request_id=get_request_id(request),
+        status_code=400,
+    )
 
 
 def payload_too_large_response(request: Request) -> JSONResponse:

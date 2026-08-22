@@ -25,8 +25,16 @@ from app.core.trusted_hosts import (
 from app.main import app
 from app.schemas.municipality import UpsertMunicipalityRequest
 from app.schemas.stored_municipality import GeoPolygon
+from app.schemas.ticket import SubmitTicketResponse
 from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.workforce import UpsertWorkerRequest
+from app.services.complaints.ticket_service import ticket_service
+from app.services.complaints.ticket_submission_idempotency import (
+    composite_submission_key,
+    get_ticket_submission_idempotency_store,
+    normalize_client_submission_key,
+    reset_ticket_submission_idempotency_store,
+)
 from app.services.whatsapp.submission import WhatsAppSubmissionRateLimited, submit_whatsapp_report
 from tests.conftest import issue_test_staff_token
 
@@ -126,6 +134,16 @@ def test_json_nesting_guard() -> None:
         nested = {"child": nested}
     assert json_nesting_too_deep(nested, max_depth=20)
     assert not json_nesting_too_deep({"ok": [1, 2, 3]}, max_depth=20)
+
+
+def test_http_rejects_over_nested_json_body() -> None:
+    nested: object = {"ok": True}
+    for _ in range(get_settings().max_json_nesting_depth + 2):
+        nested = {"child": nested}
+    client = TestClient(app)
+    response = client.post("/v1/locations/validate", json=nested)
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "PAYLOAD_TOO_NESTED"
 
 
 def test_polygon_rejects_extra_keys_and_too_many_vertices() -> None:
@@ -254,6 +272,66 @@ def test_whatsapp_submit_raises_before_ticket_create(monkeypatch) -> None:
     finally:
         get_settings.cache_clear()
         clear_rate_limiter_cache()
+
+
+def test_whatsapp_retry_reuses_idempotent_ticket_under_tight_limit(monkeypatch) -> None:
+    clear_rate_limiter_cache()
+    reset_ticket_submission_idempotency_store()
+    monkeypatch.setenv("RATE_LIMIT_WHATSAPP_SUBMIT_LIMIT", "1")
+    monkeypatch.setenv("RATE_LIMIT_WHATSAPP_SUBMIT_WINDOW_SECONDS", "3600")
+    get_settings.cache_clear()
+
+    created = SubmitTicketResponse(
+        ticketId="tkt_wa_retry",
+        ticketNumber="BG-2026-8801",
+        trackingCode="WARETRY",
+        status="SUBMITTED",
+        message="accepted",
+        createdAt="2026-08-22T00:00:00Z",
+    )
+    calls = {"n": 0}
+
+    def fake_submit(*_args, **_kwargs):
+        calls["n"] += 1
+        key = normalize_client_submission_key("wa:biz:sender:retry01")
+        assert key is not None
+        store = get_ticket_submission_idempotency_store()
+        composite = composite_submission_key(owner_user_id="citizen_retry", client_key=key)
+        store.complete(composite, created)
+        return created
+
+    monkeypatch.setattr(ticket_service, "submit_ticket", fake_submit)
+
+    class Conversation:
+        owner_user_id = "citizen_retry"
+        description = "A blocked drain is flooding the street."
+        latitude = 33.89
+        longitude = 35.5
+        address_text = "Hamra, Beirut"
+        image_object_key = "reports/photos/v2/scope/file.jpg"
+        optional_name = None
+        canonical_phone = "+96170002222"
+        language = "en"
+        client_submission_key = "wa:biz:sender:retry01"
+
+    first = submit_whatsapp_report(Conversation())
+    second = submit_whatsapp_report(Conversation())
+    assert first.ticket_id == "tkt_wa_retry"
+    assert second.ticket_id == "tkt_wa_retry"
+    assert calls["n"] == 2
+
+    class FreshConversation(Conversation):
+        client_submission_key = "wa:biz:sender:retry02"
+
+    try:
+        submit_whatsapp_report(FreshConversation())
+        raise AssertionError("a new WhatsApp submission key must still consume the phone quota")
+    except WhatsAppSubmissionRateLimited:
+        pass
+    finally:
+        get_settings.cache_clear()
+        clear_rate_limiter_cache()
+        reset_ticket_submission_idempotency_store()
 
 
 def test_logged_out_staff_and_ops_routes_are_denied() -> None:

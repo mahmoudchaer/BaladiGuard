@@ -40,12 +40,13 @@ def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConver
     ):
         raise RuntimeError("WhatsApp conversation is incomplete for submission.")
 
-    decision = check_identity_rate_limit(
-        f"wa:{conversation.canonical_phone}",
-        "whatsapp-submission",
-    )
-    if not decision.allowed:
-        raise WhatsAppSubmissionRateLimited(decision.retry_after_seconds)
+    if not _has_reusable_whatsapp_submission(conversation):
+        decision = check_identity_rate_limit(
+            f"wa:{conversation.canonical_phone}",
+            "whatsapp-submission",
+        )
+        if not decision.allowed:
+            raise WhatsAppSubmissionRateLimited(decision.retry_after_seconds)
 
     contact = ReportContact(
         name=conversation.optional_name,
@@ -100,6 +101,28 @@ def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConver
     conversation.tracking_code = response.tracking_code
     conversation.state = "completed"
     return conversation
+
+
+def _has_reusable_whatsapp_submission(conversation: WhatsAppConversation) -> bool:
+    """True when this CONFIRM retry can replay an already-created ticket."""
+    from app.services.complaints.ticket_submission_idempotency import (
+        composite_submission_key,
+        get_ticket_submission_idempotency_store,
+        normalize_client_submission_key,
+    )
+
+    client_key = normalize_client_submission_key(conversation.client_submission_key)
+    owner_user_id = conversation.owner_user_id
+    if not client_key or not owner_user_id:
+        return False
+    store = get_ticket_submission_idempotency_store()
+    composite = composite_submission_key(owner_user_id=owner_user_id, client_key=client_key)
+    if store.get_completed(composite) is not None:
+        return True
+    if store.try_recover(composite) is not None:
+        return True
+    pending = store.get_pending_ticket_id(composite)
+    return bool(pending)
 
 
 def receipt_deep_link(tracking_code: str | None) -> str | None:

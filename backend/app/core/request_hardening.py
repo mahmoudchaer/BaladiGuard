@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.core.body_limits import (
     attach_body_byte_limit,
     max_body_bytes_for_request,
+    reject_deep_json_body,
     reject_oversized_body,
     reject_oversized_headers,
 )
@@ -100,3 +101,9 @@ def reject_hardened_request(request: Request) -> JSONResponse | None:
 
     attach_body_byte_limit(request, max_bytes=max_bytes)
     return enforce_path_rate_limit(request)
+
+
+async def reject_hardened_json_body(request: Request) -> JSONResponse | None:
+    """Inspect the buffered JSON body after cheap header/size checks."""
+    settings = get_settings()
+    return await reject_deep_json_body(request, max_depth=settings.max_json_nesting_depth)

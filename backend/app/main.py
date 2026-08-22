@@ -35,7 +35,7 @@ from app.core.errors import (
 from app.core.logging import configure_logging
 from app.core.metrics import emit_metric, normalize_path_group, timed_metric
 from app.core.request_context import reset_request_id, set_request_id
-from app.core.request_hardening import reject_hardened_request
+from app.core.request_hardening import reject_hardened_json_body, reject_hardened_request
 from app.core.security_headers import apply_security_headers
 from app.core.upload_abuse import reject_upload_abuse_early
 
@@ -246,6 +246,15 @@ def create_app() -> FastAPI:
                     started_at=started_at,
                 )
                 return _with_request_id_header(early_hardening, request.state.request_id)
+            early_json = await reject_hardened_json_body(request)
+            if early_json is not None:
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=early_json.status_code,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(early_json, request.state.request_id)
             try:
                 response = await call_next(request)
             except RequestBodyTooLarge:

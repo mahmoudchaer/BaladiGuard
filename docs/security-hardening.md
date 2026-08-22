@@ -9,6 +9,7 @@ assumptions, security headers, and incident steps that match the deployed API.
 | Control | Default | Where enforced |
 | --- | --- | --- |
 | JSON / non-upload write body | `MAX_JSON_BODY_BYTES` = 256 KiB | HTTP middleware (`Content-Length` + streamed byte count) |
+| JSON object/array nesting | `MAX_JSON_NESTING_DEPTH` = 20 | HTTP middleware parses JSON writes → `400 PAYLOAD_TOO_NESTED` |
 | Combined request headers | `MAX_HEADER_BYTES` = 16 KiB | HTTP middleware → `431 HEADERS_TOO_LARGE` |
 | Report photo / work-order evidence | 5 MiB image + 256 KiB framing | `upload_abuse` before multipart parse |
 | WhatsApp webhook | `WHATSAPP_MAX_WEBHOOK_BYTES` = 1 MiB | WhatsApp route (exempt from the JSON ceiling) |
@@ -44,7 +45,9 @@ Representative automated coverage lives in `test_staff_authorization.py`,
 See [rate-limiting-runbook.md](./rate-limiting-runbook.md). New #316 policies:
 
 - `citizen-data-export` / `citizen-data-delete` — cost-aware profile export/delete
-- `whatsapp-submission` — per canonical phone, before ticket + AI enqueue
+- `whatsapp-submission` — per canonical phone, before a *new* ticket + AI enqueue.
+  Retries that already have a completed or recoverable `clientSubmissionKey`
+  reuse the original ticket and do not consume another slot.
 - `staff-mutation` — compromised-token write amplification
 - `ops-dashboard` — CloudWatch/Dynamo scan cost on `/v1/ops/*`
 
