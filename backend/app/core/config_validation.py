@@ -704,4 +704,30 @@ def validate_configuration(
                     )
                     break
 
+        from app.core.trusted_hosts import is_localhost_host, parse_allowed_hosts
+
+        hosts = parse_allowed_hosts(cfg.allowed_hosts)
+        if not hosts:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_ALLOWED_HOSTS",
+                    message=(
+                        f"{env_label} requires ALLOWED_HOSTS "
+                        "(comma-separated API hostnames, no localhost)."
+                    ),
+                )
+            )
+        else:
+            for host in hosts:
+                if host == "*" or is_localhost_host(host):
+                    result.issues.append(
+                        ConfigIssue(
+                            code="UNSAFE_ALLOWED_HOSTS",
+                            message=(
+                                f"{env_label} must not use localhost or wildcard ALLOWED_HOSTS."
+                            ),
+                        )
+                    )
+                    break
+
     return result

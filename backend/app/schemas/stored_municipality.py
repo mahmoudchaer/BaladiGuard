@@ -64,7 +64,9 @@ class MunicipalityBounds(BaseModel):
 class GeoPolygon(BaseModel):
     """Closed ring of [longitude, latitude] pairs (GeoJSON order)."""
 
-    coordinates: list[list[float]] = Field(min_length=4)
+    coordinates: list[list[float]] = Field(min_length=4, max_length=256)
+
+    model_config = {"extra": "forbid"}
 
     @field_validator("coordinates")
     @classmethod
@@ -81,9 +83,9 @@ class GeoPolygon(BaseModel):
 
 
 class MunicipalityContact(BaseModel):
-    escalation_email: str | None = Field(default=None, alias="escalationEmail")
-    escalation_phone: str | None = Field(default=None, alias="escalationPhone")
-    notes: str | None = None
+    escalation_email: str | None = Field(default=None, alias="escalationEmail", max_length=254)
+    escalation_phone: str | None = Field(default=None, alias="escalationPhone", max_length=32)
+    notes: str | None = Field(default=None, max_length=500)
 
     model_config = {"populate_by_name": True}
 

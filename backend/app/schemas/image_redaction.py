@@ -72,7 +72,7 @@ class ManualRedactionRegion(BaseModel):
 class ImageRedactionDecisionRequest(BaseModel):
     expected_generation: int = Field(alias="expectedGeneration", ge=1)
     expected_candidate_revision: int = Field(alias="expectedCandidateRevision", ge=0)
-    regions: list[ManualRedactionRegion] = Field(default_factory=list)
+    regions: list[ManualRedactionRegion] = Field(default_factory=list, max_length=40)
 
     model_config = {"populate_by_name": True}
 

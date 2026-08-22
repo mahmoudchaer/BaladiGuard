@@ -11,7 +11,7 @@ class StaffAccountResponse(BaseModel):
     staff_id: str = Field(alias="staffId")
     username: str
     name: str
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     role: StaffRole
     municipality_id: str | None = Field(alias="municipalityId")
     department_ids: list[str] | None = Field(alias="departmentIds")
@@ -40,11 +40,11 @@ class StaffAccountResponse(BaseModel):
 class CreateStaffAccountRequest(BaseModel):
     username: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=120)
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     password: str = Field(min_length=8, max_length=200)
     role: MunicipalityAssignableRole
-    municipality_id: str | None = Field(default=None, alias="municipalityId")
-    department_ids: list[str] | None = Field(default=None, alias="departmentIds")
+    municipality_id: str | None = Field(default=None, alias="municipalityId", max_length=80)
+    department_ids: list[str] | None = Field(default=None, alias="departmentIds", max_length=40)
 
     model_config = {"populate_by_name": True}
 
@@ -56,8 +56,8 @@ class CreateStaffAccountRequest(BaseModel):
 
 class UpdateStaffAccountRequest(BaseModel):
     role: MunicipalityAssignableRole | None = None
-    municipality_id: str | None = Field(default=None, alias="municipalityId")
-    department_ids: list[str] | None = Field(default=None, alias="departmentIds")
+    municipality_id: str | None = Field(default=None, alias="municipalityId", max_length=80)
+    department_ids: list[str] | None = Field(default=None, alias="departmentIds", max_length=40)
 
     model_config = {"populate_by_name": True}
 

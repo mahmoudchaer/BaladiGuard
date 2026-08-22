@@ -125,6 +125,7 @@ def test_staging_requires_https_non_localhost_citizen_app_base_url():
         "CORS_ALLOWED_ORIGINS": (
             "https://admin.staging.baladiguard.example,https://citizen.staging.baladiguard.example"
         ),
+        "ALLOWED_HOSTS": "api.staging.baladiguard.example",
     }
     try:
         os.environ.clear()
@@ -252,6 +253,7 @@ def test_production_rejects_development_defaults():
     assert "UNSAFE_SEED_SAMPLE_TICKETS" in codes
     assert "MISSING_CITIZEN_APP_BASE_URL" in codes
     assert "MISSING_CORS_ALLOWED_ORIGINS" in codes
+    assert "MISSING_ALLOWED_HOSTS" in codes
     # Secret values must never appear in issue messages.
     serialized = " ".join(issue.message for issue in result.issues).lower()
     assert "changeme" not in serialized
@@ -306,6 +308,7 @@ def test_production_valid_configuration_passes():
         "CORS_ALLOWED_ORIGINS": (
             "https://admin.baladiguard.example,https://citizen.baladiguard.example"
         ),
+        "ALLOWED_HOSTS": "api.baladiguard.example",
     }
     original = dict(os.environ)
     try:

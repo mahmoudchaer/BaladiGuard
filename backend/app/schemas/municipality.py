@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.schemas.stored_department import StoredDepartment
 from app.schemas.stored_municipality import (
+    GeoPolygon,
     MunicipalityBounds,
     MunicipalityContact,
     MunicipalityRoutingDecision,
@@ -108,7 +109,7 @@ class UpsertMunicipalityRequest(BaseModel):
     service_domains: list[ServiceDomain] = Field(alias="serviceDomains")
     bounds: MunicipalityBounds
     polygon: dict | None = None
-    category_ids: list[str] = Field(default_factory=list, alias="categoryIds")
+    category_ids: list[str] = Field(default_factory=list, alias="categoryIds", max_length=40)
     contact: MunicipalityContact | None = None
     active: bool = True
 
@@ -122,11 +123,21 @@ class UpsertMunicipalityRequest(BaseModel):
             raise ValueError("must not be blank.")
         return trimmed
 
+    @field_validator("polygon")
+    @classmethod
+    def validate_polygon(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError("polygon must be an object with coordinates.")
+        GeoPolygon.model_validate(value)
+        return value
+
 
 class ProvisionMunicipalityAdminRequest(BaseModel):
     username: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=120)
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     password: str = Field(min_length=8, max_length=200)
 
     @field_validator("username")
@@ -147,7 +158,7 @@ class ProvisionMunicipalityAdminResponse(BaseModel):
 class RoutingPreviewRequest(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
-    category: str | None = None
+    category: str | None = Field(default=None, max_length=80)
     description: str | None = Field(default=None, max_length=4000)
     use_model: bool = Field(default=False, alias="useModel")
 

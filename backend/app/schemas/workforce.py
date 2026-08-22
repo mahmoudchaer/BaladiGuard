@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+BoundedId = Annotated[str, Field(min_length=1, max_length=80)]
 
 WorkforceAssigneeKind = Literal["worker", "team"]
 
@@ -13,8 +15,8 @@ class StoredWorker(BaseModel):
     worker_id: str = Field(alias="workerId")
     municipality_id: str = Field(alias="municipalityId")
     display_name: str = Field(alias="displayName")
-    department_ids: list[str] = Field(alias="departmentIds")
-    team_ids: list[str] = Field(default_factory=list, alias="teamIds")
+    department_ids: list[BoundedId] = Field(alias="departmentIds", max_length=40)
+    team_ids: list[BoundedId] = Field(default_factory=list, alias="teamIds", max_length=40)
     active: bool = True
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
@@ -34,9 +36,9 @@ class StoredTeam(BaseModel):
     team_id: str = Field(alias="teamId")
     municipality_id: str = Field(alias="municipalityId")
     display_name: str = Field(alias="displayName")
-    department_ids: list[str] = Field(alias="departmentIds")
-    worker_ids: list[str] = Field(default_factory=list, alias="workerIds")
-    lead_worker_id: str | None = Field(default=None, alias="leadWorkerId")
+    department_ids: list[BoundedId] = Field(alias="departmentIds", max_length=40)
+    worker_ids: list[BoundedId] = Field(default_factory=list, alias="workerIds", max_length=80)
+    lead_worker_id: BoundedId | None = Field(default=None, alias="leadWorkerId")
     active: bool = True
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
@@ -88,10 +90,12 @@ class TeamResponse(BaseModel):
 
 
 class UpsertWorkerRequest(BaseModel):
-    municipality_id: str | None = Field(default=None, alias="municipalityId")
+    municipality_id: str | None = Field(default=None, alias="municipalityId", max_length=80)
     display_name: str | None = Field(default=None, alias="displayName")
-    department_ids: list[str] | None = Field(default=None, alias="departmentIds")
-    team_ids: list[str] | None = Field(default=None, alias="teamIds")
+    department_ids: list[BoundedId] | None = Field(
+        default=None, alias="departmentIds", max_length=40
+    )
+    team_ids: list[BoundedId] | None = Field(default=None, alias="teamIds", max_length=40)
 
     model_config = {"populate_by_name": True}
 
@@ -107,11 +111,13 @@ class UpsertWorkerRequest(BaseModel):
 
 
 class UpsertTeamRequest(BaseModel):
-    municipality_id: str | None = Field(default=None, alias="municipalityId")
+    municipality_id: str | None = Field(default=None, alias="municipalityId", max_length=80)
     display_name: str | None = Field(default=None, alias="displayName")
-    department_ids: list[str] | None = Field(default=None, alias="departmentIds")
-    worker_ids: list[str] | None = Field(default=None, alias="workerIds")
-    lead_worker_id: str | None = Field(default=None, alias="leadWorkerId")
+    department_ids: list[BoundedId] | None = Field(
+        default=None, alias="departmentIds", max_length=40
+    )
+    worker_ids: list[BoundedId] | None = Field(default=None, alias="workerIds", max_length=80)
+    lead_worker_id: BoundedId | None = Field(default=None, alias="leadWorkerId")
 
     model_config = {"populate_by_name": True}
 

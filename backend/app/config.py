@@ -300,6 +300,45 @@ class Settings:
         self.rate_limit_smoke_limit = self._int_setting(
             "RATE_LIMIT_SMOKE_LIMIT", default=1000, minimum=1
         )
+        self.rate_limit_citizen_export_limit = self._int_setting(
+            "RATE_LIMIT_CITIZEN_EXPORT_LIMIT", default=5, minimum=1
+        )
+        self.rate_limit_citizen_export_window_seconds = self._int_setting(
+            "RATE_LIMIT_CITIZEN_EXPORT_WINDOW_SECONDS", default=300, minimum=1
+        )
+        self.rate_limit_citizen_delete_limit = self._int_setting(
+            "RATE_LIMIT_CITIZEN_DELETE_LIMIT", default=3, minimum=1
+        )
+        self.rate_limit_citizen_delete_window_seconds = self._int_setting(
+            "RATE_LIMIT_CITIZEN_DELETE_WINDOW_SECONDS", default=300, minimum=1
+        )
+        self.rate_limit_whatsapp_submit_limit = self._int_setting(
+            "RATE_LIMIT_WHATSAPP_SUBMIT_LIMIT", default=8, minimum=1
+        )
+        self.rate_limit_whatsapp_submit_window_seconds = self._int_setting(
+            "RATE_LIMIT_WHATSAPP_SUBMIT_WINDOW_SECONDS", default=3600, minimum=1
+        )
+        self.rate_limit_staff_mutation_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_MUTATION_LIMIT", default=300, minimum=1
+        )
+        self.rate_limit_staff_mutation_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_MUTATION_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_ops_dashboard_limit = self._int_setting(
+            "RATE_LIMIT_OPS_DASHBOARD_LIMIT", default=120, minimum=1
+        )
+        self.rate_limit_ops_dashboard_window_seconds = self._int_setting(
+            "RATE_LIMIT_OPS_DASHBOARD_WINDOW_SECONDS", default=60, minimum=1
+        )
+        # Request-size and Host hardening (issue #316).
+        self.max_json_body_bytes = self._int_setting(
+            "MAX_JSON_BODY_BYTES", default=262_144, minimum=1024
+        )
+        self.max_header_bytes = self._int_setting("MAX_HEADER_BYTES", default=16_384, minimum=1024)
+        self.max_json_nesting_depth = self._int_setting(
+            "MAX_JSON_NESTING_DEPTH", default=20, minimum=4
+        )
+        self.allowed_hosts = os.getenv("ALLOWED_HOSTS", "").strip() or None
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
         # Unsafe local helper: print OTP codes to process stdout (never via logger).
         # Ignored outside local/development/test. Prefer peek_dev_otp_code in tests.

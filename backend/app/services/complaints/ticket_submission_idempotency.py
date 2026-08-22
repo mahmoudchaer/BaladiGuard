@@ -32,7 +32,8 @@ from app.database.dynamodb_tables import build_table_name
 from app.schemas.ticket import SubmitTicketResponse
 
 # UUID / ULID-like keys from clients; keep conservative to avoid huge storage abuse.
-_CLIENT_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
+# WhatsApp keys look like ``wa:{phone-id}:{sender}:{hex}``; HTTP keys stay UUID-like.
+_CLIENT_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{8,128}$")
 
 # Unfinished claims without a ticket id may be reclaimed after this window.
 CLAIM_STALE_SECONDS = 120

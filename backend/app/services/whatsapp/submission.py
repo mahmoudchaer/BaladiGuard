@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.rate_limit import check_identity_rate_limit
 from app.schemas.ticket import (
     ClientMetadata,
     ReportContact,
@@ -20,6 +21,12 @@ from app.services.redaction.queue import image_redaction_queue
 logger = logging.getLogger(__name__)
 
 
+class WhatsAppSubmissionRateLimited(Exception):
+    def __init__(self, retry_after_seconds: int) -> None:
+        super().__init__("WhatsApp submission rate limited.")
+        self.retry_after_seconds = retry_after_seconds
+
+
 def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConversation:
     """Create one ticket via TicketService and enqueue the same downstream work as HTTP."""
     if not conversation.owner_user_id:
@@ -32,6 +39,14 @@ def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConver
         or not conversation.image_object_key
     ):
         raise RuntimeError("WhatsApp conversation is incomplete for submission.")
+
+    if not _has_reusable_whatsapp_submission(conversation):
+        decision = check_identity_rate_limit(
+            f"wa:{conversation.canonical_phone}",
+            "whatsapp-submission",
+        )
+        if not decision.allowed:
+            raise WhatsAppSubmissionRateLimited(decision.retry_after_seconds)
 
     contact = ReportContact(
         name=conversation.optional_name,
@@ -86,6 +101,28 @@ def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConver
     conversation.tracking_code = response.tracking_code
     conversation.state = "completed"
     return conversation
+
+
+def _has_reusable_whatsapp_submission(conversation: WhatsAppConversation) -> bool:
+    """True when this CONFIRM retry can replay an already-created ticket."""
+    from app.services.complaints.ticket_submission_idempotency import (
+        composite_submission_key,
+        get_ticket_submission_idempotency_store,
+        normalize_client_submission_key,
+    )
+
+    client_key = normalize_client_submission_key(conversation.client_submission_key)
+    owner_user_id = conversation.owner_user_id
+    if not client_key or not owner_user_id:
+        return False
+    store = get_ticket_submission_idempotency_store()
+    composite = composite_submission_key(owner_user_id=owner_user_id, client_key=client_key)
+    if store.get_completed(composite) is not None:
+        return True
+    if store.try_recover(composite) is not None:
+        return True
+    pending = store.get_pending_ticket_id(composite)
+    return bool(pending)
 
 
 def receipt_deep_link(tracking_code: str | None) -> str | None:
