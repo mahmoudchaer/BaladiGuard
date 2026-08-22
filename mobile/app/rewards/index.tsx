@@ -75,10 +75,10 @@ export default function RewardsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg, gap: spacing.md },
+  scroll: { padding: spacing[5], gap: spacing[4] },
   title: { fontSize: 24, fontWeight: '700', color: colors.brandDark },
   lede: { color: colors.textMuted },
-  card: { backgroundColor: colors.surface, padding: spacing.lg, borderRadius: 16, gap: spacing.sm },
+  card: { backgroundColor: colors.surface, padding: spacing[5], borderRadius: 16, gap: spacing[2] },
   hint: { color: colors.textMuted },
   error: { color: colors.danger },
 });

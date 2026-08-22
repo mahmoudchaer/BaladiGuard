@@ -72,10 +72,10 @@ export default function LeaderboardScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg, gap: spacing.md },
+  scroll: { padding: spacing[5], gap: spacing[4] },
   title: { fontSize: 24, fontWeight: '700', color: colors.brandDark },
   lede: { color: colors.textMuted },
-  row: { flexDirection: 'row', gap: spacing.sm },
-  card: { backgroundColor: colors.surface, padding: spacing.md, borderRadius: 12 },
+  row: { flexDirection: 'row', gap: spacing[2] },
+  card: { backgroundColor: colors.surface, padding: spacing[4], borderRadius: 12 },
   error: { color: colors.danger },
 });
