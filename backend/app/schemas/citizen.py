@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.schemas.rewards import CitizenRewardsExport
 from app.schemas.ticket_status import TicketStatus
 
 TicketUpdatesPreference = Literal["SMS", "EMAIL", "BOTH", "NONE"]
@@ -54,6 +55,7 @@ class StoredCitizenUser(BaseModel):
         alias="notificationPreferences",
     )
     public_name_visible: bool = Field(default=False, alias="publicNameVisible")
+    leaderboard_opt_in: bool = Field(default=False, alias="leaderboardOptIn")
     legal_acceptance: LegalAcceptance | None = Field(default=None, alias="legalAcceptance")
     active: bool = True
     # Bumped on account-wide session revocation (phone change, deactivation, etc.).
@@ -75,6 +77,7 @@ class CitizenProfileResponse(BaseModel):
     email: EmailStr | None = None
     notification_preferences: NotificationPreferences = Field(alias="notificationPreferences")
     public_name_visible: bool = Field(alias="publicNameVisible")
+    leaderboard_opt_in: bool = Field(alias="leaderboardOptIn")
     active: bool
     contribution_ready: bool = Field(alias="contributionReady")
     legal_acceptance: LegalAcceptance | None = Field(default=None, alias="legalAcceptance")
@@ -102,6 +105,7 @@ class CitizenProfileUpdateRequest(BaseModel):
         alias="notificationPreferences",
     )
     public_name_visible: bool | None = Field(default=None, alias="publicNameVisible")
+    leaderboard_opt_in: bool | None = Field(default=None, alias="leaderboardOptIn")
     phone: str | None = None
     region: str | None = None
     phone_change_challenge_id: str | None = Field(default=None, alias="phoneChangeChallengeId")
@@ -180,6 +184,7 @@ class CitizenDataExportResponse(BaseModel):
     exported_at: str = Field(alias="exportedAt")
     profile: CitizenProfileResponse
     tickets: list[CitizenExportTicketSummary]
+    rewards: CitizenRewardsExport | None = None
 
     model_config = {"populate_by_name": True}
 

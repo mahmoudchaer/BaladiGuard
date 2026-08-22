@@ -149,6 +149,7 @@ export const profileFixture: CitizenProfile = {
   email: null,
   notificationPreferences: { ticketUpdates: 'SMS', announcements: false },
   publicNameVisible: false,
+  leaderboardOptIn: false,
   active: true,
   contributionReady: true,
   createdAt: '2026-08-01T00:00:00Z',
