@@ -190,6 +190,10 @@ def reset_ticket_store() -> None:
     ops_error_store.clear()
     ops_audit_store.clear()
     privacy_request_audit_store.clear()
+    from app.database.memory_rewards import rewards_ledger_store, rewards_projection_store
+
+    rewards_ledger_store.clear()
+    rewards_projection_store.clear()
     clear_metric_samples()
     ensure_demo_staff_accounts()
     clear_rate_limiter_cache()

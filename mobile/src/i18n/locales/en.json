@@ -40,7 +40,9 @@
     "privacy": "Privacy",
     "terms": "Terms",
     "acceptableUse": "Acceptable use",
-    "publicReport": "Public report"
+    "publicReport": "Public report",
+    "rewards": "Rewards",
+    "leaderboard": "Leaderboard"
   },
   "auth": {
     "continueTitle": "Continue with your phone",
@@ -101,6 +103,8 @@
     "manageAccount": "Manage your account",
     "account": "ACCOUNT",
     "profileNotifications": "Profile and notifications",
+    "rewards": "Civic rewards",
+    "leaderboard": "Public leaderboard",
     "privacy": "Privacy",
     "privacyDetail": "How your information is protected",
     "reports": "REPORTS",
@@ -195,6 +199,8 @@
     "announcements": "Municipality announcements",
     "showName": "Show my name on reports",
     "publicNameHelp": "When enabled and a full name is set, your current full name appears on owned reports. Without a name, reports stay anonymous (Community member). Default is off.",
+    "leaderboardOptIn": "Appear on the public leaderboard",
+    "leaderboardOptInHelp": "Optional. Uses only your approved display name — never your phone, email, or reports.",
     "saveChanges": "Save changes",
     "none": "None",
     "sms": "SMS",
@@ -235,6 +241,30 @@
     "traffic_signal": "Traffic Signal",
     "drainage": "Drainage",
     "public_facilities": "Public Facilities"
+  },
+  "rewards": {
+    "title": "Your civic rewards",
+    "lede": "Points recognize verified municipal work, not how many reports you send.",
+    "confirmed": "Confirmed points",
+    "pending": "Pending review",
+    "monthly": "This month",
+    "level": "Level",
+    "rank": "Private rank",
+    "empty": "Sending a report alone does not add points. Wait for municipal acceptance or resolution.",
+    "completeProfile": "Add a display name and opt in from your profile to appear publicly.",
+    "recognitionNote": "Recognition only — no money or government benefits.",
+    "loadFailed": "Unable to load rewards."
+  },
+  "leaderboard": {
+    "title": "Contribution leaderboard",
+    "lede": "Opt-in names only. We never show phones, emails, or report locations.",
+    "allTime": "All time",
+    "monthly": "This month",
+    "empty": "The board stays empty until citizens opt in and earn confirmed points.",
+    "tieNote": "Tied scores show the same name twice. We never add account identifiers.",
+    "loadFailed": "Unable to load the leaderboard.",
+    "loadMore": "Load more",
+    "points": "{points} points"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",

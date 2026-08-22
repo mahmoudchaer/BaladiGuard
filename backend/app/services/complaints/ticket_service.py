@@ -510,7 +510,9 @@ class TicketService:
             ticket_number=ticket_number,
             recipient=ticket_notification_recipient(stored_ticket),
         )
+        from app.services.rewards.observe import observe_ticket_rewards
 
+        observe_ticket_rewards(stored_ticket)
         return response
 
     def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
@@ -1458,6 +1460,9 @@ class TicketService:
             ticket_number=updated_ticket.ticket_number,
             recipient=ticket_notification_recipient(updated_ticket),
         )
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        observe_ticket_rewards(updated_ticket)
         return self._map_ticket(updated_ticket)
 
     def save_ticket_ai_output(
@@ -2183,6 +2188,9 @@ class TicketService:
         from app.services.content_safety.review import ContentSafetyReviewConflictError
 
         if updated is not None:
+            from app.services.rewards.observe import observe_ticket_rewards
+
+            observe_ticket_rewards(updated)
             return updated
         if staff_principal is None:
             raise TicketNotFoundError(ticket_id)
@@ -2575,6 +2583,10 @@ class TicketService:
         updated_canonical = self._store.get(canonical_id)
         if updated_canonical is None:
             raise TicketNotFoundError(canonical_id)
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        for member_id in group.ticket_ids:
+            observe_ticket_rewards(self._store.get(member_id))
         return self._map_ticket(updated_canonical)
 
     def _map_ticket(

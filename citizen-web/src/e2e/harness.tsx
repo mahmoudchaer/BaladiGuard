@@ -57,6 +57,51 @@ export function installControlledBackend(authenticated = false) {
     if (path === '/v1/citizen/me/tickets' && method === 'GET') {
       return new Response(JSON.stringify(historyFixture), { status: 200 });
     }
+    if (path === '/v1/citizen/me/rewards' && method === 'GET') {
+      return new Response(
+        JSON.stringify({
+          ruleVersion: 'rewards-v1',
+          confirmedPoints: 0,
+          pendingPoints: 0,
+          monthlyPoints: 0,
+          monthlyPeriod: '2026-08',
+          levelId: 'neighbor',
+          levelTitle: 'Neighbor',
+          nextLevelId: 'helper',
+          nextLevelTitle: 'Helper',
+          pointsToNextLevel: 25,
+          badges: [],
+          privateRankAllTime: null,
+          privateRankMonthly: null,
+          publicRankAllTime: null,
+          publicRankMonthly: null,
+          participation: {
+            optedIn: false,
+            publicNameVisible: false,
+            hasDisplayName: true,
+            eligible: false,
+            missing: ['leaderboardOptIn', 'publicNameVisible'],
+          },
+          recentEvents: [],
+          recognitionOnly: true,
+        }),
+        { status: 200 },
+      );
+    }
+    if (path === '/v1/rewards/leaderboard' && method === 'GET') {
+      return new Response(
+        JSON.stringify({
+          period: 'all-time',
+          periodKey: 'all-time',
+          items: [],
+          nextCursor: null,
+          limit: 20,
+          ruleVersion: 'rewards-v1',
+          recognitionOnly: true,
+        }),
+        { status: 200 },
+      );
+    }
     if (path.endsWith('/resolution-feedback') && method === 'POST') {
       return new Response(JSON.stringify({ canSubmit: false, status: 'CONFIRMED_FIXED' }), {
         status: 200,

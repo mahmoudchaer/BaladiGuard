@@ -57,6 +57,7 @@ const readyProfile: CitizenProfile = {
   email: null,
   notificationPreferences: { ticketUpdates: 'NONE', announcements: false },
   publicNameVisible: false,
+  leaderboardOptIn: false,
   active: true,
   contributionReady: true,
   createdAt: '2026-08-01T12:00:00Z',

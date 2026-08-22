@@ -1,0 +1,33 @@
+"""Store ports for the contribution ledger and ranking projection (issue #323)."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from app.schemas.stored_rewards import StoredRewardEvent, StoredRewardProjection
+
+
+class RewardsLedgerStore(Protocol):
+    def get_by_event_key(self, event_key: str) -> StoredRewardEvent | None: ...
+
+    def put_if_absent(self, event: StoredRewardEvent) -> StoredRewardEvent: ...
+
+    def list_by_citizen(self, citizen_user_id: str) -> list[StoredRewardEvent]: ...
+
+    def list_by_ticket(self, ticket_id: str) -> list[StoredRewardEvent]: ...
+
+    def clear(self) -> None: ...
+
+
+class RewardsProjectionStore(Protocol):
+    def get(self, citizen_user_id: str) -> StoredRewardProjection | None: ...
+
+    def save(self, projection: StoredRewardProjection) -> None: ...
+
+    def list_ranked(self, *, public_only: bool, period: str, period_key: str) -> list[
+        StoredRewardProjection
+    ]: ...
+
+    def list_all(self) -> list[StoredRewardProjection]: ...
+
+    def clear(self) -> None: ...

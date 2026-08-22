@@ -9,6 +9,8 @@ import { AcceptableUsePage, PrivacyPage, TermsPage } from '@/pages/PrivacyPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ProfilePage } from '@/pages/ProfilePage';
+import { RewardsPage } from '@/pages/RewardsPage';
+import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { ReportPage } from '@/pages/ReportPage';
 import { HistoryPage } from '@/pages/HistoryPage';
 import { ProtectedRoute } from '@/auth/ProtectedRoute';
@@ -32,6 +34,7 @@ function RouteTree() {
           <Route path="public/:ticketNumber" element={<PublicDetailPage />} />
           <Route path="t/:code" element={<NotificationLinkPage />} />
           <Route path="track" element={<TrackPage />} />
+          <Route path="leaderboard" element={<LeaderboardPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="acceptable-use" element={<AcceptableUsePage />} />
@@ -50,6 +53,14 @@ function RouteTree() {
             element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="rewards"
+            element={
+              <ProtectedRoute>
+                <RewardsPage />
               </ProtectedRoute>
             }
           />

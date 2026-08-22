@@ -246,6 +246,7 @@ def to_profile_response(user: StoredCitizenUser) -> CitizenProfileResponse:
         email=user.email,
         notificationPreferences=user.notification_preferences,
         publicNameVisible=user.public_name_visible,
+        leaderboardOptIn=user.leaderboard_opt_in,
         active=user.active,
         contributionReady=is_contribution_ready(user),
         legalAcceptance=user.legal_acceptance,
@@ -332,6 +333,7 @@ class CitizenService:
             email=email,
             notificationPreferences=NotificationPreferences(),
             publicNameVisible=False,
+            leaderboardOptIn=False,
             active=True,
             createdAt=stamped,
             updatedAt=stamped,
@@ -855,10 +857,13 @@ class CitizenService:
             summary="Citizen self-service data export.",
             created_at=_iso(moment),
         )
+        from app.services.rewards.service import rewards_service
+
         return CitizenDataExportResponse(
             exportedAt=_iso(moment),
             profile=to_profile_response(user),
             tickets=ticket_summaries,
+            rewards=rewards_service.export_rewards(user_id),
         )
 
     def list_ticket_history(
@@ -939,6 +944,7 @@ class CitizenService:
                 "email": None,
                 "notification_preferences": NotificationPreferences(),
                 "public_name_visible": False,
+                "leaderboard_opt_in": False,
                 "legal_acceptance": None,
                 "active": False,
                 "session_epoch": user.session_epoch + 1,
@@ -975,6 +981,9 @@ class CitizenService:
             summary="Citizen self-service account anonymization.",
             created_at=stamped,
         )
+        from app.services.rewards.service import rewards_service
+
+        rewards_service.withdraw_public(user_id, now=moment)
         logger.info("Citizen account anonymized user_id=%s", user_id)
         return CitizenDeleteResponse(status="deleted", userId=user_id, deletedAt=stamped)
 
@@ -1020,6 +1029,9 @@ class CitizenService:
                 status_code=409,
             ) from exc
 
+        from app.services.rewards.service import rewards_service
+
+        rewards_service.refresh_public_eligibility(stored.user_id)
         return to_profile_response(stored)
 
     def _project_profile_update(
@@ -1041,6 +1053,9 @@ class CitizenService:
 
         if "public_name_visible" in fields_set and payload.public_name_visible is not None:
             updates["public_name_visible"] = payload.public_name_visible
+
+        if "leaderboard_opt_in" in fields_set and payload.leaderboard_opt_in is not None:
+            updates["leaderboard_opt_in"] = payload.leaderboard_opt_in
 
         # Empty/missing names cannot be published (#270).
         next_full_name = updates["full_name"] if "full_name" in updates else user.full_name

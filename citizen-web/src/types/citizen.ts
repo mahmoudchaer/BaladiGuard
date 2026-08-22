@@ -20,6 +20,7 @@ export type CitizenProfile = {
     announcements: boolean;
   };
   publicNameVisible: boolean;
+  leaderboardOptIn: boolean;
   active: boolean;
   contributionReady: boolean;
   legalAcceptance?: LegalAcceptance | null;
@@ -40,6 +41,7 @@ export type CitizenProfilePatch = {
   email?: string | null;
   notificationPreferences?: Partial<CitizenProfile['notificationPreferences']>;
   publicNameVisible?: boolean;
+  leaderboardOptIn?: boolean;
   phone?: string;
   region?: string;
   phoneChangeChallengeId?: string;

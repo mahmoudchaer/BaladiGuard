@@ -24,6 +24,7 @@ export function ProfilePage() {
   );
   const [announcements, setAnnouncements] = useState(profile.notificationPreferences.announcements);
   const [publicNameVisible, setPublicNameVisible] = useState(profile.publicNameVisible);
+  const [leaderboardOptIn, setLeaderboardOptIn] = useState(profile.leaderboardOptIn);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function ProfilePage() {
         email: email.trim() || null,
         notificationPreferences: { ticketUpdates, announcements },
         publicNameVisible: Boolean(name.trim()) && publicNameVisible,
+        leaderboardOptIn: Boolean(name.trim()) && publicNameVisible && leaderboardOptIn,
       });
       setMessage(t('profile.updated'));
     } catch (err) {
@@ -272,9 +274,27 @@ export function ProfilePage() {
               type="checkbox"
               disabled={!name.trim()}
               checked={publicNameVisible}
-              onChange={(e) => setPublicNameVisible(e.target.checked)}
+              onChange={(e) => {
+                setPublicNameVisible(e.target.checked);
+                if (!e.target.checked) setLeaderboardOptIn(false);
+              }}
             />
           </label>
+          <label className="toggle-row">
+            <span>
+              <strong>{t('profile.leaderboardOptIn')}</strong>
+              <small>{t('profile.leaderboardOptInHint')}</small>
+            </span>
+            <input
+              type="checkbox"
+              disabled={!name.trim() || !publicNameVisible}
+              checked={leaderboardOptIn}
+              onChange={(e) => setLeaderboardOptIn(e.target.checked)}
+            />
+          </label>
+          <Link className="text-button" to="/rewards">
+            {t('profile.rewardsLink')}
+          </Link>
         </div>
         <button className="button button-large" disabled={busy} type="submit">
           {busy ? t('profile.saving') : t('profile.saveChanges')}

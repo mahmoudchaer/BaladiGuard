@@ -21,6 +21,7 @@ from app.database.memory_notification_delivery import notification_delivery_stor
 from app.database.memory_ops import ops_alert_ack_store, ops_audit_store, ops_error_store
 from app.database.memory_privacy_request import privacy_request_audit_store
 from app.database.memory_redaction_job import redaction_job_store
+from app.database.memory_rewards import rewards_ledger_store, rewards_projection_store
 from app.database.memory_staff import staff_store
 from app.database.memory_staff_comments import staff_comment_store
 from app.database.memory_staff_password_reset import staff_password_reset_store
@@ -405,3 +406,29 @@ def build_whatsapp_dedup_store(settings: Settings | None = None):
 
 def get_whatsapp_dedup_store():
     return build_whatsapp_dedup_store(get_settings())
+
+
+def build_rewards_ledger_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_rewards_store import DynamoRewardsLedgerStore
+
+        return DynamoRewardsLedgerStore(settings)
+    return rewards_ledger_store
+
+
+def build_rewards_projection_store(settings: Settings | None = None):
+    settings = settings or get_settings()
+    if settings.use_dynamodb:
+        from app.database.dynamo_rewards_store import DynamoRewardsProjectionStore
+
+        return DynamoRewardsProjectionStore(settings)
+    return rewards_projection_store
+
+
+def get_rewards_ledger_store():
+    return build_rewards_ledger_store(get_settings())
+
+
+def get_rewards_projection_store():
+    return build_rewards_projection_store(get_settings())

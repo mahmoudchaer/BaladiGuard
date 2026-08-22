@@ -149,6 +149,9 @@ class ContentSafetyQueue:
             )
             if updated is None:
                 raise RuntimeError("SAFETY_CLAIM_LOST")
+            from app.services.rewards.observe import observe_ticket_rewards
+
+            observe_ticket_rewards(updated)
             if not self.jobs.succeed(job.job_id, token, int(time.time())):
                 return "claim_lost"
             emit_metric("ContentSafetyJobsSucceeded", dimensions={"status": decision.status})
@@ -223,6 +226,9 @@ class ContentSafetyQueue:
         )
         if finalized is None:
             return "claim_lost"
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        observe_ticket_rewards(finalized)
         if not self.jobs.dead_letter(job.job_id, token, now=now, reason=reason[:80]):
             return "claim_lost"
         emit_metric("ContentSafetyJobsDeadLettered")
