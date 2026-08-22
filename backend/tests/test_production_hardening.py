@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.core.body_limits import (
     json_nesting_too_deep,
+    json_text_nesting_too_deep,
     reject_oversized_body,
     reject_oversized_headers,
 )
@@ -144,6 +148,49 @@ def test_http_rejects_over_nested_json_body() -> None:
     response = client.post("/v1/locations/validate", json=nested)
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "PAYLOAD_TOO_NESTED"
+
+
+def _decoder_limit_nested_json(*, layers: int = 20_000) -> bytes:
+    return b'{"child":' * layers + b"1" + b"}" * layers
+
+
+def test_json_text_scan_rejects_before_decoder_recursion() -> None:
+    raw = _decoder_limit_nested_json()
+    assert json_text_nesting_too_deep(raw, max_depth=get_settings().max_json_nesting_depth)
+    assert not json_text_nesting_too_deep(b'{"ok":{"child":1}}', max_depth=20)
+    with pytest.raises(RecursionError):
+        json.loads(raw)
+
+
+def test_http_rejects_json_deeper_than_cpython_decoder_limit() -> None:
+    raw = _decoder_limit_nested_json()
+    client = TestClient(app)
+    response = client.post(
+        "/v1/locations/validate",
+        content=raw,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "PAYLOAD_TOO_NESTED"
+
+
+def test_http_maps_json_decoder_recursion_error_to_payload_too_nested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    decode = json.loads
+
+    def boom(_raw: object) -> object:
+        raise RecursionError("simulated decoder overflow")
+
+    monkeypatch.setattr("app.core.body_limits.json.loads", boom)
+    client = TestClient(app)
+    response = client.post(
+        "/v1/locations/validate",
+        content=b'{"ok":true}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 400
+    assert decode(response.content)["error"]["code"] == "PAYLOAD_TOO_NESTED"
 
 
 def test_polygon_rejects_extra_keys_and_too_many_vertices() -> None:

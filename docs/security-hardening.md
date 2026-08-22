@@ -9,7 +9,7 @@ assumptions, security headers, and incident steps that match the deployed API.
 | Control | Default | Where enforced |
 | --- | --- | --- |
 | JSON / non-upload write body | `MAX_JSON_BODY_BYTES` = 256 KiB | HTTP middleware (`Content-Length` + streamed byte count) |
-| JSON object/array nesting | `MAX_JSON_NESTING_DEPTH` = 20 | HTTP middleware parses JSON writes → `400 PAYLOAD_TOO_NESTED` |
+| JSON object/array nesting | `MAX_JSON_NESTING_DEPTH` = 20 | HTTP middleware scans JSON text iteratively, then parses; `RecursionError` from the decoder is `400 PAYLOAD_TOO_NESTED`, not a 500 |
 | Combined request headers | `MAX_HEADER_BYTES` = 16 KiB | HTTP middleware → `431 HEADERS_TOO_LARGE` |
 | Report photo / work-order evidence | 5 MiB image + 256 KiB framing | `upload_abuse` before multipart parse |
 | WhatsApp webhook | `WHATSAPP_MAX_WEBHOOK_BYTES` = 1 MiB | WhatsApp route (exempt from the JSON ceiling) |
