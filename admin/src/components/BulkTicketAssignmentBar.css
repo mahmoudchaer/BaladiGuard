@@ -1,0 +1,50 @@
+.bulk-assign {
+  margin: 0 0 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #f7f9fb;
+}
+
+.bulk-assign__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+}
+
+.bulk-assign__count {
+  margin: 0;
+  font-weight: 600;
+}
+
+.bulk-assign label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.bulk-assign select,
+.bulk-assign button {
+  min-height: 2.15rem;
+}
+
+.bulk-assign__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.bulk-assign__error {
+  margin: 0.6rem 0 0;
+  color: var(--color-danger, #a50e1f);
+}
+
+.bulk-assign__results {
+  margin-top: 0.7rem;
+}
+
+.bulk-assign__results p,
+.bulk-assign__results ul {
+  margin: 0.35rem 0 0;
+}

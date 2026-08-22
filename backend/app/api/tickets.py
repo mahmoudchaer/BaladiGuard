@@ -9,6 +9,12 @@ from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
 from app.core.staff_auth import MunicipalStaffDep as StaffDep
 from app.database.store_factory import get_citizen_store
+from app.schemas.assignment_history import AssignmentHistoryResponse
+from app.schemas.bulk_ticket_ops import (
+    BulkDepartmentAssignmentRequest,
+    BulkMutationResponse,
+    BulkWorkforceAssignmentRequest,
+)
 from app.schemas.content_safety import (
     ContentSafetyDecisionRequest,
     ContentSafetyReviewResponse,
@@ -648,6 +654,22 @@ def ticket_aggregates(
     return ticket_service.ticket_aggregates(principal)
 
 
+@router.post("/tickets/bulk/workforce-assignment", response_model=BulkMutationResponse)
+def bulk_assign_ticket_workforce(
+    payload: BulkWorkforceAssignmentRequest,
+    principal: StaffActorDep,
+) -> BulkMutationResponse:
+    return ticket_service.bulk_assign_workforce(payload, staff_principal=principal)
+
+
+@router.post("/tickets/bulk/department", response_model=BulkMutationResponse)
+def bulk_assign_ticket_department(
+    payload: BulkDepartmentAssignmentRequest,
+    principal: StaffActorDep,
+) -> BulkMutationResponse:
+    return ticket_service.bulk_assign_department(payload, staff_principal=principal)
+
+
 @router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)
 def get_ticket_by_tracking_code(
     tracking_code: str,
@@ -1031,6 +1053,24 @@ def assign_ticket_workforce(
             message=exc.message,
             request_id=get_request_id(request),
             status_code=exc.status_code,
+        )
+
+
+@router.get("/tickets/{ticket_id}/assignment-history", response_model=AssignmentHistoryResponse)
+def get_assignment_history(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> AssignmentHistoryResponse | JSONResponse:
+    """Assignment lineage (department, workforce, work-order assign) for one ticket."""
+    try:
+        return ticket_service.list_assignment_history(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
         )
 
 
