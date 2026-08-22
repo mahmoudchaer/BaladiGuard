@@ -250,7 +250,10 @@ export function TicketDetailPage({
   const { ticketId: routeTicketId } = useParams<{ ticketId: string }>();
   const ticketId = ticketIdProp ?? routeTicketId;
   const { session } = useStaffAuth();
-  const departmentOptions = departmentOptionsForSession(session?.departmentIds);
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const [embeddedSection, setEmbeddedSection] = useState<TicketDetailSection>('review');
   const activeSection = embedded

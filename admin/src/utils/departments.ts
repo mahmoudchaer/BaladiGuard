@@ -25,11 +25,12 @@ export function isKnownDepartmentId(departmentId: string): boolean {
 /** Municipal staff only see departments they are scoped to; null/empty means all. */
 export function departmentOptionsForSession(
   departmentIds: string[] | null | undefined,
+  scoped = false,
 ): DepartmentOption[] {
-  if (!departmentIds || departmentIds.length === 0) {
+  if (!scoped) {
     return DEPARTMENT_OPTIONS;
   }
+  if (!departmentIds || departmentIds.length === 0) return [];
   const allowed = new Set(departmentIds);
-  const scoped = DEPARTMENT_OPTIONS.filter((option) => allowed.has(option.departmentId));
-  return scoped.length > 0 ? scoped : DEPARTMENT_OPTIONS;
+  return DEPARTMENT_OPTIONS.filter((option) => allowed.has(option.departmentId));
 }

@@ -39,7 +39,10 @@ export function BulkTicketAssignmentBar({
 }: BulkTicketAssignmentBarProps) {
   const { t } = useI18n();
   const { session } = useStaffAuth();
-  const departmentOptions = departmentOptionsForSession(session?.departmentIds);
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [mode, setMode] = useState<BulkMode>('department');
   const [departmentId, setDepartmentId] = useState('');
   const [workforceValue, setWorkforceValue] = useState('');

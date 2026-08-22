@@ -66,9 +66,7 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   const location = useLocation();
   const { pathname } = location;
-  const accessDenied = Boolean(
-    (location.state as { accessDenied?: boolean } | null)?.accessDenied,
-  );
+  const accessDenied = Boolean((location.state as { accessDenied?: boolean } | null)?.accessDenied);
   const navigate = useNavigate();
   const { logout, session } = useStaffAuth();
   const { t } = useI18n();

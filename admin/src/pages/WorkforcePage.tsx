@@ -255,10 +255,7 @@ export function WorkforcePage() {
   }
 
   async function handleToggleWorker(workerId: string, active: boolean) {
-    if (
-      !active &&
-      !window.confirm(t('workforce.confirmDeactivateWorker'))
-    ) {
+    if (!active && !window.confirm(t('workforce.confirmDeactivateWorker'))) {
       return;
     }
     try {

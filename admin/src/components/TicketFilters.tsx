@@ -87,7 +87,10 @@ export function TicketFilters({
 }: TicketFiltersProps) {
   const { t } = useI18n();
   const { session } = useStaffAuth();
-  const departmentOptions = departmentOptionsForSession(session?.departmentIds);
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     statusFilter !== 'ALL' ||

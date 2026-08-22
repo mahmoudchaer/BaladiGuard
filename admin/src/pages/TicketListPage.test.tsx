@@ -761,9 +761,7 @@ describe('TicketListPage', () => {
     const user = userEvent.setup();
     vi.mocked(fetchTicketsPage)
       .mockRejectedValueOnce(new Error('Unable to reach backend.'))
-      .mockImplementation(async (options) =>
-        pageFromTickets(applyFetchFilters(tickets, options)),
-      );
+      .mockImplementation(async (options) => pageFromTickets(applyFetchFilters(tickets, options)));
 
     renderWithProviders(<TicketListPage />);
 

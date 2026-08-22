@@ -50,7 +50,10 @@ export function TicketPreviewPanel({
 }: TicketPreviewPanelProps) {
   const { t } = useI18n();
   const { session } = useStaffAuth();
-  const departmentOptions = departmentOptionsForSession(session?.departmentIds);
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
