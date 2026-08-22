@@ -133,10 +133,13 @@ export function MunicipalitiesPage() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
+    const payload = toPayload(form);
+    if (editingId && !payload.active && !window.confirm(t('municipalities.confirmDeactivate'))) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const payload = toPayload(form);
       if (editingId) {
         await updateMunicipality(editingId, payload);
       } else {
@@ -154,6 +157,9 @@ export function MunicipalitiesPage() {
 
   async function handleProvision(event: FormEvent) {
     event.preventDefault();
+    if (!window.confirm(t('municipalities.confirmProvision'))) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -192,6 +198,9 @@ export function MunicipalitiesPage() {
 
   async function handleOverride(event: FormEvent) {
     event.preventDefault();
+    if (!window.confirm(t('municipalities.confirmOverride'))) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {

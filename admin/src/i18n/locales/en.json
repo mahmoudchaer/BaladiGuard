@@ -85,7 +85,8 @@
   },
   "layout": {
     "title": "Ticket Dashboard",
-    "subtitle": "Monitor and manage citizen infrastructure reports"
+    "subtitle": "Monitor and manage citizen infrastructure reports",
+    "accessDenied": "You do not have access to that module. You were returned to your home page."
   },
   "ops": {
     "eyebrow": "Developer control plane",
@@ -132,6 +133,7 @@
     "status": "Status",
     "attempts": "Attempts",
     "replay": "Replay",
+    "confirmReplay": "Replay this background job? Side effects may run again.",
     "category": "Category",
     "service": "Service",
     "count": "Count",
@@ -204,7 +206,10 @@
     "unassigned": "Unassigned queue",
     "overrideTitle": "Override ticket ownership",
     "ticketId": "Ticket ID",
-    "override": "Override"
+    "override": "Override",
+    "confirmOverride": "Reassign this ticket to another municipality? This changes ownership immediately.",
+    "confirmProvision": "Create a municipality administrator account with this password?",
+    "confirmDeactivate": "Deactivate this municipality? New tickets will no longer route to it."
   },
   "staffAccounts": {
     "eyebrow": "Access directory",
@@ -339,7 +344,8 @@
     "top": "Top",
     "width": "Width",
     "height": "Height",
-    "applyManual": "Apply manual blur"
+    "applyManual": "Apply manual blur",
+    "confirmReject": "Keep the original private and discard this public candidate?"
   },
   "contentSafety": {
     "loading": "Loading content safety review…",
@@ -351,6 +357,8 @@
     "approve": "Allow public eligibility",
     "privateOnly": "Keep private only",
     "reject": "Reject as unsafe",
+    "confirmPrivate": "Keep this report private only? It will not be eligible for the public feed.",
+    "confirmReject": "Reject this report as unsafe?",
     "reprocess": "Reprocess automatically",
     "authenticityUnavailable": "Authenticity signal unavailable — not used to reject this report.",
     "authenticityScore": "Authenticity risk score {score} (risk signal only; never auto-rejects).",
@@ -416,7 +424,10 @@
     "overdue": "Overdue {count}",
     "kindWorker": "worker",
     "kindTeam": "team",
-    "inactiveParen": ", inactive"
+    "inactiveParen": ", inactive",
+    "teamLead": "Team lead",
+    "confirmDeactivateWorker": "Deactivate this worker? They will no longer receive new assignments.",
+    "confirmDeactivateTeam": "Deactivate this team? It will no longer receive new assignments."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -676,6 +687,7 @@
       "cancelReason": "Cancel reason",
       "selectCancelReason": "Select a cancel reason",
       "cancelWorkOrder": "Cancel work order",
+      "confirmCancel": "Cancel this work order? Field work stops and the ticket stays open.",
       "summary": "Summary",
       "summaryPlaceholder": "Optional operational summary",
       "assignWorkerOrTeam": "Assign worker or team",
@@ -811,6 +823,7 @@
       "noPublicPhoto": " · no public photo",
       "publish": "Publish",
       "unpublish": "Unpublish",
+      "confirmUnpublish": "Unpublish this report from the public feed?",
       "open": "Open",
       "openFull": "Open full ticket",
       "closePreview": "Close preview",

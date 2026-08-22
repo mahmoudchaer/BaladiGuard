@@ -113,6 +113,9 @@ export function OpsDashboardPage() {
   }
 
   async function handleReplay(jobId: string) {
+    if (!window.confirm(t('ops.confirmReplay'))) {
+      return;
+    }
     setBusyJob(jobId);
     try {
       await replayOpsJob(jobId);

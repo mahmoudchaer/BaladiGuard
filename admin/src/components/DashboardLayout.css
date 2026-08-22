@@ -290,12 +290,26 @@
   background: var(--color-desk);
 }
 
+.dashboard-access-denied {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgb(185 28 28 / 28%);
+  border-radius: 0.5rem;
+  background: rgb(254 226 226 / 70%);
+  color: #7f1d1d;
+  font-size: 0.92rem;
+}
+
 .dashboard-main--flush {
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.dashboard-main--flush > .dashboard-access-denied {
+  margin: 0.75rem 1rem 0;
 }
 
 @media (max-width: 960px) {

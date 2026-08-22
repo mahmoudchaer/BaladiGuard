@@ -12,7 +12,8 @@ import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { TicketPhoto } from '@/components/TicketPhoto';
 import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
-import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import { departmentOptionsForSession, formatDepartment } from '@/utils/departments';
 import {
   formatCategory,
   formatCreatedDate,
@@ -48,6 +49,8 @@ export function TicketPreviewPanel({
   onRetry,
 }: TicketPreviewPanelProps) {
   const { t } = useI18n();
+  const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(session?.departmentIds);
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
@@ -270,6 +273,9 @@ export function TicketPreviewPanel({
     if (!ticket) {
       return;
     }
+    if (publicStatus === 'UNPUBLISHED' && !window.confirm(t('ticket.preview.confirmUnpublish'))) {
+      return;
+    }
     setIsSavingPublic(true);
     setActionNotice(null);
     try {
@@ -477,7 +483,7 @@ export function TicketPreviewPanel({
               disabled={isSavingDepartment}
             >
               <option value="">{t('ticket.review.selectDepartment')}</option>
-              {DEPARTMENT_OPTIONS.map((option) => (
+              {departmentOptions.map((option) => (
                 <option key={option.departmentId} value={option.departmentId}>
                   {option.name}
                 </option>

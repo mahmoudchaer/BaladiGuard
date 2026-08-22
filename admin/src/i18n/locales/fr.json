@@ -85,7 +85,8 @@
   },
   "layout": {
     "title": "Tableau des tickets",
-    "subtitle": "Suivre et gérer les signalements d’infrastructure des citoyens"
+    "subtitle": "Suivre et gérer les signalements d’infrastructure des citoyens",
+    "accessDenied": "Vous n’avez pas accès à ce module. Vous avez été renvoyé vers votre page d’accueil."
   },
   "ops": {
     "eyebrow": "Plan de contrôle développeur",
@@ -132,6 +133,7 @@
     "status": "Statut",
     "attempts": "Tentatives",
     "replay": "Relancer",
+    "confirmReplay": "Relancer cette tâche de fond ? Les effets de bord peuvent se reproduire.",
     "category": "Catégorie",
     "service": "Service",
     "count": "Nombre",
@@ -204,7 +206,10 @@
     "unassigned": "File non assignée",
     "overrideTitle": "Réassigner un ticket",
     "ticketId": "ID du ticket",
-    "override": "Réassigner"
+    "override": "Réassigner",
+    "confirmOverride": "Réassigner ce ticket à une autre municipalité ? Cela change le propriétaire immédiatement.",
+    "confirmProvision": "Créer un compte administrateur municipal avec ce mot de passe ?",
+    "confirmDeactivate": "Désactiver cette municipalité ? Les nouveaux tickets ne lui seront plus acheminés."
   },
   "staffAccounts": {
     "eyebrow": "Répertoire des accès",
@@ -339,7 +344,8 @@
     "top": "Haut",
     "width": "Largeur",
     "height": "Hauteur",
-    "applyManual": "Appliquer le flou manuel"
+    "applyManual": "Appliquer le flou manuel",
+    "confirmReject": "Garder l’original privé et écarter ce candidat public ?"
   },
   "contentSafety": {
     "loading": "Chargement de la revue de sûreté du contenu…",
@@ -351,6 +357,8 @@
     "approve": "Autoriser l’éligibilité publique",
     "privateOnly": "Garder en privé uniquement",
     "reject": "Rejeter comme non sûr",
+    "confirmPrivate": "Garder ce signalement en privé uniquement ? Il ne sera pas éligible au fil public.",
+    "confirmReject": "Rejeter ce signalement comme non sûr ?",
     "reprocess": "Retraiter automatiquement",
     "authenticityUnavailable": "Signal d’authenticité indisponible — non utilisé pour rejeter ce signalement.",
     "authenticityScore": "Score de risque d’authenticité {score} (signal de risque uniquement ; jamais de rejet automatique).",
@@ -416,7 +424,10 @@
     "overdue": "En retard {count}",
     "kindWorker": "agent",
     "kindTeam": "équipe",
-    "inactiveParen": ", inactif"
+    "inactiveParen": ", inactif",
+    "teamLead": "Chef d’équipe",
+    "confirmDeactivateWorker": "Désactiver cet agent ? Il ne recevra plus de nouvelles affectations.",
+    "confirmDeactivateTeam": "Désactiver cette équipe ? Elle ne recevra plus de nouvelles affectations."
   },
   "errors": {
     "generic": "Une erreur s’est produite. Veuillez réessayer.",
@@ -676,6 +687,7 @@
       "cancelReason": "Motif d’annulation",
       "selectCancelReason": "Sélectionner un motif d’annulation",
       "cancelWorkOrder": "Annuler l’ordre de travail",
+      "confirmCancel": "Annuler cet ordre de travail ? Le travail sur le terrain s’arrête et le ticket reste ouvert.",
       "summary": "Résumé",
       "summaryPlaceholder": "Résumé opérationnel facultatif",
       "assignWorkerOrTeam": "Assigner un agent ou une équipe",
@@ -811,6 +823,7 @@
       "noPublicPhoto": " · aucune photo publique",
       "publish": "Publier",
       "unpublish": "Dépublier",
+      "confirmUnpublish": "Dépublier ce signalement du fil public ?",
       "open": "Ouvrir",
       "openFull": "Ouvrir le ticket complet",
       "closePreview": "Fermer l’aperçu",

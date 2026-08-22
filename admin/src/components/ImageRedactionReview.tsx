@@ -145,11 +145,14 @@ export function ImageRedactionReviewPanel({ ticketId, category, onChanged }: Pro
           type="button"
           className="ticket-detail__ghost-button"
           disabled={busy || !review.canReject}
-          onClick={() =>
+          onClick={() => {
+            if (!window.confirm(t('redaction.confirmReject'))) {
+              return;
+            }
             void runAction(() =>
               rejectImageRedaction(ticketId, review.generation, review.candidateRevision),
-            )
-          }
+            );
+          }}
         >
           {t('redaction.reject')}
         </button>

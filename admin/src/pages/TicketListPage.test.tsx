@@ -757,14 +757,22 @@ describe('TicketListPage', () => {
     expect(screen.queryByText('BG-2026-0011')).not.toBeInTheDocument();
   });
 
-  it('shows a failure state when tickets cannot be loaded', async () => {
-    vi.mocked(fetchTicketsPage).mockRejectedValue(new Error('Unable to reach backend.'));
+  it('shows a failure state when tickets cannot be loaded and retries', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketsPage)
+      .mockRejectedValueOnce(new Error('Unable to reach backend.'))
+      .mockImplementation(async (options) =>
+        pageFromTickets(applyFetchFilters(tickets, options)),
+      );
 
     renderWithProviders(<TicketListPage />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load tickets');
     expect(screen.getByText('Unable to reach backend.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
   });
 
   it('removes a ticket from the active status filter after a preview status change', async () => {

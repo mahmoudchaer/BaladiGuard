@@ -255,6 +255,12 @@ export function WorkforcePage() {
   }
 
   async function handleToggleWorker(workerId: string, active: boolean) {
+    if (
+      !active &&
+      !window.confirm(t('workforce.confirmDeactivateWorker'))
+    ) {
+      return;
+    }
     try {
       setErrorMessage(null);
       await setWorkerActive(workerId, active);
@@ -265,6 +271,9 @@ export function WorkforcePage() {
   }
 
   async function handleToggleTeam(teamId: string, active: boolean) {
+    if (!active && !window.confirm(t('workforce.confirmDeactivateTeam'))) {
+      return;
+    }
     try {
       setErrorMessage(null);
       await setTeamActive(teamId, active);
@@ -474,7 +483,7 @@ export function WorkforcePage() {
                   <tr>
                     <th>{t('workforce.name')}</th>
                     <th>{t('workforce.members')}</th>
-                    <th>{t('workforce.teamLead', { defaultValue: 'Team lead' })}</th>
+                    <th>{t('workforce.teamLead')}</th>
                     <th>{t('workforce.status')}</th>
                     {isAdmin ? <th>{t('workforce.actions')}</th> : null}
                   </tr>
@@ -526,11 +535,11 @@ export function WorkforcePage() {
                               ))}
                             </fieldset>
                             <label>
-                              {t('workforce.teamLead', { defaultValue: 'Team lead' })}
+                              {t('workforce.teamLead')}
                               <select
                                 value={editTeamLeadId}
                                 onChange={(event) => setEditTeamLeadId(event.target.value)}
-                                aria-label={t('workforce.teamLead', { defaultValue: 'Team lead' })}
+                                aria-label={t('workforce.teamLead')}
                               >
                                 <option value="">{t('workforce.none')}</option>
                                 {workers

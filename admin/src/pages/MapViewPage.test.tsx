@@ -73,12 +73,18 @@ describe('MapViewPage', () => {
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
-  it('shows an error state when ticket loading fails', async () => {
-    vi.mocked(fetchTicketMapViewport).mockRejectedValue(new Error('Network down'));
+  it('shows an error state when ticket loading fails and retries', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketMapViewport)
+      .mockRejectedValueOnce(new Error('Network down'))
+      .mockResolvedValueOnce(viewportFromMarkers([baseMarker]));
     renderPage();
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.getByText('Network down')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByTestId('ticket-map')).toHaveTextContent('Map with 1 pins');
   });
 
   it('renders the map with plottable ticket pins', async () => {

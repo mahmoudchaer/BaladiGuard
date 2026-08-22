@@ -35,7 +35,6 @@ import {
 import { fetchResolutionFeedback, reviewResolutionFeedback } from '@/services/resolutionFeedback';
 import type { StaffResolutionFeedback } from '@/types/resolutionFeedback';
 import { useI18n } from '@/i18n/LocaleProvider';
-import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -55,7 +54,12 @@ import {
   formatTicketAge,
   SUPPORTED_CATEGORY_OPTIONS,
 } from '@/utils/labels';
-import { DEPARTMENT_OPTIONS, formatDepartment, isKnownDepartmentId } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import {
+  departmentOptionsForSession,
+  formatDepartment,
+  isKnownDepartmentId,
+} from '@/utils/departments';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
@@ -246,6 +250,7 @@ export function TicketDetailPage({
   const { ticketId: routeTicketId } = useParams<{ ticketId: string }>();
   const ticketId = ticketIdProp ?? routeTicketId;
   const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(session?.departmentIds);
   const [searchParams, setSearchParams] = useSearchParams();
   const [embeddedSection, setEmbeddedSection] = useState<TicketDetailSection>('review');
   const activeSection = embedded
@@ -1000,6 +1005,9 @@ export function TicketDetailPage({
     try {
       // Bounded projection: no contact, tracking code, storage key, or history.
       const comparison = await fetchDuplicateComparison(sourceTicketId, candidateId);
+      if (loadedTicketRef.current?.ticketId !== sourceTicketId) {
+        return;
+      }
       if (!comparison) {
         requestedComparisonsRef.current.delete(candidateId);
         setComparisons((current) => ({
@@ -1017,6 +1025,9 @@ export function TicketDetailPage({
         [candidateId]: { status: 'ready', data: comparison },
       }));
     } catch (error) {
+      if (loadedTicketRef.current?.ticketId !== sourceTicketId) {
+        return;
+      }
       // Allow a retry for this candidate only; other rows stay untouched.
       requestedComparisonsRef.current.delete(candidateId);
       setComparisons((current) => ({
@@ -1275,6 +1286,9 @@ export function TicketDetailPage({
         <div className="ticket-detail-page__error" role="alert">
           <h3>{t('ticket.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button type="button" className="ticket-detail__review-button" onClick={handleRefresh}>
+            {t('common.tryAgain')}
+          </button>
         </div>
       )}
 
@@ -1742,7 +1756,7 @@ export function TicketDetailPage({
                         disabled={isSavingDepartment}
                       >
                         <option value="">{t('ticket.review.selectDepartment')}</option>
-                        {DEPARTMENT_OPTIONS.map((department) => (
+                        {departmentOptions.map((department) => (
                           <option key={department.departmentId} value={department.departmentId}>
                             {department.name}
                           </option>
@@ -2120,7 +2134,10 @@ export function TicketDetailPage({
                           type="button"
                           className="ticket-detail__review-button ticket-detail__review-button--secondary"
                           disabled={isMutatingWorkOrder || !workOrderCancelReason}
-                          onClick={() =>
+                          onClick={() => {
+                            if (!window.confirm(t('ticket.workOrder.confirmCancel'))) {
+                              return;
+                            }
                             void runWorkOrderMutation(
                               () =>
                                 cancelWorkOrder(
@@ -2129,8 +2146,8 @@ export function TicketDetailPage({
                                   workOrderNote,
                                 ),
                               t('ticket.workOrder.cancelled'),
-                            )
-                          }
+                            );
+                          }}
                         >
                           {t('ticket.workOrder.cancelWorkOrder')}
                         </button>

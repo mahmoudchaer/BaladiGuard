@@ -618,6 +618,9 @@ export function TicketListPage() {
         <div className="ticket-list-page__error ticket-list-page__error--padded" role="alert">
           <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button type="button" className="ticket-list-page__retry" onClick={() => setQueueEpoch((value) => value + 1)}>
+            {t('common.tryAgain')}
+          </button>
         </div>
       )}
 

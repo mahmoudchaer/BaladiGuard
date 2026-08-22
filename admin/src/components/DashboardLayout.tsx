@@ -64,7 +64,11 @@ export function DashboardLayout({
   subtitle,
   flush = false,
 }: DashboardLayoutProps) {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  const accessDenied = Boolean(
+    (location.state as { accessDenied?: boolean } | null)?.accessDenied,
+  );
   const navigate = useNavigate();
   const { logout, session } = useStaffAuth();
   const { t } = useI18n();
@@ -177,7 +181,14 @@ export function DashboardLayout({
         <h1 className="sr-only">{resolvedTitle}</h1>
         {resolvedSubtitle ? <p className="sr-only">{resolvedSubtitle}</p> : null}
 
-        <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>{children}</main>
+        <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>
+          {accessDenied ? (
+            <p className="dashboard-access-denied" role="alert">
+              {t('layout.accessDenied')}
+            </p>
+          ) : null}
+          {children}
+        </main>
       </div>
 
       <StaffAssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
