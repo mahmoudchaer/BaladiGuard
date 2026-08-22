@@ -24,7 +24,7 @@ from app.services.rewards.rules import (
     REASON_SUPPORTING_EVIDENCE,
     RULE_VERSION,
 )
-from app.services.rewards.service import rewards_service
+from app.services.rewards.service import _decode_cursor, _encode_cursor, rewards_service
 from tests.conftest import contribution_ready_auth_headers, ensure_contribution_ready_citizen
 from tests.test_read_tickets import create_ticket
 
@@ -84,7 +84,7 @@ def _assert_cursor_hides_user_ids(cursor: str, *user_ids: str) -> None:
     padding = "=" * (-len(cursor) % 4)
     raw = base64.urlsafe_b64decode(cursor + padding)
     decoded_text = raw.decode("utf-8", errors="replace")
-    payload, _separator, _signature = raw.partition(b".")
+    payload, _separator, _signature = raw.rpartition(b".")
     try:
         parsed = json.loads(payload.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -303,6 +303,23 @@ def test_leaderboard_pagination_and_ties(anonymous_client: TestClient) -> None:
     page2 = anonymous_client.get(f"/v1/rewards/leaderboard?limit=1&cursor={body['nextCursor']}")
     assert page2.status_code == 200
     assert page2.json()["items"][0]["displayName"] == "Late Bird"
+
+
+def test_leaderboard_cursor_round_trip_survives_hmac_bytes() -> None:
+    for index in range(512):
+        cursor = _encode_cursor(
+            points=index,
+            first_award_at=f"2026-01-01T00:{index // 60:02d}:{index % 60:02d}Z",
+            citizen_user_id=f"usr_cursor_{index:04d}",
+        )
+        payload = _decode_cursor(cursor)
+        assert payload["p"] == index
+        assert "u" not in payload
+        assert "citizen_user_id" not in payload
+        assert "citizenUserId" not in payload
+        signature = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).rpartition(b".")[2]
+        assert len(signature) == 64
+        assert all(chr(byte) in "0123456789abcdef" for byte in signature)
 
 
 def test_opt_out_and_deletion_remove_public_attribution(

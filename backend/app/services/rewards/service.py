@@ -112,8 +112,8 @@ def _encode_cursor(*, points: int, first_award_at: str, citizen_user_id: str) ->
         },
         separators=(",", ":"),
         sort_keys=True,
-    ).encode("utf-8")
-    signature = hmac.new(_cursor_secret(), inner, hashlib.sha256).digest()
+    ).encode()
+    signature = hmac.new(_cursor_secret(), inner, hashlib.sha256).hexdigest().encode()
     return base64.urlsafe_b64encode(inner + b"." + signature).decode("ascii").rstrip("=")
 
 
@@ -121,12 +121,12 @@ def _decode_cursor(cursor: str) -> dict[str, Any]:
     padding = "=" * (-len(cursor) % 4)
     raw = base64.urlsafe_b64decode(cursor + padding)
     payload, separator, signature = raw.rpartition(b".")
-    if not separator or len(signature) != hashlib.sha256().digest_size:
+    if not separator or len(signature) != 64:
         raise ValueError("invalid cursor")
-    expected = hmac.new(_cursor_secret(), payload, hashlib.sha256).digest()
+    expected = hmac.new(_cursor_secret(), payload, hashlib.sha256).hexdigest().encode()
     if not hmac.compare_digest(signature, expected):
         raise ValueError("invalid cursor")
-    parsed = json.loads(payload.decode("utf-8"))
+    parsed = json.loads(payload.decode())
     if not isinstance(parsed, dict):
         raise ValueError("invalid cursor")
     if any(key in parsed for key in ("u", "userId", "citizenUserId", "citizen_user_id")):
