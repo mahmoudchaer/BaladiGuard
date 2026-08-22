@@ -29,8 +29,13 @@ the production edge is available; the DynamoDB limiter is the in-repo multi-inst
 | `staff-login` | 10 / 300s | `POST /v1/staff/login` |
 | `staff-password-reset-request` | 10 / 300s (shares staff-login knobs) | `POST /v1/staff/password-reset/request` |
 | `staff-password-reset-confirm` | max(staff-login, 20) / 300s | `POST /v1/staff/password-reset/confirm` |
-| `citizen-otp-request` | 5 / 300s | Reserved for citizen OTP request (#170) |
-| `citizen-otp-verify` | 10 / 300s | Reserved for citizen OTP verify (#170) |
+| `citizen-otp-request` | 5 / 300s | Citizen OTP request |
+| `citizen-otp-verify` | 10 / 300s | Citizen OTP verify |
+| `citizen-data-export` | 5 / 300s | `GET /v1/citizen/me/export` |
+| `citizen-data-delete` | 3 / 300s | `POST /v1/citizen/me/delete` |
+| `whatsapp-submission` | 8 / 3600s | WhatsApp ticket submit (per canonical phone) |
+| `staff-mutation` | 300 / 60s | Authenticated staff writes (tickets, work orders, workforce, admin) |
+| `ops-dashboard` | 120 / 60s | `/v1/ops/*` developer dashboard |
 
 Tune via `RATE_LIMIT_*` environment variables (see `docs/configuration.md`). Invalid values
 fail config validation.
@@ -83,8 +88,9 @@ That path uses a higher `RATE_LIMIT_SMOKE_LIMIT` quota under a distinct policy n
 (`:smoke`). It **does not** disable protection globally and does not raise quotas for other
 clients.
 
-Staff/admin authenticated ticket APIs are outside the public citizen policies; do not turn off
-rate limiting to make dashboards work.
+Staff/admin authenticated ticket APIs use the generous `staff-mutation` ceiling so a
+compromised token cannot amplify merges, work-order creation, or AI-adjacent writes.
+Do not turn off rate limiting to make dashboards work.
 
 ## Tuning
 
@@ -110,5 +116,5 @@ Options, in order of preference:
 
 ```bash
 cd backend
-python -m pytest tests/test_public_ticket_abuse_protection.py tests/test_shared_rate_limiting.py -q
+python -m pytest tests/test_public_ticket_abuse_protection.py tests/test_shared_rate_limiting.py tests/test_production_hardening.py -q
 ```

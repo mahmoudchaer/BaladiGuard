@@ -28,7 +28,11 @@ from app.services.whatsapp.states import (
     parse_command,
     previous_editable_state,
 )
-from app.services.whatsapp.submission import receipt_deep_link, submit_whatsapp_report
+from app.services.whatsapp.submission import (
+    WhatsAppSubmissionRateLimited,
+    receipt_deep_link,
+    submit_whatsapp_report,
+)
 from app.services.whatsapp.webhook_parse import InboundWhatsAppEvent
 
 logger = logging.getLogger(__name__)
@@ -360,6 +364,19 @@ class WhatsAppFlowEngine:
         self._reply(conversation, prompt_for("submitting", conversation))
         try:
             conversation = submit_whatsapp_report(conversation)
+        except WhatsAppSubmissionRateLimited as exc:
+            logger.warning(
+                "WhatsApp ticket submit rate limited retry_after=%s",
+                exc.retry_after_seconds,
+            )
+            conversation.state = "review"
+            conversation = self._persist(conversation, expected_version)
+            self._reply(
+                conversation,
+                "Too many reports were just submitted from this number. "
+                "Please wait before sending CONFIRM again.",
+            )
+            return conversation
         except Exception as exc:  # noqa: BLE001
             logger.warning("WhatsApp ticket submit failed error=%s", type(exc).__name__)
             conversation.state = "review"

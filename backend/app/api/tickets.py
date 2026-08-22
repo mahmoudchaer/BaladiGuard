@@ -536,7 +536,7 @@ def list_tickets(
     worker_id: str | None = Query(default=None, alias="workerId"),
     team_id: str | None = Query(default=None, alias="teamId"),
     workforce_unassigned: bool = Query(default=False, alias="workforceUnassigned"),
-    q: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=MAX_SEARCH_QUERY_LENGTH),
     open_only: bool = Query(default=False, alias="openOnly"),
     ticket_ids: str | None = Query(default=None, alias="ticketIds"),
     content_safety_status: str | None = Query(default=None, alias="contentSafetyStatus"),
@@ -815,7 +815,7 @@ def list_duplicate_candidates(
     ticket_id: str,
     request: Request,
     principal: StaffDep,
-    q: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=80),
     limit: int = Query(
         default=DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
         ge=1,

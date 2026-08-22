@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.rate_limit import check_identity_rate_limit
 from app.schemas.ticket import (
     ClientMetadata,
     ReportContact,
@@ -20,6 +21,12 @@ from app.services.redaction.queue import image_redaction_queue
 logger = logging.getLogger(__name__)
 
 
+class WhatsAppSubmissionRateLimited(Exception):
+    def __init__(self, retry_after_seconds: int) -> None:
+        super().__init__("WhatsApp submission rate limited.")
+        self.retry_after_seconds = retry_after_seconds
+
+
 def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConversation:
     """Create one ticket via TicketService and enqueue the same downstream work as HTTP."""
     if not conversation.owner_user_id:
@@ -32,6 +39,13 @@ def submit_whatsapp_report(conversation: WhatsAppConversation) -> WhatsAppConver
         or not conversation.image_object_key
     ):
         raise RuntimeError("WhatsApp conversation is incomplete for submission.")
+
+    decision = check_identity_rate_limit(
+        f"wa:{conversation.canonical_phone}",
+        "whatsapp-submission",
+    )
+    if not decision.allowed:
+        raise WhatsAppSubmissionRateLimited(decision.retry_after_seconds)
 
     contact = ReportContact(
         name=conversation.optional_name,

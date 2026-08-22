@@ -11,6 +11,7 @@ security scan ownership stays on their feature tickets (#74/#75/#115/#185/#186/#
 | Observability & alarms | [production-observability.md](./production-observability.md) | Ops |
 | Backup / restore RPO-RTO | [production-backup-restore.md](./production-backup-restore.md) | Ops |
 | Rate limits | [rate-limiting-runbook.md](./rate-limiting-runbook.md) | API |
+| Security / abuse hardening (#316) | [security-hardening.md](./security-hardening.md) | API |
 | **Load / concurrency / capacity (#191)** | [capacity-validation.md](./capacity-validation.md), [capacity-workload-model.md](./capacity-workload-model.md), evidence under `infra/capacity/evidence/` | API + Ops |
 | MVP functional acceptance | [sprint6-mvp-acceptance.md](./sprint6-mvp-acceptance.md) | Product |
 | Role-permission matrix | [sprint6-role-permission-matrix.md](./sprint6-role-permission-matrix.md) | Security |
