@@ -234,6 +234,14 @@ class Settings:
         self.notification_destination_rate_window_seconds = self._int_setting(
             "NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS", default=60, minimum=1
         )
+        self.notification_whatsapp_template_name = (
+            os.getenv("NOTIFICATION_WHATSAPP_TEMPLATE_NAME", "ticket_update").strip()
+            or "ticket_update"
+        )
+        self.notification_whatsapp_template_language = (
+            os.getenv("NOTIFICATION_WHATSAPP_TEMPLATE_LANGUAGE", "en").strip() or "en"
+        )
+        self.expo_push_access_token = os.getenv("EXPO_PUSH_ACCESS_TOKEN", "").strip() or None
         self.trust_x_forwarded_for = (
             os.getenv("TRUST_X_FORWARDED_FOR", "false").strip().lower() == "true"
         )

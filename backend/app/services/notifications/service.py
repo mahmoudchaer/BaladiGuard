@@ -40,7 +40,7 @@ def _destination_hint(
         return None
     if channel == "EMAIL":
         return redact_email(recipient.email)
-    if channel == "SMS":
+    if channel in {"SMS", "WHATSAPP"}:
         return redact_phone(recipient.phone)
     return None
 
@@ -143,6 +143,13 @@ def emit_ticket_notification(
                     value=float(len(failed_channels)),
                     dimensions={"event": str(event), "outcome": "channel_failed"},
                 )
+                # Retry only when nothing was delivered. Releasing after a partial
+                # success would duplicate channels that already accepted the event.
+                if len(failed_channels) == len(results) and any(
+                    item.status == "FAILED_TRANSIENT" for item in failed_channels
+                ):
+                    ledger.release(key)
+                    return False
             else:
                 emit_metric(
                     "NotificationSucceeded",

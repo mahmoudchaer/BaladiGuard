@@ -20,6 +20,7 @@ from app.schemas.citizen import (
     CitizenDeleteResponse,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
+    CitizenPushDeviceRequest,
     CitizenTicketHistoryResponse,
     LegalAcceptanceRequest,
 )
@@ -272,6 +273,26 @@ def patch_citizen_me(
 ) -> CitizenProfileResponse | JSONResponse:
     try:
         return citizen_service.update_profile(principal.user_id, payload)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.put("/me/push-devices", response_model=CitizenProfileResponse)
+def put_citizen_push_device(
+    payload: CitizenPushDeviceRequest, request: Request, principal: CitizenDep
+) -> CitizenProfileResponse | JSONResponse:
+    try:
+        return citizen_service.register_push_device(principal.user_id, payload)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.delete("/me/push-devices/{device_id}", response_model=CitizenProfileResponse)
+def delete_citizen_push_device(
+    device_id: str, request: Request, principal: CitizenDep
+) -> CitizenProfileResponse | JSONResponse:
+    try:
+        return citizen_service.unregister_push_device(principal.user_id, device_id)
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 

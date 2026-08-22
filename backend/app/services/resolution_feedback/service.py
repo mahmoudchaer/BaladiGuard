@@ -179,7 +179,7 @@ class ResolutionFeedbackService:
             status=payload.status,
             tracking_code=updated.tracking_code,
             ticket_number=updated.ticket_number,
-            recipient=ticket_notification_recipient(updated),
+            recipient=ticket_notification_recipient(updated, event="resolution_feedback_received"),
         )
         return self.citizen_view(tracking_code, owner_user_id=owner_user_id)
 

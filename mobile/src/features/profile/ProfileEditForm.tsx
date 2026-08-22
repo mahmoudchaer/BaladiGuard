@@ -5,7 +5,6 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
-  TICKET_UPDATES_OPTIONS,
   profileEditSchema,
   profileToEditValues,
   type ProfileEditValues,
@@ -58,6 +57,14 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         email: trimmedEmail ? trimmedEmail : null,
         notificationPreferences: {
           ticketUpdates: values.ticketUpdates,
+          pushEnabled: values.pushEnabled,
+          emailEnabled: values.emailEnabled,
+          whatsAppEnabled: values.whatsAppEnabled,
+          reportCreated: values.reportCreated,
+          statusChanges: values.statusChanges,
+          workUpdates: values.workUpdates,
+          resolutionUpdates: values.resolutionUpdates,
+          actionRequests: values.actionRequests,
           announcements: values.announcements,
         },
         publicNameVisible: trimmedName ? values.publicNameVisible : false,
@@ -157,39 +164,38 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
       <Text variant="labelLarge" style={styles.sectionLabel}>
         {t('profile.ticketUpdatesLabel')}
       </Text>
-      <Controller
-        control={control}
-        name="ticketUpdates"
-        render={({ field: { value, onChange } }) => (
-          <View style={styles.optionRow}>
-            {TICKET_UPDATES_OPTIONS.map((option) => (
-              <Button
-                key={option.value}
-                mode={value === option.value ? 'contained' : 'outlined'}
-                compact
-                onPress={() => onChange(option.value)}
-                style={styles.optionButton}
-                buttonColor={value === option.value ? colors.brand : undefined}
-                textColor={value === option.value ? colors.textInverse : colors.brandDark}
-                testID={`ticket-updates-${option.value}`}
-              >
-                {option.value === 'NONE'
-                  ? t('profile.none')
-                  : option.value === 'SMS'
-                    ? t('profile.sms')
-                    : option.value === 'EMAIL'
-                      ? t('profile.emailOption')
-                      : t('profile.smsAndEmail')}
-              </Button>
-            ))}
-          </View>
-        )}
-      />
-      {errors.ticketUpdates ? (
-        <HelperText type="error" visible testID="edit-ticket-updates-error">
-          {errors.ticketUpdates.message}
-        </HelperText>
-      ) : null}
+      <HelperText type="info" visible>
+        {t('profile.notificationSecurityNote')}
+      </HelperText>
+      {(
+        [
+          ['pushEnabled', 'profile.push'],
+          ['emailEnabled', 'profile.emailOption'],
+          ['whatsAppEnabled', 'profile.whatsApp'],
+          ['reportCreated', 'profile.reportCreated'],
+          ['statusChanges', 'profile.statusChanges'],
+          ['workUpdates', 'profile.workUpdates'],
+          ['resolutionUpdates', 'profile.resolutionUpdates'],
+          ['actionRequests', 'profile.actionRequests'],
+        ] as const
+      ).map(([name, label]) => (
+        <Controller
+          key={name}
+          control={control}
+          name={name}
+          render={({ field: { value, onChange } }) => (
+            <View style={styles.switchRow}>
+              <Text variant="bodyLarge">{t(label)}</Text>
+              <Switch
+                value={value}
+                onValueChange={onChange}
+                color={colors.brand}
+                testID={`edit-${name}-switch`}
+              />
+            </View>
+          )}
+        />
+      ))}
 
       <Controller
         control={control}
