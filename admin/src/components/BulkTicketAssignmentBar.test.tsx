@@ -153,4 +153,58 @@ describe('BulkTicketAssignmentBar', () => {
       dryRun: true,
     });
   });
+
+  it('keeps commit results after the parent drops succeeded tickets', async () => {
+    const user = userEvent.setup();
+    vi.mocked(bulkAssignTicketDepartment)
+      .mockResolvedValueOnce({
+        dryRun: true,
+        attempted: 2,
+        succeeded: 1,
+        failed: 1,
+        items: [
+          { ticketId: 'tkt_road', ok: true, code: 'PREVIEW' },
+          { ticketId: 'tkt_waste', ok: false, code: 'FORBIDDEN', message: 'Out of scope.' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        dryRun: false,
+        attempted: 2,
+        succeeded: 1,
+        failed: 1,
+        items: [
+          { ticketId: 'tkt_road', ok: true },
+          { ticketId: 'tkt_waste', ok: false, code: 'FORBIDDEN', message: 'Out of scope.' },
+        ],
+      });
+
+    function Harness() {
+      const [selectedTicketIds, setSelectedTicketIds] = useState(['tkt_road', 'tkt_waste']);
+      return (
+        <BulkTicketAssignmentBar
+          selectedTicketIds={selectedTicketIds}
+          ticketNumbers={{ tkt_road: 'BG-2026-0001', tkt_waste: 'BG-2026-0002' }}
+          onClear={() => undefined}
+          onCommitted={(committed) => {
+            const succeeded = new Set(
+              committed.items.filter((item) => item.ok).map((item) => item.ticketId),
+            );
+            setSelectedTicketIds((current) => current.filter((id) => !succeeded.has(id)));
+          }}
+        />
+      );
+    }
+
+    renderWithProviders(<Harness />);
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Department' }),
+      DEPARTMENT_OPTIONS[0]!.departmentId,
+    );
+    await user.click(screen.getByRole('button', { name: 'Preview' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/1 succeeded/);
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/Committed/);
+    expect(screen.getByText(/Out of scope/)).toBeInTheDocument();
+    expect(screen.getByText(/1 selected/)).toBeInTheDocument();
+  });
 });

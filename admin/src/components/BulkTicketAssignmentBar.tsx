@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEPARTMENT_OPTIONS } from '@/utils/departments';
 import { useI18n } from '@/i18n/LocaleProvider';
 import {
@@ -16,7 +16,7 @@ type BulkTicketAssignmentBarProps = {
   selectedTicketIds: string[];
   ticketNumbers: Record<string, string>;
   onClear: () => void;
-  onCommitted?: () => void;
+  onCommitted?: (result: BulkMutationResponse) => void;
 };
 
 function assignmentFingerprint(
@@ -46,6 +46,9 @@ export function BulkTicketAssignmentBar({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkMutationResponse | null>(null);
   const [boundPreviewFingerprint, setBoundPreviewFingerprint] = useState<string | null>(null);
+  const [retainedCommitIds, setRetainedCommitIds] = useState<string[] | null>(null);
+  const retainedCommitIdsRef = useRef<string[] | null>(null);
+  retainedCommitIdsRef.current = retainedCommitIds;
 
   useEffect(() => {
     let cancelled = false;
@@ -72,12 +75,33 @@ export function BulkTicketAssignmentBar({
     () => assignmentFingerprint(selectedTicketIds, mode, departmentId, workforceValue),
     [departmentId, mode, selectedTicketIds, workforceValue],
   );
+  const targetFingerprint = `${mode}|${mode === 'department' ? departmentId : workforceValue}`;
+  const selectedIdsKey = useMemo(
+    () => [...selectedTicketIds].sort().join('|'),
+    [selectedTicketIds],
+  );
 
   useEffect(() => {
     setResult(null);
     setBoundPreviewFingerprint(null);
+    setRetainedCommitIds(null);
     setError(null);
-  }, [operationFingerprint]);
+  }, [targetFingerprint]);
+
+  useEffect(() => {
+    const retained = retainedCommitIdsRef.current;
+    if (
+      retained &&
+      selectedTicketIds.length > 0 &&
+      selectedTicketIds.every((id) => retained.includes(id))
+    ) {
+      return;
+    }
+    setResult(null);
+    setBoundPreviewFingerprint(null);
+    setRetainedCommitIds(null);
+    setError(null);
+  }, [selectedIdsKey, selectedTicketIds]);
 
   const canSubmit = useMemo(() => {
     if (selectedCount === 0) return false;
@@ -121,9 +145,11 @@ export function BulkTicketAssignmentBar({
       setResult(next);
       if (dryRun) {
         setBoundPreviewFingerprint(operationFingerprint);
+        setRetainedCommitIds(null);
       } else {
         setBoundPreviewFingerprint(null);
-        onCommitted?.();
+        setRetainedCommitIds([...selectedTicketIds]);
+        onCommitted?.(next);
       }
     } catch (err) {
       setResult(null);

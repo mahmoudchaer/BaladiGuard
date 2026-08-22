@@ -717,8 +717,11 @@ export function TicketListPage() {
                     pageTickets.map((ticket) => [ticket.ticketId, ticket.ticketNumber]),
                   )}
                   onClear={() => setCheckedTicketIds([])}
-                  onCommitted={() => {
-                    setCheckedTicketIds([]);
+                  onCommitted={(committed) => {
+                    const succeeded = new Set(
+                      committed.items.filter((item) => item.ok).map((item) => item.ticketId),
+                    );
+                    setCheckedTicketIds((current) => current.filter((id) => !succeeded.has(id)));
                     setQueueEpoch((current) => current + 1);
                   }}
                 />
