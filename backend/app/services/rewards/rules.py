@@ -45,15 +45,18 @@ LEVELS: tuple[tuple[str, int, str], ...] = (
     ("champion", 200, "Civic Champion"),
 )
 
-CITIZEN_REASON_MAP: dict[str, Literal[
-    "accepted",
-    "in_progress",
-    "resolved",
-    "supporting",
-    "reviewing",
-    "adjusted",
-    "adjustment",
-]] = {
+CITIZEN_REASON_MAP: dict[
+    str,
+    Literal[
+        "accepted",
+        "in_progress",
+        "resolved",
+        "supporting",
+        "reviewing",
+        "adjusted",
+        "adjustment",
+    ],
+] = {
     REASON_MUNICIPALITY_ACCEPTED: "accepted",
     REASON_IN_PROGRESS: "in_progress",
     REASON_RESOLVED: "resolved",
@@ -139,7 +142,9 @@ def sanitize_public_display_name(full_name: str | None) -> str | None:
     return collapsed
 
 
-def citizen_reason(reason_code: str) -> Literal[
+def citizen_reason(
+    reason_code: str,
+) -> Literal[
     "accepted",
     "in_progress",
     "resolved",

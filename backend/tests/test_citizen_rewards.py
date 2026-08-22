@@ -134,9 +134,7 @@ def test_scoring_pending_then_confirmed_path_and_idempotent_retry() -> None:
     rewards_service.sync_ticket(ticket)
     resolved = rewards_service.get_citizen_rewards(user.user_id)
     assert resolved.confirmed_points == (
-        POINTS[REASON_MUNICIPALITY_ACCEPTED]
-        + POINTS[REASON_IN_PROGRESS]
-        + POINTS[REASON_RESOLVED]
+        POINTS[REASON_MUNICIPALITY_ACCEPTED] + POINTS[REASON_IN_PROGRESS] + POINTS[REASON_RESOLVED]
     )
     keys = [event.event_key for event in rewards_service._ledger().list_by_citizen(user.user_id)]
     assert len(keys) == len(set(keys))
@@ -178,9 +176,7 @@ def test_rejection_and_reopen_reverse_points() -> None:
 
 def test_merge_converts_duplicate_to_supporting_credit() -> None:
     user, _token = ensure_contribution_ready_citizen(phone="+96170111005")
-    other, _other_token = ensure_contribution_ready_citizen(
-        phone="+96170111006", full_name="Other"
-    )
+    other, _other_token = ensure_contribution_ready_citizen(phone="+96170111006", full_name="Other")
     canonical = _ticket(owner_id=user.user_id, ticket_id="tkt_reward_can", status="ASSIGNED")
     duplicate = _ticket(owner_id=other.user_id, ticket_id="tkt_reward_dup", status="ASSIGNED")
     rewards_service.sync_ticket(canonical)
@@ -199,9 +195,10 @@ def test_merge_converts_duplicate_to_supporting_credit() -> None:
     ticket_store.save(merged)
     rewards_service.sync_ticket(merged)
     rewards_service.sync_ticket(canonical)
-    assert rewards_service.get_citizen_rewards(other.user_id).confirmed_points == POINTS[
-        REASON_SUPPORTING_EVIDENCE
-    ]
+    assert (
+        rewards_service.get_citizen_rewards(other.user_id).confirmed_points
+        == POINTS[REASON_SUPPORTING_EVIDENCE]
+    )
     assert rewards_service.get_citizen_rewards(user.user_id).confirmed_points == 10
 
 

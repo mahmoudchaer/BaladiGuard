@@ -27,9 +27,9 @@ describe('citizen rewards API', () => {
   });
 
   it('opts in without sending identifiers on the public board request', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ leaderboardOptIn: true }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ leaderboardOptIn: true }), { status: 200 }));
     await updateRewardsSettings(true);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/citizen/me/rewards-settings');
   });

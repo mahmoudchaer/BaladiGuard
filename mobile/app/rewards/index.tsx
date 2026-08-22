@@ -41,15 +41,27 @@ export default function RewardsScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {data ? (
           <View style={styles.card}>
-            <Text>{t('rewards.confirmed')}: {data.confirmedPoints}</Text>
-            <Text>{t('rewards.pending')}: {data.pendingPoints}</Text>
-            <Text>{t('rewards.monthly')}: {data.monthlyPoints}</Text>
-            <Text>{t('rewards.level')}: {data.levelTitle}</Text>
-            <Text>{t('rewards.rank')}: {data.privateRankAllTime ?? '—'}</Text>
+            <Text>
+              {t('rewards.confirmed')}: {data.confirmedPoints}
+            </Text>
+            <Text>
+              {t('rewards.pending')}: {data.pendingPoints}
+            </Text>
+            <Text>
+              {t('rewards.monthly')}: {data.monthlyPoints}
+            </Text>
+            <Text>
+              {t('rewards.level')}: {data.levelTitle}
+            </Text>
+            <Text>
+              {t('rewards.rank')}: {data.privateRankAllTime ?? '—'}
+            </Text>
             {!data.participation.eligible ? (
               <Text style={styles.hint}>{t('rewards.completeProfile')}</Text>
             ) : null}
-            {data.confirmedPoints === 0 ? <Text style={styles.hint}>{t('rewards.empty')}</Text> : null}
+            {data.confirmedPoints === 0 ? (
+              <Text style={styles.hint}>{t('rewards.empty')}</Text>
+            ) : null}
             <Text style={styles.hint}>{t('rewards.recognitionNote')}</Text>
           </View>
         ) : null}

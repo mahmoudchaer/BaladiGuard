@@ -64,8 +64,7 @@ function RewardsBody({ data }: { data: CitizenRewards }) {
     <>
       {prompt ? (
         <div className="notice" role="status">
-          {prompt}{' '}
-          <Link to="/profile">{t('profile.title')}</Link>
+          {prompt} <Link to="/profile">{t('profile.title')}</Link>
         </div>
       ) : null}
       <div className="settings-card">
@@ -82,8 +81,7 @@ function RewardsBody({ data }: { data: CitizenRewards }) {
           <strong>{t('rewards.level')}</strong>: {data.levelTitle}
         </p>
         <p>
-          <strong>{t('rewards.rank')}</strong>:{' '}
-          {data.privateRankAllTime ?? '—'}
+          <strong>{t('rewards.rank')}</strong>: {data.privateRankAllTime ?? '—'}
         </p>
         {data.publicRankAllTime ? (
           <p>

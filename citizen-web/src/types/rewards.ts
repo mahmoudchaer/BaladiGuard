@@ -1,13 +1,7 @@
 export type RewardsPeriod = 'all-time' | 'monthly';
 
 export type CitizenRewardReason =
-  | 'accepted'
-  | 'in_progress'
-  | 'resolved'
-  | 'supporting'
-  | 'reviewing'
-  | 'adjusted'
-  | 'adjustment';
+  'accepted' | 'in_progress' | 'resolved' | 'supporting' | 'reviewing' | 'adjusted' | 'adjustment';
 
 export type RewardParticipation = {
   optedIn: boolean;

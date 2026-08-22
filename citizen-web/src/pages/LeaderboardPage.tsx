@@ -80,7 +80,12 @@ export function LeaderboardPage() {
         </ol>
       ) : null}
       {cursor ? (
-        <button className="button" type="button" disabled={loading} onClick={() => void load(cursor)}>
+        <button
+          className="button"
+          type="button"
+          disabled={loading}
+          onClick={() => void load(cursor)}
+        >
           {t('leaderboard.loadMore')}
         </button>
       ) : null}

@@ -19,9 +19,7 @@ export default function LeaderboardScreen() {
       try {
         const result = await getLeaderboard(period, next);
         setPage((current) =>
-          next && current
-            ? { ...result, items: [...current.items, ...result.items] }
-            : result,
+          next && current ? { ...result, items: [...current.items, ...result.items] } : result,
         );
       } catch (err) {
         setError(err instanceof Error ? err.message : t('leaderboard.loadFailed'));
@@ -40,10 +38,16 @@ export default function LeaderboardScreen() {
         <Text style={styles.title}>{t('leaderboard.title')}</Text>
         <Text style={styles.lede}>{t('leaderboard.lede')}</Text>
         <View style={styles.row}>
-          <Button mode={period === 'all-time' ? 'contained' : 'outlined'} onPress={() => setPeriod('all-time')}>
+          <Button
+            mode={period === 'all-time' ? 'contained' : 'outlined'}
+            onPress={() => setPeriod('all-time')}
+          >
             {t('leaderboard.allTime')}
           </Button>
-          <Button mode={period === 'monthly' ? 'contained' : 'outlined'} onPress={() => setPeriod('monthly')}>
+          <Button
+            mode={period === 'monthly' ? 'contained' : 'outlined'}
+            onPress={() => setPeriod('monthly')}
+          >
             {t('leaderboard.monthly')}
           </Button>
         </View>
@@ -52,8 +56,8 @@ export default function LeaderboardScreen() {
         {page?.items.map((item) => (
           <View key={`${item.rank}-${item.displayName}`} style={styles.card}>
             <Text>
-              #{item.rank} · {item.displayName} · {t('leaderboard.points', { points: item.points })} ·{' '}
-              {item.levelTitle}
+              #{item.rank} · {item.displayName} · {t('leaderboard.points', { points: item.points })}{' '}
+              · {item.levelTitle}
             </Text>
           </View>
         ))}

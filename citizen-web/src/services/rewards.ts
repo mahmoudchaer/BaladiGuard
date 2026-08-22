@@ -1,10 +1,6 @@
 import { jsonRequest } from '@/services/api';
 import type { CitizenProfile } from '@/types/citizen';
-import type {
-  CitizenRewards,
-  PublicLeaderboard,
-  RewardsPeriod,
-} from '@/types/rewards';
+import type { CitizenRewards, PublicLeaderboard, RewardsPeriod } from '@/types/rewards';
 
 export async function getMyRewards(): Promise<CitizenRewards> {
   return jsonRequest('/citizen/me/rewards', { method: 'GET' }, 'Unable to load rewards.');
