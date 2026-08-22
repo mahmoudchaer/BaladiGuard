@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BulkTicketAssignmentBar } from '@/components/BulkTicketAssignmentBar';
@@ -59,6 +60,7 @@ describe('BulkTicketAssignmentBar', () => {
       screen.getByRole('combobox', { name: 'Department' }),
       DEPARTMENT_OPTIONS[0]!.departmentId,
     );
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Preview' }));
 
     await waitFor(() => {
@@ -80,5 +82,75 @@ describe('BulkTicketAssignmentBar', () => {
       });
     });
     expect(await screen.findByRole('status')).toHaveTextContent(/Committed/);
+  });
+
+  it('does not commit until a preview of the exact operation succeeds', async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <BulkTicketAssignmentBar
+        selectedTicketIds={['tkt_road', 'tkt_waste']}
+        ticketNumbers={{ tkt_road: 'BG-2026-0001', tkt_waste: 'BG-2026-0002' }}
+        onClear={() => undefined}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Department' }),
+      DEPARTMENT_OPTIONS[0]!.departmentId,
+    );
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(bulkAssignTicketDepartment).not.toHaveBeenCalled();
+  });
+
+  it('invalidates a preview when the selected tickets change', async () => {
+    const user = userEvent.setup();
+    vi.mocked(bulkAssignTicketDepartment).mockResolvedValue({
+      dryRun: true,
+      attempted: 2,
+      succeeded: 2,
+      failed: 0,
+      items: [
+        { ticketId: 'tkt_road', ok: true, code: 'PREVIEW' },
+        { ticketId: 'tkt_waste', ok: true, code: 'PREVIEW' },
+      ],
+    });
+
+    function Harness() {
+      const [selectedTicketIds, setSelectedTicketIds] = useState(['tkt_road', 'tkt_waste']);
+      return (
+        <>
+          <button type="button" onClick={() => setSelectedTicketIds(['tkt_road'])}>
+            Drop waste ticket
+          </button>
+          <BulkTicketAssignmentBar
+            selectedTicketIds={selectedTicketIds}
+            ticketNumbers={{ tkt_road: 'BG-2026-0001', tkt_waste: 'BG-2026-0002' }}
+            onClear={() => undefined}
+          />
+        </>
+      );
+    }
+
+    renderWithProviders(<Harness />);
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Department' }),
+      DEPARTMENT_OPTIONS[0]!.departmentId,
+    );
+    await user.click(screen.getByRole('button', { name: 'Preview' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/2 succeeded/);
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Drop waste ticket' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(bulkAssignTicketDepartment).toHaveBeenCalledTimes(1);
+    expect(bulkAssignTicketDepartment).toHaveBeenCalledWith({
+      ticketIds: ['tkt_road', 'tkt_waste'],
+      departmentId: DEPARTMENT_OPTIONS[0]!.departmentId,
+      dryRun: true,
+    });
   });
 });

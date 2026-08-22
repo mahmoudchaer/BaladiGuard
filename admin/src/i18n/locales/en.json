@@ -464,7 +464,8 @@
       "itemOk": "Ready",
       "itemFailed": "Failed",
       "clear": "Clear selection",
-      "needTarget": "Choose a department or worker first."
+      "needTarget": "Choose a department or worker first.",
+      "needPreview": "Preview this exact selection before committing."
     }
   },
   "map": {

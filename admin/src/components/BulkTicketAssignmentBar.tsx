@@ -16,12 +16,25 @@ type BulkTicketAssignmentBarProps = {
   selectedTicketIds: string[];
   ticketNumbers: Record<string, string>;
   onClear: () => void;
+  onCommitted?: () => void;
 };
+
+function assignmentFingerprint(
+  selectedTicketIds: string[],
+  mode: BulkMode,
+  departmentId: string,
+  workforceValue: string,
+): string {
+  const ids = [...selectedTicketIds].sort().join('|');
+  const target = mode === 'department' ? `dept:${departmentId}` : `wf:${workforceValue}`;
+  return `${ids}|${mode}|${target}`;
+}
 
 export function BulkTicketAssignmentBar({
   selectedTicketIds,
   ticketNumbers,
   onClear,
+  onCommitted,
 }: BulkTicketAssignmentBarProps) {
   const { t } = useI18n();
   const [mode, setMode] = useState<BulkMode>('department');
@@ -32,6 +45,7 @@ export function BulkTicketAssignmentBar({
   const [busy, setBusy] = useState<'preview' | 'commit' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkMutationResponse | null>(null);
+  const [boundPreviewFingerprint, setBoundPreviewFingerprint] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,15 +68,34 @@ export function BulkTicketAssignmentBar({
   }, []);
 
   const selectedCount = selectedTicketIds.length;
+  const operationFingerprint = useMemo(
+    () => assignmentFingerprint(selectedTicketIds, mode, departmentId, workforceValue),
+    [departmentId, mode, selectedTicketIds, workforceValue],
+  );
+
+  useEffect(() => {
+    setResult(null);
+    setBoundPreviewFingerprint(null);
+    setError(null);
+  }, [operationFingerprint]);
+
   const canSubmit = useMemo(() => {
     if (selectedCount === 0) return false;
     if (mode === 'department') return Boolean(departmentId);
     return Boolean(workforceValue);
   }, [departmentId, mode, selectedCount, workforceValue]);
 
+  const previewMatchesCurrent =
+    result?.dryRun === true && boundPreviewFingerprint === operationFingerprint;
+  const canCommit = canSubmit && previewMatchesCurrent;
+
   async function run(dryRun: boolean) {
     if (!canSubmit) {
       setError(t('tickets.bulk.needTarget'));
+      return;
+    }
+    if (!dryRun && !previewMatchesCurrent) {
+      setError(t('tickets.bulk.needPreview'));
       return;
     }
     setBusy(dryRun ? 'preview' : 'commit');
@@ -86,8 +119,15 @@ export function BulkTicketAssignmentBar({
               dryRun,
             });
       setResult(next);
+      if (dryRun) {
+        setBoundPreviewFingerprint(operationFingerprint);
+      } else {
+        setBoundPreviewFingerprint(null);
+        onCommitted?.();
+      }
     } catch (err) {
       setResult(null);
+      setBoundPreviewFingerprint(null);
       setError(err instanceof Error ? err.message : t('errors.generic'));
     } finally {
       setBusy(null);
@@ -108,8 +148,6 @@ export function BulkTicketAssignmentBar({
             value={mode}
             onChange={(event) => {
               setMode(event.target.value as BulkMode);
-              setResult(null);
-              setError(null);
             }}
           >
             <option value="department">{t('tickets.bulk.modeDepartment')}</option>
@@ -123,7 +161,6 @@ export function BulkTicketAssignmentBar({
               value={departmentId}
               onChange={(event) => {
                 setDepartmentId(event.target.value);
-                setResult(null);
               }}
             >
               <option value="">{t('tickets.bulk.chooseDepartment')}</option>
@@ -141,7 +178,6 @@ export function BulkTicketAssignmentBar({
               value={workforceValue}
               onChange={(event) => {
                 setWorkforceValue(event.target.value);
-                setResult(null);
               }}
             >
               <option value="">{t('tickets.bulk.chooseWorkforce')}</option>
@@ -166,7 +202,12 @@ export function BulkTicketAssignmentBar({
           <button type="button" onClick={() => void run(true)} disabled={Boolean(busy)}>
             {busy === 'preview' ? t('tickets.bulk.previewing') : t('tickets.bulk.preview')}
           </button>
-          <button type="button" onClick={() => void run(false)} disabled={Boolean(busy)}>
+          <button
+            type="button"
+            onClick={() => void run(false)}
+            disabled={Boolean(busy) || !canCommit}
+            title={canCommit ? undefined : t('tickets.bulk.needPreview')}
+          >
             {busy === 'commit' ? t('tickets.bulk.committing') : t('tickets.bulk.commit')}
           </button>
           <button type="button" onClick={onClear} disabled={Boolean(busy)}>

@@ -321,8 +321,20 @@ describe('TicketListPage', () => {
       failed: 0,
       items: [{ ticketId: 'tkt_road', ok: true }],
     });
+    const pageCallsBeforeCommit = vi.mocked(fetchTicketsPage).mock.calls.length;
+    const aggregateCallsBeforeCommit = vi.mocked(fetchTicketAggregates).mock.calls.length;
     await user.click(bulk.getByRole('button', { name: 'Commit' }));
-    expect(await bulk.findByText(/Committed/)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(vi.mocked(fetchTicketsPage).mock.calls.length).toBeGreaterThan(pageCallsBeforeCommit);
+      expect(vi.mocked(fetchTicketAggregates).mock.calls.length).toBeGreaterThan(
+        aggregateCallsBeforeCommit,
+      );
+    });
+    expect(screen.queryByLabelText('Bulk assignment')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Add BG-2026-0001 to bulk assignment' }),
+    ).not.toBeChecked();
   });
 
   const assistantListAnswer: StaffAssistantResponse = {

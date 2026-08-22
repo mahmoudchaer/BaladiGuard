@@ -160,6 +160,7 @@ export function TicketListPage() {
     initialFilters.focusTicket ?? null,
   );
   const [checkedTicketIds, setCheckedTicketIds] = useState<string[]>([]);
+  const [queueEpoch, setQueueEpoch] = useState(0);
   const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
   const [previewForId, setPreviewForId] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -382,7 +383,7 @@ export function TicketListPage() {
     return () => {
       controller.abort();
     };
-  }, [cursor, hasActiveServerFilters, serverFilters, t]);
+  }, [cursor, hasActiveServerFilters, queueEpoch, serverFilters, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -400,7 +401,7 @@ export function TicketListPage() {
 
     void loadAggregates();
     return () => controller.abort();
-  }, [pageTickets]);
+  }, [pageTickets, queueEpoch]);
 
   const attentionStats = useMemo(() => aggregatesToAttentionStats(aggregates), [aggregates]);
   const categoryOptions = useMemo(
@@ -716,6 +717,10 @@ export function TicketListPage() {
                     pageTickets.map((ticket) => [ticket.ticketId, ticket.ticketNumber]),
                   )}
                   onClear={() => setCheckedTicketIds([])}
+                  onCommitted={() => {
+                    setCheckedTicketIds([]);
+                    setQueueEpoch((current) => current + 1);
+                  }}
                 />
                 <TicketTable
                   tickets={pageTickets}

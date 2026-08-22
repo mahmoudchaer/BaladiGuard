@@ -464,7 +464,8 @@
       "itemOk": "Prêt",
       "itemFailed": "Échec",
       "clear": "Effacer la sélection",
-      "needTarget": "Choisissez d’abord un service ou un agent."
+      "needTarget": "Choisissez d’abord un service ou un agent.",
+      "needPreview": "Prévisualisez cette sélection exacte avant de valider."
     }
   },
   "map": {
