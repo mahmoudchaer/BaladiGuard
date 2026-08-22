@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import json
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from app.config import get_settings
+from app.core.staff_auth import DEFAULT_SECRET_KEY
 from app.database.store_factory import (
     get_citizen_store,
     get_duplicate_group_store,
@@ -87,16 +91,45 @@ def _parse_iso(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def _encode_cursor(payload: dict[str, Any]) -> str:
-    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+def _cursor_secret() -> bytes:
+    return (get_settings().secret_key or DEFAULT_SECRET_KEY).encode("utf-8")
+
+
+def _opaque_rank_token(citizen_user_id: str) -> str:
+    return hmac.new(
+        _cursor_secret(),
+        f"rewards-rank:{citizen_user_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()[:16]
+
+
+def _encode_cursor(*, points: int, first_award_at: str, citizen_user_id: str) -> str:
+    inner = json.dumps(
+        {
+            "p": points,
+            "t": first_award_at,
+            "k": _opaque_rank_token(citizen_user_id),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    signature = hmac.new(_cursor_secret(), inner, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(inner + b"." + signature).decode("ascii").rstrip("=")
 
 
 def _decode_cursor(cursor: str) -> dict[str, Any]:
     padding = "=" * (-len(cursor) % 4)
     raw = base64.urlsafe_b64decode(cursor + padding)
-    parsed = json.loads(raw.decode("utf-8"))
+    payload, separator, signature = raw.rpartition(b".")
+    if not separator or len(signature) != hashlib.sha256().digest_size:
+        raise ValueError("invalid cursor")
+    expected = hmac.new(_cursor_secret(), payload, hashlib.sha256).digest()
+    if not hmac.compare_digest(signature, expected):
+        raise ValueError("invalid cursor")
+    parsed = json.loads(payload.decode("utf-8"))
     if not isinstance(parsed, dict):
+        raise ValueError("invalid cursor")
+    if any(key in parsed for key in ("u", "userId", "citizenUserId", "citizen_user_id")):
         raise ValueError("invalid cursor")
     return parsed
 
@@ -323,15 +356,13 @@ class RewardsService:
         if start + page_size < len(ranked):
             nxt = ranked[start + page_size]
             next_cursor = _encode_cursor(
-                {
-                    "u": nxt.citizen_user_id,
-                    "p": (
-                        nxt.confirmed_points_monthly
-                        if period == "monthly"
-                        else nxt.confirmed_points_all_time
-                    ),
-                    "t": nxt.first_award_at or "",
-                }
+                points=(
+                    nxt.confirmed_points_monthly
+                    if period == "monthly"
+                    else nxt.confirmed_points_all_time
+                ),
+                first_award_at=nxt.first_award_at or "",
+                citizen_user_id=nxt.citizen_user_id,
             )
         return PublicLeaderboardResponse(
             period=period,  # type: ignore[arg-type]
@@ -717,9 +748,12 @@ class RewardsService:
         *,
         period: str,
     ) -> int:
-        user_id = str(payload["u"])
+        token = str(payload.get("k") or "")
+        if len(token) != 16:
+            raise ValueError("invalid cursor")
         for index, item in enumerate(ranked):
-            if item.citizen_user_id == user_id:
+            expected = _opaque_rank_token(item.citizen_user_id)
+            if hmac.compare_digest(expected, token):
                 return index
         points = int(payload.get("p") or 0)
         first_at = str(payload.get("t") or "")
@@ -729,10 +763,11 @@ class RewardsService:
                 if period == "monthly"
                 else item.confirmed_points_all_time
             )
-            if (item_points, item.first_award_at or "", item.citizen_user_id) >= (
-                points,
-                first_at,
-                user_id,
+            item_token = _opaque_rank_token(item.citizen_user_id)
+            if (-item_points, item.first_award_at or "9999", item_token) >= (
+                -points,
+                first_at or "9999",
+                token,
             ):
                 return index
         return len(ranked)

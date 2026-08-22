@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import concurrent.futures
+import json
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -76,6 +78,26 @@ def _opt_in(user_id: str, name: str = "Ada Citizen") -> None:
             }
         ),
     )
+
+
+def _assert_cursor_hides_user_ids(cursor: str, *user_ids: str) -> None:
+    padding = "=" * (-len(cursor) % 4)
+    raw = base64.urlsafe_b64decode(cursor + padding)
+    decoded_text = raw.decode("utf-8", errors="replace")
+    payload, _separator, _signature = raw.partition(b".")
+    try:
+        parsed = json.loads(payload.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        parsed = {}
+    serialized = f"{cursor} {decoded_text} {parsed}"
+    for user_id in user_ids:
+        assert user_id not in cursor
+        assert user_id not in decoded_text
+        assert user_id not in serialized
+    assert "u" not in parsed
+    assert "userId" not in parsed
+    assert "citizenUserId" not in parsed
+    assert "citizen_user_id" not in parsed
 
 
 def test_submit_does_not_award_confirmed_or_pending_points(anonymous_client: TestClient) -> None:
@@ -243,6 +265,12 @@ def test_public_leaderboard_is_opt_in_and_hides_identifiers(
     assert "ticketId" not in serialized
     assert body["items"][0]["points"] >= body["items"][1]["points"]
 
+    paged = anonymous_client.get("/v1/rewards/leaderboard?period=all-time&limit=1")
+    assert paged.status_code == 200
+    cursor = paged.json()["nextCursor"]
+    assert cursor
+    _assert_cursor_hides_user_ids(cursor, first.user_id, second.user_id)
+
 
 def test_leaderboard_pagination_and_ties(anonymous_client: TestClient) -> None:
     earlier = datetime.now(UTC) - timedelta(hours=2)
@@ -271,6 +299,7 @@ def test_leaderboard_pagination_and_ties(anonymous_client: TestClient) -> None:
     assert len(body["items"]) == 1
     assert body["items"][0]["displayName"] == "Early Bird"
     assert body["nextCursor"]
+    _assert_cursor_hides_user_ids(body["nextCursor"], first.user_id, second.user_id)
     page2 = anonymous_client.get(f"/v1/rewards/leaderboard?limit=1&cursor={body['nextCursor']}")
     assert page2.status_code == 200
     assert page2.json()["items"][0]["displayName"] == "Late Bird"

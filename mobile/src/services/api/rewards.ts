@@ -4,18 +4,33 @@ import { getAuthHeaders, parseApiError } from '@/services/api/http';
 
 export type RewardsPeriod = 'all-time' | 'monthly';
 
+export type CitizenRewardReason =
+  'accepted' | 'in_progress' | 'resolved' | 'supporting' | 'reviewing' | 'adjusted' | 'adjustment';
+
+export type CitizenRewardEvent = {
+  createdAt: string;
+  delta: number;
+  reason: CitizenRewardReason;
+  credit: 'pending' | 'confirmed';
+  ticketNumber: string | null;
+};
+
 export type CitizenRewards = {
   confirmedPoints: number;
   pendingPoints: number;
   monthlyPoints: number;
   levelTitle: string;
+  nextLevelTitle: string | null;
+  pointsToNextLevel: number | null;
   privateRankAllTime: number | null;
+  publicRankAllTime: number | null;
   participation: {
     optedIn: boolean;
     eligible: boolean;
     missing: string[];
   };
   badges: string[];
+  recentEvents: CitizenRewardEvent[];
   recognitionOnly: boolean;
 };
 

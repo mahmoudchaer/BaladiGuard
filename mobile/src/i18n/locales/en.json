@@ -247,13 +247,33 @@
     "lede": "Points recognize verified municipal work, not how many reports you send.",
     "confirmed": "Confirmed points",
     "pending": "Pending review",
+    "pendingWhy": "Pending credit is held after automated review until municipal staff accept the report. It is not confirmed yet.",
     "monthly": "This month",
     "level": "Level",
     "rank": "Private rank",
+    "publicRank": "Public rank",
+    "nextLevel": "{points} points to {title}",
+    "maxLevel": "Highest recognition level reached.",
+    "badges": "Badges",
+    "noBadges": "Badges appear after confirmed civic work.",
     "empty": "Sending a report alone does not add points. Wait for municipal acceptance or resolution.",
+    "emptyTitle": "No confirmed points yet",
+    "emptyBody": "Submit a report and wait for the municipality to accept or resolve it. Sending a report alone does not add points.",
     "completeProfile": "Add a display name and opt in from your profile to appear publicly.",
+    "privateBoard": "Your progress stays private until you opt in.",
+    "recent": "Recent credit",
     "recognitionNote": "Recognition only — no money or government benefits.",
-    "loadFailed": "Unable to load rewards."
+    "openLeaderboard": "View public leaderboard",
+    "loadFailed": "Unable to load rewards.",
+    "reason": {
+      "accepted": "Municipality accepted a report",
+      "in_progress": "Work started",
+      "resolved": "Report resolved",
+      "supporting": "Supporting evidence",
+      "reviewing": "Awaiting municipal review",
+      "adjusted": "Credit adjusted",
+      "adjustment": "Operator correction"
+    }
   },
   "leaderboard": {
     "title": "Contribution leaderboard",
@@ -261,10 +281,13 @@
     "allTime": "All time",
     "monthly": "This month",
     "empty": "The board stays empty until citizens opt in and earn confirmed points.",
+    "emptyTitle": "No public rankings yet",
+    "emptyBody": "The board stays empty until citizens opt in and earn confirmed points.",
     "tieNote": "Tied scores show the same name twice. We never add account identifiers.",
     "loadFailed": "Unable to load the leaderboard.",
     "loadMore": "Load more",
-    "points": "{points} points"
+    "points": "{points} points",
+    "rank": "Rank {rank}"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",

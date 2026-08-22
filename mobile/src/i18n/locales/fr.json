@@ -247,13 +247,33 @@
     "lede": "Les points reconnaissent un travail municipal vérifié, pas le nombre de signalements.",
     "confirmed": "Points confirmés",
     "pending": "En revue",
+    "pendingWhy": "Le crédit en attente est retenu après la revue automatique jusqu’à l’acceptation municipale. Il n’est pas encore confirmé.",
     "monthly": "Ce mois-ci",
     "level": "Niveau",
     "rank": "Rang privé",
+    "publicRank": "Rang public",
+    "nextLevel": "{points} points pour {title}",
+    "maxLevel": "Niveau de reconnaissance le plus élevé atteint.",
+    "badges": "Badges",
+    "noBadges": "Les badges apparaissent après un travail civique confirmé.",
     "empty": "Envoyer un signalement ne donne pas de points. Attendez l’acceptation ou la résolution municipale.",
+    "emptyTitle": "Pas encore de points confirmés",
+    "emptyBody": "Envoyez un signalement et attendez que la municipalité l’accepte ou le résolve. Envoyer un signalement ne donne pas de points.",
     "completeProfile": "Ajoutez un nom d’affichage et activez l’option dans votre profil pour apparaître publiquement.",
+    "privateBoard": "Votre progression reste privée tant que vous n’avez pas choisi de participer.",
+    "recent": "Crédit récent",
     "recognitionNote": "Reconnaissance uniquement — pas d’argent ni d’avantages publics.",
-    "loadFailed": "Impossible de charger les récompenses."
+    "openLeaderboard": "Voir le classement public",
+    "loadFailed": "Impossible de charger les récompenses.",
+    "reason": {
+      "accepted": "La municipalité a accepté un signalement",
+      "in_progress": "Travaux commencés",
+      "resolved": "Signalement résolu",
+      "supporting": "Preuve complémentaire",
+      "reviewing": "En attente de revue municipale",
+      "adjusted": "Crédit ajusté",
+      "adjustment": "Correction opérateur"
+    }
   },
   "leaderboard": {
     "title": "Classement des contributions",
@@ -261,10 +281,13 @@
     "allTime": "Tous les temps",
     "monthly": "Ce mois-ci",
     "empty": "Le tableau reste vide tant que des citoyens n’optent pas et n’obtiennent pas de points confirmés.",
+    "emptyTitle": "Pas encore de classement public",
+    "emptyBody": "Le tableau reste vide tant que des citoyens n’optent pas et n’obtiennent pas de points confirmés.",
     "tieNote": "À égalité, le même nom apparaît deux fois. Aucun identifiant de compte.",
     "loadFailed": "Impossible de charger le classement.",
     "loadMore": "Charger plus",
-    "points": "{points} points"
+    "points": "{points} points",
+    "rank": "Rang {rank}"
   },
   "errors": {
     "generic": "Une erreur s’est produite. Veuillez réessayer.",
