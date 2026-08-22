@@ -19,15 +19,15 @@ type ReportSuccessProps = {
  */
 export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const handleCopyTrackingCode = async () => {
     try {
       await Clipboard.setStringAsync(result.trackingCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 2500);
     } catch {
-      // Clipboard is a convenience only — never block the confirmation on it.
+      setCopyStatus('failed');
     }
   };
 
@@ -64,9 +64,14 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
               void handleCopyTrackingCode();
             }}
           >
-            {copied ? t('report.copied') : t('report.copy')}
+            {copyStatus === 'copied' ? t('report.copied') : t('report.copy')}
           </Button>
         </View>
+        {copyStatus === 'failed' ? (
+          <Text variant="bodySmall" style={styles.copyError} accessibilityRole="alert">
+            {t('report.copyFailed')}
+          </Text>
+        ) : null}
 
         <Text variant="bodySmall" style={styles.trackingHint}>
           {t('report.saveCodes')}
@@ -147,6 +152,7 @@ const styles = StyleSheet.create({
   ticketNumber: {
     color: colors.brandDark,
     fontWeight: '700',
+    writingDirection: 'ltr',
   },
   trackingRow: {
     flexDirection: 'row',
@@ -156,6 +162,10 @@ const styles = StyleSheet.create({
   trackingCode: {
     color: colors.text,
     fontWeight: '700',
+    writingDirection: 'ltr',
+  },
+  copyError: {
+    color: colors.danger,
   },
   copyButton: {
     minHeight: touchTargetMin,

@@ -45,14 +45,18 @@ export default function CitizenTicketHistoryScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackErrorFor, setFeedbackErrorFor] = useState<string | null>(null);
   const [submittingFeedbackFor, setSubmittingFeedbackFor] = useState<string | null>(null);
   const didInitialLoad = useRef(false);
+  const requestGeneration = useRef(0);
 
   const loadHistory = useCallback(
     async (cursor: string | null, mode: 'initial' | 'refresh' | 'more') => {
       if (!accessToken) {
         return;
       }
+      const generation = requestGeneration.current + 1;
+      requestGeneration.current = generation;
       if (mode === 'initial') {
         setIsInitialLoading(true);
       } else if (mode === 'refresh') {
@@ -68,15 +72,18 @@ export default function CitizenTicketHistoryScreen() {
           limit: PAGE_SIZE,
           cursor,
         });
+        if (generation !== requestGeneration.current) return;
         setItems((current) => (mode === 'more' ? [...current, ...page.items] : page.items));
         setNextCursor(page.nextCursor);
       } catch (error) {
+        if (generation !== requestGeneration.current) return;
         const message = error instanceof Error ? error.message : t('history.loadError');
         setErrorMessage(message);
         if (message === TICKET_HISTORY_UNAUTHORIZED_MESSAGE) {
           await clearSessionLocally();
         }
       } finally {
+        if (generation !== requestGeneration.current) return;
         setIsInitialLoading(false);
         setIsRefreshing(false);
         setIsLoadingMore(false);
@@ -95,6 +102,7 @@ export default function CitizenTicketHistoryScreen() {
     }
     setSubmittingFeedbackFor(trackingCode);
     setFeedbackError(null);
+    setFeedbackErrorFor(null);
     try {
       const result = await submitCitizenResolutionFeedback({
         accessToken,
@@ -114,6 +122,7 @@ export default function CitizenTicketHistoryScreen() {
         ),
       );
     } catch (error) {
+      setFeedbackErrorFor(trackingCode);
       setFeedbackError(error instanceof Error ? error.message : t('history.feedbackError'));
     } finally {
       setSubmittingFeedbackFor(null);
@@ -263,11 +272,7 @@ export default function CitizenTicketHistoryScreen() {
                       submittedAt: null,
                     }}
                     submitting={submittingFeedbackFor === item.trackingCode}
-                    errorMessage={
-                      submittingFeedbackFor === item.trackingCode || feedbackError
-                        ? feedbackError
-                        : null
-                    }
+                    errorMessage={feedbackErrorFor === item.trackingCode ? feedbackError : null}
                     onSubmit={(status, note) =>
                       void handleFeedback(item.trackingCode, status, note)
                     }
@@ -380,6 +385,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '700',
     flexShrink: 1,
+    writingDirection: 'ltr',
   },
   location: {
     color: colors.text,
