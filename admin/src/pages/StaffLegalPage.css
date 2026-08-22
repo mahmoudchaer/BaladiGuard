@@ -1,0 +1,64 @@
+.staff-legal {
+  max-width: 42rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+.staff-legal__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted, #6b7280);
+}
+
+.staff-legal__header h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.staff-legal__lede {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--color-muted, #4b5563);
+}
+
+.staff-legal__card {
+  padding: 1rem 1.15rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(15 23 42 / 10%);
+  background: #fff;
+}
+
+.staff-legal__card h3 {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+}
+
+.staff-legal__card ul {
+  margin: 0;
+  padding-inline-start: 1.2rem;
+  line-height: 1.55;
+}
+
+.staff-legal__card li + li {
+  margin-top: 0.4rem;
+}
+
+.staff-legal__links {
+  margin-top: 0.75rem;
+}
+
+.staff-legal__links a {
+  color: var(--lb-red, #c8102e);
+  font-weight: 600;
+}
+
+.staff-legal__note {
+  margin: 0.75rem 0 0;
+  color: var(--color-muted, #6b7280);
+  line-height: 1.5;
+}

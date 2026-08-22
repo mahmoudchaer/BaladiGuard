@@ -1,5 +1,12 @@
 import { apiError, apiFetch, jsonRequest } from '@/services/api';
-import type { CitizenProfile, CitizenProfilePatch, OtpChallenge } from '@/types/citizen';
+import type {
+  CitizenDeleteResponse,
+  CitizenProfile,
+  CitizenProfilePatch,
+  LegalAcceptanceRequest,
+  OtpChallenge,
+  OtpVerifyOptions,
+} from '@/types/citizen';
 
 export async function requestOtp(
   phone: string,
@@ -13,13 +20,25 @@ export async function requestOtp(
   );
 }
 
-export async function verifyOtp(challengeId: string, code: string): Promise<CitizenProfile> {
+export async function verifyOtp(
+  challengeId: string,
+  code: string,
+  options: OtpVerifyOptions,
+): Promise<CitizenProfile> {
+  const body: Record<string, unknown> = {
+    challengeId,
+    code,
+    acceptLegal: options.acceptLegal,
+  };
+  if (options.legalLocale) {
+    body.legalLocale = options.legalLocale;
+  }
   return jsonRequest(
     '/citizen/auth/otp/verify',
     {
       method: 'POST',
       headers: { 'X-Citizen-Session-Mode': 'cookie' },
-      body: JSON.stringify({ challengeId, code }),
+      body: JSON.stringify(body),
     },
     'Unable to verify that code.',
   );
@@ -34,6 +53,26 @@ export async function updateMe(patch: CitizenProfilePatch): Promise<CitizenProfi
     '/citizen/me',
     { method: 'PATCH', body: JSON.stringify(patch) },
     'Unable to update your profile.',
+  );
+}
+
+export async function acceptLegal(payload: LegalAcceptanceRequest): Promise<CitizenProfile> {
+  return jsonRequest(
+    '/citizen/me/legal-acceptance',
+    { method: 'POST', body: JSON.stringify(payload) },
+    'Unable to record legal acceptance.',
+  );
+}
+
+export async function exportMe(): Promise<unknown> {
+  return jsonRequest('/citizen/me/export', { method: 'GET' }, 'Unable to export your data.');
+}
+
+export async function deleteMe(): Promise<CitizenDeleteResponse> {
+  return jsonRequest(
+    '/citizen/me/delete',
+    { method: 'POST', body: JSON.stringify({}) },
+    'Unable to delete your account.',
   );
 }
 

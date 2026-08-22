@@ -97,6 +97,7 @@ test.describe('built SPA browser subset', () => {
     await page.getByLabel('Phone number').fill('70123456');
     await page.getByRole('button', { name: /Continue/ }).click();
     await page.getByLabel('Verification code').fill('123456');
+    await page.getByRole('checkbox', { name: /I agree to the/i }).check();
 
     const verify = page.waitForResponse(
       (response) =>

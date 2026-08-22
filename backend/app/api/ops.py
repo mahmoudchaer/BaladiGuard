@@ -13,7 +13,11 @@ from app.schemas.municipality import (
     RoutingPreviewRequest,
     UpsertMunicipalityRequest,
 )
-from app.schemas.ops import AcknowledgeAlertRequest, OpsOverviewResponse
+from app.schemas.ops import (
+    AcknowledgeAlertRequest,
+    OpsOverviewResponse,
+    PrivacyRequestCreateRequest,
+)
 from app.services.observability.safe import (
     ALLOWED_ERROR_CATEGORIES,
     ALLOWED_JOB_TYPES,
@@ -238,6 +242,34 @@ def ops_product(
 @router.get("/runbooks")
 def ops_runbooks(principal: DeveloperOperatorDep):
     return {"items": [item.model_dump(by_alias=True) for item in all_runbooks()]}
+
+
+@router.get("/privacy-requests")
+def ops_list_privacy_requests(
+    principal: DeveloperOperatorDep,
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    from app.database.store_factory import get_privacy_request_audit_store
+
+    items = get_privacy_request_audit_store().list_recent(limit=limit)
+    return {"items": [item.model_dump(by_alias=True) for item in items]}
+
+
+@router.post("/privacy-requests", status_code=201)
+def ops_create_privacy_request(
+    payload: PrivacyRequestCreateRequest,
+    principal: DeveloperOperatorDep,
+):
+    from app.services.privacy_request_audit import record_privacy_request
+
+    entry = record_privacy_request(
+        action=payload.action,
+        summary=payload.summary,
+        subject_user_id=payload.subject_user_id,
+        actor_staff_id=principal.staff_id,
+        actor_username=principal.username,
+    )
+    return entry.model_dump(by_alias=True)
 
 
 @router.get("/municipalities")

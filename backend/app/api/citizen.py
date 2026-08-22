@@ -21,6 +21,7 @@ from app.schemas.citizen import (
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
     CitizenTicketHistoryResponse,
+    LegalAcceptanceRequest,
 )
 from app.schemas.citizen_auth import (
     CitizenOtpRequest,
@@ -204,6 +205,8 @@ def verify_citizen_otp(
             challenge_id=payload.challenge_id,
             code=payload.code,
             full_name=payload.full_name,
+            accept_legal=payload.accept_legal,
+            legal_locale=payload.legal_locale,
             authenticated_user_id=principal.user_id if principal is not None else None,
         )
         if request.headers.get(WEB_SESSION_HEADER, "").strip().lower() == "cookie":
@@ -269,6 +272,19 @@ def patch_citizen_me(
 ) -> CitizenProfileResponse | JSONResponse:
     try:
         return citizen_service.update_profile(principal.user_id, payload)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.post("/me/legal-acceptance", response_model=CitizenProfileResponse)
+def post_citizen_legal_acceptance(
+    payload: LegalAcceptanceRequest,
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenProfileResponse | JSONResponse:
+    """Record or renew acceptance of the current legal package (issue #321)."""
+    try:
+        return citizen_service.record_legal_acceptance(principal.user_id, payload)
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 

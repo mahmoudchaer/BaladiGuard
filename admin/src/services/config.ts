@@ -41,6 +41,7 @@ type AdminPublicEnvironment = Partial<
     | 'VITE_APP_ENV'
     | 'VITE_API_BASE_URL'
     | 'VITE_USE_MOCK_DATA'
+    | 'VITE_CITIZEN_WEB_URL'
     | 'VITE_STAFF_USERNAME'
     | 'VITE_STAFF_PASSWORD'
     | 'PROD'
@@ -72,6 +73,7 @@ export function resolveAdminConfig(env: AdminPublicEnvironment = import.meta.env
       ? deployedApiOrigin(rawApiBase, appEnv)
       : (rawApiBase || LOCAL_API_BASE_URL).replace(/\/+$/, ''),
     useMockData: deployed ? false : useMockData,
+    citizenWebUrl: (env.VITE_CITIZEN_WEB_URL ?? '').trim() || null,
     staffAuth: {
       username: env.VITE_STAFF_USERNAME ?? '',
       password: env.VITE_STAFF_PASSWORD ?? '',

@@ -48,6 +48,7 @@ DEFAULT_TABLE_SUFFIXES = (
     "ops-alert-acks",
     "ops-error-groups",
     "ops-audit",
+    "privacy-request-audit",
 )
 
 

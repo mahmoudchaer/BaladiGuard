@@ -18,6 +18,7 @@ describe('authenticated OTP, profile, report, history, and logout E2E', () => {
     await user.click(screen.getByRole('button', { name: /Continue/ }));
     expect(await screen.findByLabelText('Verification code')).toBeInTheDocument();
     await user.type(screen.getByLabelText('Verification code'), '123456');
+    await user.click(screen.getByRole('checkbox', { name: /I agree to the/i }));
     await user.click(screen.getByRole('button', { name: 'Verify and continue' }));
 
     expect(await screen.findByTestId('track-result')).toBeInTheDocument();

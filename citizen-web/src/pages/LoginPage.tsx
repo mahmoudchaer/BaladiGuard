@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { sanitizeReturnTo } from '@/auth/returnTo';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { ApiError } from '@/services/api';
@@ -19,11 +19,12 @@ export function LoginPage() {
   const [challengeId, setChallengeId] = useState('');
   const [deliveryChannel, setDeliveryChannel] = useState<'sms' | 'whatsapp' | 'dev' | undefined>();
   const [code, setCode] = useState('');
+  const [acceptLegal, setAcceptLegal] = useState(false);
   const [expiresAt, setExpiresAt] = useState(0);
   const [now, setNow] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   useEffect(() => {
     if (step !== 'code') return;
@@ -65,15 +66,20 @@ export function LoginPage() {
       setError(t('auth.invalidCode'));
       return;
     }
+    if (!acceptLegal) {
+      setError(t('auth.legalRequired'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await auth.applyOtp(challengeId, code);
+      await auth.applyOtp(challengeId, code, { acceptLegal: true, legalLocale: locale });
       navigate(returnTo, { replace: true });
     } catch (err) {
       const api = err instanceof ApiError ? err : null;
       if (api?.code === 'INVALID_OTP') setError(t('auth.incorrect'));
       else if (api?.code === 'OTP_EXPIRED') setError(t('auth.expired'));
+      else if (api?.code === 'LEGAL_ACCEPTANCE_REQUIRED') setError(t('auth.legalRequired'));
       else setError(err instanceof Error ? err.message : t('auth.verifyFailed'));
     } finally {
       setBusy(false);
@@ -164,9 +170,27 @@ export function LoginPage() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               autoFocus
             />
+            <label className="toggle-row" htmlFor="accept-legal">
+              <span>
+                {t('auth.legalAgreePrefix')} <Link to="/terms">{t('shell.terms')}</Link>
+                {t('auth.legalAgreeJoin1')}
+                <Link to="/privacy">{t('shell.privacy')}</Link>
+                {t('auth.legalAgreeJoin2')}
+                <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
+                {t('auth.legalAgreeSuffix')}
+              </span>
+              <input
+                id="accept-legal"
+                type="checkbox"
+                checked={acceptLegal}
+                onChange={(e) => setAcceptLegal(e.target.checked)}
+                required
+                aria-required="true"
+              />
+            </label>
             <button
               className="button button-large"
-              disabled={busy || code.length !== 6}
+              disabled={busy || code.length !== 6 || !acceptLegal}
               type="submit"
             >
               {busy ? t('auth.verifying') : t('auth.verify')}

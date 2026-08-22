@@ -188,6 +188,19 @@ describe('citizen web public browsing', () => {
 
   it('exposes privacy copy and stub protected routes', async () => {
     const { cleanup } = await import('@testing-library/react');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'privacy',
+          title: 'Privacy Policy',
+          version: '2026-08-22',
+          updatedAt: '2026-08-22T00:00:00Z',
+          lang: 'en',
+          markdown: '# Privacy Policy\n\nCitizen data handling details.',
+        }),
+        { status: 200 },
+      ),
+    );
     renderApp('/privacy');
     expect(await screen.findByRole('heading', { name: 'Privacy' })).toBeInTheDocument();
     expect(screen.getByText(/citizen-safe projection/i)).toBeInTheDocument();

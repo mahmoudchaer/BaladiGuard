@@ -183,6 +183,9 @@ describe('citizen auth flows', () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('123456');
     });
     await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
+    });
+    await act(async () => {
       findButton(screen, 'Verify code').props.onPress();
     });
 
@@ -213,6 +216,9 @@ describe('citizen auth flows', () => {
     });
     await act(async () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('123456');
+    });
+    await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
     });
     await act(async () => {
       findButton(screen, 'Verify code').props.onPress();
