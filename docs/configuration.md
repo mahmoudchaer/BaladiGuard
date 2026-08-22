@@ -105,6 +105,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `CITIZEN_OTP_DELIVERY_CHANNEL` | Staging + production (`sns` or `whatsapp`) | unset → legacy auto | Citizen OTP transport: `mock` \| `sns` \| `whatsapp` (#297). See [citizen-otp-delivery.md](./citizen-otp-delivery.md). Independent of `NOTIFICATION_ADAPTER` and #296. |
 | `CITIZEN_OTP_WHATSAPP_*` | When channel=`whatsapp` | empty | Phone-number ID, access token, template name/language/Graph version for Meta auth-template OTP. `CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text` is sandbox-only (24h window) and is rejected in production. |
 | `CORS_ALLOWED_ORIGINS` | Staging + production | local/dev/test: Vite admin `:5173`, citizen-web `:5174`, Expo ports when unset | Comma-separated browser origins for CORS (#263). Staging/production must set explicit https non-localhost origins (admin + citizen-web). |
+| `ALLOWED_HOSTS` | Staging + production | local/dev/test: `*` (any Host, including TestClient `testserver`) | Comma-separated API hostnames (#316). Staging/production reject localhost and `*`. Health paths are exempt so ALB IP Host probes stay up. |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
@@ -114,7 +115,13 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `RATE_LIMIT_STAFF_LOGIN_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `300` | Staff login |
 | `RATE_LIMIT_STAFF_ASSISTANT_LIMIT` / `_WINDOW_SECONDS` | No | `30` / `60` | Staff assistant questions (#42) |
 | `RATE_LIMIT_STAFF_SEARCH_LIMIT` / `_WINDOW_SECONDS` | No | `40` / `60` | Staff global search (#42 / #260) |
-| `RATE_LIMIT_CITIZEN_OTP_REQUEST_*` / `RATE_LIMIT_CITIZEN_OTP_VERIFY_*` | No | `5`/`300`, `10`/`300` | Reserved for citizen OTP HTTP (#170) |
+| `RATE_LIMIT_CITIZEN_OTP_REQUEST_*` / `RATE_LIMIT_CITIZEN_OTP_VERIFY_*` | No | `5`/`300`, `10`/`300` | Citizen OTP HTTP |
+| `RATE_LIMIT_CITIZEN_EXPORT_*` / `RATE_LIMIT_CITIZEN_DELETE_*` | No | `5`/`300`, `3`/`300` | Citizen profile export / delete |
+| `RATE_LIMIT_WHATSAPP_SUBMIT_*` | No | `8` / `3600` | Per-phone WhatsApp ticket submission |
+| `RATE_LIMIT_STAFF_MUTATION_*` | No | `300` / `60` | Authenticated staff write APIs |
+| `RATE_LIMIT_OPS_DASHBOARD_*` | No | `120` / `60` | Developer ops dashboard reads |
+| `MAX_JSON_BODY_BYTES` | No | `262144` | Non-upload write body ceiling |
+| `MAX_HEADER_BYTES` | No | `16384` | Combined request header ceiling |
 | `RATE_LIMIT_SMOKE_BYPASS_TOKEN` | No | empty | Optional smoke header token; never a global disable |
 | `RATE_LIMIT_SMOKE_LIMIT` | No | `1000` | Higher still-enforced quota for smoke token clients |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
@@ -205,11 +212,12 @@ Before deploy (#74):
 9. `SEED_SAMPLE_TICKETS=false`
 10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links). Staging uses the same rule with `APP_ENV=staging`.
 11. `CORS_ALLOWED_ORIGINS=https://admin…,https://citizen…` (explicit https non-localhost browser origins for admin + citizen-web, `#263`)
-12. Admin production build: omit `VITE_STAFF_*`; browser-bundled credentials are mock-only
-13. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
-14. Confirm process starts (validation aborts on failure) and `/health` is `ok`
-15. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
-16. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
+12. `ALLOWED_HOSTS=api.…` (explicit API hostnames, no localhost / wildcard; `#316`)
+13. Admin production build: omit `VITE_STAFF_*`; browser-bundled credentials are mock-only
+14. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
+15. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+16. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
+17. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
 
 ## Health payload
 

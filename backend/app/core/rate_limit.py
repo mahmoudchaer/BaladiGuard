@@ -221,6 +221,31 @@ def build_rate_limit_policies(settings: Settings | None = None) -> dict[str, Rat
             limit=cfg.rate_limit_citizen_otp_verify_limit,
             window_seconds=cfg.rate_limit_citizen_otp_verify_window_seconds,
         ),
+        "citizen-data-export": RateLimitPolicy(
+            name="citizen-data-export",
+            limit=cfg.rate_limit_citizen_export_limit,
+            window_seconds=cfg.rate_limit_citizen_export_window_seconds,
+        ),
+        "citizen-data-delete": RateLimitPolicy(
+            name="citizen-data-delete",
+            limit=cfg.rate_limit_citizen_delete_limit,
+            window_seconds=cfg.rate_limit_citizen_delete_window_seconds,
+        ),
+        "whatsapp-submission": RateLimitPolicy(
+            name="whatsapp-submission",
+            limit=cfg.rate_limit_whatsapp_submit_limit,
+            window_seconds=cfg.rate_limit_whatsapp_submit_window_seconds,
+        ),
+        "staff-mutation": RateLimitPolicy(
+            name="staff-mutation",
+            limit=cfg.rate_limit_staff_mutation_limit,
+            window_seconds=cfg.rate_limit_staff_mutation_window_seconds,
+        ),
+        "ops-dashboard": RateLimitPolicy(
+            name="ops-dashboard",
+            limit=cfg.rate_limit_ops_dashboard_limit,
+            window_seconds=cfg.rate_limit_ops_dashboard_window_seconds,
+        ),
     }
 
 
@@ -350,3 +375,30 @@ def enforce_rate_limit(
         decision.retry_after_seconds,
         message=message or "Too many requests. Please wait before trying again.",
     )
+
+
+def check_identity_rate_limit(
+    identity: str,
+    policy_name: str,
+    *,
+    settings: Settings | None = None,
+) -> RateLimitDecision:
+    """Enforce a named policy for a non-HTTP identity (phone, staff id).
+
+    The raw identity is HMAC-hashed before it is stored, matching HTTP keys.
+    """
+    cfg = settings or get_settings()
+    policy = build_rate_limit_policies(cfg).get(policy_name)
+    if policy is None:
+        raise ValueError(f"Unknown rate limit policy: {policy_name}")
+    client_key = hash_rate_limit_client_key(identity, settings=cfg)
+    decision = get_rate_limiter(cfg).check(policy=policy, client_key=client_key)
+    if not decision.allowed:
+        logger.warning(
+            "rate_limit_exceeded policy=%s retry_after=%s client_key_fp=%s",
+            policy.name,
+            decision.retry_after_seconds,
+            client_key[:16],
+        )
+        emit_metric("RateLimitExceeded", dimensions={"policy": policy.name})
+    return decision
