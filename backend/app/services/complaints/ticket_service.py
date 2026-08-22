@@ -508,7 +508,7 @@ class TicketService:
             status="SUBMITTED",
             tracking_code=tracking_code,
             ticket_number=ticket_number,
-            recipient=ticket_notification_recipient(stored_ticket),
+            recipient=ticket_notification_recipient(stored_ticket, event="ticket_created"),
         )
         from app.services.rewards.observe import observe_ticket_rewards
 
@@ -1452,13 +1452,16 @@ class TicketService:
             created_at=updated_at,
         )
         event = "ticket_resolved" if payload.status in {"RESOLVED", "CLOSED"} else "ticket_updated"
+        preference_event = (
+            "ticket_work_started" if payload.status in {"ASSIGNED", "IN_PROGRESS"} else event
+        )
         self._emit_notification_safe(
             event=event,
             ticket_id=updated_ticket.ticket_id,
             status=payload.status,
             tracking_code=updated_ticket.tracking_code,
             ticket_number=updated_ticket.ticket_number,
-            recipient=ticket_notification_recipient(updated_ticket),
+            recipient=ticket_notification_recipient(updated_ticket, event=preference_event),
         )
         from app.services.rewards.observe import observe_ticket_rewards
 

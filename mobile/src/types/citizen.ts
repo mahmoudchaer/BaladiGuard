@@ -2,6 +2,15 @@ export type TicketUpdatesPreference = 'SMS' | 'EMAIL' | 'BOTH' | 'NONE';
 
 export type NotificationPreferences = {
   ticketUpdates: TicketUpdatesPreference;
+  preferenceVersion?: number;
+  pushEnabled?: boolean;
+  emailEnabled?: boolean;
+  whatsAppEnabled?: boolean;
+  reportCreated?: boolean;
+  statusChanges?: boolean;
+  workUpdates?: boolean;
+  resolutionUpdates?: boolean;
+  actionRequests?: boolean;
   announcements: boolean;
 };
 
@@ -21,6 +30,7 @@ export type CitizenProfile = {
   fullName: string | null;
   email: string | null;
   notificationPreferences: NotificationPreferences;
+  pushAvailable?: boolean;
   publicNameVisible: boolean;
   leaderboardOptIn: boolean;
   active: boolean;

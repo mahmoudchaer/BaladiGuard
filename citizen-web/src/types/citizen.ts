@@ -17,8 +17,18 @@ export type CitizenProfile = {
   email: string | null;
   notificationPreferences: {
     ticketUpdates: TicketUpdatesPreference;
+    preferenceVersion?: number;
+    pushEnabled?: boolean;
+    emailEnabled?: boolean;
+    whatsAppEnabled?: boolean;
+    reportCreated?: boolean;
+    statusChanges?: boolean;
+    workUpdates?: boolean;
+    resolutionUpdates?: boolean;
+    actionRequests?: boolean;
     announcements: boolean;
   };
+  pushAvailable?: boolean;
   publicNameVisible: boolean;
   leaderboardOptIn: boolean;
   active: boolean;

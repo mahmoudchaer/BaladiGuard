@@ -28,6 +28,8 @@ from app.schemas.citizen import (
     CitizenExportTicketSummary,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
+    CitizenPushDevice,
+    CitizenPushDeviceRequest,
     CitizenTicketHistoryItem,
     CitizenTicketHistoryResponse,
     LegalAcceptance,
@@ -238,13 +240,22 @@ def snapshot_contact_for_ticket(user: StoredCitizenUser) -> ReportContact:
 
 
 def to_profile_response(user: StoredCitizenUser) -> CitizenProfileResponse:
+    preferences = user.notification_preferences
+    if preferences.preference_version == 1:
+        preferences = preferences.model_copy(
+            update={
+                "email_enabled": preferences.ticket_updates in {"EMAIL", "BOTH"},
+                "whatsapp_enabled": preferences.ticket_updates in {"SMS", "BOTH"},
+            }
+        )
     return CitizenProfileResponse(
         userId=user.user_id,
         phone=user.phone,
         phoneVerifiedAt=user.phone_verified_at,
         fullName=user.full_name,
         email=user.email,
-        notificationPreferences=user.notification_preferences,
+        notificationPreferences=preferences,
+        pushAvailable=any(device.active for device in user.push_devices),
         publicNameVisible=user.public_name_visible,
         leaderboardOptIn=user.leaderboard_opt_in,
         active=user.active,
@@ -775,6 +786,37 @@ class CitizenService:
             raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
         return to_profile_response(user)
 
+    def register_push_device(
+        self, user_id: str, payload: CitizenPushDeviceRequest, *, now: datetime | None = None
+    ) -> CitizenProfileResponse:
+        """Upsert one app-scoped device without disturbing a citizen's other devices."""
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+        stamped = _iso(now or datetime.now(UTC))
+        device = CitizenPushDevice(**payload.model_dump(by_alias=True), lastSeenAt=stamped)
+        devices = [item for item in user.push_devices if item.device_id != device.device_id]
+        devices.append(device)
+        stored = store.update(
+            user.model_copy(update={"push_devices": devices, "updated_at": stamped})
+        )
+        return to_profile_response(stored)
+
+    def unregister_push_device(
+        self, user_id: str, device_id: str, *, now: datetime | None = None
+    ) -> CitizenProfileResponse:
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+        stamped = _iso(now or datetime.now(UTC))
+        devices = [item for item in user.push_devices if item.device_id != device_id]
+        stored = store.update(
+            user.model_copy(update={"push_devices": devices, "updated_at": stamped})
+        )
+        return to_profile_response(stored)
+
     def record_legal_acceptance(
         self,
         user_id: str,
@@ -943,6 +985,7 @@ class CitizenService:
                 "full_name": None,
                 "email": None,
                 "notification_preferences": NotificationPreferences(),
+                "push_devices": [],
                 "public_name_visible": False,
                 "leaderboard_opt_in": False,
                 "legal_acceptance": None,
@@ -1078,6 +1121,38 @@ class CitizenService:
                 and pref_update.announcements is not None
             ):
                 prefs.announcements = pref_update.announcements
+            for field in (
+                "push_enabled",
+                "email_enabled",
+                "whatsapp_enabled",
+                "report_created",
+                "status_changes",
+                "work_updates",
+                "resolution_updates",
+                "action_requests",
+            ):
+                value = getattr(pref_update, field)
+                if field in pref_update.model_fields_set and value is not None:
+                    setattr(prefs, field, value)
+
+            # Keep the legacy aggregate readable by older clients during rollout.
+            # SMS is deliberately not selected: ordinary phone updates now use WhatsApp.
+            if prefs.email_enabled and prefs.whatsapp_enabled:
+                prefs.ticket_updates = "BOTH"
+            elif prefs.email_enabled:
+                prefs.ticket_updates = "EMAIL"
+            elif prefs.whatsapp_enabled:
+                prefs.ticket_updates = "SMS"
+            elif any(
+                field in pref_update.model_fields_set
+                for field in ("email_enabled", "whatsapp_enabled")
+            ):
+                prefs.ticket_updates = "NONE"
+            if any(
+                field in pref_update.model_fields_set
+                for field in ("push_enabled", "email_enabled", "whatsapp_enabled")
+            ):
+                prefs.preference_version = 2
             updates["notification_preferences"] = prefs
 
         return user.model_copy(update=updates)
@@ -1113,6 +1188,7 @@ class CitizenService:
                 "phone_verified_at": stamped,
                 "updated_at": stamped,
                 "session_epoch": user.session_epoch + 1,
+                "push_devices": [],
             }
         )
         self._validate_notification_email_rules(projected)

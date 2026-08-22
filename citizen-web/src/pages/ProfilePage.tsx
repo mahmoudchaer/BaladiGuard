@@ -8,7 +8,6 @@ import {
   requestOtp,
 } from '@/services/citizenAuth';
 import { clearDraft, loadDraft } from '@/services/reportDraft';
-import type { TicketUpdatesPreference } from '@/types/citizen';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n/LocaleProvider';
 
@@ -19,9 +18,7 @@ export function ProfilePage() {
   const profile = auth.profile!;
   const [name, setName] = useState(profile.fullName ?? '');
   const [email, setEmail] = useState(profile.email ?? '');
-  const [ticketUpdates, setTicketUpdates] = useState<TicketUpdatesPreference>(
-    profile.notificationPreferences.ticketUpdates,
-  );
+  const [preferences, setPreferences] = useState(profile.notificationPreferences);
   const [announcements, setAnnouncements] = useState(profile.notificationPreferences.announcements);
   const [publicNameVisible, setPublicNameVisible] = useState(profile.publicNameVisible);
   const [leaderboardOptIn, setLeaderboardOptIn] = useState(profile.leaderboardOptIn);
@@ -43,7 +40,7 @@ export function ProfilePage() {
       await auth.updateProfile({
         fullName: name.trim() || null,
         email: email.trim() || null,
-        notificationPreferences: { ticketUpdates, announcements },
+        notificationPreferences: { ...preferences, announcements },
         publicNameVisible: Boolean(name.trim()) && publicNameVisible,
         leaderboardOptIn: Boolean(name.trim()) && publicNameVisible && leaderboardOptIn,
       });
@@ -240,20 +237,54 @@ export function ProfilePage() {
         </div>
         <div className="settings-section">
           <h2>{t('profile.notifications')}</h2>
-          <label className="field-label" htmlFor="updates">
-            {t('profile.ticketUpdates')}
-          </label>
-          <select
-            id="updates"
-            className="input"
-            value={ticketUpdates}
-            onChange={(e) => setTicketUpdates(e.target.value as TicketUpdatesPreference)}
-          >
-            <option value="NONE">{t('profile.none')}</option>
-            <option value="SMS">{t('profile.sms')}</option>
-            <option value="EMAIL">{t('profile.emailOption')}</option>
-            <option value="BOTH">{t('profile.smsAndEmail')}</option>
-          </select>
+          <p className="helper">{t('profile.notificationSecurityNote')}</p>
+          {(
+            [
+              ['pushEnabled', 'profile.push', Boolean(profile.pushAvailable)],
+              ['emailEnabled', 'profile.emailOption', Boolean(email.trim())],
+              ['whatsAppEnabled', 'profile.whatsApp', true],
+            ] as const
+          ).map(([key, label, available]) => (
+            <label className="toggle-row" key={key}>
+              <span>
+                <strong>{t(label)}</strong>
+                <small>
+                  {available ? t('profile.channelAvailable') : t('profile.channelUnavailable')}
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                checked={Boolean(preferences[key])}
+                disabled={!available && !preferences[key]}
+                onChange={(e) =>
+                  setPreferences((current) => ({ ...current, [key]: e.target.checked }))
+                }
+              />
+            </label>
+          ))}
+          <h3>{t('profile.updateTypes')}</h3>
+          {(
+            [
+              ['reportCreated', 'profile.reportCreated'],
+              ['statusChanges', 'profile.statusChanges'],
+              ['workUpdates', 'profile.workUpdates'],
+              ['resolutionUpdates', 'profile.resolutionUpdates'],
+              ['actionRequests', 'profile.actionRequests'],
+            ] as const
+          ).map(([key, label]) => (
+            <label className="toggle-row" key={key}>
+              <span>
+                <strong>{t(label)}</strong>
+              </span>
+              <input
+                type="checkbox"
+                checked={preferences[key] ?? true}
+                onChange={(e) =>
+                  setPreferences((current) => ({ ...current, [key]: e.target.checked }))
+                }
+              />
+            </label>
+          ))}
           <label className="toggle-row">
             <span>
               <strong>{t('profile.announcements')}</strong>

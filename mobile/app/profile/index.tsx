@@ -8,6 +8,7 @@ import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
 import { ChangePhoneFlow } from '@/features/profile/ChangePhoneFlow';
 import { ProfileEditForm } from '@/features/profile/ProfileEditForm';
+import { registerPushDevice, unregisterPushDevice } from '@/services/pushNotifications';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
 import { useI18n } from '@/i18n/LocaleProvider';
 import {
@@ -84,6 +85,7 @@ export default function ProfileScreen() {
   const finishLogout = async (retainReportDraft: boolean) => {
     setIsLoggingOut(true);
     try {
+      if (accessToken) await unregisterPushDevice(accessToken);
       await logout({ retainReportDraft });
       router.replace('/' as Href);
     } finally {
@@ -118,6 +120,11 @@ export default function ProfileScreen() {
   };
 
   const handleSave = async (patch: CitizenProfileUpdatePayload) => {
+    if (accessToken && patch.notificationPreferences?.pushEnabled === true) {
+      await registerPushDevice(accessToken, t('profile.ticketUpdatesLabel'));
+    } else if (accessToken && patch.notificationPreferences?.pushEnabled === false) {
+      await unregisterPushDevice(accessToken);
+    }
     const next = await updateProfile(patch);
     setSuccessMessage(PROFILE_UPDATE_SUCCESS_MESSAGE);
     setMode('view');

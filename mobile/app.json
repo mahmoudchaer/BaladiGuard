@@ -24,6 +24,7 @@
       ],
       "expo-asset",
       "expo-font",
+      "expo-notifications",
       "expo-secure-store"
     ],
     "experiments": {

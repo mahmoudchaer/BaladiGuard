@@ -27,6 +27,7 @@ const baseProfile: CitizenProfile = {
 describe('citizenProfileSchema', () => {
   it('accepts a valid profile edit payload', () => {
     const parsed = profileEditSchema.parse({
+      ...profileToEditValues(baseProfile),
       fullName: '  Ada Updated  ',
       email: 'ada@example.com',
       ticketUpdates: 'EMAIL',
