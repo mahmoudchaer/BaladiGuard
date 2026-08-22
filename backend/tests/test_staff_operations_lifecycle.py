@@ -127,6 +127,43 @@ def test_bulk_workforce_preview_then_assign(client: TestClient) -> None:
     assert ticket_store.get(first).assigned_worker_id == worker["workerId"]
 
 
+def test_bulk_preview_validates_missing_worker(client: TestClient) -> None:
+    ticket_id = _create_ticket(client)
+    _stamp_ticket(ticket_id)
+    staff = _staff(client)
+    preview = client.post(
+        "/v1/tickets/bulk/workforce-assignment",
+        json={"ticketIds": [ticket_id], "workerId": "worker_does_not_exist", "dryRun": True},
+        headers=staff,
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["dryRun"] is True
+    assert body["failed"] == 1
+    assert body["items"][0]["ok"] is False
+    assert body["items"][0]["code"] == "WORKER_NOT_FOUND"
+    assert ticket_store.get(ticket_id).assigned_worker_id is None
+
+
+def test_closed_tickets_count_in_exactly_one_terminal_bucket(client: TestClient) -> None:
+    staff = _staff(client)
+    before = client.get("/v1/tickets/aggregates", headers=staff).json()
+
+    completed_id = _create_ticket(client)
+    cancelled_id = _create_ticket(client)
+    completed = ticket_store.get(completed_id)
+    cancelled = ticket_store.get(cancelled_id)
+    assert completed is not None and cancelled is not None
+    ticket_store.save(
+        completed.model_copy(update={"status": "CLOSED", "resolved_at": "2026-08-01T00:00:00Z"})
+    )
+    ticket_store.save(cancelled.model_copy(update={"status": "CLOSED", "resolved_at": None}))
+
+    after = client.get("/v1/tickets/aggregates", headers=staff).json()
+    assert after["completedCount"] == before["completedCount"] + 1
+    assert after["cancelledCount"] == before["cancelledCount"] + 1
+
+
 def test_close_blocked_while_active_work_order(client: TestClient) -> None:
     ticket_id = _create_ticket(client)
     _stamp_ticket(ticket_id, status="UNDER_REVIEW")

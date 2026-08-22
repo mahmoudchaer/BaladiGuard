@@ -2249,6 +2249,7 @@ class TicketService:
         payload: AssignTicketDepartmentRequest,
         *,
         staff_principal: StaffPrincipal | None = None,
+        dry_run: bool = False,
     ) -> TicketResponse:
         """Persist a staff department assignment without clearing the AI suggestion."""
         ticket = self._store.get(ticket_id)
@@ -2259,6 +2260,8 @@ class TicketService:
                 raise TicketNotFoundError(ticket_id)
             if not staff_can_assign_department(staff_principal, payload.department_id):
                 raise StaffScopeForbiddenError(payload.department_id)
+        if dry_run:
+            return self._map_ticket(ticket)
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -2293,6 +2296,7 @@ class TicketService:
         payload: AssignWorkforceRequest,
         *,
         staff_principal: StaffPrincipal | None = None,
+        dry_run: bool = False,
     ) -> TicketResponse:
         """Persist a worker XOR team assignment without rewriting history on deactivate."""
         from app.services.workforce.service import WorkforceError, workforce_service
@@ -2383,6 +2387,25 @@ class TicketService:
                 code="CONFLICT",
             )
 
+        if dry_run:
+            current = _authorized_ticket()
+            worker_id, team_id = workforce_service.resolve_ticket_assignment(
+                staff_principal, current, payload
+            )
+            store = workforce_service.store()
+            if worker_id:
+                worker = store.get_worker(worker_id)
+                if worker is None:
+                    raise WorkforceError(
+                        "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
+                    )
+            elif team_id:
+                team = store.get_team(team_id)
+                if team is None:
+                    raise WorkforceError(
+                        "Team was not found.", status_code=404, code="TEAM_NOT_FOUND"
+                    )
+            return self._map_ticket(current)
         return workforce_service.store().run_exclusive(_assign)
 
     def _complete_workforce_assignment(
@@ -2821,6 +2844,7 @@ class TicketService:
                 ticket_id,
                 payload,
                 staff_principal=staff_principal,
+                dry_run=payload.dry_run,
             ),
         )
 
@@ -2839,6 +2863,7 @@ class TicketService:
                 ticket_id,
                 verified,
                 staff_principal=staff_principal,
+                dry_run=payload.dry_run,
             ),
         )
 
@@ -2869,11 +2894,14 @@ class TicketService:
                 ticket = self._store.get(ticket_id)
                 if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
                     raise TicketNotFoundError(ticket_id)
-                if dry_run:
-                    items.append(BulkItemResult(ticketId=ticket_id, ok=True, code="PREVIEW"))
-                    continue
                 mutate(ticket_id)
-                items.append(BulkItemResult(ticketId=ticket_id, ok=True))
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=True,
+                        code="PREVIEW" if dry_run else None,
+                    )
+                )
             except TicketNotFoundError:
                 items.append(
                     BulkItemResult(

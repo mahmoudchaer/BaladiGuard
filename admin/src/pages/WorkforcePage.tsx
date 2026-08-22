@@ -35,14 +35,15 @@ function countLine(
   counts: WorkloadSnapshot['unassigned'],
   translate: (key: string, vars?: Record<string, string | number>) => string,
 ): string {
-  const base = translate('workforce.countLine', {
+  return translate('workforce.countLine', {
     queued: counts.queued,
     assigned: counts.assigned,
     inProgress: counts.inProgress,
     dueSoon: counts.dueSoon,
     overdue: counts.overdue,
+    completed: counts.completed ?? 0,
+    cancelled: counts.cancelled ?? 0,
   });
-  return `${base} · ${counts.completed ?? 0} completed · ${counts.cancelled ?? 0} cancelled`;
 }
 
 function toggleValue(values: string[], value: string): string[] {

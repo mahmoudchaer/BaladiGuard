@@ -2192,6 +2192,138 @@ export async function assignTicketWorkforce(
   return ticket;
 }
 
+export type BulkMutationItem = {
+  ticketId: string;
+  ok: boolean;
+  code?: string | null;
+  message?: string | null;
+};
+
+export type BulkMutationResponse = {
+  dryRun: boolean;
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  items: BulkMutationItem[];
+};
+
+export type AssignmentHistoryItem = {
+  eventId: string;
+  actionType: string;
+  actorId: string | null;
+  actorRole: string | null;
+  previousValue: string | null;
+  newValue: string | null;
+  summary: string;
+  occurredAt: string;
+};
+
+export type AssignmentHistoryResponse = {
+  ticketId: string;
+  items: AssignmentHistoryItem[];
+};
+
+function normalizeBulkMutation(data: unknown): BulkMutationResponse {
+  if (!isRecord(data) || !Array.isArray(data.items)) {
+    throw new Error('Unexpected bulk assignment response shape.');
+  }
+  return {
+    dryRun: Boolean(data.dryRun),
+    attempted: typeof data.attempted === 'number' ? data.attempted : 0,
+    succeeded: typeof data.succeeded === 'number' ? data.succeeded : 0,
+    failed: typeof data.failed === 'number' ? data.failed : 0,
+    items: data.items.map((item) => {
+      const row = isRecord(item) ? item : {};
+      return {
+        ticketId: typeof row.ticketId === 'string' ? row.ticketId : '',
+        ok: Boolean(row.ok),
+        code: typeof row.code === 'string' ? row.code : null,
+        message: typeof row.message === 'string' ? row.message : null,
+      };
+    }),
+  };
+}
+
+async function postBulkAssignment(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<BulkMutationResponse> {
+  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getStaffAuthHeaders(),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to apply bulk assignment.');
+  }
+  return normalizeBulkMutation(await response.json());
+}
+
+export async function bulkAssignTicketDepartment(input: {
+  ticketIds: string[];
+  departmentId: string;
+  dryRun?: boolean;
+}): Promise<BulkMutationResponse> {
+  return postBulkAssignment('/v1/tickets/bulk/department', {
+    ticketIds: input.ticketIds,
+    departmentId: input.departmentId,
+    dryRun: Boolean(input.dryRun),
+  });
+}
+
+export async function bulkAssignTicketWorkforce(input: {
+  ticketIds: string[];
+  workerId?: string | null;
+  teamId?: string | null;
+  dryRun?: boolean;
+}): Promise<BulkMutationResponse> {
+  return postBulkAssignment('/v1/tickets/bulk/workforce-assignment', {
+    ticketIds: input.ticketIds,
+    workerId: input.workerId ?? undefined,
+    teamId: input.teamId ?? undefined,
+    dryRun: Boolean(input.dryRun),
+  });
+}
+
+export async function fetchAssignmentHistory(
+  ticketId: string,
+  signal?: AbortSignal,
+): Promise<AssignmentHistoryResponse> {
+  const response = await fetch(
+    `${config.apiBaseUrl}/v1/tickets/${encodeURIComponent(ticketId)}/assignment-history`,
+    {
+      headers: getStaffAuthHeaders(),
+      signal,
+    },
+  );
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to load assignment history.');
+  }
+  const data: unknown = await response.json();
+  if (!isRecord(data) || !Array.isArray(data.items)) {
+    throw new Error('Unexpected assignment history response shape.');
+  }
+  return {
+    ticketId: typeof data.ticketId === 'string' ? data.ticketId : ticketId,
+    items: data.items.map((item) => {
+      const row = isRecord(item) ? item : {};
+      return {
+        eventId: typeof row.eventId === 'string' ? row.eventId : '',
+        actionType: typeof row.actionType === 'string' ? row.actionType : '',
+        actorId: typeof row.actorId === 'string' ? row.actorId : null,
+        actorRole: typeof row.actorRole === 'string' ? row.actorRole : null,
+        previousValue: typeof row.previousValue === 'string' ? row.previousValue : null,
+        newValue: typeof row.newValue === 'string' ? row.newValue : null,
+        summary: typeof row.summary === 'string' ? row.summary : '',
+        occurredAt: typeof row.occurredAt === 'string' ? row.occurredAt : '',
+      };
+    }),
+  };
+}
+
 export type UpdateTicketPublicContentInput = {
   publicStatus: PublicTicketStatus;
   publicDescription: string;

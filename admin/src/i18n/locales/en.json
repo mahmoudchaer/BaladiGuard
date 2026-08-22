@@ -389,7 +389,7 @@
     "deactivate": "Deactivate",
     "reactivate": "Reactivate",
     "none": "None",
-    "countLine": "{queued} queued · {assigned} assigned · {inProgress} in progress · {dueSoon} due soon · {overdue} overdue",
+    "countLine": "{queued} queued · {assigned} assigned · {inProgress} in progress · {dueSoon} due soon · {overdue} overdue · {completed} completed · {cancelled} cancelled",
     "queued": "Queued {count}",
     "assigned": "Assigned {count}",
     "inProgress": "In progress {count}",
@@ -420,7 +420,33 @@
     "previous": "Previous",
     "next": "Next",
     "insights": "Operational insights",
-    "insightsNote": "Secondary — category & workload"
+    "insightsNote": "Secondary — category & workload",
+    "opsCounts": "Queued {queued} · Assigned {assigned} · In progress {inProgress} · Due soon {dueSoon} · Workforce unassigned {workforceUnassigned} · Completed {completed} · Cancelled {cancelled}",
+    "bulk": {
+      "title": "Bulk assignment",
+      "selected": "{count} selected",
+      "selectTicket": "Add {number} to bulk assignment",
+      "selectAll": "Select all tickets on this page",
+      "mode": "Assignment type",
+      "modeDepartment": "Department",
+      "modeWorkforce": "Workforce",
+      "department": "Department",
+      "workforce": "Worker or team",
+      "chooseDepartment": "Choose a department",
+      "chooseWorkforce": "Choose a worker or team",
+      "preview": "Preview",
+      "commit": "Commit",
+      "previewing": "Previewing…",
+      "committing": "Committing…",
+      "previewTitle": "Preview",
+      "commitTitle": "Committed",
+      "succeeded": "{count} succeeded",
+      "failed": "{count} failed",
+      "itemOk": "Ready",
+      "itemFailed": "Failed",
+      "clear": "Clear selection",
+      "needTarget": "Choose a department or worker first."
+    }
   },
   "map": {
     "title": "Map View",
@@ -509,6 +535,14 @@
     "created": "Created",
     "lastUpdated": "Last updated",
     "sectionsA11y": "Ticket workspace sections",
+    "assignmentHistory": {
+      "title": "Assignment history",
+      "empty": "No assignment events yet.",
+      "unableLoad": "Unable to load assignment history.",
+      "department": "Department",
+      "workforce": "Workforce",
+      "workOrder": "Work order"
+    },
     "duplicatesA11y": "Duplicates, {count} possible duplicates",
     "section": {
       "overview": "Overview",

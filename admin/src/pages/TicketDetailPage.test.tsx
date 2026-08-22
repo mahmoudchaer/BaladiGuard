@@ -54,6 +54,7 @@ vi.mock('@/services/tickets', () => ({
   fetchContentSafetyReview: vi.fn(),
   claimTicketMunicipality: vi.fn(),
   rejectTicketMunicipality: vi.fn(),
+  fetchAssignmentHistory: vi.fn(async () => ({ ticketId: 'tkt_123', items: [] })),
 }));
 
 vi.mock('@/services/workforce', () => ({

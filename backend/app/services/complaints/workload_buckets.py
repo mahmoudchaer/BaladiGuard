@@ -51,10 +51,10 @@ def count_operational_buckets(tickets: Iterable[StoredTicket]) -> dict[str, int]
             assigned += 1
         elif ticket.status in IN_PROGRESS_STATUSES:
             in_progress += 1
-        if ticket.status in COMPLETED_STATUSES:
-            completed += 1
         if is_cancelled_ticket(ticket):
             cancelled += 1
+        elif ticket.status in COMPLETED_STATUSES:
+            completed += 1
         if is_department_unassigned(ticket):
             department_unassigned += 1
         if ticket.priority == "critical":

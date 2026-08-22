@@ -389,7 +389,7 @@
     "deactivate": "Désactiver",
     "reactivate": "Réactiver",
     "none": "Aucun",
-    "countLine": "{queued} en file · {assigned} assignés · {inProgress} en cours · {dueSoon} bientôt dus · {overdue} en retard",
+    "countLine": "{queued} en file · {assigned} assignés · {inProgress} en cours · {dueSoon} bientôt dus · {overdue} en retard · {completed} terminés · {cancelled} annulés",
     "queued": "En file {count}",
     "assigned": "Assignés {count}",
     "inProgress": "En cours {count}",
@@ -420,7 +420,33 @@
     "previous": "Précédent",
     "next": "Suivant",
     "insights": "Analyses opérationnelles",
-    "insightsNote": "Secondaire — catégorie et charge"
+    "insightsNote": "Secondaire — catégorie et charge",
+    "opsCounts": "En file {queued} · Assignés {assigned} · En cours {inProgress} · Bientôt dus {dueSoon} · Sans affectation terrain {workforceUnassigned} · Terminés {completed} · Annulés {cancelled}",
+    "bulk": {
+      "title": "Affectation groupée",
+      "selected": "{count} sélectionnés",
+      "selectTicket": "Ajouter {number} à l’affectation groupée",
+      "selectAll": "Sélectionner tous les tickets de cette page",
+      "mode": "Type d’affectation",
+      "modeDepartment": "Service",
+      "modeWorkforce": "Équipe terrain",
+      "department": "Service",
+      "workforce": "Agent ou équipe",
+      "chooseDepartment": "Choisir un service",
+      "chooseWorkforce": "Choisir un agent ou une équipe",
+      "preview": "Prévisualiser",
+      "commit": "Valider",
+      "previewing": "Prévisualisation…",
+      "committing": "Validation…",
+      "previewTitle": "Prévisualisation",
+      "commitTitle": "Validé",
+      "succeeded": "{count} réussis",
+      "failed": "{count} échoués",
+      "itemOk": "Prêt",
+      "itemFailed": "Échec",
+      "clear": "Effacer la sélection",
+      "needTarget": "Choisissez d’abord un service ou un agent."
+    }
   },
   "map": {
     "title": "Vue carte",
@@ -509,6 +535,14 @@
     "created": "Créé",
     "lastUpdated": "Dernière mise à jour",
     "sectionsA11y": "Sections de l’espace ticket",
+    "assignmentHistory": {
+      "title": "Historique d’affectation",
+      "empty": "Aucun événement d’affectation pour le moment.",
+      "unableLoad": "Impossible de charger l’historique d’affectation.",
+      "department": "Service",
+      "workforce": "Équipe terrain",
+      "workOrder": "Ordre de travail"
+    },
     "duplicatesA11y": "Doublons, {count} doublons possibles",
     "section": {
       "overview": "Aperçu",
