@@ -46,9 +46,7 @@ export function BulkTicketAssignmentBar({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BulkMutationResponse | null>(null);
   const [boundPreviewFingerprint, setBoundPreviewFingerprint] = useState<string | null>(null);
-  const [retainedCommitIds, setRetainedCommitIds] = useState<string[] | null>(null);
   const retainedCommitIdsRef = useRef<string[] | null>(null);
-  retainedCommitIdsRef.current = retainedCommitIds;
 
   useEffect(() => {
     let cancelled = false;
@@ -82,9 +80,9 @@ export function BulkTicketAssignmentBar({
   );
 
   useEffect(() => {
+    retainedCommitIdsRef.current = null;
     setResult(null);
     setBoundPreviewFingerprint(null);
-    setRetainedCommitIds(null);
     setError(null);
   }, [targetFingerprint]);
 
@@ -99,7 +97,7 @@ export function BulkTicketAssignmentBar({
     }
     setResult(null);
     setBoundPreviewFingerprint(null);
-    setRetainedCommitIds(null);
+    retainedCommitIdsRef.current = null;
     setError(null);
   }, [selectedIdsKey, selectedTicketIds]);
 
@@ -145,15 +143,16 @@ export function BulkTicketAssignmentBar({
       setResult(next);
       if (dryRun) {
         setBoundPreviewFingerprint(operationFingerprint);
-        setRetainedCommitIds(null);
+        retainedCommitIdsRef.current = null;
       } else {
         setBoundPreviewFingerprint(null);
-        setRetainedCommitIds([...selectedTicketIds]);
+        retainedCommitIdsRef.current = [...selectedTicketIds];
         onCommitted?.(next);
       }
     } catch (err) {
       setResult(null);
       setBoundPreviewFingerprint(null);
+      retainedCommitIdsRef.current = null;
       setError(err instanceof Error ? err.message : t('errors.generic'));
     } finally {
       setBusy(null);
