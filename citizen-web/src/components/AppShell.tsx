@@ -86,6 +86,8 @@ export function AppShell() {
           <div>
             <strong>{t('shell.about')}</strong>
             <NavLink to="/privacy">{t('shell.privacy')}</NavLink>
+            <NavLink to="/terms">{t('shell.terms')}</NavLink>
+            <NavLink to="/acceptable-use">{t('shell.acceptableUse')}</NavLink>
             <NavLink to={auth.isAuthenticated ? '/profile' : '/login'}>
               {auth.isAuthenticated ? t('shell.yourProfile') : t('shell.citizenSignIn')}
             </NavLink>

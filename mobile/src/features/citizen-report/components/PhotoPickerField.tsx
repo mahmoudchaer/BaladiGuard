@@ -4,6 +4,7 @@ import { Button, HelperText, Text } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
+import { Link, type Href } from 'expo-router';
 
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -159,6 +160,13 @@ export function PhotoPickerField({
               {errors.photoUri.message}
             </HelperText>
           ) : null}
+
+          <Text variant="bodySmall" style={styles.privacyJit}>
+            {t('report.privacyJit')}{' '}
+            <Link href={'/privacy' as Href} style={styles.privacyLink}>
+              {t('report.privacyJitLink')}
+            </Link>
+          </Text>
         </View>
       )}
     />
@@ -189,5 +197,14 @@ const styles = StyleSheet.create({
   },
   previewWrap: {
     gap: spacing[3],
+  },
+  privacyJit: {
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  privacyLink: {
+    color: colors.brandDark,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

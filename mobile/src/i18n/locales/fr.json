@@ -37,7 +37,9 @@
     "reportLink": "Lien du signalement",
     "signIn": "Connexion",
     "profile": "Profil",
-    "privacy": "Avis de confidentialité",
+    "privacy": "Confidentialité",
+    "terms": "Conditions",
+    "acceptableUse": "Usage acceptable",
     "publicReport": "Signalement public"
   },
   "auth": {
@@ -71,7 +73,27 @@
     "searchCountriesPlaceholder": "Liban, LB ou 961",
     "noCountries": "Aucun pays ne correspond à cette recherche.",
     "closeCountryList": "Fermer la liste des pays",
-    "verificationCode": "Code de vérification"
+    "verificationCode": "Code de vérification",
+    "legalAgreePrefix": "J’accepte les",
+    "legalAgreeJoin1": ", la ",
+    "legalAgreeJoin2": " et la ",
+    "legalAgreeSuffix": ".",
+    "legalRequired": "Vous devez accepter les Conditions, la Politique de confidentialité et la Politique d’usage acceptable pour continuer.",
+    "legalCheckboxA11y": "Accepter les Conditions, la confidentialité et l’usage acceptable"
+  },
+  "legal": {
+    "termsTitle": "Conditions d’utilisation",
+    "privacyTitle": "Politique de confidentialité",
+    "acceptableUseTitle": "Usage acceptable",
+    "version": "Version {version}",
+    "loadFailed": "Impossible de charger ce document juridique."
+  },
+  "privacy": {
+    "title": "Confidentialité",
+    "scopeTitle": "Portée des données publiques",
+    "publicScope": "La consultation publique n’affiche que la projection sûre pour les citoyens des détails de signalement approuvés.",
+    "internalRestriction": "Les identifiants internes, codes de suivi issus de la navigation, coordonnées de contact et clés d’images privées ne sont jamais affichés sur les surfaces publiques.",
+    "trackingScope": "Le suivi par possession exige votre code à 6 caractères et ne renvoie que la chronologie de statut de ce signalement."
   },
   "more": {
     "title": "Plus",
@@ -156,6 +178,16 @@
     "edit": "Modifier le profil",
     "changePhone": "Changer de numéro",
     "privacy": "Avis de confidentialité",
+    "exportData": "Exporter mes données",
+    "exportReady": "Partagez ou enregistrez votre export depuis la feuille qui s’est ouverte.",
+    "exportFailed": "Impossible d’exporter vos données",
+    "deleteAccount": "Supprimer le compte",
+    "deleteConfirmPrompt": "Supprimer votre compte ? Votre profil sera anonymisé. Les dossiers municipaux nécessaires aux opérations peuvent rester.",
+    "deleteFailed": "Impossible de supprimer votre compte",
+    "legalRequiredBanner": "Des conditions juridiques mises à jour nécessitent votre acceptation avant de continuer à utiliser BaladiGuard.",
+    "acceptLegal": "Accepter les Conditions, Confidentialité et Usage acceptable actuels",
+    "legalAccepted": "Acceptation juridique enregistrée.",
+    "legalAcceptFailed": "Impossible d’enregistrer l’acceptation juridique",
     "editLede": "Mettez à jour votre nom facultatif, e-mail facultatif, notifications et visibilité du nom public. Un téléphone vérifié suffit pour envoyer des signalements.",
     "editNameHelp": "Facultatif. Non requis pour se connecter, récupérer le compte, posséder des tickets ou envoyer un signalement.",
     "editEmailHelp": "L’e-mail est facultatif pour les notifications uniquement. Il ne sert pas à se connecter ni à récupérer le téléphone.",
@@ -256,6 +288,8 @@
     "describePlaceholder": "ex. Grand nid-de-poule bloquant la voie de droite près de l’école.",
     "photo": "Photo",
     "photoHelper": "Joignez une photo nette du problème d’infrastructure pour que les équipes sachent à quoi s’attendre.",
+    "privacyJit": "Les photos et la localisation sont traitées pour que la municipalité puisse prendre en charge votre signalement.",
+    "privacyJitLink": "Lire la politique de confidentialité",
     "takePhoto": "Prendre une photo",
     "choosePhoto": "Choisir une photo",
     "replacePhoto": "Remplacer la photo",

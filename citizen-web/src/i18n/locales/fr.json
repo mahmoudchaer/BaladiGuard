@@ -44,6 +44,8 @@
     "trackCode": "Suivre avec un code",
     "about": "À propos",
     "privacy": "Confidentialité",
+    "terms": "Conditions",
+    "acceptableUse": "Usage acceptable",
     "yourProfile": "Votre profil",
     "citizenSignIn": "Connexion citoyen",
     "footerTagline": "Conçu pour un signalement civique plus clair et plus sûr.",
@@ -117,6 +119,11 @@
     "expired": "Ce code a expiré. Demandez-en un nouveau.",
     "verifyFailed": "Impossible de vérifier ce code.",
     "privacyNote": "Votre téléphone confirme la propriété du compte. Le nom et l’e-mail restent facultatifs.",
+    "legalAgreePrefix": "J’accepte les",
+    "legalAgreeJoin1": ", la ",
+    "legalAgreeJoin2": " et la ",
+    "legalAgreeSuffix": ".",
+    "legalRequired": "Vous devez accepter les Conditions, la Politique de confidentialité et la Politique d’usage acceptable pour continuer.",
     "lebanon": "Liban (+961)",
     "unitedStates": "États-Unis (+1)",
     "france": "France (+33)",
@@ -189,6 +196,8 @@
     "photoTooLarge": "La photo doit faire 5 Mo ou moins.",
     "protected": "Envoi protégé",
     "protectedBody": "Le personnel reçoit l’original privé. Les vues publiques ne reçoivent qu’une version caviardée approuvée.",
+    "privacyJit": "Les photos et la localisation sont traitées pour que la municipalité puisse prendre en charge votre signalement.",
+    "privacyJitLink": "Lire la politique de confidentialité",
     "pleaseWait": "Veuillez patienter…",
     "submit": "Envoyer le signalement",
     "discard": "Supprimer le brouillon"
@@ -247,7 +256,29 @@
     "sendCode": "Envoyer le code de vérification",
     "verifyPhone": "Vérifier le nouveau téléphone",
     "signOut": "Déconnexion",
-    "draftsPrivate": "Les brouillons restent privés à ce compte"
+    "draftsPrivate": "Les brouillons restent privés à ce compte",
+    "exportData": "Exporter mes données",
+    "exportDataHint": "Télécharger une copie JSON de votre profil et de vos signalements",
+    "exportReady": "Votre export de données a été téléchargé.",
+    "exportFailed": "Impossible d’exporter vos données.",
+    "deleteAccount": "Supprimer le compte",
+    "deleteAccountHint": "Anonymise votre profil ; les dossiers municipaux peuvent rester",
+    "deleteTypeLabel": "Tapez DELETE pour confirmer la suppression",
+    "deleteTypePlaceholder": "DELETE",
+    "deleteConfirmPrompt": "Supprimer votre compte ? Votre profil sera anonymisé. Les dossiers municipaux nécessaires aux opérations peuvent rester.",
+    "deleteFailed": "Impossible de supprimer votre compte.",
+    "legalRequiredBanner": "Des conditions juridiques mises à jour nécessitent votre acceptation avant de continuer à utiliser BaladiGuard.",
+    "acceptLegal": "Accepter les Conditions, Confidentialité et Usage acceptable actuels",
+    "acceptingLegal": "Enregistrement de l’acceptation…",
+    "legalAccepted": "Acceptation juridique enregistrée.",
+    "legalAcceptFailed": "Impossible d’enregistrer l’acceptation juridique."
+  },
+  "legal": {
+    "loadingTitle": "Document juridique",
+    "termsTitle": "Conditions d’utilisation",
+    "acceptableUseTitle": "Usage acceptable",
+    "version": "Version {version}",
+    "loadFailed": "Impossible de charger ce document juridique."
   },
   "public": {
     "title": "Signalements publics",
@@ -288,6 +319,7 @@
   },
   "privacy": {
     "title": "Confidentialité",
+    "scopeTitle": "Portée des données publiques",
     "publicScope": "La consultation publique n’affiche que la projection sûre pour les citoyens : numéro de ticket, statut, catégorie, description, texte d’adresse publique, coordonnées cartographiques approuvées pour publication, nom du service lorsqu’il est attribué, nom d’affichage pour l’attribution, et URL des photos publiques approuvées.",
     "internalRestriction": "Les identifiants internes de tickets, les codes de suivi issus des réponses de parcours, les coordonnées de contact, la précision privée de la localisation, l’historique du personnel et les clés d’images privées ne sont jamais affichés sur les surfaces publiques.",
     "trackingScope": "Le suivi par possession du code exige votre code à 6 caractères et ne renvoie que la chronologie de statut de ce signalement."

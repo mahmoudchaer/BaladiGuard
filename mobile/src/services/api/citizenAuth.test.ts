@@ -88,13 +88,23 @@ describe('citizenAuth API client', () => {
       headers: { get: () => null },
     } as unknown as Response);
 
-    const result = await verifyCitizenOtp({ challengeId: 'ch_1', code: '123456' });
+    const result = await verifyCitizenOtp({
+      challengeId: 'ch_1',
+      code: '123456',
+      acceptLegal: true,
+      legalLocale: 'en',
+    });
 
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:8000/v1/citizen/auth/otp/verify',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ challengeId: 'ch_1', code: '123456' }),
+        body: JSON.stringify({
+          challengeId: 'ch_1',
+          code: '123456',
+          acceptLegal: true,
+          legalLocale: 'en',
+        }),
       }),
     );
     expect(result.accessToken).toBe('tok_1');

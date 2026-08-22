@@ -54,7 +54,26 @@
     "mainNav": "Navigation principale",
     "home": "Accueil BaladiGuard",
     "ops": "Opérations",
-    "municipalities": "Municipalités"
+    "municipalities": "Municipalités",
+    "legal": "Juridique"
+  },
+  "legal": {
+    "eyebrow": "Responsabilités du personnel",
+    "title": "Traitement des données & juridique",
+    "subtitle": "Comment le personnel doit traiter les données citoyennes et municipales",
+    "lede": "Le personnel BaladiGuard n’accède aux signalements citoyens que pour router, examiner et résoudre les problèmes d’infrastructure municipale. Traitez les données personnelles comme confidentielles et limitées au besoin opérationnel.",
+    "dutiesTitle": "Vos devoirs",
+    "dutyMinimize": "Consultez uniquement ce dont vous avez besoin pour traiter un ticket.",
+    "dutyNeedToKnow": "Ne partagez pas les coordonnées, photos privées ou codes de suivi hors des canaux municipaux autorisés.",
+    "dutyNoExport": "N’exportez, ne collectez et ne stockez pas de données citoyennes sur des appareils personnels ou outils non approuvés.",
+    "dutyRedaction": "Respectez les contrôles de caviardage et de sécurité du contenu ; ne publiez jamais d’originaux privés sur des surfaces publiques.",
+    "dutyRetention": "Suivez les règles de conservation municipales ; faites remonter les demandes de suppression ou d’export via les procédures approuvées.",
+    "docsTitle": "Politiques destinées aux citoyens",
+    "docsBody": "Les citoyens acceptent les Conditions, la Confidentialité et l’Usage acceptable à la connexion. Ouvrez les copies publiques lorsque vous avez besoin du libellé actuel.",
+    "linkPrivacy": "Politique de confidentialité citoyenne",
+    "linkTerms": "Conditions d’utilisation citoyennes",
+    "linkAcceptableUse": "Usage acceptable citoyen",
+    "citizenUrlMissing": "Définissez VITE_CITIZEN_WEB_URL pour lier les pages juridiques citoyennes depuis ce bureau. Les documents de politique internes se trouvent sous docs/legal et docs/privacy-lifecycle.md."
   },
   "topbar": {
     "product": "BaladiGuard",

@@ -9,11 +9,34 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 from app.schemas.ticket_status import TicketStatus
 
 TicketUpdatesPreference = Literal["SMS", "EMAIL", "BOTH", "NONE"]
+LegalAcceptanceSource = Literal["otp_verify", "profile", "reacceptance"]
 
 
 class NotificationPreferences(BaseModel):
     ticket_updates: TicketUpdatesPreference = Field(default="NONE", alias="ticketUpdates")
     announcements: bool = False
+
+    model_config = {"populate_by_name": True}
+
+
+class LegalAcceptance(BaseModel):
+    """Recorded acceptance of the current legal package (issue #321)."""
+
+    terms_version: str = Field(alias="termsVersion")
+    privacy_version: str = Field(alias="privacyVersion")
+    acceptable_use_version: str = Field(alias="acceptableUseVersion")
+    accepted_at: str = Field(alias="acceptedAt")
+    locale: str | None = None
+    source: LegalAcceptanceSource = "otp_verify"
+
+    model_config = {"populate_by_name": True}
+
+
+class LegalAcceptanceRequest(BaseModel):
+    """Body for POST /v1/citizen/me/legal-acceptance."""
+
+    accept_legal: bool = Field(alias="acceptLegal")
+    locale: str | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -31,6 +54,7 @@ class StoredCitizenUser(BaseModel):
         alias="notificationPreferences",
     )
     public_name_visible: bool = Field(default=False, alias="publicNameVisible")
+    legal_acceptance: LegalAcceptance | None = Field(default=None, alias="legalAcceptance")
     active: bool = True
     # Bumped on account-wide session revocation (phone change, deactivation, etc.).
     # Not returned from profile endpoints.
@@ -53,6 +77,8 @@ class CitizenProfileResponse(BaseModel):
     public_name_visible: bool = Field(alias="publicNameVisible")
     active: bool
     contribution_ready: bool = Field(alias="contributionReady")
+    legal_acceptance: LegalAcceptance | None = Field(default=None, alias="legalAcceptance")
+    legal_acceptance_required: bool = Field(alias="legalAcceptanceRequired")
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
 

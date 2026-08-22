@@ -135,6 +135,18 @@ export default function MoreScreen() {
               detail={t('more.privacyDetail')}
               onPress={() => router.push('/privacy' as Href)}
             />
+            <MenuRow
+              divider
+              icon="file-document-outline"
+              label={t('legal.termsTitle')}
+              onPress={() => router.push('/terms' as Href)}
+            />
+            <MenuRow
+              divider
+              icon="clipboard-check-outline"
+              label={t('legal.acceptableUseTitle')}
+              onPress={() => router.push('/acceptable-use' as Href)}
+            />
           </View>
         </View>
 

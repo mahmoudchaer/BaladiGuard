@@ -30,12 +30,16 @@ from app.schemas.citizen import (
     CitizenProfileUpdateRequest,
     CitizenTicketHistoryItem,
     CitizenTicketHistoryResponse,
+    LegalAcceptance,
+    LegalAcceptanceRequest,
+    LegalAcceptanceSource,
     NotificationPreferences,
     StoredCitizenUser,
 )
 from app.schemas.citizen_auth import CitizenOtpVerifyResponse
 from app.schemas.citizen_session import OtpPurpose, StoredCitizenOtpChallenge
 from app.schemas.ticket import PreferredChannel, ReportContact
+from app.services.legal.documents import CURRENT_LEGAL_VERSION, normalize_lang
 from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
@@ -170,6 +174,36 @@ def is_contribution_ready(user: StoredCitizenUser) -> bool:
     return bool(user.active and user.phone_verified_at)
 
 
+def legal_acceptance_required(user: StoredCitizenUser) -> bool:
+    """True when acceptance is missing or does not match the current package."""
+    acceptance = user.legal_acceptance
+    if acceptance is None:
+        return True
+    version = CURRENT_LEGAL_VERSION
+    return (
+        acceptance.terms_version != version
+        or acceptance.privacy_version != version
+        or acceptance.acceptable_use_version != version
+    )
+
+
+def build_legal_acceptance(
+    *,
+    accepted_at: str,
+    locale: str | None = None,
+    source: LegalAcceptanceSource = "otp_verify",
+) -> LegalAcceptance:
+    version = CURRENT_LEGAL_VERSION
+    return LegalAcceptance(
+        termsVersion=version,
+        privacyVersion=version,
+        acceptableUseVersion=version,
+        acceptedAt=accepted_at,
+        locale=normalize_lang(locale) if locale else None,
+        source=source,
+    )
+
+
 def anonymized_phone_for(user_id: str) -> str:
     return f"{ANONYMIZED_PHONE_PREFIX}{user_id}"
 
@@ -214,6 +248,8 @@ def to_profile_response(user: StoredCitizenUser) -> CitizenProfileResponse:
         publicNameVisible=user.public_name_visible,
         active=user.active,
         contributionReady=is_contribution_ready(user),
+        legalAcceptance=user.legal_acceptance,
+        legalAcceptanceRequired=legal_acceptance_required(user),
         createdAt=user.created_at,
         updatedAt=user.updated_at,
     )
@@ -466,6 +502,8 @@ class CitizenService:
         challenge_id: str,
         code: str,
         full_name: str | None = None,
+        accept_legal: bool | None = None,
+        legal_locale: str | None = None,
         authenticated_user_id: str | None = None,
         now: datetime | None = None,
     ) -> CitizenOtpVerifyResponse:
@@ -478,6 +516,12 @@ class CitizenService:
             )
 
         if challenge.purpose == LOGIN_OR_SIGNUP_PURPOSE:
+            if accept_legal is not True:
+                raise CitizenServiceError(
+                    "LEGAL_ACCEPTANCE_REQUIRED",
+                    "You must accept the current Terms, Privacy Policy, and "
+                    "Acceptable Use Policy to continue.",
+                )
             self._consume_otp_challenge(
                 challenge=challenge,
                 expected_purpose=LOGIN_OR_SIGNUP_PURPOSE,
@@ -489,6 +533,7 @@ class CitizenService:
             return self._complete_login_or_signup(
                 phone=challenge.phone,
                 full_name=full_name,
+                legal_locale=legal_locale,
                 now=moment,
             )
 
@@ -537,6 +582,7 @@ class CitizenService:
         *,
         phone: str,
         full_name: str | None,
+        legal_locale: str | None,
         now: datetime,
     ) -> CitizenOtpVerifyResponse:
         store = self._resolved_store()
@@ -559,17 +605,26 @@ class CitizenService:
                 status_code=403,
             )
 
+        stamped = _iso(now)
+        updates: dict[str, Any] = {
+            "legal_acceptance": build_legal_acceptance(
+                accepted_at=stamped,
+                locale=legal_locale,
+                source="otp_verify",
+            ),
+            "updated_at": stamped,
+        }
         # First-time name may be supplied on verify; ignore if the account already has one.
         if full_name and not _valid_full_name(user.full_name):
-            updated = user.model_copy(
-                update={"full_name": full_name.strip(), "updated_at": _iso(now)}
-            )
-            try:
-                user = store.update(updated)
-            except CitizenNotFoundError as exc:
-                raise CitizenServiceError(
-                    "UNAUTHORIZED", "Citizen authentication required.", 401
-                ) from exc
+            updates["full_name"] = full_name.strip()
+
+        updated = user.model_copy(update=updates)
+        try:
+            user = store.update(updated)
+        except CitizenNotFoundError as exc:
+            raise CitizenServiceError(
+                "UNAUTHORIZED", "Citizen authentication required.", 401
+            ) from exc
 
         token = self.issue_session(user.user_id, now=now)
         profile = to_profile_response(user)
@@ -718,6 +773,48 @@ class CitizenService:
             raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
         return to_profile_response(user)
 
+    def record_legal_acceptance(
+        self,
+        user_id: str,
+        payload: LegalAcceptanceRequest,
+        *,
+        now: datetime | None = None,
+    ) -> CitizenProfileResponse:
+        """Record or renew acceptance of the current legal package (#321)."""
+        if payload.accept_legal is not True:
+            raise CitizenServiceError(
+                "LEGAL_ACCEPTANCE_REQUIRED",
+                "You must accept the current Terms, Privacy Policy, and "
+                "Acceptable Use Policy to continue.",
+            )
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active or is_anonymized_citizen(user):
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+
+        moment = now or _utcnow()
+        stamped = _iso(moment)
+        source: LegalAcceptanceSource = (
+            "reacceptance" if user.legal_acceptance is not None else "profile"
+        )
+        updated = user.model_copy(
+            update={
+                "legal_acceptance": build_legal_acceptance(
+                    accepted_at=stamped,
+                    locale=payload.locale,
+                    source=source,
+                ),
+                "updated_at": stamped,
+            }
+        )
+        try:
+            stored = store.update(updated)
+        except CitizenNotFoundError as exc:
+            raise CitizenServiceError(
+                "UNAUTHORIZED", "Citizen authentication required.", 401
+            ) from exc
+        return to_profile_response(stored)
+
     def export_account(
         self,
         user_id: str,
@@ -750,6 +847,14 @@ class CitizenService:
             )
             for ticket in owned
         ]
+        from app.services.privacy_request_audit import record_privacy_request
+
+        record_privacy_request(
+            action="citizen_export",
+            subject_user_id=user_id,
+            summary="Citizen self-service data export.",
+            created_at=_iso(moment),
+        )
         return CitizenDataExportResponse(
             exportedAt=_iso(moment),
             profile=to_profile_response(user),
@@ -834,6 +939,7 @@ class CitizenService:
                 "email": None,
                 "notification_preferences": NotificationPreferences(),
                 "public_name_visible": False,
+                "legal_acceptance": None,
                 "active": False,
                 "session_epoch": user.session_epoch + 1,
                 "updated_at": stamped,
@@ -860,6 +966,14 @@ class CitizenService:
             user_id,
             revoked_at=stamped,
             reason="account_deletion",
+        )
+        from app.services.privacy_request_audit import record_privacy_request
+
+        record_privacy_request(
+            action="citizen_delete",
+            subject_user_id=user_id,
+            summary="Citizen self-service account anonymization.",
+            created_at=stamped,
         )
         logger.info("Citizen account anonymized user_id=%s", user_id)
         return CitizenDeleteResponse(status="deleted", userId=user_id, deletedAt=stamped)
@@ -1107,6 +1221,7 @@ __all__ = [
     "hash_citizen_token",
     "is_anonymized_citizen",
     "is_contribution_ready",
+    "legal_acceptance_required",
     "preferred_channel_from_ticket_updates",
     "snapshot_contact_for_ticket",
     "to_profile_response",

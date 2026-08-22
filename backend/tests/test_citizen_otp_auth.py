@@ -42,11 +42,17 @@ def _verify_otp(
     challenge_id: str,
     code: str,
     full_name: str | None = None,
+    accept_legal: bool | None = True,
+    legal_locale: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> tuple[int, dict]:
     body: dict = {"challengeId": challenge_id, "code": code}
     if full_name is not None:
         body["fullName"] = full_name
+    if accept_legal is not None:
+        body["acceptLegal"] = accept_legal
+    if legal_locale is not None:
+        body["legalLocale"] = legal_locale
     response = client.post("/v1/citizen/auth/otp/verify", json=body, headers=headers or {})
     return response.status_code, response.json()
 
@@ -110,7 +116,7 @@ def test_web_otp_uses_httponly_cookie_without_exposing_token(
 
     verify = anonymous_client.post(
         "/v1/citizen/auth/otp/verify",
-        json={"challengeId": request_body["challengeId"], "code": code},
+        json={"challengeId": request_body["challengeId"], "code": code, "acceptLegal": True},
         headers={"X-Citizen-Session-Mode": "cookie"},
     )
     assert verify.status_code == 200, verify.text
@@ -132,7 +138,7 @@ def test_web_cookie_mutations_require_an_allowed_origin(anonymous_client: TestCl
     assert code is not None
     verify = anonymous_client.post(
         "/v1/citizen/auth/otp/verify",
-        json={"challengeId": request_body["challengeId"], "code": code},
+        json={"challengeId": request_body["challengeId"], "code": code, "acceptLegal": True},
         headers={"X-Citizen-Session-Mode": "cookie"},
     )
     assert verify.status_code == 200
