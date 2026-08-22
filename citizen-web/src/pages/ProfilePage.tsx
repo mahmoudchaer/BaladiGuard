@@ -25,7 +25,10 @@ function DraftSignOutDialog({
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
 
   useEffect(() => {
     previouslyFocused.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;

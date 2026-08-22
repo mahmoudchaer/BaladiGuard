@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useNavigate, type NavigateFunction } from 'react-router-dom';
@@ -78,7 +79,10 @@ const publicSample: PublicTicketResponse = {
 let navigateTo: NavigateFunction;
 
 function NavigateBridge() {
-  navigateTo = useNavigate();
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigateTo = navigate;
+  }, [navigate]);
   return null;
 }
 
