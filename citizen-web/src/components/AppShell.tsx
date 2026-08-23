@@ -5,7 +5,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n/LocaleProvider';
 import './AppShell.css';
 
-const COMPACT_NAV_PX = 768;
+const COMPACT_NAV_PX = 900;
 
 export function AppShell() {
   const auth = useCitizenAuth();
