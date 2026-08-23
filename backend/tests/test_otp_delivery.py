@@ -14,7 +14,6 @@ from app.config import Settings, get_settings
 from app.services.citizens.otp_delivery import (
     OtpDeliveryError,
     build_whatsapp_otp_payload,
-    check_twilio_verify,
     deliver_citizen_otp,
     public_otp_delivery_channel,
     resolve_citizen_otp_delivery_channel,
@@ -22,9 +21,9 @@ from app.services.citizens.otp_delivery import (
 )
 
 
-class _TwilioResponse:
-    def __init__(self, body: dict[str, Any]) -> None:
-        self._body = json.dumps(body).encode("utf-8")
+class _PlivoResponse:
+    def __init__(self, body: dict[str, Any] | None = None) -> None:
+        self._body = json.dumps(body or {}).encode("utf-8")
 
     def __enter__(self):
         return self
@@ -86,47 +85,40 @@ def test_resolve_channel_explicit_and_legacy_defaults():
     assert public_otp_delivery_channel("whatsapp") == "whatsapp"
 
 
-def test_twilio_starts_verify_sms_without_local_code(monkeypatch):
+def test_plivo_sends_local_otp_sms(monkeypatch):
     captured: dict[str, Any] = {}
 
     def fake_urlopen(request, timeout=0):
         captured["url"] = request.full_url
         captured["body"] = request.data.decode("utf-8")
         captured["timeout"] = timeout
-        return _TwilioResponse({"sid": "VE" + "a" * 32, "status": "pending"})
+        return _PlivoResponse({"message": "accepted"})
 
     monkeypatch.setattr("app.services.citizens.otp_delivery.urlopen", fake_urlopen)
     settings = _settings(
-        citizen_otp_delivery_channel="twilio",
-        twilio_account_sid="AC" + "a" * 32,
-        twilio_api_key_sid="SK" + "a" * 32,
-        twilio_api_key_secret="secret-not-logged",
-        twilio_verify_service_sid="VA" + "a" * 32,
-        twilio_verify_timeout_seconds=7.0,
+        citizen_otp_delivery_channel="plivo",
+        citizen_otp_plivo_auth_id="auth-id-not-logged",
+        citizen_otp_plivo_auth_token="secret-not-logged",
+        citizen_otp_plivo_source="BaladiGuard",
+        citizen_otp_plivo_timeout_seconds=7.0,
+        notification_sandbox=False,
     )
     assert (
-        deliver_citizen_otp(phone="70 123 456", region="LB", code=None, settings=settings)
+        deliver_citizen_otp(phone="70 123 456", region="LB", code="111222", settings=settings)
         == "sms"
     )
-    assert captured["url"].endswith("/Services/VA" + "a" * 32 + "/Verifications")
-    assert "To=%2B96170123456" in captured["body"]
-    assert "Channel=sms" in captured["body"]
-    assert "Code=" not in captured["body"]
+    assert captured["url"].endswith("/v1/Account/auth-id-not-logged/Message/")
+    assert "dst=%2B96170123456" in captured["body"]
+    assert "src=BaladiGuard" in captured["body"]
+    assert "111222" in captured["body"]
     assert captured["timeout"] == 7.0
 
 
-def test_twilio_check_accepts_only_explicit_approved(monkeypatch):
-    monkeypatch.setattr(
-        "app.services.citizens.otp_delivery.urlopen",
-        lambda request, timeout=0: _TwilioResponse({"status": "pending"}),
-    )
-    settings = _settings(
-        twilio_account_sid="AC" + "a" * 32,
-        twilio_api_key_sid="SK" + "a" * 32,
-        twilio_api_key_secret="secret-not-logged",
-        twilio_verify_service_sid="VA" + "a" * 32,
-    )
-    assert not check_twilio_verify(canonical_phone="+96170123456", code="111222", settings=settings)
+def test_plivo_requires_complete_configuration():
+    settings = _settings(citizen_otp_delivery_channel="plivo", notification_sandbox=False)
+    with pytest.raises(OtpDeliveryError, match="OTP delivery failed") as exc:
+        deliver_citizen_otp(phone="+96170123456", region="LB", code="111222", settings=settings)
+    assert exc.value.category == "plivo_misconfigured"
 
 
 def test_otp_sandbox_blocks_when_allowlist_empty(monkeypatch, caplog):

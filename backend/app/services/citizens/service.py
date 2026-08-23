@@ -7,7 +7,7 @@ import hmac
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 from app.config import Settings, get_settings
 from app.core.citizen_auth import (
@@ -413,13 +413,11 @@ class CitizenService:
         authenticated_user_id: str | None = None,
         now: datetime | None = None,
         code: str | None = None,
-        verification_provider: Literal["local", "twilio"] = "local",
-    ) -> tuple[str, int, str | None]:
+    ) -> tuple[str, int, str]:
         """Create a purpose-bound OTP challenge.
 
         Returns ``(challenge_id, expires_in_seconds, plaintext_code)``. The plaintext
-        code must never be included in HTTP responses. It exists only for local
-        hash-verified providers; Twilio Verify challenges return no local code.
+        code must never be included in HTTP responses or persisted in plaintext.
         """
         if purpose == CHANGE_PHONE_PURPOSE:
             if not authenticated_user_id:
@@ -434,7 +432,6 @@ class CitizenService:
                 region=region,
                 now=now,
                 code=code,
-                verification_provider=verification_provider,
             )
             return challenge_id, OTP_TTL_SECONDS, otp_code
 
@@ -448,19 +445,10 @@ class CitizenService:
 
         moment = now or _utcnow()
         expires = moment + timedelta(seconds=OTP_TTL_SECONDS)
-        otp_code = (
-            code or f"{secrets.randbelow(1_000_000):06d}"
-            if verification_provider == "local"
-            else None
-        )
+        otp_code = code or f"{secrets.randbelow(1_000_000):06d}"
         challenge = StoredCitizenOtpChallenge(
             challengeId=f"chl_{secrets.token_hex(12)}",
-            codeHash=(
-                _hash_otp_code(otp_code, settings=self._settings_or_default())
-                if otp_code is not None
-                else None
-            ),
-            verificationProvider=verification_provider,
+            codeHash=_hash_otp_code(otp_code, settings=self._settings_or_default()),
             phone=canonical,
             purpose=LOGIN_OR_SIGNUP_PURPOSE,
             userId=None,
@@ -469,8 +457,7 @@ class CitizenService:
             ttl=int(expires.timestamp()),
         )
         self._resolved_otp().create(challenge)
-        if otp_code is not None:
-            self._remember_dev_otp(challenge.challenge_id, otp_code)
+        self._remember_dev_otp(challenge.challenge_id, otp_code)
         # Never log the plaintext code. Phone is account-sensitive; keep logs generic.
         logger.info("Citizen OTP challenge created purpose=%s", purpose)
         return challenge.challenge_id, OTP_TTL_SECONDS, otp_code
@@ -483,8 +470,7 @@ class CitizenService:
         region: str | None = None,
         now: datetime | None = None,
         code: str | None = None,
-        verification_provider: Literal["local", "twilio"] = "local",
-    ) -> tuple[str, str | None]:
+    ) -> tuple[str, str]:
         """Create a purpose-bound CHANGE_PHONE challenge.
 
         Returns ``(challenge_id, code)``. The plaintext code is never persisted and
@@ -507,19 +493,10 @@ class CitizenService:
 
         moment = now or _utcnow()
         expires = moment + timedelta(seconds=OTP_TTL_SECONDS)
-        otp_code = (
-            code or f"{secrets.randbelow(1_000_000):06d}"
-            if verification_provider == "local"
-            else None
-        )
+        otp_code = code or f"{secrets.randbelow(1_000_000):06d}"
         challenge = StoredCitizenOtpChallenge(
             challengeId=f"chl_{secrets.token_hex(12)}",
-            codeHash=(
-                _hash_otp_code(otp_code, settings=self._settings_or_default())
-                if otp_code is not None
-                else None
-            ),
-            verificationProvider=verification_provider,
+            codeHash=_hash_otp_code(otp_code, settings=self._settings_or_default()),
             phone=canonical,
             purpose=CHANGE_PHONE_PURPOSE,
             userId=user_id,
@@ -528,8 +505,7 @@ class CitizenService:
             ttl=int(expires.timestamp()),
         )
         self._resolved_otp().create(challenge)
-        if otp_code is not None:
-            self._remember_dev_otp(challenge.challenge_id, otp_code)
+        self._remember_dev_otp(challenge.challenge_id, otp_code)
         return challenge.challenge_id, otp_code
 
     def verify_otp(
@@ -775,40 +751,12 @@ class CitizenService:
                 status_code=429,
             )
 
-        if challenge.verification_provider == "twilio":
-            from app.services.citizens.otp_delivery import (
-                OtpVerificationError,
-                check_twilio_verify,
-            )
+        expected = challenge.code_hash
+        actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
+        if hmac.compare_digest(expected, actual):
+            return self._consume_approved_challenge(challenge, now=now)
 
-            try:
-                approved = check_twilio_verify(
-                    canonical_phone=challenge.phone,
-                    code=code,
-                    settings=self._settings_or_default(),
-                )
-            except OtpVerificationError as exc:
-                if exc.category == "twilio_rate_limited":
-                    raise CitizenServiceError(
-                        "RATE_LIMIT_EXCEEDED",
-                        "Too many verification attempts. Request a new code.",
-                        status_code=429,
-                    ) from exc
-                raise CitizenServiceError(
-                    "OTP_VERIFICATION_UNAVAILABLE",
-                    "Could not verify the code. Try again in a moment.",
-                    status_code=503,
-                ) from exc
-            if approved:
-                return self._consume_approved_challenge(challenge, now=now)
-        else:
-            expected = challenge.code_hash
-            actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
-            if expected is not None and hmac.compare_digest(expected, actual):
-                return self._consume_approved_challenge(challenge, now=now)
-
-        # A rejected Verify check is equivalent to a local HMAC mismatch: apply
-        # BaladiGuard's own limit before returning an account-neutral error.
+        # Apply BaladiGuard's own limit before returning an account-neutral error.
         updated = otp_store.increment_attempt(challenge.challenge_id)
         if updated is None:
             raise CitizenServiceError(
@@ -825,7 +773,7 @@ class CitizenService:
     def _consume_approved_challenge(
         self, challenge: StoredCitizenOtpChallenge, *, now: datetime
     ) -> StoredCitizenOtpChallenge:
-        """Compare-and-set consume after local or Twilio verification approval."""
+        """Compare-and-set consume after local OTP verification approval."""
         otp_store = self._resolved_otp()
         consumed = otp_store.consume(
             challenge.challenge_id,

@@ -37,7 +37,6 @@ from app.schemas.resolution_feedback import (
 from app.services.citizens.otp_delivery import (
     OtpDeliveryError,
     deliver_citizen_otp,
-    resolve_citizen_otp_delivery_channel,
 )
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
@@ -126,15 +125,11 @@ def request_citizen_otp(
         auth_user_id = principal.user_id if principal is not None else None
 
     try:
-        provider = (
-            "twilio" if resolve_citizen_otp_delivery_channel(settings) == "twilio" else "local"
-        )
         challenge_id, expires_in, code = citizen_service.request_otp(
             phone=payload.phone,
             region=payload.region,
             purpose=payload.purpose,
             authenticated_user_id=auth_user_id,
-            verification_provider=provider,
         )
     except CitizenServiceError as exc:
         # Keep LOGIN_OR_SIGNUP failures account-neutral where possible.

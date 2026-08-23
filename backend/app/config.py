@@ -359,17 +359,18 @@ class Settings:
         # NOTIFICATION_ADAPTER=real → sns).
         raw_otp_channel = os.getenv("CITIZEN_OTP_DELIVERY_CHANNEL", "").strip().lower()
         self.citizen_otp_delivery_channel = raw_otp_channel or None
-        # Twilio Verify v2. API-key credentials are preferred for deployed
-        # server workloads; Auth Token remains an explicitly local fallback.
-        self.twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID", "").strip() or None
-        self.twilio_api_key_sid = os.getenv("TWILIO_API_KEY_SID", "").strip() or None
-        self.twilio_api_key_secret = os.getenv("TWILIO_API_KEY_SECRET", "").strip() or None
-        self.twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN", "").strip() or None
-        self.twilio_verify_service_sid = (
-            os.getenv("TWILIO_VERIFY_SERVICE_SID", "").strip() or None
+        # Plivo is an SMS transport: BaladiGuard generates and verifies the OTP.
+        self.citizen_otp_plivo_auth_id = (
+            os.getenv("CITIZEN_OTP_PLIVO_AUTH_ID", "").strip() or None
         )
-        self.twilio_verify_timeout_seconds = self._float_setting(
-            "TWILIO_VERIFY_TIMEOUT_SECONDS", default=10.0, minimum=1.0, maximum=30.0
+        self.citizen_otp_plivo_auth_token = (
+            os.getenv("CITIZEN_OTP_PLIVO_AUTH_TOKEN", "").strip() or None
+        )
+        self.citizen_otp_plivo_source = (
+            os.getenv("CITIZEN_OTP_PLIVO_SOURCE", "").strip() or None
+        )
+        self.citizen_otp_plivo_timeout_seconds = self._float_setting(
+            "CITIZEN_OTP_PLIVO_TIMEOUT_SECONDS", default=10.0, minimum=1.0, maximum=30.0
         )
         self.citizen_otp_whatsapp_phone_number_id = (
             os.getenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "").strip() or None

@@ -553,25 +553,20 @@ def test_otp_challenge_stores_hash_only(anonymous_client: TestClient) -> None:
     assert len(stored.code_hash) == 64
 
 
-def test_twilio_challenge_never_stores_duplicate_local_code(monkeypatch) -> None:
+def test_plivo_uses_existing_hashed_otp_challenge() -> None:
     citizen_otp_store.clear()
     challenge_id, _expires, code = citizen_service.request_otp(
         phone="+96170123456",
         purpose="LOGIN_OR_SIGNUP",
-        verification_provider="twilio",
     )
     stored = citizen_otp_store.get(challenge_id)
-    assert code is None
+    assert code is not None
     assert stored is not None
-    assert stored.verification_provider == "twilio"
-    assert stored.code_hash is None
-    monkeypatch.setattr(
-        "app.services.citizens.otp_delivery.check_twilio_verify",
-        lambda **_kwargs: True,
-    )
+    assert stored.code_hash
+    assert code not in stored.model_dump_json()
     verified = citizen_service.verify_otp(
         challenge_id=challenge_id,
-        code="123456",
+        code=code,
         accept_legal=True,
     )
     assert verified.access_token

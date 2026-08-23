@@ -1,6 +1,6 @@
 # Citizen OTP delivery channel (issue #297)
 
-Configurable Twilio Verify, WhatsApp, or SNS delivery for citizen one-time verification codes.
+Configurable Plivo, WhatsApp, or SNS delivery for citizen one-time verification codes.
 This is **independent** of ticket notifications (`NOTIFICATION_ADAPTER`) and of WhatsApp
 report submission (#296).
 
@@ -12,7 +12,7 @@ report submission (#296).
 | `mock` | No provider call (local/CI). Codes via `peek_dev_otp_code` / optional stdout |
 | `sns` | Amazon SNS SMS (existing path) |
 | `whatsapp` | Meta Cloud API: approved **authentication template**, or sandbox `session_text` |
-| `twilio` | Twilio Verify v2 SMS; Twilio generates and checks the code |
+| `plivo` | Plivo SMS transport; BaladiGuard generates and checks the code |
 
 `CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text` is the agreed path for the Meta **test number**, which cannot create custom templates. It sends a free-form text OTP through the real Graph API and only works if:
 
@@ -22,51 +22,48 @@ report submission (#296).
 
 Production rejects `session_text` and still requires an approved authentication template. SNS remains the rollback (`CITIZEN_OTP_DELIVERY_CHANNEL=sns`).
 
-## Twilio Verify (production target)
+## Plivo SMS (production candidate)
 
-Set `CITIZEN_OTP_DELIVERY_CHANNEL=twilio` only after a real Verify Service and live
-Lebanese carrier tests are complete. This is not a transport for a BaladiGuard-generated
-code: Twilio Verify starts the verification and is the sole authority that may approve
-the submitted code. BaladiGuard persists a purpose-bound, expiring, single-use challenge
-without a local OTP hash, maintains its own IP/device/phone and attempt limits, and only
-issues a session or transfers a phone claim after Verify returns `status=approved`.
+Set `CITIZEN_OTP_DELIVERY_CHANNEL=plivo` only after Plivo confirms the chosen sender and
+route for Lebanon and real Alfa and touch tests succeed. Plivo is an SMS **transport**:
+BaladiGuard generates a single six-digit code, stores only its HMAC hash, and remains the
+authority that validates it. It retains purpose binding, single use, expiry, resend
+supersession, login/change-phone authorization, and application rate limits.
 
 ```bash
-CITIZEN_OTP_DELIVERY_CHANNEL=twilio
-TWILIO_ACCOUNT_SID=...             # Secrets Manager/runtime only
-TWILIO_API_KEY_SID=...             # production preferred Basic-auth username
-TWILIO_API_KEY_SECRET=...          # Secrets Manager/runtime only
-TWILIO_VERIFY_SERVICE_SID=...
-TWILIO_VERIFY_TIMEOUT_SECONDS=10
+CITIZEN_OTP_DELIVERY_CHANNEL=plivo
+CITIZEN_OTP_PLIVO_AUTH_ID=...       # Secrets Manager/runtime only
+CITIZEN_OTP_PLIVO_AUTH_TOKEN=...    # Secrets Manager/runtime only
+CITIZEN_OTP_PLIVO_SOURCE=...        # approved sender ID/number supplied by Plivo
+CITIZEN_OTP_PLIVO_TIMEOUT_SECONDS=10
 ```
 
-Twilio documents API keys as its preferred production authentication method. `TWILIO_AUTH_TOKEN`
-is accepted only for local troubleshooting; staging and production validation reject it in favor
-of an API key pair. No Twilio credential, OTP, full destination, HTTP authorization header, or
-raw provider payload may be logged. `twilio` has no automatic fallback to SNS/WhatsApp.
+The backend uses Plivo's Messages API with HTTP Basic authentication and one bounded request;
+it does not retry automatically, because a timeout can mean the carrier send was accepted. No
+credential, OTP, full destination, HTTP authorization header, or raw provider payload may be
+logged. `plivo` has no automatic fallback to SNS/WhatsApp.
 
 ### Console setup and release gates
 
-1. In **Twilio Console → Verify → Services**, create/select **BaladiGuard** and record only its
-   `VA…` Service SID in the deployment secret reference.
-2. In **Verify → Settings → Geo permissions**, search **Lebanon** and enable SMS as **Monitor all
-   traffic for blocking fraud** (or allow traffic only after a documented risk decision), then save.
-3. In **Verify → Services → BaladiGuard → SMS**, leave **Enable Fraud Guard** on. Review
-   **Monitor → Insights → Verify → Fraud** and Verify Logs for safe operational evidence.
-4. In **Console → Account → API keys & tokens**, create a production API key; store its SID,
-   secret, Account SID, and Service SID only in AWS Secrets Manager/runtime configuration.
-5. Deploy to staging and explicitly test an allowlisted real Alfa number and a real touch number:
+1. In **Plivo Console → Messaging → Geo Permissions**, enable Lebanon for SMS; leave all unused
+   destinations disabled.
+2. In **Plivo Console → Messaging → Sender IDs** (or with Plivo support if the console requires
+   approval), configure the exact source allowed for Lebanon. Do not guess an alphanumeric sender.
+3. In **Plivo Console → API Platform → API Credentials**, create or retrieve the Auth ID and Auth
+   Token, then store them and the approved source only in AWS Secrets Manager/runtime configuration.
+4. Deploy to staging and explicitly test an allowlisted real Alfa number and a real touch number:
    request OTP, enter it through the existing BaladiGuard endpoint, and confirm login/signup and
    change-phone flows. Record only masked numbers, status, timestamp, and safe metrics.
 
-Trial accounts restrict recipients and expire; do not treat test credentials/magic numbers as a
-Verify integration test. CI mocks the HTTP boundary and never sends SMS. A paid/public-capable
-account and successful Alfa/touch tests are production blockers.
+Do not regard a successful API response as proof of delivery or ownership. Review Plivo delivery
+reports for `delivered`/failure evidence, but only successful BaladiGuard OTP verification proves
+phone possession. CI mocks the HTTP boundary and never sends SMS. A funded/public-capable account
+and successful Alfa/touch tests are production blockers.
 
-For an opt-in paid live test, set the four runtime variables above and
-`BALADIGUARD_TWILIO_LIVE_TEST=1` in an operator shell, then use the deployed citizen UI/API with
-an operator-owned +961 number. Do not script or print the OTP, token, or credentials; this
-procedure is intentionally not part of CI.
+For an opt-in paid live test, set the four runtime variables above and retain
+`NOTIFICATION_SANDBOX=true` with only the operator-owned number in
+`NOTIFICATION_ALLOWLIST_PHONES`. Use the deployed citizen UI/API; do not script or print the
+OTP, token, or credentials. This procedure is intentionally not part of CI.
 
 Exactly one channel is used per OTP request. There is **no** automatic WhatsApp→SNS fallback.
 
@@ -88,8 +85,8 @@ CITIZEN_OTP_WHATSAPP_GRAPH_API_VERSION=v21.0
 
 When `session_text` is selected, a template name is not required. Staging may use it with `NOTIFICATION_SANDBOX=true`. Production rejects it.
 
-Sandbox allowlisting (`NOTIFICATION_SANDBOX` + `NOTIFICATION_ALLOWLIST_PHONES`) still
-applies to both `sns` and `whatsapp` real sends.
+Sandbox allowlisting (`NOTIFICATION_SANDBOX` + `NOTIFICATION_ALLOWLIST_PHONES`) applies to all
+real SMS/WhatsApp sends, including `plivo`.
 
 ## Template requirements
 
