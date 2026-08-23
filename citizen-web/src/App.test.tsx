@@ -142,6 +142,33 @@ describe('citizen web public browsing', () => {
     });
   });
 
+  it('keeps compact navigation hidden until the menu is opened', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const user = userEvent.setup();
+
+    try {
+      renderApp('/reports');
+      const links = document.getElementById('shell-nav-links');
+
+      expect(links).toHaveAttribute('hidden');
+      expect(screen.getByRole('button', { name: 'Open menu' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+
+      expect(links).not.toHaveAttribute('hidden');
+      expect(screen.getByRole('button', { name: 'Close menu' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+
   it('opens public detail from the list', async () => {
     const user = userEvent.setup();
     renderApp('/reports');

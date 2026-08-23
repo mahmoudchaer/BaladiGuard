@@ -126,6 +126,10 @@ a {
   gap: 0.35rem;
 }
 
+.shell-nav-links[hidden] {
+  display: none;
+}
+
 .nav-menu-toggle {
   display: none;
   border: 0;
