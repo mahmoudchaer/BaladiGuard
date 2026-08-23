@@ -7,7 +7,7 @@ import hmac
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from app.config import Settings, get_settings
 from app.core.citizen_auth import (
@@ -413,12 +413,13 @@ class CitizenService:
         authenticated_user_id: str | None = None,
         now: datetime | None = None,
         code: str | None = None,
+        remember_dev_code: bool = True,
+        verification_provider: Literal["local", "firebase"] = "local",
     ) -> tuple[str, int, str]:
         """Create a purpose-bound OTP challenge.
 
         Returns ``(challenge_id, expires_in_seconds, plaintext_code)``. The plaintext
-        code must never be included in HTTP responses; it is for delivery adapters
-        and local/test peeks only.
+        code must never be included in HTTP responses or persisted in plaintext.
         """
         if purpose == CHANGE_PHONE_PURPOSE:
             if not authenticated_user_id:
@@ -433,6 +434,8 @@ class CitizenService:
                 region=region,
                 now=now,
                 code=code,
+                remember_dev_code=remember_dev_code,
+                verification_provider=verification_provider,
             )
             return challenge_id, OTP_TTL_SECONDS, otp_code
 
@@ -449,7 +452,12 @@ class CitizenService:
         otp_code = code or f"{secrets.randbelow(1_000_000):06d}"
         challenge = StoredCitizenOtpChallenge(
             challengeId=f"chl_{secrets.token_hex(12)}",
-            codeHash=_hash_otp_code(otp_code, settings=self._settings_or_default()),
+            codeHash=(
+                _hash_otp_code(otp_code, settings=self._settings_or_default())
+                if verification_provider == "local"
+                else None
+            ),
+            verificationProvider=verification_provider,
             phone=canonical,
             purpose=LOGIN_OR_SIGNUP_PURPOSE,
             userId=None,
@@ -458,7 +466,8 @@ class CitizenService:
             ttl=int(expires.timestamp()),
         )
         self._resolved_otp().create(challenge)
-        self._remember_dev_otp(challenge.challenge_id, otp_code)
+        if remember_dev_code and verification_provider == "local":
+            self._remember_dev_otp(challenge.challenge_id, otp_code)
         # Never log the plaintext code. Phone is account-sensitive; keep logs generic.
         logger.info("Citizen OTP challenge created purpose=%s", purpose)
         return challenge.challenge_id, OTP_TTL_SECONDS, otp_code
@@ -471,6 +480,8 @@ class CitizenService:
         region: str | None = None,
         now: datetime | None = None,
         code: str | None = None,
+        remember_dev_code: bool = True,
+        verification_provider: Literal["local", "firebase"] = "local",
     ) -> tuple[str, str]:
         """Create a purpose-bound CHANGE_PHONE challenge.
 
@@ -497,7 +508,12 @@ class CitizenService:
         otp_code = code or f"{secrets.randbelow(1_000_000):06d}"
         challenge = StoredCitizenOtpChallenge(
             challengeId=f"chl_{secrets.token_hex(12)}",
-            codeHash=_hash_otp_code(otp_code, settings=self._settings_or_default()),
+            codeHash=(
+                _hash_otp_code(otp_code, settings=self._settings_or_default())
+                if verification_provider == "local"
+                else None
+            ),
+            verificationProvider=verification_provider,
             phone=canonical,
             purpose=CHANGE_PHONE_PURPOSE,
             userId=user_id,
@@ -506,8 +522,65 @@ class CitizenService:
             ttl=int(expires.timestamp()),
         )
         self._resolved_otp().create(challenge)
-        self._remember_dev_otp(challenge.challenge_id, otp_code)
+        if remember_dev_code and verification_provider == "local":
+            self._remember_dev_otp(challenge.challenge_id, otp_code)
         return challenge.challenge_id, otp_code
+
+    def complete_firebase_phone_verification(
+        self,
+        *,
+        challenge_id: str,
+        phone: str,
+        purpose: OtpPurpose,
+        full_name: str | None = None,
+        accept_legal: bool | None = None,
+        legal_locale: str | None = None,
+        authenticated_user_id: str | None = None,
+        now: datetime | None = None,
+    ) -> CitizenOtpVerifyResponse:
+        """Consume the matching Firebase challenge after server-side token verification."""
+        moment = now or _utcnow()
+        challenge = self._resolved_otp().get(challenge_id.strip())
+        if challenge is None or challenge.verification_provider != "firebase":
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+
+        if purpose == LOGIN_OR_SIGNUP_PURPOSE:
+            if accept_legal is not True:
+                raise CitizenServiceError(
+                    "LEGAL_ACCEPTANCE_REQUIRED",
+                    "You must accept the current Terms, Privacy Policy, and "
+                    "Acceptable Use Policy to continue.",
+                )
+            self._consume_federated_otp_challenge(
+                challenge=challenge,
+                expected_purpose=LOGIN_OR_SIGNUP_PURPOSE,
+                expected_user_id=None,
+                expected_phone=phone,
+                now=moment,
+            )
+            return self._complete_login_or_signup(
+                phone=phone,
+                full_name=full_name,
+                legal_locale=legal_locale,
+                now=moment,
+            )
+
+        if purpose == CHANGE_PHONE_PURPOSE:
+            if not authenticated_user_id:
+                raise CitizenServiceError(
+                    "UNAUTHORIZED", "Citizen authentication required.", status_code=401
+                )
+            return self._complete_change_phone_verify(
+                user_id=authenticated_user_id,
+                phone=phone,
+                challenge_id=challenge.challenge_id,
+                code=None,
+                federated=True,
+                now=moment,
+            )
+        raise CitizenServiceError("VALIDATION_ERROR", "Unsupported OTP purpose.")
 
     def verify_otp(
         self,
@@ -653,7 +726,8 @@ class CitizenService:
         user_id: str,
         phone: str,
         challenge_id: str,
-        code: str,
+        code: str | None,
+        federated: bool = False,
         now: datetime,
     ) -> CitizenOtpVerifyResponse:
         store = self._resolved_store()
@@ -670,13 +744,29 @@ class CitizenService:
                 "session_epoch": user.session_epoch + 1,
             }
         )
-        prior_challenge = self._consume_change_phone_challenge(
-            user_id=user_id,
-            phone=phone,
-            challenge_id=challenge_id,
-            code=code,
-            now=now,
-        )
+        if federated:
+            challenge = self._resolved_otp().get(challenge_id)
+            if challenge is None:
+                raise CitizenServiceError(
+                    "OTP_EXPIRED", "The verification challenge is no longer valid."
+                )
+            prior_challenge = self._consume_federated_otp_challenge(
+                challenge=challenge,
+                expected_purpose=CHANGE_PHONE_PURPOSE,
+                expected_user_id=user_id,
+                expected_phone=phone,
+                now=now,
+            )
+        else:
+            if code is None:
+                raise CitizenServiceError("VALIDATION_ERROR", "Verification code is required.")
+            prior_challenge = self._consume_change_phone_challenge(
+                user_id=user_id,
+                phone=phone,
+                challenge_id=challenge_id,
+                code=code,
+                now=now,
+            )
         try:
             updated = store.change_phone(
                 user_id=user_id,
@@ -721,7 +811,47 @@ class CitizenService:
         now: datetime,
     ) -> StoredCitizenOtpChallenge:
         """Consume a challenge; returns the pre-consume snapshot."""
+        self._validate_live_otp_challenge(
+            challenge=challenge,
+            expected_purpose=expected_purpose,
+            expected_user_id=expected_user_id,
+            expected_phone=expected_phone,
+            now=now,
+        )
+        if challenge.verification_provider != "local" or challenge.code_hash is None:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+
+        expected = challenge.code_hash
+        actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
+        if hmac.compare_digest(expected, actual):
+            return self._consume_approved_challenge(challenge, now=now)
+
+        # Apply BaladiGuard's own limit before returning an account-neutral error.
         otp_store = self._resolved_otp()
+        updated = otp_store.increment_attempt(challenge.challenge_id)
+        if updated is None:
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+        if updated.attempt_count >= OTP_MAX_ATTEMPTS:
+            raise CitizenServiceError(
+                "RATE_LIMIT_EXCEEDED",
+                "Too many verification attempts. Request a new code.",
+                status_code=429,
+            )
+        raise CitizenServiceError("INVALID_OTP", "The verification code is incorrect.")
+
+    def _validate_live_otp_challenge(
+        self,
+        *,
+        challenge: StoredCitizenOtpChallenge,
+        expected_purpose: OtpPurpose,
+        expected_user_id: str | None,
+        expected_phone: str,
+        now: datetime,
+    ) -> None:
         if (
             challenge.purpose != expected_purpose
             or challenge.user_id != expected_user_id
@@ -752,23 +882,34 @@ class CitizenService:
                 status_code=429,
             )
 
-        expected = challenge.code_hash
-        actual = _hash_otp_code(code.strip(), settings=self._settings_or_default())
-        if not hmac.compare_digest(expected, actual):
-            updated = otp_store.increment_attempt(challenge.challenge_id)
-            if updated is None:
-                raise CitizenServiceError(
-                    "OTP_EXPIRED", "The verification challenge is no longer valid."
-                )
-            if updated.attempt_count >= OTP_MAX_ATTEMPTS:
-                raise CitizenServiceError(
-                    "RATE_LIMIT_EXCEEDED",
-                    "Too many verification attempts. Request a new code.",
-                    status_code=429,
-                )
-            raise CitizenServiceError("INVALID_OTP", "The verification code is incorrect.")
+    def _consume_federated_otp_challenge(
+        self,
+        *,
+        challenge: StoredCitizenOtpChallenge,
+        expected_purpose: OtpPurpose,
+        expected_user_id: str | None,
+        expected_phone: str,
+        now: datetime,
+    ) -> StoredCitizenOtpChallenge:
+        """Consume a Firebase challenge without manufacturing a local OTP value."""
+        if challenge.verification_provider != "firebase":
+            raise CitizenServiceError(
+                "OTP_EXPIRED", "The verification challenge is no longer valid."
+            )
+        self._validate_live_otp_challenge(
+            challenge=challenge,
+            expected_purpose=expected_purpose,
+            expected_user_id=expected_user_id,
+            expected_phone=expected_phone,
+            now=now,
+        )
+        return self._consume_approved_challenge(challenge, now=now)
 
-        # Compare-and-set consume: only one concurrent verify can mark the challenge spent.
+    def _consume_approved_challenge(
+        self, challenge: StoredCitizenOtpChallenge, *, now: datetime
+    ) -> StoredCitizenOtpChallenge:
+        """Compare-and-set consume after local OTP verification approval."""
+        otp_store = self._resolved_otp()
         consumed = otp_store.consume(
             challenge.challenge_id,
             consumed_at=_iso(now),

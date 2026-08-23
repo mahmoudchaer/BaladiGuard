@@ -71,6 +71,13 @@ def test_resolve_channel_explicit_and_legacy_defaults():
     assert public_otp_delivery_channel("whatsapp") == "whatsapp"
 
 
+def test_firebase_is_publicly_sms_but_never_uses_backend_delivery_transport():
+    settings = _settings(citizen_otp_delivery_channel="firebase", notification_sandbox=False)
+    with pytest.raises(OtpDeliveryError, match="OTP delivery failed") as exc:
+        deliver_citizen_otp(phone="+96170123456", region="LB", code="111222", settings=settings)
+    assert exc.value.category == "firebase_client_required"
+
+
 def test_otp_sandbox_blocks_when_allowlist_empty(monkeypatch, caplog):
     sns = FakeSnsClient()
     monkeypatch.setattr(

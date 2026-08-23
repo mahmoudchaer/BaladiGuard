@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { ApiError, setUnauthorizedHandler } from '@/services/api';
 import { getMe, logout as logoutApi, updateMe, verifyOtp } from '@/services/citizenAuth';
+import { completeFirebasePhoneOtp } from '@/services/firebasePhoneAuth';
 import type { CitizenProfile, CitizenProfilePatch, OtpVerifyOptions } from '@/types/citizen';
 
 type AuthValue = {
@@ -18,6 +19,12 @@ type AuthValue = {
   applyOtp: (
     challengeId: string,
     code: string,
+    options: OtpVerifyOptions,
+  ) => Promise<CitizenProfile>;
+  applyFirebaseOtp: (
+    challengeId: string,
+    code: string,
+    purpose: 'LOGIN_OR_SIGNUP' | 'CHANGE_PHONE',
     options: OtpVerifyOptions,
   ) => Promise<CitizenProfile>;
   refresh: () => Promise<CitizenProfile | null>;
@@ -59,6 +66,11 @@ export function CitizenAuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(profile),
       applyOtp: async (challengeId, code, options) => {
         const next = await verifyOtp(challengeId, code, options);
+        setProfile(next);
+        return next;
+      },
+      applyFirebaseOtp: async (challengeId, code, purpose, options) => {
+        const next = await completeFirebasePhoneOtp(challengeId, code, purpose, options);
         setProfile(next);
         return next;
       },

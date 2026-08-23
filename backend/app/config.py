@@ -359,6 +359,8 @@ class Settings:
         # NOTIFICATION_ADAPTER=real → sns).
         raw_otp_channel = os.getenv("CITIZEN_OTP_DELIVERY_CHANNEL", "").strip().lower()
         self.citizen_otp_delivery_channel = raw_otp_channel or None
+        # Firebase Phone Auth is an OTP authority; the backend verifies its ID token.
+        self.firebase_project_id = os.getenv("FIREBASE_PROJECT_ID", "").strip() or None
         self.citizen_otp_whatsapp_phone_number_id = (
             os.getenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "").strip() or None
         )

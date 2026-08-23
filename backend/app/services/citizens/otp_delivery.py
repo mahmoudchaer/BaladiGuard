@@ -1,7 +1,7 @@
 """Citizen OTP delivery providers (issue #297).
 
 Separates OTP transport from ticket ``NOTIFICATION_ADAPTER``. Channels:
-``mock`` | ``sns`` | ``whatsapp``. Exactly one provider is used per request.
+``mock`` | ``sns`` | ``whatsapp`` | ``firebase``. Exactly one provider is used per request.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
 
-OtpDeliveryChannel = Literal["mock", "sns", "whatsapp"]
+OtpDeliveryChannel = Literal["mock", "sns", "whatsapp", "firebase"]
 PublicOtpDeliveryChannel = Literal["sms", "whatsapp", "dev"]
 
 
@@ -61,7 +61,7 @@ def _emit_dev_plaintext(canonical: str, code: str, *, reason: str, cfg: Settings
 def resolve_citizen_otp_delivery_channel(cfg: Settings) -> OtpDeliveryChannel:
     """Resolve channel. Explicit env wins; otherwise preserve historical SNS/mock behavior."""
     raw = (cfg.citizen_otp_delivery_channel or "").strip().lower()
-    if raw in {"mock", "sns", "whatsapp"}:
+    if raw in {"mock", "sns", "whatsapp", "firebase"}:
         return raw  # type: ignore[return-value]
     # Legacy default: mock unless ticket notifications already use real SNS path.
     if cfg.app_env == "test" or cfg.notification_adapter != "real":
@@ -72,7 +72,7 @@ def resolve_citizen_otp_delivery_channel(cfg: Settings) -> OtpDeliveryChannel:
 def public_otp_delivery_channel(channel: OtpDeliveryChannel) -> PublicOtpDeliveryChannel:
     if channel == "whatsapp":
         return "whatsapp"
-    if channel == "sns":
+    if channel in {"sns", "firebase"}:
         return "sms"
     return "dev"
 
@@ -324,6 +324,10 @@ def deliver_citizen_otp(
 
     channel = resolve_citizen_otp_delivery_channel(cfg)
     public = public_otp_delivery_channel(channel)
+    if channel == "firebase":
+        # Firebase Phone Auth is driven by the official mobile/web SDK. The
+        # backend receives only its signed ID token after verification.
+        raise OtpDeliveryError("firebase_client_required")
     provider = build_citizen_otp_delivery_provider(channel)
 
     started = __import__("time").perf_counter()
