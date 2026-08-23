@@ -142,11 +142,11 @@ function renderPage(route = '/tickets/tkt_123') {
   );
 }
 
-function TicketNavigationHarness() {
+function TicketNavigationHarness({ secondSection = 'activity' }: { secondSection?: string }) {
   const navigate = useNavigate();
   return (
     <>
-      <button type="button" onClick={() => navigate('/tickets/tkt_456?section=activity')}>
+      <button type="button" onClick={() => navigate(`/tickets/tkt_456?section=${secondSection}`)}>
         Open second ticket
       </button>
       <Routes>
@@ -1015,6 +1015,40 @@ function queryComparisonRegion(candidateNumber = 'BG-2026-0201') {
 }
 
 describe('TicketDetailPage duplicate comparison', () => {
+  it('ignores a comparison response after navigation starts loading another ticket', async () => {
+    const user = userEvent.setup();
+    let resolveComparison!: (value: DuplicateComparison | null) => void;
+    vi.mocked(fetchTicketById).mockImplementation(async (id) => ({
+      ...ticket,
+      ticketId: id,
+      ticketNumber: id === 'tkt_456' ? 'BG-2026-0002' : ticket.ticketNumber,
+    }));
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([comparisonCandidate]));
+    vi.mocked(fetchDuplicateComparison).mockReturnValue(
+      new Promise((resolve) => {
+        resolveComparison = resolve;
+      }),
+    );
+    renderWithProviders(<TicketNavigationHarness secondSection="duplicates" />, {
+      route: '/tickets/tkt_123?section=duplicates',
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Compare BG-2026-0201' }));
+    await user.click(screen.getByRole('button', { name: 'Open second ticket' }));
+    await screen.findByRole('heading', { name: 'BG-2026-0002' });
+
+    await act(async () => {
+      resolveComparison(
+        buildComparison({ description: 'Stale comparison from the first ticket.' }),
+      );
+    });
+
+    expect(screen.queryByText('Stale comparison from the first ticket.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /Comparison of .*BG-2026-0001/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it('keeps expanding a candidate separate from selecting it', async () => {
     const user = userEvent.setup();
     mockComparisonDetail();

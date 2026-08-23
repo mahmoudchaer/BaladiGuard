@@ -1008,7 +1008,7 @@ export function TicketDetailPage({
     try {
       // Bounded projection: no contact, tracking code, storage key, or history.
       const comparison = await fetchDuplicateComparison(sourceTicketId, candidateId);
-      if (loadedTicketRef.current?.ticketId !== sourceTicketId) {
+      if (currentTicketId.current !== sourceTicketId) {
         return;
       }
       if (!comparison) {
@@ -1028,7 +1028,7 @@ export function TicketDetailPage({
         [candidateId]: { status: 'ready', data: comparison },
       }));
     } catch (error) {
-      if (loadedTicketRef.current?.ticketId !== sourceTicketId) {
+      if (currentTicketId.current !== sourceTicketId) {
         return;
       }
       // Allow a retry for this candidate only; other rows stay untouched.
