@@ -46,9 +46,10 @@ export default function CitizenTicketHistoryScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackErrorFor, setFeedbackErrorFor] = useState<string | null>(null);
-  const [submittingFeedbackFor, setSubmittingFeedbackFor] = useState<string | null>(null);
+  const [submittingFeedbackFor, setSubmittingFeedbackFor] = useState<Set<string>>(new Set());
   const didInitialLoad = useRef(false);
   const requestGeneration = useRef(0);
+  const feedbackRequestsInFlight = useRef<Set<string>>(new Set());
 
   const loadHistory = useCallback(
     async (cursor: string | null, mode: 'initial' | 'refresh' | 'more') => {
@@ -97,10 +98,11 @@ export default function CitizenTicketHistoryScreen() {
     status: ResolutionFeedbackStatus,
     note?: string,
   ) => {
-    if (!accessToken) {
+    if (!accessToken || feedbackRequestsInFlight.current.has(trackingCode)) {
       return;
     }
-    setSubmittingFeedbackFor(trackingCode);
+    feedbackRequestsInFlight.current.add(trackingCode);
+    setSubmittingFeedbackFor((current) => new Set(current).add(trackingCode));
     setFeedbackError(null);
     setFeedbackErrorFor(null);
     try {
@@ -125,7 +127,12 @@ export default function CitizenTicketHistoryScreen() {
       setFeedbackErrorFor(trackingCode);
       setFeedbackError(error instanceof Error ? error.message : t('history.feedbackError'));
     } finally {
-      setSubmittingFeedbackFor(null);
+      feedbackRequestsInFlight.current.delete(trackingCode);
+      setSubmittingFeedbackFor((current) => {
+        const next = new Set(current);
+        next.delete(trackingCode);
+        return next;
+      });
     }
   };
 
@@ -271,7 +278,7 @@ export default function CitizenTicketHistoryScreen() {
                       status: item.resolutionFeedbackStatus ?? null,
                       submittedAt: null,
                     }}
-                    submitting={submittingFeedbackFor === item.trackingCode}
+                    submitting={submittingFeedbackFor.has(item.trackingCode)}
                     errorMessage={feedbackErrorFor === item.trackingCode ? feedbackError : null}
                     onSubmit={(status, note) =>
                       void handleFeedback(item.trackingCode, status, note)
