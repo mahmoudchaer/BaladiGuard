@@ -1,0 +1,168 @@
+{
+  "windowStart": "2026-08-23T11:00:45.549344Z",
+  "windowEnd": "2026-08-23T11:10:45.549344Z",
+  "region": "us-east-1",
+  "ticketTable": "baladiguard-staging-tickets",
+  "s3Bucket": "baladiguard-staging-report-photos-265911027282",
+  "dynamodb": {
+    "ConsumedWriteCapacityUnits": {
+      "stat": "Sum",
+      "sum": 1103.0,
+      "points": 6
+    },
+    "ConsumedReadCapacityUnits": {
+      "stat": "Sum",
+      "sum": 12757.5,
+      "points": 10
+    },
+    "WriteThrottleEvents": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    },
+    "ReadThrottleEvents": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    },
+    "UserErrors": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    },
+    "SystemErrors": {
+      "stat": "Sum",
+      "sum": 0.0,
+      "points": 0
+    }
+  },
+  "s3": {
+    "5xxErrors": {
+      "sum": 0.0,
+      "points": 0
+    },
+    "4xxErrors": {
+      "sum": 0.0,
+      "points": 0
+    },
+    "AllRequests": {
+      "sum": 0.0,
+      "points": 0
+    }
+  },
+  "application": {
+    "HttpRequests": {
+      "stat": "Sum",
+      "value": 833.0,
+      "points": 10
+    },
+    "HttpRequestDuration": {
+      "stat": "Average",
+      "value": 508.21511999999996,
+      "points": 10
+    },
+    "HttpRequestDurationP95": {
+      "stat": "p95",
+      "value": 1953.0729724098962,
+      "points": 10
+    },
+    "Http5xx": {
+      "stat": "Sum",
+      "value": 0,
+      "points": 0
+    },
+    "ReportsSubmitted": {
+      "stat": "Sum",
+      "value": 99.0,
+      "points": 4
+    },
+    "AiJobsQueued": {
+      "stat": "Sum",
+      "value": 150.0,
+      "points": 4
+    },
+    "AiJobsSucceeded": {
+      "stat": "Sum",
+      "value": 100.0,
+      "points": 4
+    },
+    "AiJobsRetried": {
+      "stat": "Sum",
+      "value": 0,
+      "points": 0
+    },
+    "AiJobsDeadLettered": {
+      "stat": "Sum",
+      "value": 0,
+      "points": 0
+    },
+    "AiJobOldestAgeSeconds": {
+      "stat": "Maximum",
+      "value": 7.0,
+      "points": 10
+    },
+    "AiQueuePending": {
+      "stat": "Maximum",
+      "value": null,
+      "points": 0
+    },
+    "S3Errors": {
+      "stat": "Sum",
+      "value": 0,
+      "points": 0
+    }
+  },
+  "ecs": {
+    "api": {
+      "RunningTaskCount": {
+        "stat": "Minimum",
+        "value": null,
+        "points": 0
+      },
+      "CpuUtilized": {
+        "stat": "Average",
+        "value": null,
+        "points": 0
+      },
+      "MemoryUtilized": {
+        "stat": "Average",
+        "value": null,
+        "points": 0
+      }
+    },
+    "ai-worker": {
+      "RunningTaskCount": {
+        "stat": "Minimum",
+        "value": null,
+        "points": 0
+      },
+      "CpuUtilized": {
+        "stat": "Average",
+        "value": null,
+        "points": 0
+      },
+      "MemoryUtilized": {
+        "stat": "Average",
+        "value": null,
+        "points": 0
+      }
+    },
+    "redaction-worker": {
+      "RunningTaskCount": {
+        "stat": "Minimum",
+        "value": null,
+        "points": 0
+      },
+      "CpuUtilized": {
+        "stat": "Average",
+        "value": null,
+        "points": 0
+      },
+      "MemoryUtilized": {
+        "stat": "Average",
+        "value": null,
+        "points": 0
+      }
+    }
+  }
+}

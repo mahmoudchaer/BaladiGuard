@@ -1,0 +1,207 @@
+{
+  "generatedAt": "2026-08-23T11:10:03.988998Z",
+  "scenario": "upload-race",
+  "baseUrl": "https://api.staging.baladiguard.site",
+  "concurrency": 4,
+  "durationSeconds": 14.0,
+  "maxRequests": 120,
+  "minIntervalMs": 60.0,
+  "totals": {
+    "requests": 63,
+    "ok2xx": 63,
+    "client4xx": 0,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 851.9934999931138,
+    "p95": 1931.1280099995197,
+    "p99": 3233.0278779991268,
+    "mean": 1012.8965746028819,
+    "max": 4828.5533000016585
+  },
+  "byName": {
+    "photo_upload": {
+      "count": 49,
+      "status_counts": {
+        "200": 49
+      },
+      "latency_ms": {
+        "p50": 907.3289999942062,
+        "p95": 2128.895300001021,
+        "p99": 3593.3078119996835,
+        "mean": 1096.371461224816
+      }
+    },
+    "health_ready_ai": {
+      "count": 14,
+      "status_counts": {
+        "200": 14
+      },
+      "latency_ms": {
+        "p50": 707.4491999956081,
+        "p95": 932.4013400037074,
+        "p99": 956.875868004863,
+        "mean": 720.7344714261126
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": null,
+      "pass": null
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": null,
+      "pass": null
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "routeCoverage": {
+      "required": {
+        "photo_upload": 6
+      },
+      "actual": {
+        "photo_upload": 49
+      },
+      "missing": {},
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "required": false,
+      "count": 14,
+      "last": {
+        "at": "2026-08-23T11:10:03.988998Z",
+        "pending": null,
+        "processing": null,
+        "failed": null,
+        "status": "metrics",
+        "source": "worker_metrics"
+      },
+      "maxPending": null,
+      "pass": null
+    }
+  },
+  "createdTicketIdsSample": [],
+  "uploadedObjectKeysSample": [
+    "reports/photos/v2/804a7b95f9904af1fe73713b/8440f0994cae41328e8d39e432de118f.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/ccd8ff6c7a1b4faf850d8527e64600dc.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/d19cb9cc5f0a4b4da2568d744deae6c2.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/e4f8776d72ec4394bb5a1546f3d84336.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/c9e008b281fa4e3a93ed95183c45a636.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/0cc7bc677e634811914d7937a3d2ecd9.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/af2970f04b904ca8a990c5f52d38c9f1.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/da06b95baf0a49a290c15de724f26196.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/eeaf97ba0b984ed9bab766018131500c.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/ee6d2265a0b04ab6af48e91ec15461f7.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/f05d852e63624ef6952f91cf9e44e3fd.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/c349baf344fb455baabf25e9eac31e26.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/61662a4b769640b49521b3274904dbfe.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/03e7a3f737c34f3cac39be238e7c2799.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/cf64d97666964557a5bd5b5799528e92.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/782d74708af1475585678b13f0cffdea.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/14002b0972b24bf49ee3178f16b49031.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/595d64bf930443e6af66e97630ae186b.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/1f757346a91c426c88e8af827e01167c.jpg",
+    "reports/photos/v2/804a7b95f9904af1fe73713b/03db88721c8f45f6b1797df3de28e3bb.jpg"
+  ],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.987841Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.988998Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.988998Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:10:03.988998Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

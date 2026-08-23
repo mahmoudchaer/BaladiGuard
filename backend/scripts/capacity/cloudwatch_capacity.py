@@ -1,4 +1,4 @@
-"""Collect CloudWatch capacity signals for #191 evidence (DynamoDB / S3).
+"""Collect deployed capacity signals for #191/#287 evidence.
 
 Safe for evidence: emits aggregates only (no credentials, no PII).
 """
@@ -25,9 +25,11 @@ def collect_capacity_cloudwatch(
     region: str,
     table_prefix: str,
     s3_bucket: str | None,
+    environment: str | None = None,
+    ecs_cluster: str | None = None,
     window_minutes: int = 30,
 ) -> dict[str, Any]:
-    """Return DynamoDB throttle/capacity and S3 error aggregates for the window."""
+    """Return application, worker, DynamoDB, and S3 aggregates for the window."""
     try:
         import boto3
     except ImportError as exc:  # pragma: no cover
@@ -46,6 +48,8 @@ def collect_capacity_cloudwatch(
         "s3Bucket": s3_bucket,
         "dynamodb": {},
         "s3": {},
+        "application": {},
+        "ecs": {},
     }
 
     dynamo_specs = (
@@ -96,6 +100,84 @@ def collect_capacity_cloudwatch(
                 }
             except Exception as exc:  # noqa: BLE001
                 metrics["s3"][metric_name] = {"error": type(exc).__name__}
+
+    if environment:
+        application_specs = (
+            ("HttpRequests", "Sum"),
+            ("HttpRequestDuration", "Average"),
+            ("HttpRequestDuration", "p95"),
+            ("Http5xx", "Sum"),
+            ("ReportsSubmitted", "Sum"),
+            ("AiJobsQueued", "Sum"),
+            ("AiJobsSucceeded", "Sum"),
+            ("AiJobsRetried", "Sum"),
+            ("AiJobsDeadLettered", "Sum"),
+            ("AiJobOldestAgeSeconds", "Maximum"),
+            ("AiQueuePending", "Maximum"),
+            ("S3Errors", "Sum"),
+        )
+        for metric_name, stat in application_specs:
+            key = metric_name if stat != "p95" else f"{metric_name}P95"
+            kwargs: dict[str, Any] = {
+                "Namespace": "BaladiGuard",
+                "MetricName": metric_name,
+                "Dimensions": [{"Name": "env", "Value": environment}],
+                "StartTime": start,
+                "EndTime": end,
+                "Period": 60,
+            }
+            if stat == "p95":
+                kwargs["ExtendedStatistics"] = [stat]
+            else:
+                kwargs["Statistics"] = [stat]
+            try:
+                response = cloudwatch.get_metric_statistics(**kwargs)
+                points = response.get("Datapoints") or []
+                values = [
+                    float(point.get(stat, point.get("ExtendedStatistics", {}).get(stat, 0)))
+                    for point in points
+                ]
+                metrics["application"][key] = {
+                    "stat": stat,
+                    "value": sum(values) if stat == "Sum" else (max(values) if values else None),
+                    "points": len(points),
+                }
+            except Exception as exc:  # noqa: BLE001
+                metrics["application"][key] = {"error": type(exc).__name__}
+
+    if ecs_cluster:
+        for service in ("api", "ai-worker", "redaction-worker"):
+            service_name = f"{ecs_cluster}-{service}"
+            metrics["ecs"][service] = {}
+            for metric_name, stat in (
+                ("RunningTaskCount", "Minimum"),
+                ("CpuUtilized", "Average"),
+                ("MemoryUtilized", "Average"),
+            ):
+                try:
+                    response = cloudwatch.get_metric_statistics(
+                        Namespace="ECS/ContainerInsights",
+                        MetricName=metric_name,
+                        Dimensions=[
+                            {"Name": "ClusterName", "Value": ecs_cluster},
+                            {"Name": "ServiceName", "Value": service_name},
+                        ],
+                        StartTime=start,
+                        EndTime=end,
+                        Period=60,
+                        Statistics=[stat],
+                    )
+                    points = response.get("Datapoints") or []
+                    values = [float(point[stat]) for point in points if stat in point]
+                    metrics["ecs"][service][metric_name] = {
+                        "stat": stat,
+                        "value": min(values)
+                        if stat == "Minimum" and values
+                        else (max(values) if values else None),
+                        "points": len(points),
+                    }
+                except Exception as exc:  # noqa: BLE001
+                    metrics["ecs"][service][metric_name] = {"error": type(exc).__name__}
 
     return metrics
 

@@ -1,0 +1,233 @@
+{
+  "generatedAt": "2026-08-23T11:09:45.351239Z",
+  "scenario": "submit-race",
+  "baseUrl": "https://api.staging.baladiguard.site",
+  "concurrency": 4,
+  "durationSeconds": 18.0,
+  "maxRequests": 160,
+  "minIntervalMs": 40.0,
+  "totals": {
+    "requests": 47,
+    "ok2xx": 47,
+    "client4xx": 0,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 1284.6412000071723,
+    "p95": 3195.9120299987258,
+    "p99": 3238.2811399988714,
+    "mean": 1579.1641893617666,
+    "max": 3241.1496999993687
+  },
+  "byName": {
+    "ticket_submit": {
+      "count": 21,
+      "status_counts": {
+        "201": 21
+      },
+      "latency_ms": {
+        "p50": 2052.109600001131,
+        "p95": 3234.9136999982875,
+        "p99": 3239.9024999991525,
+        "mean": 2264.890499999941
+      }
+    },
+    "health_ready_ai": {
+      "count": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "latency_ms": {
+        "p50": 782.861049992789,
+        "p95": 989.2576600075698,
+        "p99": 1015.3660120116547,
+        "mean": 824.3246299971361
+      }
+    },
+    "citizen_history": {
+      "count": 8,
+      "status_counts": {
+        "200": 8
+      },
+      "latency_ms": {
+        "p50": 1224.9167500049225,
+        "p95": 1363.5787600018375,
+        "p99": 1397.5826319995394,
+        "mean": 1134.0198625002813
+      }
+    },
+    "citizen_me": {
+      "count": 8,
+      "status_counts": {
+        "200": 8
+      },
+      "latency_ms": {
+        "p50": 1142.9630999991787,
+        "p95": 1508.0319050030082,
+        "p99": 1609.9064609996276,
+        "mean": 1167.8264000038325
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": 3234.9136999982875,
+      "pass": false
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": null,
+      "pass": null
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "routeCoverage": {
+      "required": {
+        "ticket_submit": 6,
+        "health_ready_ai": 2
+      },
+      "actual": {
+        "ticket_submit": 21,
+        "health_ready_ai": 10
+      },
+      "missing": {},
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "required": true,
+      "count": 10,
+      "last": {
+        "at": "2026-08-23T11:09:45.351239Z",
+        "pending": null,
+        "processing": null,
+        "failed": null,
+        "status": "metrics",
+        "source": "worker_metrics"
+      },
+      "maxPending": null,
+      "pass": true
+    }
+  },
+  "createdTicketIdsSample": [
+    "tkt_cc68623ee1f74abc85bf246b774cdea2",
+    "tkt_53343deb62cc4a8ab94576e757a6d756",
+    "tkt_90cb84f371c349b6bd40691dae411f57",
+    "tkt_4885d1d8ea0a4688aa80527cd2ca5927",
+    "tkt_a28ac22f27c14bcca4f26b12398c72e6",
+    "tkt_da070e3640104e55b3cc97070da8950b",
+    "tkt_bc4626b1be124a1e957480d0fd3eec7b",
+    "tkt_c2c4c5caa8194b0ab0f9a7aab0ccee9a",
+    "tkt_db069a149dd346bb8fe1c6531950f4b3",
+    "tkt_30d7f7a8dab54054b8dc4049704e1579",
+    "tkt_8ffe23783a7f4cf8b16432110ba93f5e",
+    "tkt_5e9e4be4c0bf409eb7f4c2dbbda1b6a2",
+    "tkt_c00fe2ad340e43d0b4326620d1033347",
+    "tkt_f48fd44d84a0477ab9723dfea3005a66",
+    "tkt_4af45fa1441042c78f307e2a3c518346",
+    "tkt_a634e6de9b4841c5bdb20574d97b130e",
+    "tkt_c8efa2865300415c9d7b912eaf3b8939",
+    "tkt_8330b139d1f74fb593d234c7f0db33ad",
+    "tkt_03a186ab364d46d080d3df743fe82eb3",
+    "tkt_26de1f0b94ef48ef8eb94bcf34eb847e"
+  ],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [
+    {
+      "at": "2026-08-23T11:09:44.715506Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:44.845590Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.349225Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.349225Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.349225Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.351239Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.351239Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.351239Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.351239Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    },
+    {
+      "at": "2026-08-23T11:09:45.351239Z",
+      "pending": null,
+      "processing": null,
+      "failed": null,
+      "status": "metrics",
+      "source": "worker_metrics"
+    }
+  ],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}
