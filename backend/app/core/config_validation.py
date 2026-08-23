@@ -23,7 +23,7 @@ _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "produ
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_WHATSAPP_PROVIDERS = frozenset({"mock", "cloud"})
-ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp"})
+ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp", "twilio"})
 ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES = frozenset({"template", "session_text"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
@@ -329,7 +329,7 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="INVALID_CITIZEN_OTP_DELIVERY_CHANNEL",
-                    message="CITIZEN_OTP_DELIVERY_CHANNEL must be 'mock', 'sns', or 'whatsapp'.",
+                    message="CITIZEN_OTP_DELIVERY_CHANNEL must be 'mock', 'sns', 'whatsapp', or 'twilio'.",
                 )
             )
 
@@ -337,6 +337,28 @@ def validate_configuration(
     from app.services.citizens.otp_delivery import resolve_citizen_otp_delivery_channel
 
     effective_otp_channel = resolve_citizen_otp_delivery_channel(cfg)
+    if effective_otp_channel == "twilio":
+        missing_twilio = []
+        if not (cfg.twilio_account_sid or "").strip():
+            missing_twilio.append("TWILIO_ACCOUNT_SID")
+        if not (cfg.twilio_verify_service_sid or "").strip():
+            missing_twilio.append("TWILIO_VERIFY_SERVICE_SID")
+        api_key_pair = bool((cfg.twilio_api_key_sid or "").strip()) and bool(
+            (cfg.twilio_api_key_secret or "").strip()
+        )
+        auth_token = bool((cfg.twilio_auth_token or "").strip())
+        if not api_key_pair and not auth_token:
+            missing_twilio.append("TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET (preferred), or TWILIO_AUTH_TOKEN")
+        if missing_twilio:
+            result.issues.append(ConfigIssue(
+                code="MISSING_TWILIO_VERIFY_CONFIG",
+                message="CITIZEN_OTP_DELIVERY_CHANNEL=twilio requires: " + ", ".join(missing_twilio) + ".",
+            ))
+        if app_env in {"staging", "production"} and not api_key_pair:
+            result.issues.append(ConfigIssue(
+                code="UNSAFE_TWILIO_AUTH_TOKEN",
+                message="Staging/production Twilio Verify requires TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET; do not use the master Auth Token.",
+            ))
     raw_wa_mode = _raw(env_map, "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE")
     if raw_wa_mode is not None and raw_wa_mode.strip():
         if raw_wa_mode.strip().lower() not in ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES:
@@ -421,7 +443,7 @@ def validate_configuration(
                     code="UNSAFE_CITIZEN_OTP_DELIVERY_CHANNEL",
                     message=(
                         "Staging/production must not set CITIZEN_OTP_DELIVERY_CHANNEL=mock. "
-                        "Use 'sns' or 'whatsapp'."
+                        "Use 'sns', 'whatsapp', or 'twilio'."
                     ),
                 )
             )
@@ -432,7 +454,7 @@ def validate_configuration(
                     message=(
                         "Citizen OTP delivery resolved to mock via legacy "
                         "NOTIFICATION_ADAPTER defaults. Set "
-                        "CITIZEN_OTP_DELIVERY_CHANNEL=sns or whatsapp for real OTP."
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=sns, whatsapp, or twilio for real OTP."
                     ),
                     severity="warning",
                 )

@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 OtpPurpose = Literal["LOGIN_OR_SIGNUP", "CHANGE_PHONE"]
+OtpVerificationProvider = Literal["local", "twilio"]
 
 
 class StoredCitizenSession(BaseModel):
@@ -26,7 +27,15 @@ class StoredCitizenSession(BaseModel):
 
 class StoredCitizenOtpChallenge(BaseModel):
     challenge_id: str = Field(alias="challengeId")
-    code_hash: str = Field(alias="codeHash")
+    # Twilio Verify is the only authority for its OTP. Legacy providers retain
+    # the local HMAC only; a Twilio challenge deliberately has no code hash.
+    code_hash: str | None = Field(default=None, alias="codeHash")
+    verification_provider: OtpVerificationProvider = Field(
+        default="local", alias="verificationProvider"
+    )
+    provider_verification_sid: str | None = Field(
+        default=None, alias="providerVerificationSid"
+    )
     phone: str
     purpose: OtpPurpose
     user_id: str | None = Field(default=None, alias="userId")

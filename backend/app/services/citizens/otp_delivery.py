@@ -6,11 +6,13 @@ Separates OTP transport from ticket ``NOTIFICATION_ADAPTER``. Channels:
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import sys
 from typing import Literal, Protocol
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import boto3
@@ -22,7 +24,7 @@ from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
 
-OtpDeliveryChannel = Literal["mock", "sns", "whatsapp"]
+OtpDeliveryChannel = Literal["mock", "sns", "whatsapp", "twilio"]
 PublicOtpDeliveryChannel = Literal["sms", "whatsapp", "dev"]
 
 
@@ -31,6 +33,14 @@ class OtpDeliveryError(RuntimeError):
 
     def __init__(self, category: str, message: str = "OTP delivery failed.") -> None:
         super().__init__(message)
+        self.category = category
+
+
+class OtpVerificationError(RuntimeError):
+    """Safe Twilio Verify check failure; no raw provider detail reaches callers."""
+
+    def __init__(self, category: str) -> None:
+        super().__init__("OTP verification failed.")
         self.category = category
 
 
@@ -61,7 +71,7 @@ def _emit_dev_plaintext(canonical: str, code: str, *, reason: str, cfg: Settings
 def resolve_citizen_otp_delivery_channel(cfg: Settings) -> OtpDeliveryChannel:
     """Resolve channel. Explicit env wins; otherwise preserve historical SNS/mock behavior."""
     raw = (cfg.citizen_otp_delivery_channel or "").strip().lower()
-    if raw in {"mock", "sns", "whatsapp"}:
+    if raw in {"mock", "sns", "whatsapp", "twilio"}:
         return raw  # type: ignore[return-value]
     # Legacy default: mock unless ticket notifications already use real SNS path.
     if cfg.app_env == "test" or cfg.notification_adapter != "real":
@@ -72,13 +82,101 @@ def resolve_citizen_otp_delivery_channel(cfg: Settings) -> OtpDeliveryChannel:
 def public_otp_delivery_channel(channel: OtpDeliveryChannel) -> PublicOtpDeliveryChannel:
     if channel == "whatsapp":
         return "whatsapp"
-    if channel == "sns":
+    if channel in {"sns", "twilio"}:
         return "sms"
     return "dev"
 
 
 class CitizenOtpDeliveryProvider(Protocol):
     def deliver(self, *, canonical_phone: str, code: str, settings: Settings) -> None: ...
+
+
+def _twilio_credentials(settings: Settings) -> tuple[str, str]:
+    """Return HTTP Basic credentials without logging credentials or configuration."""
+    if settings.twilio_api_key_sid and settings.twilio_api_key_secret:
+        return settings.twilio_api_key_sid, settings.twilio_api_key_secret
+    if settings.twilio_account_sid and settings.twilio_auth_token:
+        return settings.twilio_account_sid, settings.twilio_auth_token
+    raise OtpDeliveryError("twilio_misconfigured")
+
+
+def _twilio_request(*, path: str, data: dict[str, str], settings: Settings) -> dict:
+    username, password = _twilio_credentials(settings)
+    auth = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
+    request = Request(
+        f"https://verify.twilio.com/v2/{path}",
+        data=urlencode(data).encode("utf-8"),
+        headers={
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=settings.twilio_verify_timeout_seconds) as response:
+            raw = response.read(4096)
+    except HTTPError as exc:
+        category = _classify_twilio_http_error(exc)
+        logger.warning(
+            "Citizen OTP Twilio Verify request failed category=%s status=%s",
+            category,
+            exc.code,
+        )
+        raise OtpDeliveryError(category) from exc
+    except (URLError, TimeoutError) as exc:
+        logger.warning("Citizen OTP Twilio Verify network failure error=%s", type(exc).__name__)
+        raise OtpDeliveryError("twilio_transient") from exc
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise OtpDeliveryError("twilio_malformed_response") from exc
+    if not isinstance(payload, dict):
+        raise OtpDeliveryError("twilio_malformed_response")
+    return payload
+
+
+def _classify_twilio_http_error(exc: HTTPError) -> str:
+    # Verify error codes are deliberately not exposed to client responses/logs.
+    if exc.code in {401, 403}:
+        return "twilio_auth"
+    if exc.code == 404:
+        return "twilio_not_found"
+    if exc.code == 429:
+        return "twilio_rate_limited"
+    if exc.code >= 500:
+        return "twilio_transient"
+    return "twilio_permanent"
+
+
+def start_twilio_verify(*, canonical_phone: str, settings: Settings) -> str:
+    """Start exactly one Verify SMS. Twilio generates the authoritative OTP."""
+    service_sid = settings.twilio_verify_service_sid
+    if not service_sid:
+        raise OtpDeliveryError("twilio_misconfigured")
+    payload = _twilio_request(
+        path=f"Services/{service_sid}/Verifications",
+        data={"To": canonical_phone, "Channel": "sms"},
+        settings=settings,
+    )
+    if payload.get("status") != "pending" or not isinstance(payload.get("sid"), str):
+        raise OtpDeliveryError("twilio_start_rejected")
+    return payload["sid"]
+
+
+def check_twilio_verify(*, canonical_phone: str, code: str, settings: Settings) -> bool:
+    """Only an explicit Verify status=approved proves possession of the phone."""
+    service_sid = settings.twilio_verify_service_sid
+    if not service_sid:
+        raise OtpVerificationError("twilio_misconfigured")
+    try:
+        payload = _twilio_request(
+            path=f"Services/{service_sid}/VerificationCheck",
+            data={"To": canonical_phone, "Code": code.strip()},
+            settings=settings,
+        )
+    except OtpDeliveryError as exc:
+        raise OtpVerificationError(exc.category) from exc
+    return payload.get("status") == "approved"
 
 
 class MockCitizenOtpDeliveryProvider:
@@ -308,7 +406,7 @@ def deliver_citizen_otp(
     *,
     phone: str,
     region: str | None,
-    code: str,
+    code: str | None,
     settings: Settings | None = None,
 ) -> PublicOtpDeliveryChannel:
     """Deliver a one-time code. Never includes the code in HTTP responses or logs.
@@ -324,6 +422,14 @@ def deliver_citizen_otp(
 
     channel = resolve_citizen_otp_delivery_channel(cfg)
     public = public_otp_delivery_channel(channel)
+    if channel == "twilio":
+        # This intentionally does not call a local transport provider: Verify
+        # creates and later checks the one authoritative code.
+        start_twilio_verify(canonical_phone=canonical, settings=cfg)
+        emit_metric("CitizenOtpDelivery", dimensions={"channel": channel, "result": "success"})
+        return public
+    if code is None:
+        raise OtpDeliveryError("local_otp_missing")
     provider = build_citizen_otp_delivery_provider(channel)
 
     started = __import__("time").perf_counter()
