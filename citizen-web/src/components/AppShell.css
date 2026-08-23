@@ -1387,19 +1387,45 @@ a {
 @media (max-width: 720px) {
   .shell-header {
     align-items: stretch;
+    gap: 0.75rem;
   }
 
-  .shell-nav {
-    width: 100%;
-  }
   .shell-brand {
     width: 100%;
   }
   .shell-nav {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 0.2rem;
-    max-width: calc(100vw - 2.5rem);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    width: 100%;
+    max-width: none;
+    overflow: visible;
+  }
+  .nav-menu-toggle {
+    justify-self: start;
+    white-space: nowrap;
+  }
+  .nav-sign-in,
+  .nav-avatar {
+    justify-self: end;
+  }
+  .nav-sign-in {
+    min-width: max-content;
+    white-space: nowrap;
+  }
+  .shell-nav > .language-switcher {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .shell-nav .language-switcher__row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .shell-nav .language-switcher__option {
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
   }
   .shell-subtitle {
     display: none;
@@ -1493,6 +1519,16 @@ a {
 }
 
 @media (max-width: 420px) {
+  .shell-header {
+    padding: 0.85rem 1rem;
+  }
+  .shell-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  .shell-title {
+    font-size: 1.05rem;
+  }
   .quick-grid {
     grid-template-columns: 1fr;
   }
