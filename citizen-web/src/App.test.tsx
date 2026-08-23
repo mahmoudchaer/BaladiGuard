@@ -142,9 +142,9 @@ describe('citizen web public browsing', () => {
     });
   });
 
-  it('keeps tablet navigation hidden until the compact menu is opened', async () => {
+  it('keeps compact navigation hidden until the menu is opened', async () => {
     const originalWidth = window.innerWidth;
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 768 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     const user = userEvent.setup();
 
     try {
