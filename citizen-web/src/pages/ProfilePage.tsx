@@ -31,7 +31,8 @@ function DraftSignOutDialog({
   }, [onDismiss]);
 
   useEffect(() => {
-    previouslyFocused.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocused.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const root = dialogRef.current;
     const focusables = () =>
       Array.from(
@@ -248,284 +249,284 @@ export function ProfilePage() {
   return (
     <section className="page page-enter narrow-page">
       <div inert={draftChoice ? true : undefined} aria-hidden={draftChoice || undefined}>
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">{t('profile.eyebrow')}</span>
-          <h1>{t('profile.title')}</h1>
-          <p className="lede">{t('profile.lede')}</p>
-        </div>
-        <div className="avatar-large" aria-hidden>
-          {profile.fullName?.[0]?.toUpperCase() || 'B'}
-        </div>
-      </div>
-      <LanguageSwitcher />
-
-      {profile.legalAcceptanceRequired ? (
-        <div className="notice notice-error" role="alert">
-          <p style={{ margin: '0 0 0.75rem' }}>{t('profile.legalRequiredBanner')}</p>
-          <p style={{ margin: '0 0 0.75rem' }}>
-            <Link to="/terms">{t('shell.terms')}</Link>
-            {' · '}
-            <Link to="/privacy">{t('shell.privacy')}</Link>
-            {' · '}
-            <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
-          </p>
-          <button
-            className="button"
-            type="button"
-            disabled={busy}
-            onClick={() => void handleAcceptLegal()}
-          >
-            {busy ? t('profile.acceptingLegal') : t('profile.acceptLegal')}
-          </button>
-        </div>
-      ) : null}
-
-      {message ? (
-        <div className="notice notice-success" role="status">
-          {message}
-        </div>
-      ) : null}
-      {error ? (
-        <div className="notice notice-error" role="alert">
-          {error}
-        </div>
-      ) : null}
-
-      <form className="settings-card" onSubmit={(event) => void save(event)}>
-        <div className="settings-section">
-          <h2>{t('profile.identity')}</h2>
-          <div className="verified-row">
-            <div>
-              <span className="field-label">{t('profile.verifiedPhone')}</span>
-              <strong>{profile.phone}</strong>
-            </div>
-            <span className="verified-badge">{t('profile.verified')}</span>
+        <div className="page-heading">
+          <div>
+            <span className="eyebrow">{t('profile.eyebrow')}</span>
+            <h1>{t('profile.title')}</h1>
+            <p className="lede">{t('profile.lede')}</p>
           </div>
-          <label className="field-label" htmlFor="name">
-            {t('profile.fullName')} <span>{t('common.optional')}</span>
-          </label>
-          <input
-            id="name"
-            className="input"
-            maxLength={120}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (!e.target.value.trim()) setPublicNameVisible(false);
-            }}
-          />
-          <label className="field-label" htmlFor="email">
-            {t('profile.email')} <span>{t('profile.emailOptional')}</span>
-          </label>
-          <input
-            id="email"
-            className="input"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <p className="helper">{t('profile.emailHelper')}</p>
+          <div className="avatar-large" aria-hidden>
+            {profile.fullName?.[0]?.toUpperCase() || 'B'}
+          </div>
         </div>
-        <div className="settings-section">
-          <h2>{t('profile.notifications')}</h2>
-          <p className="helper">{t('profile.notificationSecurityNote')}</p>
-          {(
-            [
-              ['pushEnabled', 'profile.push', Boolean(profile.pushAvailable)],
-              ['emailEnabled', 'profile.emailOption', Boolean(email.trim())],
-              ['whatsAppEnabled', 'profile.whatsApp', true],
-            ] as const
-          ).map(([key, label, available]) => (
-            <label className="toggle-row" key={key}>
-              <span>
-                <strong>{t(label)}</strong>
-                <small>
-                  {available ? t('profile.channelAvailable') : t('profile.channelUnavailable')}
-                </small>
-              </span>
-              <input
-                type="checkbox"
-                checked={Boolean(preferences[key])}
-                disabled={!available && !preferences[key]}
-                onChange={(e) =>
-                  setPreferences((current) => ({ ...current, [key]: e.target.checked }))
-                }
-              />
-            </label>
-          ))}
-          <h3>{t('profile.updateTypes')}</h3>
-          {(
-            [
-              ['reportCreated', 'profile.reportCreated'],
-              ['statusChanges', 'profile.statusChanges'],
-              ['workUpdates', 'profile.workUpdates'],
-              ['resolutionUpdates', 'profile.resolutionUpdates'],
-              ['actionRequests', 'profile.actionRequests'],
-            ] as const
-          ).map(([key, label]) => (
-            <label className="toggle-row" key={key}>
-              <span>
-                <strong>{t(label)}</strong>
-              </span>
-              <input
-                type="checkbox"
-                checked={preferences[key] ?? true}
-                onChange={(e) =>
-                  setPreferences((current) => ({ ...current, [key]: e.target.checked }))
-                }
-              />
-            </label>
-          ))}
-          <label className="toggle-row">
-            <span>
-              <strong>{t('profile.announcements')}</strong>
-              <small>{t('profile.announcementsHint')}</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={announcements}
-              onChange={(e) => setAnnouncements(e.target.checked)}
-            />
-          </label>
-          <label className="toggle-row">
-            <span>
-              <strong>{t('profile.showName')}</strong>
-              <small>{t('profile.showNameHint')}</small>
-            </span>
-            <input
-              type="checkbox"
-              disabled={!name.trim()}
-              checked={publicNameVisible}
-              onChange={(e) => {
-                setPublicNameVisible(e.target.checked);
-                if (!e.target.checked) setLeaderboardOptIn(false);
-              }}
-            />
-          </label>
-          <label className="toggle-row">
-            <span>
-              <strong>{t('profile.leaderboardOptIn')}</strong>
-              <small>{t('profile.leaderboardOptInHint')}</small>
-            </span>
-            <input
-              type="checkbox"
-              disabled={!name.trim() || !publicNameVisible}
-              checked={leaderboardOptIn}
-              onChange={(e) => setLeaderboardOptIn(e.target.checked)}
-            />
-          </label>
-          <Link className="text-button" to="/rewards">
-            {t('profile.rewardsLink')}
-          </Link>
-        </div>
-        <button className="button button-large" disabled={busy} type="submit">
-          {busy ? t('profile.saving') : t('profile.saveChanges')}
-        </button>
-      </form>
+        <LanguageSwitcher />
 
-      <div className="settings-card">
-        <button className="setting-action" type="button" onClick={() => setPhoneMode(!phoneMode)}>
-          <span>
-            <strong>{t('profile.changePhone')}</strong>
-            <small>{t('profile.changePhoneHint')}</small>
-          </span>
-          <span>›</span>
-        </button>
-        {phoneMode ? (
-          <div className="phone-flow">
-            <label className="field-label" htmlFor="phone-region">
-              {t('auth.country')}
-            </label>
-            <CountryRegionSelect id="phone-region" value={region} onChange={setRegion} />
-            <input
-              className="input"
-              inputMode="tel"
-              placeholder={t('profile.newPhone')}
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-            />
-            {!challenge ? (
-              <button
-                className="button"
-                disabled={busy || newPhone.length < 6}
-                type="button"
-                onClick={() => void beginPhoneChange()}
-              >
-                {t('profile.sendCode')}
-              </button>
-            ) : (
-              <>
-                <input
-                  className="input otp-input"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder={t('profile.otpPlaceholder')}
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))}
-                />
-                <button
-                  className="button"
-                  disabled={busy || phoneCode.length !== 6}
-                  type="button"
-                  onClick={() => void finishPhoneChange()}
-                >
-                  {t('profile.verifyPhone')}
-                </button>
-              </>
-            )}
+        {profile.legalAcceptanceRequired ? (
+          <div className="notice notice-error" role="alert">
+            <p style={{ margin: '0 0 0.75rem' }}>{t('profile.legalRequiredBanner')}</p>
+            <p style={{ margin: '0 0 0.75rem' }}>
+              <Link to="/terms">{t('shell.terms')}</Link>
+              {' · '}
+              <Link to="/privacy">{t('shell.privacy')}</Link>
+              {' · '}
+              <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
+            </p>
+            <button
+              className="button"
+              type="button"
+              disabled={busy}
+              onClick={() => void handleAcceptLegal()}
+            >
+              {busy ? t('profile.acceptingLegal') : t('profile.acceptLegal')}
+            </button>
           </div>
         ) : null}
-        <button
-          className="setting-action"
-          type="button"
-          disabled={busy}
-          onClick={() => void handleExport()}
-        >
-          <span>
-            <strong>{t('profile.exportData')}</strong>
-            <small>{t('profile.exportDataHint')}</small>
-          </span>
-          <span>↓</span>
-        </button>
-        <div className="phone-flow" style={{ padding: '0.75rem 0' }}>
-          <label className="field-label" htmlFor="delete-confirm">
-            {t('profile.deleteTypeLabel')}
-          </label>
-          <input
-            id="delete-confirm"
-            className="input"
-            value={deleteConfirm}
-            onChange={(e) => setDeleteConfirm(e.target.value)}
-            placeholder={t('profile.deleteTypePlaceholder')}
-            autoComplete="off"
-          />
+
+        {message ? (
+          <div className="notice notice-success" role="status">
+            {message}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="notice notice-error" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        <form className="settings-card" onSubmit={(event) => void save(event)}>
+          <div className="settings-section">
+            <h2>{t('profile.identity')}</h2>
+            <div className="verified-row">
+              <div>
+                <span className="field-label">{t('profile.verifiedPhone')}</span>
+                <strong>{profile.phone}</strong>
+              </div>
+              <span className="verified-badge">{t('profile.verified')}</span>
+            </div>
+            <label className="field-label" htmlFor="name">
+              {t('profile.fullName')} <span>{t('common.optional')}</span>
+            </label>
+            <input
+              id="name"
+              className="input"
+              maxLength={120}
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (!e.target.value.trim()) setPublicNameVisible(false);
+              }}
+            />
+            <label className="field-label" htmlFor="email">
+              {t('profile.email')} <span>{t('profile.emailOptional')}</span>
+            </label>
+            <input
+              id="email"
+              className="input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <p className="helper">{t('profile.emailHelper')}</p>
+          </div>
+          <div className="settings-section">
+            <h2>{t('profile.notifications')}</h2>
+            <p className="helper">{t('profile.notificationSecurityNote')}</p>
+            {(
+              [
+                ['pushEnabled', 'profile.push', Boolean(profile.pushAvailable)],
+                ['emailEnabled', 'profile.emailOption', Boolean(email.trim())],
+                ['whatsAppEnabled', 'profile.whatsApp', true],
+              ] as const
+            ).map(([key, label, available]) => (
+              <label className="toggle-row" key={key}>
+                <span>
+                  <strong>{t(label)}</strong>
+                  <small>
+                    {available ? t('profile.channelAvailable') : t('profile.channelUnavailable')}
+                  </small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(preferences[key])}
+                  disabled={!available && !preferences[key]}
+                  onChange={(e) =>
+                    setPreferences((current) => ({ ...current, [key]: e.target.checked }))
+                  }
+                />
+              </label>
+            ))}
+            <h3>{t('profile.updateTypes')}</h3>
+            {(
+              [
+                ['reportCreated', 'profile.reportCreated'],
+                ['statusChanges', 'profile.statusChanges'],
+                ['workUpdates', 'profile.workUpdates'],
+                ['resolutionUpdates', 'profile.resolutionUpdates'],
+                ['actionRequests', 'profile.actionRequests'],
+              ] as const
+            ).map(([key, label]) => (
+              <label className="toggle-row" key={key}>
+                <span>
+                  <strong>{t(label)}</strong>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={preferences[key] ?? true}
+                  onChange={(e) =>
+                    setPreferences((current) => ({ ...current, [key]: e.target.checked }))
+                  }
+                />
+              </label>
+            ))}
+            <label className="toggle-row">
+              <span>
+                <strong>{t('profile.announcements')}</strong>
+                <small>{t('profile.announcementsHint')}</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={announcements}
+                onChange={(e) => setAnnouncements(e.target.checked)}
+              />
+            </label>
+            <label className="toggle-row">
+              <span>
+                <strong>{t('profile.showName')}</strong>
+                <small>{t('profile.showNameHint')}</small>
+              </span>
+              <input
+                type="checkbox"
+                disabled={!name.trim()}
+                checked={publicNameVisible}
+                onChange={(e) => {
+                  setPublicNameVisible(e.target.checked);
+                  if (!e.target.checked) setLeaderboardOptIn(false);
+                }}
+              />
+            </label>
+            <label className="toggle-row">
+              <span>
+                <strong>{t('profile.leaderboardOptIn')}</strong>
+                <small>{t('profile.leaderboardOptInHint')}</small>
+              </span>
+              <input
+                type="checkbox"
+                disabled={!name.trim() || !publicNameVisible}
+                checked={leaderboardOptIn}
+                onChange={(e) => setLeaderboardOptIn(e.target.checked)}
+              />
+            </label>
+            <Link className="text-button" to="/rewards">
+              {t('profile.rewardsLink')}
+            </Link>
+          </div>
+          <button className="button button-large" disabled={busy} type="submit">
+            {busy ? t('profile.saving') : t('profile.saveChanges')}
+          </button>
+        </form>
+
+        <div className="settings-card">
+          <button className="setting-action" type="button" onClick={() => setPhoneMode(!phoneMode)}>
+            <span>
+              <strong>{t('profile.changePhone')}</strong>
+              <small>{t('profile.changePhoneHint')}</small>
+            </span>
+            <span>›</span>
+          </button>
+          {phoneMode ? (
+            <div className="phone-flow">
+              <label className="field-label" htmlFor="phone-region">
+                {t('auth.country')}
+              </label>
+              <CountryRegionSelect id="phone-region" value={region} onChange={setRegion} />
+              <input
+                className="input"
+                inputMode="tel"
+                placeholder={t('profile.newPhone')}
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+              />
+              {!challenge ? (
+                <button
+                  className="button"
+                  disabled={busy || newPhone.length < 6}
+                  type="button"
+                  onClick={() => void beginPhoneChange()}
+                >
+                  {t('profile.sendCode')}
+                </button>
+              ) : (
+                <>
+                  <input
+                    className="input otp-input"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder={t('profile.otpPlaceholder')}
+                    value={phoneCode}
+                    onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ''))}
+                  />
+                  <button
+                    className="button"
+                    disabled={busy || phoneCode.length !== 6}
+                    type="button"
+                    onClick={() => void finishPhoneChange()}
+                  >
+                    {t('profile.verifyPhone')}
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
+          <button
+            className="setting-action"
+            type="button"
+            disabled={busy}
+            onClick={() => void handleExport()}
+          >
+            <span>
+              <strong>{t('profile.exportData')}</strong>
+              <small>{t('profile.exportDataHint')}</small>
+            </span>
+            <span>↓</span>
+          </button>
+          <div className="phone-flow" style={{ padding: '0.75rem 0' }}>
+            <label className="field-label" htmlFor="delete-confirm">
+              {t('profile.deleteTypeLabel')}
+            </label>
+            <input
+              id="delete-confirm"
+              className="input"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={t('profile.deleteTypePlaceholder')}
+              autoComplete="off"
+            />
+            <button
+              className="setting-action danger-action"
+              type="button"
+              disabled={busy}
+              onClick={() => void handleDelete()}
+            >
+              <span>
+                <strong>{t('profile.deleteAccount')}</strong>
+                <small>{t('profile.deleteAccountHint')}</small>
+              </span>
+              <span>!</span>
+            </button>
+          </div>
           <button
             className="setting-action danger-action"
             type="button"
-            disabled={busy}
-            onClick={() => void handleDelete()}
+            onClick={() => void signOut()}
           >
             <span>
-              <strong>{t('profile.deleteAccount')}</strong>
-              <small>{t('profile.deleteAccountHint')}</small>
+              <strong>{t('profile.signOut')}</strong>
+              <small>{t('profile.draftsPrivate')}</small>
             </span>
-            <span>!</span>
+            <span>→</span>
           </button>
         </div>
-        <button
-          className="setting-action danger-action"
-          type="button"
-          onClick={() => void signOut()}
-        >
-          <span>
-            <strong>{t('profile.signOut')}</strong>
-            <small>{t('profile.draftsPrivate')}</small>
-          </span>
-          <span>→</span>
-        </button>
-      </div>
       </div>
       {draftChoice ? (
         <DraftSignOutDialog

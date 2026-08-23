@@ -44,9 +44,8 @@ vi.mock('@/services/tickets', async () => {
 });
 
 vi.mock('@/services/citizenAuth', async () => {
-  const actual = await vi.importActual<typeof import('@/services/citizenAuth')>(
-    '@/services/citizenAuth',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/services/citizenAuth')>('@/services/citizenAuth');
   return {
     ...actual,
     getMe: vi.fn(),
@@ -56,7 +55,11 @@ vi.mock('@/services/citizenAuth', async () => {
 
 import { getMe } from '@/services/citizenAuth';
 import * as reportDraft from '@/services/reportDraft';
-import { getPublicMapViewport, getPublicTicketByNumber, getTicketByTrackingCode } from '@/services/tickets';
+import {
+  getPublicMapViewport,
+  getPublicTicketByNumber,
+  getTicketByTrackingCode,
+} from '@/services/tickets';
 
 const publicSample: PublicTicketResponse = {
   ticketNumber: 'BG-100001',
@@ -97,7 +100,11 @@ function renderApp(path = '/') {
 
 describe('issue #314 production-readiness', () => {
   afterEach(() => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1024 });
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 1024,
+    });
   });
 
   beforeEach(() => {
