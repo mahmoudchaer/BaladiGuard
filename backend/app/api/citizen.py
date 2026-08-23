@@ -25,6 +25,7 @@ from app.schemas.citizen import (
     LegalAcceptanceRequest,
 )
 from app.schemas.citizen_auth import (
+    CitizenFirebaseCompleteRequest,
     CitizenOtpRequest,
     CitizenOtpRequestResponse,
     CitizenOtpVerifyRequest,
@@ -34,9 +35,14 @@ from app.schemas.resolution_feedback import (
     CitizenResolutionFeedbackResponse,
     SubmitResolutionFeedbackRequest,
 )
+from app.services.citizens.firebase_auth import (
+    FirebasePhoneTokenError,
+    verified_firebase_phone,
+)
 from app.services.citizens.otp_delivery import (
     OtpDeliveryError,
     deliver_citizen_otp,
+    resolve_citizen_otp_delivery_channel,
 )
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
@@ -124,18 +130,35 @@ def request_citizen_otp(
     else:
         auth_user_id = principal.user_id if principal is not None else None
 
+    firebase_delivery = resolve_citizen_otp_delivery_channel(settings) == "firebase"
     try:
         challenge_id, expires_in, code = citizen_service.request_otp(
             phone=payload.phone,
             region=payload.region,
             purpose=payload.purpose,
             authenticated_user_id=auth_user_id,
+            remember_dev_code=not firebase_delivery,
+            verification_provider="firebase" if firebase_delivery else "local",
         )
     except CitizenServiceError as exc:
         # Keep LOGIN_OR_SIGNUP failures account-neutral where possible.
         if payload.purpose == LOGIN_OR_SIGNUP_PURPOSE and exc.code == "VALIDATION_ERROR":
             return _service_error_response(request, exc)
         return _service_error_response(request, exc)
+
+    # Firebase's official client SDK sends the code only after this endpoint has
+    # created and rate-limited a purpose-bound application challenge.
+    if firebase_delivery:
+        emit_metric(
+            "CitizenOtpFirebaseRequest",
+            dimensions={"outcome": "accepted", "purpose": payload.purpose},
+        )
+        return CitizenOtpRequestResponse(
+            challengeId=challenge_id,
+            expiresIn=expires_in,
+            message=GENERIC_OTP_MESSAGE,
+            deliveryChannel="sms",
+        )
 
     # HTTP response stays code-free; delivery is side-effect only.
     # If real delivery raises, invalidate the unused challenge so it cannot linger.
@@ -156,7 +179,12 @@ def request_citizen_otp(
         )
     except Exception:
         citizen_service.invalidate_otp_challenge(challenge_id)
-        raise
+        return build_error_response(
+            code="OTP_DELIVERY_FAILED",
+            message="Could not send the verification code. Try again in a moment.",
+            request_id=get_request_id(request),
+            status_code=503,
+        )
 
     return CitizenOtpRequestResponse(
         challengeId=challenge_id,
@@ -236,6 +264,104 @@ def verify_citizen_otp(
         return verified
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
+
+
+@router.post(
+    "/auth/firebase/complete",
+    response_model=CitizenOtpVerifyResponse,
+)
+def complete_firebase_citizen_auth(
+    payload: CitizenFirebaseCompleteRequest,
+    request: Request,
+    principal: OptionalCitizenDep,
+) -> CitizenOtpVerifyResponse | JSONResponse:
+    """Finish a Firebase Phone Auth proof without trusting client phone claims."""
+    settings = get_settings()
+    project_id = settings.firebase_project_id
+    if not project_id:
+        emit_metric(
+            "CitizenOtpFirebaseVerification",
+            dimensions={"outcome": "unavailable", "purpose": payload.purpose},
+        )
+        return build_error_response(
+            code="OTP_VERIFICATION_UNAVAILABLE",
+            message="Could not verify the code. Try again in a moment.",
+            request_id=get_request_id(request),
+            status_code=503,
+        )
+    if payload.purpose == CHANGE_PHONE_PURPOSE and principal is None:
+        response = build_error_response(
+            code="UNAUTHORIZED",
+            message="Citizen authentication required.",
+            request_id=get_request_id(request),
+            status_code=401,
+        )
+        response.headers["WWW-Authenticate"] = "Bearer"
+        return response
+    try:
+        phone = verified_firebase_phone(token=payload.id_token, project_id=project_id)
+    except FirebasePhoneTokenError:
+        emit_metric(
+            "CitizenOtpFirebaseVerification",
+            dimensions={"outcome": "rejected", "purpose": payload.purpose},
+        )
+        return build_error_response(
+            code="INVALID_OTP",
+            message="The verification code is incorrect.",
+            request_id=get_request_id(request),
+            status_code=400,
+        )
+
+    limited = enforce_rate_limit(
+        request,
+        "citizen-otp-verify",
+        settings=settings,
+        message="Too many verification attempts. Please wait before trying again.",
+        extra_identity=f"phone:{phone}",
+    )
+    if limited is not None:
+        emit_metric(
+            "CitizenOtpFirebaseVerification",
+            dimensions={"outcome": "throttled", "purpose": payload.purpose},
+        )
+        return limited
+    try:
+        verified = citizen_service.complete_firebase_phone_verification(
+            challenge_id=payload.challenge_id,
+            phone=phone,
+            purpose=payload.purpose,
+            full_name=payload.full_name,
+            accept_legal=payload.accept_legal,
+            legal_locale=payload.legal_locale,
+            authenticated_user_id=principal.user_id if principal is not None else None,
+        )
+    except CitizenServiceError as exc:
+        emit_metric(
+            "CitizenOtpFirebaseVerification",
+            dimensions={"outcome": "failed", "purpose": payload.purpose, "code": exc.code},
+        )
+        return _service_error_response(request, exc)
+    emit_metric(
+        "CitizenOtpFirebaseVerification",
+        dimensions={"outcome": "approved", "purpose": payload.purpose},
+    )
+    if request.headers.get(WEB_SESSION_HEADER, "").strip().lower() == "cookie":
+        if verified.access_token is None:
+            return verified
+        browser_response = JSONResponse(
+            content=verified.model_dump(by_alias=True, mode="json", exclude={"access_token"})
+        )
+        browser_response.set_cookie(
+            key=CITIZEN_WEB_SESSION_COOKIE,
+            value=verified.access_token,
+            max_age=CITIZEN_SESSION_TTL_SECONDS,
+            httponly=True,
+            secure=_use_secure_cookie(),
+            samesite="lax",
+            path="/v1",
+        )
+        return browser_response
+    return verified
 
 
 @router.post("/auth/logout", status_code=204, response_class=Response)

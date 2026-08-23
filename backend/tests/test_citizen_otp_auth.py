@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from app.config import get_settings
 from app.core.citizen_auth import CITIZEN_SESSION_TTL_SECONDS, issue_citizen_session
 from app.core.rate_limit import get_rate_limiter
 from app.database.memory_citizen_otp import citizen_otp_store
@@ -553,24 +554,109 @@ def test_otp_challenge_stores_hash_only(anonymous_client: TestClient) -> None:
     assert len(stored.code_hash) == 64
 
 
-def test_plivo_uses_existing_hashed_otp_challenge() -> None:
+def test_firebase_completion_consumes_a_federated_challenge_without_local_otp() -> None:
     citizen_otp_store.clear()
-    challenge_id, _expires, code = citizen_service.request_otp(
+    challenge_id, _expires, _code = citizen_service.request_otp(
         phone="+96170123456",
         purpose="LOGIN_OR_SIGNUP",
+        verification_provider="firebase",
+        remember_dev_code=False,
     )
-    stored = citizen_otp_store.get(challenge_id)
-    assert code is not None
-    assert stored is not None
-    assert stored.code_hash
-    assert code not in stored.model_dump_json()
-    verified = citizen_service.verify_otp(
+    verified = citizen_service.complete_firebase_phone_verification(
         challenge_id=challenge_id,
-        code=code,
+        phone="+96170123456",
+        purpose="LOGIN_OR_SIGNUP",
         accept_legal=True,
     )
     assert verified.access_token
-    assert citizen_otp_store.get(challenge_id).consumed_at is not None
+    stored = citizen_otp_store.get(challenge_id)
+    assert stored is not None
+    assert stored.code_hash is None
+    assert stored.verification_provider == "firebase"
+    assert stored.consumed_at is not None
+
+
+def test_firebase_completion_changes_phone_only_for_the_bound_citizen() -> None:
+    citizen = citizen_service.create_citizen(phone="+96170123456", full_name="Ada")
+    challenge_id, _expires, _code = citizen_service.request_otp(
+        phone="+96171123456",
+        purpose="CHANGE_PHONE",
+        authenticated_user_id=citizen.user_id,
+        verification_provider="firebase",
+        remember_dev_code=False,
+    )
+
+    verified = citizen_service.complete_firebase_phone_verification(
+        challenge_id=challenge_id,
+        phone="+96171123456",
+        purpose="CHANGE_PHONE",
+        authenticated_user_id=citizen.user_id,
+    )
+
+    assert verified.phone == "+96171123456"
+    assert citizen_service.get_by_phone("+96171123456").user_id == citizen.user_id  # type: ignore[union-attr]
+
+
+def test_firebase_complete_accepts_only_a_server_verified_phone_token(
+    anonymous_client: TestClient, monkeypatch
+) -> None:
+    monkeypatch.setenv("FIREBASE_PROJECT_ID", "baladiguard")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "firebase")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.api.citizen.verified_firebase_phone",
+        lambda **_kwargs: "+96170123456",
+    )
+
+    request_status, request_body = _request_otp(anonymous_client, phone="+96170123456")
+    assert request_status == 202
+    response = anonymous_client.post(
+        "/v1/citizen/auth/firebase/complete",
+        json={
+            "challengeId": request_body["challengeId"],
+            "idToken": "x" * 200,
+            "purpose": "LOGIN_OR_SIGNUP",
+            "acceptLegal": True,
+        },
+        headers={"X-Citizen-Session-Mode": "cookie"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["phone"] == "+96170123456"
+    assert "accessToken" not in response.json()
+    assert "HttpOnly" in response.headers["set-cookie"]
+
+
+def test_firebase_complete_rejects_an_invalid_token_without_disclosing_details(
+    anonymous_client: TestClient, monkeypatch
+) -> None:
+    monkeypatch.setenv("FIREBASE_PROJECT_ID", "baladiguard")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "firebase")
+    get_settings.cache_clear()
+
+    def _invalid(**_kwargs):
+        from app.services.citizens.firebase_auth import FirebasePhoneTokenError
+
+        raise FirebasePhoneTokenError("provider detail must not be exposed")
+
+    monkeypatch.setattr("app.api.citizen.verified_firebase_phone", _invalid)
+
+    request_status, request_body = _request_otp(anonymous_client, phone="+96170123456")
+    assert request_status == 202
+    response = anonymous_client.post(
+        "/v1/citizen/auth/firebase/complete",
+        json={
+            "challengeId": request_body["challengeId"],
+            "idToken": "x" * 200,
+            "purpose": "LOGIN_OR_SIGNUP",
+        },
+    )
+
+    assert response.status_code == 400
+    error = response.json()["error"]
+    assert error["code"] == "INVALID_OTP"
+    assert error["message"] == "The verification code is incorrect."
+    assert "provider detail" not in response.text
 
 
 def test_otp_request_invalidates_challenge_when_delivery_raises(
@@ -585,7 +671,7 @@ def test_otp_request_invalidates_challenge_when_delivery_raises(
     )
 
     status, body = _request_otp(anonymous_client, phone="+96170123456")
-    assert status == 500
+    assert status == 503
 
     # Challenge must not remain live after a failed delivery.
     live = [

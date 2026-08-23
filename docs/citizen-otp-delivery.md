@@ -1,6 +1,6 @@
 # Citizen OTP delivery channel (issue #297)
 
-Configurable Plivo, WhatsApp, or SNS delivery for citizen one-time verification codes.
+Configurable Firebase Phone Auth, WhatsApp, or SNS delivery for citizen one-time verification codes.
 This is **independent** of ticket notifications (`NOTIFICATION_ADAPTER`) and of WhatsApp
 report submission (#296).
 
@@ -12,7 +12,7 @@ report submission (#296).
 | `mock` | No provider call (local/CI). Codes via `peek_dev_otp_code` / optional stdout |
 | `sns` | Amazon SNS SMS (existing path) |
 | `whatsapp` | Meta Cloud API: approved **authentication template**, or sandbox `session_text` |
-| `plivo` | Plivo SMS transport; BaladiGuard generates and checks the code |
+| `firebase` | Firebase Phone Auth; Firebase generates/checks the code, then the backend verifies its signed ID token |
 
 `CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text` is the agreed path for the Meta **test number**, which cannot create custom templates. It sends a free-form text OTP through the real Graph API and only works if:
 
@@ -22,48 +22,46 @@ report submission (#296).
 
 Production rejects `session_text` and still requires an approved authentication template. SNS remains the rollback (`CITIZEN_OTP_DELIVERY_CHANNEL=sns`).
 
-## Plivo SMS (production candidate)
+## Firebase Phone Auth (production candidate)
 
-Set `CITIZEN_OTP_DELIVERY_CHANNEL=plivo` only after Plivo confirms the chosen sender and
-route for Lebanon and real Alfa and touch tests succeed. Plivo is an SMS **transport**:
-BaladiGuard generates a single six-digit code, stores only its HMAC hash, and remains the
-authority that validates it. It retains purpose binding, single use, expiry, resend
-supersession, login/change-phone authorization, and application rate limits.
+Set `CITIZEN_OTP_DELIVERY_CHANNEL=firebase` only after Firebase Phone Auth is enabled,
+Firebase SMS Region Policy allows only Lebanon, and real Alfa/touch tests succeed. Firebase
+generates and checks the user-visible code. BaladiGuard first creates a rate-limited,
+purpose-bound `firebase` challenge through the existing OTP-request endpoint; the official
+web/mobile SDK then completes Firebase's challenge and sends a Firebase ID token plus that opaque
+challenge ID to BaladiGuard. The backend validates the token's signature, audience, phone-provider
+claim, and E.164 phone claim before atomically consuming the matching challenge and completing the
+existing login/signup or change-phone workflow. Firebase challenges have no locally generated code
+or OTP hash.
 
 ```bash
-CITIZEN_OTP_DELIVERY_CHANNEL=plivo
-CITIZEN_OTP_PLIVO_AUTH_ID=...       # Secrets Manager/runtime only
-CITIZEN_OTP_PLIVO_AUTH_TOKEN=...    # Secrets Manager/runtime only
-CITIZEN_OTP_PLIVO_SOURCE=...        # approved sender ID/number supplied by Plivo
-CITIZEN_OTP_PLIVO_TIMEOUT_SECONDS=10
+CITIZEN_OTP_DELIVERY_CHANNEL=firebase
+FIREBASE_PROJECT_ID=your-firebase-project-id
 ```
 
-The backend uses Plivo's Messages API with HTTP Basic authentication and one bounded request;
-it does not retry automatically, because a timeout can mean the carrier send was accepted. No
-credential, OTP, full destination, HTTP authorization header, or raw provider payload may be
-logged. `plivo` has no automatic fallback to SNS/WhatsApp.
+The Firebase web configuration is public build configuration, but must still be managed as runtime
+configuration rather than hard-coded. No Firebase ID token, OTP, full destination, or raw provider
+payload may be logged. `firebase` has no automatic fallback to SNS/WhatsApp.
 
 ### Console setup and release gates
 
-1. In **Plivo Console → Messaging → Geo Permissions**, enable Lebanon for SMS; leave all unused
-   destinations disabled.
-2. In **Plivo Console → Messaging → Sender IDs** (or with Plivo support if the console requires
-   approval), configure the exact source allowed for Lebanon. Do not guess an alphanumeric sender.
-3. In **Plivo Console → API Platform → API Credentials**, create or retrieve the Auth ID and Auth
-   Token, then store them and the approved source only in AWS Secrets Manager/runtime configuration.
-4. Deploy to staging and explicitly test an allowlisted real Alfa number and a real touch number:
-   request OTP, enter it through the existing BaladiGuard endpoint, and confirm login/signup and
-   change-phone flows. Record only masked numbers, status, timestamp, and safe metrics.
+1. In **Firebase Console → Authentication → Sign-in method**, enable **Phone**.
+2. In **Authentication → Settings → SMS region policy**, choose **Allow** and select only
+   **Lebanon (LB)**.
+3. In **Authentication → Settings → Authorized domains**, add every deployed citizen-web hostname;
+   local development uses a separate Firebase project/domain policy.
+4. Configure the web app with the Firebase Console values through its runtime build environment.
+5. Deploy to staging and explicitly test an operator-owned real Alfa number and a real touch number:
+   request OTP in the Firebase-enabled client, enter it there, then confirm BaladiGuard login/signup
+   and change-phone flows. Record only masked numbers, status, timestamp, and safe metrics.
 
-Do not regard a successful API response as proof of delivery or ownership. Review Plivo delivery
-reports for `delivered`/failure evidence, but only successful BaladiGuard OTP verification proves
-phone possession. CI mocks the HTTP boundary and never sends SMS. A funded/public-capable account
-and successful Alfa/touch tests are production blockers.
+Do not regard an SMS send response as proof of ownership. Only the Firebase-approved, server-
+verified ID token counts. CI mocks token verification and never sends SMS. Firebase’s current
+billing/quota requirements and successful Alfa/touch tests are production blockers.
 
-For an opt-in paid live test, set the four runtime variables above and retain
-`NOTIFICATION_SANDBOX=true` with only the operator-owned number in
-`NOTIFICATION_ALLOWLIST_PHONES`. Use the deployed citizen UI/API; do not script or print the
-OTP, token, or credentials. This procedure is intentionally not part of CI.
+For an opt-in live test, use an operator-owned number, preserve BaladiGuard request/verification
+rate limits, and do not script or print the OTP or Firebase ID token. This procedure is not part of
+CI.
 
 Exactly one channel is used per OTP request. There is **no** automatic WhatsApp→SNS fallback.
 
@@ -85,8 +83,8 @@ CITIZEN_OTP_WHATSAPP_GRAPH_API_VERSION=v21.0
 
 When `session_text` is selected, a template name is not required. Staging may use it with `NOTIFICATION_SANDBOX=true`. Production rejects it.
 
-Sandbox allowlisting (`NOTIFICATION_SANDBOX` + `NOTIFICATION_ALLOWLIST_PHONES`) applies to all
-real SMS/WhatsApp sends, including `plivo`.
+Sandbox allowlisting (`NOTIFICATION_SANDBOX` + `NOTIFICATION_ALLOWLIST_PHONES`) applies to SNS and
+WhatsApp. Firebase separately enforces its configured SMS Region Policy and anti-abuse controls.
 
 ## Template requirements
 
@@ -97,7 +95,9 @@ Optional URL/copy-code button may receive the same code parameter.
 ## Client UX
 
 `POST /v1/citizen/auth/otp/request` returns `deliveryChannel`: `sms` | `whatsapp` | `dev`
-so mobile/web can adapt copy. Verification remains `POST /v1/citizen/auth/otp/verify`.
+so mobile/web can adapt copy. For Firebase, the web/mobile SDK sends and verifies the code after
+that request, then calls `POST /v1/citizen/auth/firebase/complete`; legacy providers continue to
+use `POST /v1/citizen/auth/otp/verify`. Citizens see “SMS,” never a provider name.
 
 ## Rollback
 

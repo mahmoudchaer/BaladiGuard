@@ -21,20 +21,6 @@ from app.services.citizens.otp_delivery import (
 )
 
 
-class _PlivoResponse:
-    def __init__(self, body: dict[str, Any] | None = None) -> None:
-        self._body = json.dumps(body or {}).encode("utf-8")
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-    def read(self, _size: int = -1) -> bytes:
-        return self._body
-
-
 class FakeSnsClient:
     def __init__(self, *, fail: bool = False) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -85,40 +71,11 @@ def test_resolve_channel_explicit_and_legacy_defaults():
     assert public_otp_delivery_channel("whatsapp") == "whatsapp"
 
 
-def test_plivo_sends_local_otp_sms(monkeypatch):
-    captured: dict[str, Any] = {}
-
-    def fake_urlopen(request, timeout=0):
-        captured["url"] = request.full_url
-        captured["body"] = request.data.decode("utf-8")
-        captured["timeout"] = timeout
-        return _PlivoResponse({"message": "accepted"})
-
-    monkeypatch.setattr("app.services.citizens.otp_delivery.urlopen", fake_urlopen)
-    settings = _settings(
-        citizen_otp_delivery_channel="plivo",
-        citizen_otp_plivo_auth_id="auth-id-not-logged",
-        citizen_otp_plivo_auth_token="secret-not-logged",
-        citizen_otp_plivo_source="BaladiGuard",
-        citizen_otp_plivo_timeout_seconds=7.0,
-        notification_sandbox=False,
-    )
-    assert (
-        deliver_citizen_otp(phone="70 123 456", region="LB", code="111222", settings=settings)
-        == "sms"
-    )
-    assert captured["url"].endswith("/v1/Account/auth-id-not-logged/Message/")
-    assert "dst=%2B96170123456" in captured["body"]
-    assert "src=BaladiGuard" in captured["body"]
-    assert "111222" in captured["body"]
-    assert captured["timeout"] == 7.0
-
-
-def test_plivo_requires_complete_configuration():
-    settings = _settings(citizen_otp_delivery_channel="plivo", notification_sandbox=False)
+def test_firebase_is_publicly_sms_but_never_uses_backend_delivery_transport():
+    settings = _settings(citizen_otp_delivery_channel="firebase", notification_sandbox=False)
     with pytest.raises(OtpDeliveryError, match="OTP delivery failed") as exc:
         deliver_citizen_otp(phone="+96170123456", region="LB", code="111222", settings=settings)
-    assert exc.value.category == "plivo_misconfigured"
+    assert exc.value.category == "firebase_client_required"
 
 
 def test_otp_sandbox_blocks_when_allowlist_empty(monkeypatch, caplog):

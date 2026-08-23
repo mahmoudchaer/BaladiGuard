@@ -1,18 +1,16 @@
 """Citizen OTP delivery providers (issue #297).
 
 Separates OTP transport from ticket ``NOTIFICATION_ADAPTER``. Channels:
-``mock`` | ``sns`` | ``whatsapp`` | ``plivo``. Exactly one provider is used per request.
+``mock`` | ``sns`` | ``whatsapp`` | ``firebase``. Exactly one provider is used per request.
 """
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import sys
 from typing import Literal, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import boto3
@@ -24,7 +22,7 @@ from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
 
-OtpDeliveryChannel = Literal["mock", "sns", "whatsapp", "plivo"]
+OtpDeliveryChannel = Literal["mock", "sns", "whatsapp", "firebase"]
 PublicOtpDeliveryChannel = Literal["sms", "whatsapp", "dev"]
 
 
@@ -63,7 +61,7 @@ def _emit_dev_plaintext(canonical: str, code: str, *, reason: str, cfg: Settings
 def resolve_citizen_otp_delivery_channel(cfg: Settings) -> OtpDeliveryChannel:
     """Resolve channel. Explicit env wins; otherwise preserve historical SNS/mock behavior."""
     raw = (cfg.citizen_otp_delivery_channel or "").strip().lower()
-    if raw in {"mock", "sns", "whatsapp", "plivo"}:
+    if raw in {"mock", "sns", "whatsapp", "firebase"}:
         return raw  # type: ignore[return-value]
     # Legacy default: mock unless ticket notifications already use real SNS path.
     if cfg.app_env == "test" or cfg.notification_adapter != "real":
@@ -74,83 +72,13 @@ def resolve_citizen_otp_delivery_channel(cfg: Settings) -> OtpDeliveryChannel:
 def public_otp_delivery_channel(channel: OtpDeliveryChannel) -> PublicOtpDeliveryChannel:
     if channel == "whatsapp":
         return "whatsapp"
-    if channel in {"sns", "plivo"}:
+    if channel in {"sns", "firebase"}:
         return "sms"
     return "dev"
 
 
 class CitizenOtpDeliveryProvider(Protocol):
     def deliver(self, *, canonical_phone: str, code: str, settings: Settings) -> None: ...
-
-
-class PlivoCitizenOtpDeliveryProvider:
-    """Plivo SMS transport. BaladiGuard remains the sole OTP authority."""
-
-    def deliver(self, *, canonical_phone: str, code: str, settings: Settings) -> None:
-        if settings.notification_sandbox:
-            allowlist = set(settings.notification_allowlist_phones)
-            if not allowlist or canonical_phone not in allowlist:
-                logger.warning(
-                    "OTP Plivo blocked by notification sandbox allowlist "
-                    "phone=%s allowlist_empty=%s",
-                    _mask_phone(canonical_phone),
-                    not allowlist,
-                )
-                raise OtpDeliveryError("sandbox_blocked")
-        auth_id = settings.citizen_otp_plivo_auth_id
-        auth_token = settings.citizen_otp_plivo_auth_token
-        source = settings.citizen_otp_plivo_source
-        if not auth_id or not auth_token or not source:
-            raise OtpDeliveryError("plivo_misconfigured")
-        authorization = base64.b64encode(f"{auth_id}:{auth_token}".encode()).decode("ascii")
-        request = Request(
-            f"https://api.plivo.com/v1/Account/{auth_id}/Message/",
-            data=urlencode(
-                {
-                    "src": source,
-                    "dst": canonical_phone,
-                    "text": session_otp_text_body(code),
-                    "type": "sms",
-                }
-            ).encode("utf-8"),
-            headers={
-                "Authorization": f"Basic {authorization}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=settings.citizen_otp_plivo_timeout_seconds) as response:
-                response.read(4096)
-        except HTTPError as exc:
-            category = _classify_plivo_http_error(exc)
-            logger.warning(
-                "Citizen OTP Plivo delivery failed category=%s status=%s phone=%s",
-                category,
-                exc.code,
-                _mask_phone(canonical_phone),
-            )
-            raise OtpDeliveryError(category) from exc
-        except (URLError, TimeoutError) as exc:
-            logger.warning(
-                "Citizen OTP Plivo network failure phone=%s error=%s",
-                _mask_phone(canonical_phone),
-                type(exc).__name__,
-            )
-            raise OtpDeliveryError("plivo_transient") from exc
-        logger.info("Citizen OTP Plivo accepted phone=%s", _mask_phone(canonical_phone))
-
-
-def _classify_plivo_http_error(exc: HTTPError) -> str:
-    if exc.code in {401, 403}:
-        return "plivo_auth"
-    if exc.code == 429:
-        return "plivo_rate_limited"
-    if exc.code >= 500:
-        return "plivo_transient"
-    if exc.code == 400:
-        return "plivo_invalid_destination"
-    return "plivo_permanent"
 
 
 class MockCitizenOtpDeliveryProvider:
@@ -373,8 +301,6 @@ def build_citizen_otp_delivery_provider(
         return SnsCitizenOtpDeliveryProvider()
     if channel == "whatsapp":
         return WhatsAppCitizenOtpDeliveryProvider()
-    if channel == "plivo":
-        return PlivoCitizenOtpDeliveryProvider()
     return MockCitizenOtpDeliveryProvider()
 
 
@@ -398,6 +324,10 @@ def deliver_citizen_otp(
 
     channel = resolve_citizen_otp_delivery_channel(cfg)
     public = public_otp_delivery_channel(channel)
+    if channel == "firebase":
+        # Firebase Phone Auth is driven by the official mobile/web SDK. The
+        # backend receives only its signed ID token after verification.
+        raise OtpDeliveryError("firebase_client_required")
     provider = build_citizen_otp_delivery_provider(channel)
 
     started = __import__("time").perf_counter()

@@ -4,6 +4,7 @@ import { sanitizeReturnTo } from '@/auth/returnTo';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { ApiError } from '@/services/api';
 import { requestOtp } from '@/services/citizenAuth';
+import { firebasePhoneAuthEnabled, startFirebasePhoneOtp } from '@/services/firebasePhoneAuth';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 type Step = 'phone' | 'code';
@@ -46,10 +47,18 @@ export function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await requestOtp(phone.trim(), region);
-      setChallengeId(result.challengeId);
-      setDeliveryChannel(result.deliveryChannel);
-      setExpiresAt(Date.now() + result.expiresIn * 1000);
+      if (firebasePhoneAuthEnabled) {
+        const result = await requestOtp(phone.trim(), region);
+        await startFirebasePhoneOtp(phone.trim(), region);
+        setChallengeId(result.challengeId);
+        setDeliveryChannel('sms');
+        setExpiresAt(Date.now() + result.expiresIn * 1000);
+      } else {
+        const result = await requestOtp(phone.trim(), region);
+        setChallengeId(result.challengeId);
+        setDeliveryChannel(result.deliveryChannel);
+        setExpiresAt(Date.now() + result.expiresIn * 1000);
+      }
       setNow(Date.now());
       setStep('code');
       setCode('');
@@ -73,7 +82,14 @@ export function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await auth.applyOtp(challengeId, code, { acceptLegal: true, legalLocale: locale });
+      if (firebasePhoneAuthEnabled) {
+        await auth.applyFirebaseOtp(challengeId, code, 'LOGIN_OR_SIGNUP', {
+          acceptLegal: true,
+          legalLocale: locale,
+        });
+      } else {
+        await auth.applyOtp(challengeId, code, { acceptLegal: true, legalLocale: locale });
+      }
       navigate(returnTo, { replace: true });
     } catch (err) {
       const api = err instanceof ApiError ? err : null;
@@ -97,6 +113,7 @@ export function LoginPage() {
         <p>{t('auth.hero')}</p>
       </div>
       <div className="auth-card glass-card">
+        <div id="firebase-recaptcha" />
         <span className="eyebrow">{t('auth.eyebrow')}</span>
         <h1 aria-label={step === 'phone' ? t('common.signIn') : undefined}>
           {step === 'phone' ? t('auth.phoneTitle') : t('auth.otpTitle')}
@@ -134,9 +151,13 @@ export function LoginPage() {
               onChange={(e) => setRegion(e.target.value)}
             >
               <option value="LB">{t('auth.lebanon')}</option>
-              <option value="US">{t('auth.unitedStates')}</option>
-              <option value="FR">{t('auth.france')}</option>
-              <option value="GB">{t('auth.unitedKingdom')}</option>
+              {!firebasePhoneAuthEnabled ? (
+                <>
+                  <option value="US">{t('auth.unitedStates')}</option>
+                  <option value="FR">{t('auth.france')}</option>
+                  <option value="GB">{t('auth.unitedKingdom')}</option>
+                </>
+              ) : null}
             </select>
             <label className="field-label" htmlFor="phone">
               {t('auth.phone')}

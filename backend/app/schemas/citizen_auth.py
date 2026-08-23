@@ -94,6 +94,24 @@ class CitizenOtpVerifyRequest(BaseModel):
         return self
 
 
+class CitizenFirebaseCompleteRequest(BaseModel):
+    """A Firebase Phone Auth ID token, never a client-supplied phone number."""
+
+    challenge_id: str = Field(alias="challengeId", min_length=8, max_length=128)
+    id_token: str = Field(alias="idToken", min_length=100, max_length=12_000)
+    purpose: OtpPurpose = "LOGIN_OR_SIGNUP"
+    full_name: str | None = Field(default=None, alias="fullName", max_length=120)
+    accept_legal: bool | None = Field(default=None, alias="acceptLegal")
+    legal_locale: str | None = Field(default=None, alias="legalLocale", max_length=16)
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("id_token")
+    @classmethod
+    def strip_id_token(cls, value: str) -> str:
+        return value.strip()
+
+
 class CitizenOtpVerifyResponse(BaseModel):
     # Browser cookie sessions intentionally omit the raw opaque token. Mobile
     # keeps receiving it for platform-secure storage.

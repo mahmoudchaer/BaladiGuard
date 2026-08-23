@@ -23,7 +23,7 @@ _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "produ
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
 ALLOWED_WHATSAPP_PROVIDERS = frozenset({"mock", "cloud"})
-ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp", "plivo"})
+ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp", "firebase"})
 ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES = frozenset({"template", "session_text"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
@@ -331,7 +331,7 @@ def validate_configuration(
                     code="INVALID_CITIZEN_OTP_DELIVERY_CHANNEL",
                     message=(
                         "CITIZEN_OTP_DELIVERY_CHANNEL must be 'mock', 'sns', "
-                        "'whatsapp', or 'plivo'."
+                        "'whatsapp', or 'firebase'."
                     ),
                 )
             )
@@ -340,22 +340,13 @@ def validate_configuration(
     from app.services.citizens.otp_delivery import resolve_citizen_otp_delivery_channel
 
     effective_otp_channel = resolve_citizen_otp_delivery_channel(cfg)
-    if effective_otp_channel == "plivo":
-        missing_plivo = []
-        if not (cfg.citizen_otp_plivo_auth_id or "").strip():
-            missing_plivo.append("CITIZEN_OTP_PLIVO_AUTH_ID")
-        if not (cfg.citizen_otp_plivo_auth_token or "").strip():
-            missing_plivo.append("CITIZEN_OTP_PLIVO_AUTH_TOKEN")
-        if not (cfg.citizen_otp_plivo_source or "").strip():
-            missing_plivo.append("CITIZEN_OTP_PLIVO_SOURCE")
-        if missing_plivo:
+    if effective_otp_channel == "firebase":
+        if not (cfg.firebase_project_id or "").strip():
             result.issues.append(
                 ConfigIssue(
-                    code="MISSING_CITIZEN_OTP_PLIVO_CONFIG",
+                    code="MISSING_FIREBASE_PROJECT_ID",
                     message=(
-                        "CITIZEN_OTP_DELIVERY_CHANNEL=plivo requires: "
-                        + ", ".join(missing_plivo)
-                        + "."
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=firebase requires FIREBASE_PROJECT_ID."
                     ),
                 )
             )
@@ -443,7 +434,7 @@ def validate_configuration(
                     code="UNSAFE_CITIZEN_OTP_DELIVERY_CHANNEL",
                     message=(
                         "Staging/production must not set CITIZEN_OTP_DELIVERY_CHANNEL=mock. "
-                        "Use 'sns', 'whatsapp', or 'plivo'."
+                        "Use 'sns', 'whatsapp', or 'firebase'."
                     ),
                 )
             )
@@ -454,7 +445,7 @@ def validate_configuration(
                     message=(
                         "Citizen OTP delivery resolved to mock via legacy "
                         "NOTIFICATION_ADAPTER defaults. Set "
-                        "CITIZEN_OTP_DELIVERY_CHANNEL=sns, whatsapp, or plivo for real OTP."
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=sns, whatsapp, or firebase for real OTP."
                     ),
                     severity="warning",
                 )

@@ -7,6 +7,7 @@ import {
   exportMe,
   requestOtp,
 } from '@/services/citizenAuth';
+import { firebasePhoneAuthEnabled, startFirebasePhoneOtp } from '@/services/firebasePhoneAuth';
 import { clearDraft, loadDraft } from '@/services/reportDraft';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -56,8 +57,14 @@ export function ProfilePage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await requestOtp(newPhone, 'LB', 'CHANGE_PHONE');
-      setChallenge(result.challengeId);
+      if (firebasePhoneAuthEnabled) {
+        const result = await requestOtp(newPhone, 'LB', 'CHANGE_PHONE');
+        await startFirebasePhoneOtp(newPhone, 'LB');
+        setChallenge(result.challengeId);
+      } else {
+        const result = await requestOtp(newPhone, 'LB', 'CHANGE_PHONE');
+        setChallenge(result.challengeId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('profile.sendFailed'));
     } finally {
@@ -69,6 +76,18 @@ export function ProfilePage() {
     setBusy(true);
     setError(null);
     try {
+      if (firebasePhoneAuthEnabled) {
+        const next = await auth.applyFirebaseOtp(challenge, phoneCode, 'CHANGE_PHONE', {
+          acceptLegal: true,
+          legalLocale: locale,
+        });
+        auth.setProfile(next);
+        setChallenge('');
+        setPhoneCode('');
+        setPhoneMode(false);
+        setMessage(t('profile.phoneUpdated'));
+        return;
+      }
       await auth.updateProfile({
         phone: newPhone,
         region: 'LB',
