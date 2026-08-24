@@ -37,6 +37,6 @@ def test_collects_application_and_worker_metrics(monkeypatch):
     assert any(
         call["Namespace"] == "ECS/ContainerInsights"
         and {dimension["Value"] for dimension in call["Dimensions"]}
-        == {"baladiguard-staging", "baladiguard-staging-ai-worker"}
+        == {"baladiguard-staging", "ai-worker"}
         for call in cloudwatch.calls
     )

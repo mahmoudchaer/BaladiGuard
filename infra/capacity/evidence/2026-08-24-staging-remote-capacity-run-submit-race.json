@@ -1,74 +1,86 @@
 {
-  "generatedAt": "2026-08-23T11:08:47.314470Z",
-  "scenario": "smoke",
+  "generatedAt": "2026-08-24T16:25:31.152412Z",
+  "scenario": "submit-race",
   "baseUrl": "https://api.staging.baladiguard.site",
   "concurrency": 4,
-  "durationSeconds": 8.0,
-  "maxRequests": 80,
-  "minIntervalMs": 25.0,
+  "durationSeconds": 18.0,
+  "maxRequests": 160,
+  "minIntervalMs": 40.0,
   "totals": {
-    "requests": 57,
-    "ok2xx": 38,
-    "client4xx": 19,
+    "requests": 42,
+    "ok2xx": 42,
+    "client4xx": 0,
     "rateLimited429": 0,
     "server5xx": 0,
     "transportErrors": 0
   },
   "latencyMs": {
-    "p50": 541.8226000037976,
-    "p95": 818.2845599891152,
-    "p99": 829.499272001558,
-    "mean": 578.7230982463561,
-    "max": 841.9138000026578
+    "p50": 1336.3214499986498,
+    "p95": 3631.7920049783424,
+    "p99": 3875.72387700522,
+    "mean": 1798.013583333592,
+    "max": 3993.599000008544
   },
   "byName": {
-    "health_live": {
+    "ticket_submit": {
       "count": 19,
       "status_counts": {
-        "200": 19
+        "201": 19
       },
       "latency_ms": {
-        "p50": 510.54720001411624,
-        "p95": 715.1688300029491,
-        "p99": 717.1224060110399,
-        "mean": 550.001494738114
+        "p50": 2428.5465000139084,
+        "p95": 3734.8487300012484,
+        "p99": 3941.848946007085,
+        "mean": 2784.610468419391
       }
     },
-    "track_miss": {
-      "count": 19,
+    "citizen_history": {
+      "count": 7,
       "status_counts": {
-        "404": 19
+        "200": 7
       },
       "latency_ms": {
-        "p50": 526.0363999987021,
-        "p95": 819.4265799989807,
-        "p99": 819.6813160003512,
-        "mean": 567.7740157897413
+        "p50": 1103.305199998431,
+        "p95": 1887.567480001598,
+        "p99": 2125.9787760023023,
+        "mean": 1264.2552142871343
       }
     },
     "health_ready_ai": {
-      "count": 19,
+      "count": 9,
       "status_counts": {
-        "200": 19
+        "200": 9
       },
       "latency_ms": {
-        "p50": 565.7749000092736,
-        "p95": 820.3984899882925,
-        "p99": 837.6107379997848,
-        "mean": 618.3937842112133
+        "p50": 701.9043000182137,
+        "p95": 770.8800200023688,
+        "p99": 795.9813640010542,
+        "mean": 694.643255559236
+      }
+    },
+    "citizen_me": {
+      "count": 7,
+      "status_counts": {
+        "200": 7
+      },
+      "latency_ms": {
+        "p50": 1006.031199998688,
+        "p95": 1366.0202299914085,
+        "p99": 1457.5574059964854,
+        "mean": 1072.4851142856226
       }
     }
   },
   "slosEvaluation": {
     "submitP95Ms": {
       "target": 2500,
-      "actual": null,
-      "pass": null
+      "actual": 3734.8487300012484,
+      "pass": false
     },
     "trackOrListP95Ms": {
       "target": 800,
-      "actual": 819.4265799989807,
-      "pass": false
+      "actual": null,
+      "pass": null
     },
     "server5xxRate": {
       "target": 0.01,
@@ -77,23 +89,21 @@
     },
     "routeCoverage": {
       "required": {
-        "health_live": 3,
-        "health_ready_ai": 3,
-        "track_miss": 3
+        "ticket_submit": 6,
+        "health_ready_ai": 2
       },
       "actual": {
-        "health_live": 19,
-        "health_ready_ai": 19,
-        "track_miss": 19
+        "ticket_submit": 19,
+        "health_ready_ai": 9
       },
       "missing": {},
       "pass": true
     },
     "aiQueueSamples": {
-      "required": false,
-      "count": 19,
+      "required": true,
+      "count": 9,
       "last": {
-        "at": "2026-08-23T11:08:47.312779Z",
+        "at": "2026-08-24T16:25:31.136394Z",
         "pending": null,
         "processing": null,
         "failed": null,
@@ -101,14 +111,34 @@
         "source": "worker_metrics"
       },
       "maxPending": null,
-      "pass": null
+      "pass": true
     }
   },
-  "createdTicketIdsSample": [],
+  "createdTicketIdsSample": [
+    "tkt_2ab47f9ff7624fdbaf19f09a0ec932ca",
+    "tkt_6cb5a672f8e448fe8b7f0300dac98461",
+    "tkt_d215e916c84e4ef2a430f561430be2d6",
+    "tkt_6056090805e14617b86c6fa9ac1b189b",
+    "tkt_44cf8432be074081abd3475c0d176c9c",
+    "tkt_f7878cecd5ee4fbd871cd85b805032f5",
+    "tkt_bd52cfd8aaa04f208f2a954aa0ff3437",
+    "tkt_2ac1b367a2534bbea0a088b5cda9641e",
+    "tkt_3139470aa4e440e8be5a8f863e64de0a",
+    "tkt_1e3a605be81341d68ff26fd705713284",
+    "tkt_a13bf5c8993e469ab5ce726ede97e10a",
+    "tkt_a157dc40b2894258af80138dc2fba9c4",
+    "tkt_e8b5a99c6ede499e8e9e92980fb71bab",
+    "tkt_ad5f16fb6eb0444ca55c1c9c2b679ff5",
+    "tkt_4386dbb35b84469a813cda44245bbdd5",
+    "tkt_63769019796f414ab28bd288db0738a4",
+    "tkt_1664215be648468a825e897ebad5cb64",
+    "tkt_781fe525db624d4b9cd11743e5bc4bf9",
+    "tkt_a359f132d10f4f7a97b59942987f1ace"
+  ],
   "uploadedObjectKeysSample": [],
   "aiQueueSamples": [
     {
-      "at": "2026-08-23T11:08:47.125246Z",
+      "at": "2026-08-24T16:25:30.614213Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -116,7 +146,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.130989Z",
+      "at": "2026-08-24T16:25:30.614213Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -124,7 +154,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.130989Z",
+      "at": "2026-08-24T16:25:30.832290Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -132,7 +162,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.130989Z",
+      "at": "2026-08-24T16:25:30.832290Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -140,7 +170,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.130989Z",
+      "at": "2026-08-24T16:25:30.832290Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -148,7 +178,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.130989Z",
+      "at": "2026-08-24T16:25:30.995577Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -156,7 +186,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.312779Z",
+      "at": "2026-08-24T16:25:30.995577Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -164,7 +194,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.312779Z",
+      "at": "2026-08-24T16:25:31.003964Z",
       "pending": null,
       "processing": null,
       "failed": null,
@@ -172,15 +202,7 @@
       "source": "worker_metrics"
     },
     {
-      "at": "2026-08-23T11:08:47.312779Z",
-      "pending": null,
-      "processing": null,
-      "failed": null,
-      "status": "metrics",
-      "source": "worker_metrics"
-    },
-    {
-      "at": "2026-08-23T11:08:47.312779Z",
+      "at": "2026-08-24T16:25:31.136394Z",
       "pending": null,
       "processing": null,
       "failed": null,

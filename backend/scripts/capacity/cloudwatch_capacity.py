@@ -147,7 +147,6 @@ def collect_capacity_cloudwatch(
 
     if ecs_cluster:
         for service in ("api", "ai-worker", "redaction-worker"):
-            service_name = f"{ecs_cluster}-{service}"
             metrics["ecs"][service] = {}
             for metric_name, stat in (
                 ("RunningTaskCount", "Minimum"),
@@ -160,7 +159,7 @@ def collect_capacity_cloudwatch(
                         MetricName=metric_name,
                         Dimensions=[
                             {"Name": "ClusterName", "Value": ecs_cluster},
-                            {"Name": "ServiceName", "Value": service_name},
+                            {"Name": "ServiceName", "Value": service},
                         ],
                         StartTime=start,
                         EndTime=end,

@@ -1,18 +1,18 @@
 {
-  "windowStart": "2026-08-23T11:00:45.549344Z",
-  "windowEnd": "2026-08-23T11:10:45.549344Z",
+  "windowStart": "2026-08-24T16:14:06.444182Z",
+  "windowEnd": "2026-08-24T16:24:06.444182Z",
   "region": "us-east-1",
   "ticketTable": "baladiguard-staging-tickets",
   "s3Bucket": "baladiguard-staging-report-photos-265911027282",
   "dynamodb": {
     "ConsumedWriteCapacityUnits": {
       "stat": "Sum",
-      "sum": 1103.0,
-      "points": 6
+      "sum": 513.0,
+      "points": 8
     },
     "ConsumedReadCapacityUnits": {
       "stat": "Sum",
-      "sum": 12757.5,
+      "sum": 36153.0,
       "points": 10
     },
     "WriteThrottleEvents": {
@@ -53,17 +53,17 @@
   "application": {
     "HttpRequests": {
       "stat": "Sum",
-      "value": 833.0,
+      "value": 422.0,
       "points": 10
     },
     "HttpRequestDuration": {
       "stat": "Average",
-      "value": 508.21511999999996,
+      "value": 668.6055140186916,
       "points": 10
     },
     "HttpRequestDurationP95": {
       "stat": "p95",
-      "value": 1953.0729724098962,
+      "value": 2657.1547201585245,
       "points": 10
     },
     "Http5xx": {
@@ -73,18 +73,18 @@
     },
     "ReportsSubmitted": {
       "stat": "Sum",
-      "value": 99.0,
-      "points": 4
+      "value": 39.0,
+      "points": 2
     },
     "AiJobsQueued": {
       "stat": "Sum",
-      "value": 150.0,
-      "points": 4
+      "value": 58.0,
+      "points": 2
     },
     "AiJobsSucceeded": {
       "stat": "Sum",
-      "value": 100.0,
-      "points": 4
+      "value": 40.0,
+      "points": 2
     },
     "AiJobsRetried": {
       "stat": "Sum",
@@ -116,52 +116,52 @@
     "api": {
       "RunningTaskCount": {
         "stat": "Minimum",
-        "value": null,
-        "points": 0
+        "value": 1.0,
+        "points": 10
       },
       "CpuUtilized": {
         "stat": "Average",
-        "value": null,
-        "points": 0
+        "value": 318.36345336914064,
+        "points": 9
       },
       "MemoryUtilized": {
         "stat": "Average",
-        "value": null,
-        "points": 0
+        "value": 136.0,
+        "points": 9
       }
     },
     "ai-worker": {
       "RunningTaskCount": {
         "stat": "Minimum",
-        "value": null,
-        "points": 0
+        "value": 1.0,
+        "points": 10
       },
       "CpuUtilized": {
         "stat": "Average",
-        "value": null,
-        "points": 0
+        "value": 133.2085400390625,
+        "points": 9
       },
       "MemoryUtilized": {
         "stat": "Average",
-        "value": null,
-        "points": 0
+        "value": 86.0,
+        "points": 9
       }
     },
     "redaction-worker": {
       "RunningTaskCount": {
         "stat": "Minimum",
-        "value": null,
-        "points": 0
+        "value": 1.0,
+        "points": 10
       },
       "CpuUtilized": {
         "stat": "Average",
-        "value": null,
-        "points": 0
+        "value": 117.7840625,
+        "points": 10
       },
       "MemoryUtilized": {
         "stat": "Average",
-        "value": null,
-        "points": 0
+        "value": 80.0,
+        "points": 10
       }
     }
   }
