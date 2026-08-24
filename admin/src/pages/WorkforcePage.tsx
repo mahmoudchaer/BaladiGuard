@@ -31,23 +31,39 @@ function formatDepartments(
   return ids.map((id) => names[id] ?? id).join(', ');
 }
 
-function countLine(
-  counts: WorkloadSnapshot['unassigned'],
-  translate: (key: string, vars?: Record<string, string | number>) => string,
-): string {
-  return translate('workforce.countLine', {
-    queued: counts.queued,
-    assigned: counts.assigned,
-    inProgress: counts.inProgress,
-    dueSoon: counts.dueSoon,
-    overdue: counts.overdue,
-    completed: counts.completed ?? 0,
-    cancelled: counts.cancelled ?? 0,
-  });
-}
-
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function WorkloadMetrics({
+  counts,
+  includeClosed = false,
+}: {
+  counts: WorkloadSnapshot['unassigned'];
+  includeClosed?: boolean;
+}) {
+  const { t } = useI18n();
+  const metrics = [
+    ['queued', counts.queued],
+    ['assigned', counts.assigned],
+    ['inProgress', counts.inProgress],
+    ['dueSoon', counts.dueSoon],
+    ['overdue', counts.overdue],
+    ...(includeClosed
+      ? [
+          ['completed', counts.completed ?? 0],
+          ['cancelled', counts.cancelled ?? 0],
+        ]
+      : []),
+  ] as Array<[string, number]>;
+
+  return (
+    <ul className="workforce-counts" aria-label={t('workforce.workload')}>
+      {metrics.map(([label, count]) => (
+        <li key={label}>{t(`workforce.${label}`, { count })}</li>
+      ))}
+    </ul>
+  );
 }
 
 function DepartmentChecklist({
@@ -624,7 +640,8 @@ export function WorkforcePage() {
           <div className="workforce-page__grid">
             <section className="workforce-card">
               <h2>{t('workforce.unassigned')}</h2>
-              <p>{countLine(workload.unassigned, t)}</p>
+              <p className="workforce-card__description">{t('workforce.unassignedDescription')}</p>
+              <WorkloadMetrics counts={workload.unassigned} includeClosed />
               <ul>
                 {workload.unassignedTickets.map((ticket) => (
                   <li key={ticket.ticketId}>
@@ -636,20 +653,19 @@ export function WorkforcePage() {
             </section>
             {[...workload.workers, ...workload.teams].map((subject) => (
               <section className="workforce-card" key={`${subject.kind}-${subject.id}`}>
-                <h3>
-                  {subject.displayName}{' '}
-                  <small>
-                    ({subject.kind === 'team' ? t('workforce.kindTeam') : t('workforce.kindWorker')}
-                    {subject.active ? '' : t('workforce.inactiveParen')})
-                  </small>
-                </h3>
-                <ul className="workforce-counts">
-                  <li>{t('workforce.queued', { count: subject.counts.queued })}</li>
-                  <li>{t('workforce.assigned', { count: subject.counts.assigned })}</li>
-                  <li>{t('workforce.inProgress', { count: subject.counts.inProgress })}</li>
-                  <li>{t('workforce.dueSoon', { count: subject.counts.dueSoon })}</li>
-                  <li>{t('workforce.overdue', { count: subject.counts.overdue })}</li>
-                </ul>
+                <div className="workforce-card__heading">
+                  <h3>{subject.displayName}</h3>
+                  <span className="workforce-card__type">
+                    {subject.kind === 'team' ? t('workforce.kindTeam') : t('workforce.kindWorker')}
+                    {subject.active ? '' : t('workforce.inactiveParen')}
+                  </span>
+                </div>
+                <p className="workforce-card__description">
+                  {subject.kind === 'team'
+                    ? t('workforce.teamDescription')
+                    : t('workforce.workerDescription')}
+                </p>
+                <WorkloadMetrics counts={subject.counts} />
                 <table className="workforce-table">
                   <tbody>
                     {subject.tickets.map((ticket) => (

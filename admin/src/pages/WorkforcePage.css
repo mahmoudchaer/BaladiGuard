@@ -78,6 +78,31 @@
   font-weight: 600;
 }
 
+.workforce-card__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.workforce-card__type {
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-size: var(--text-helper);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.workforce-card > .workforce-card__description {
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-body-compact);
+}
+
 .workforce-card > p {
   margin: 0;
   padding: 0.7rem 0.85rem;
