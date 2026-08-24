@@ -166,7 +166,7 @@
     "copyCode": "Copier le code de suivi"
   },
   "report": {
-    "signInAtSubmit": "Connexion à l’envoi",
+    "signInAtSubmit": "Vous pouvez remplir le signalement maintenant. La connexion est requise avant l’envoi.",
     "privateSubmission": "Envoi privé",
     "title": "Que faut-il signaler ?",
     "eyebrow": "NOUVEAU SIGNALEMENT",

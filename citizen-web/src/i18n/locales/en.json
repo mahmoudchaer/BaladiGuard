@@ -166,7 +166,7 @@
     "copyCode": "Copy tracking code"
   },
   "report": {
-    "signInAtSubmit": "Sign in at submit",
+    "signInAtSubmit": "You can complete the report now. Sign-in is required before sending.",
     "privateSubmission": "Private submission",
     "title": "What needs attention?",
     "eyebrow": "NEW REPORT",

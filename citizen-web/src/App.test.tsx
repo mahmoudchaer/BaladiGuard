@@ -213,7 +213,9 @@ describe('citizen web public browsing', () => {
     expect(
       await screen.findByRole('heading', { name: 'What needs attention?' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Sign in at submit')).toBeInTheDocument();
+    expect(
+      screen.getByText('You can complete the report now. Sign-in is required before sending.'),
+    ).toBeInTheDocument();
   });
 
   it('exposes privacy copy and stub protected routes', async () => {

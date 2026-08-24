@@ -279,9 +279,6 @@ export function ReportPage() {
           <h1>{t('report.title')}</h1>
           <p className="lede">{t('report.lede')}</p>
         </div>
-        <span className="step-chip">
-          {profile ? t('report.privateSubmission') : t('report.signInAtSubmit')}
-        </span>
       </div>
       {restored ? <div className="notice notice-info">{t('report.draftRestored')}</div> : null}
       {profile && !profile.contributionReady ? (
@@ -447,6 +444,7 @@ export function ReportPage() {
           >
             {busy ? t('report.pleaseWait') : t('report.submit')} <span aria-hidden>→</span>
           </button>
+          {!profile ? <p className="submit-sign-in-note">{t('report.signInAtSubmit')}</p> : null}
           <button
             className="text-button"
             disabled={busy}

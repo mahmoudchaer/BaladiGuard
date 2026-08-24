@@ -748,6 +748,13 @@ a {
 .report-review .text-button {
   width: 100%;
 }
+.submit-sign-in-note {
+  margin: -0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: center;
+}
 .textarea {
   min-height: 150px;
   resize: vertical;
