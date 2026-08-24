@@ -452,6 +452,15 @@
     "insights": "Analyses opérationnelles",
     "insightsNote": "Secondaire — catégorie et charge",
     "opsCounts": "En file {queued} · Assignés {assigned} · En cours {inProgress} · Bientôt dus {dueSoon} · Sans affectation terrain {workforceUnassigned} · Terminés {completed} · Annulés {cancelled}",
+    "opsLabels": {
+      "queued": "En file",
+      "assigned": "Assignés",
+      "inProgress": "En cours",
+      "dueSoon": "Bientôt dus",
+      "workforceUnassigned": "Sans affectation terrain",
+      "completed": "Terminés",
+      "cancelled": "Annulés"
+    },
     "bulk": {
       "title": "Affectation groupée",
       "selected": "{count} sélectionnés",

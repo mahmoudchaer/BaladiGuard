@@ -452,6 +452,15 @@
     "insights": "Operational insights",
     "insightsNote": "Secondary — category & workload",
     "opsCounts": "Queued {queued} · Assigned {assigned} · In progress {inProgress} · Due soon {dueSoon} · Workforce unassigned {workforceUnassigned} · Completed {completed} · Cancelled {cancelled}",
+    "opsLabels": {
+      "queued": "Queued",
+      "assigned": "Assigned",
+      "inProgress": "In progress",
+      "dueSoon": "Due soon",
+      "workforceUnassigned": "Workforce unassigned",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
     "bulk": {
       "title": "Bulk assignment",
       "selected": "{count} selected",

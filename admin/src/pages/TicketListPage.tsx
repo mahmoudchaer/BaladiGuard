@@ -629,17 +629,22 @@ export function TicketListPage() {
       )}
 
       {loadState === 'success' && aggregates && (
-        <p className="ticket-list-page__ops-counts" role="status">
-          {t('tickets.opsCounts', {
-            queued: aggregates.queuedCount ?? 0,
-            assigned: aggregates.assignedCount ?? 0,
-            inProgress: aggregates.inProgressCount ?? 0,
-            dueSoon: aggregates.dueSoonCount ?? 0,
-            workforceUnassigned: aggregates.workforceUnassignedCount ?? 0,
-            completed: aggregates.completedCount ?? 0,
-            cancelled: aggregates.cancelledCount ?? 0,
-          })}
-        </p>
+        <div className="ticket-list-page__ops-counts" role="status">
+          {[
+            ['queued', aggregates.queuedCount ?? 0],
+            ['assigned', aggregates.assignedCount ?? 0],
+            ['inProgress', aggregates.inProgressCount ?? 0],
+            ['dueSoon', aggregates.dueSoonCount ?? 0],
+            ['workforceUnassigned', aggregates.workforceUnassignedCount ?? 0],
+            ['completed', aggregates.completedCount ?? 0],
+            ['cancelled', aggregates.cancelledCount ?? 0],
+          ].map(([label, count]) => (
+            <span className="ticket-list-page__ops-count" key={label}>
+              <span>{t(`tickets.opsLabels.${label}`)}</span>
+              <strong>{count}</strong>
+            </span>
+          ))}
+        </div>
       )}
 
       {loadState === 'success' && (

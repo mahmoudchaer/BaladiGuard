@@ -452,6 +452,15 @@
     "insights": "رؤى تشغيلية",
     "insightsNote": "ثانوي — التصنيف وعبء العمل",
     "opsCounts": "في الانتظار {queued} · مُسند {assigned} · قيد التنفيذ {inProgress} · يستحق قريباً {dueSoon} · بدون تعيين ميداني {workforceUnassigned} · مكتمل {completed} · ملغى {cancelled}",
+    "opsLabels": {
+      "queued": "في الانتظار",
+      "assigned": "مُسند",
+      "inProgress": "قيد التنفيذ",
+      "dueSoon": "يستحق قريباً",
+      "workforceUnassigned": "بدون تعيين ميداني",
+      "completed": "مكتمل",
+      "cancelled": "ملغى"
+    },
     "bulk": {
       "title": "تعيين جماعي",
       "selected": "{count} محدد",

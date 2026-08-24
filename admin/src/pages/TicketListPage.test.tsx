@@ -276,17 +276,18 @@ describe('TicketListPage', () => {
     expect(
       screen.getByRole('heading', { level: 2, name: t('tickets.citizenReports') }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      t('tickets.opsCounts', {
-        queued: 0,
-        assigned: 0,
-        inProgress: 0,
-        dueSoon: 0,
-        workforceUnassigned: 0,
-        completed: 0,
-        cancelled: 0,
-      }),
-    );
+    const operations = screen.getByRole('status');
+    for (const label of [
+      'queued',
+      'assigned',
+      'inProgress',
+      'dueSoon',
+      'workforceUnassigned',
+      'completed',
+      'cancelled',
+    ]) {
+      expect(operations).toHaveTextContent(t(`tickets.opsLabels.${label}`));
+    }
   });
 
   it('lets staff select tickets, preview a bulk assignment, then commit it', async () => {
