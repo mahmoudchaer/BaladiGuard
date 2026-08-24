@@ -136,7 +136,8 @@
     "unitedStates": "الولايات المتحدة (+1)",
     "france": "فرنسا (+33)",
     "unitedKingdom": "المملكة المتحدة (+44)",
-    "phonePlaceholder": "70 123 456"
+    "phonePlaceholder": "70 123 456",
+    "phoneChanged": "تم تحديث رقم الهاتف. سجّل الدخول باستخدام رقمك الجديد."
   },
   "track": {
     "title": "تتبّع بلاغ",

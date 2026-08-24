@@ -136,7 +136,8 @@
     "unitedStates": "United States (+1)",
     "france": "France (+33)",
     "unitedKingdom": "United Kingdom (+44)",
-    "phonePlaceholder": "70 123 456"
+    "phonePlaceholder": "70 123 456",
+    "phoneChanged": "Phone number updated. Sign in with your new number."
   },
   "track": {
     "title": "Track a report",

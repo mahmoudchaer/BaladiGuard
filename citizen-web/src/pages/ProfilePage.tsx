@@ -166,8 +166,8 @@ export function ProfilePage() {
         phoneChangeChallengeId: challenge,
         phoneChangeCode: phoneCode,
       });
-      setMessage(t('profile.phoneUpdated'));
-      await auth.logout();
+      window.sessionStorage.setItem('baladiguard-phone-changed', '1');
+      auth.setProfile(null);
       navigate('/login', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t('profile.phoneFailed'));

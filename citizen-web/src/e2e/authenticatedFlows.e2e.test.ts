@@ -50,6 +50,26 @@ describe('authenticated OTP, profile, report, history, and logout E2E', () => {
     expect(await screen.findByRole('link', { name: 'Sign in' })).toBeInTheDocument();
   });
 
+  it('returns a citizen to a clean sign-in after changing phone', async () => {
+    const user = userEvent.setup();
+    const fetchMock = installControlledBackend(true);
+    renderApp('/profile');
+
+    await user.click(await screen.findByRole('button', { name: /Change verified phone/ }));
+    await user.type(screen.getByPlaceholderText('New phone number'), '70811822');
+    await user.click(screen.getByRole('button', { name: 'Send verification code' }));
+    await user.type(screen.getByPlaceholderText('000000'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Verify new phone' }));
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Phone number updated. Sign in with your new number.'),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes('/citizen/auth/logout')),
+    ).toBe(false);
+  });
+
   it('submits a report when the session is contribution-ready', async () => {
     const user = userEvent.setup();
     installControlledBackend(true);

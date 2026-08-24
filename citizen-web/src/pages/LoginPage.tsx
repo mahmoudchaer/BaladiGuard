@@ -14,6 +14,11 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnTo = sanitizeReturnTo(params.get('returnTo'));
+  const [phoneChanged] = useState(() => {
+    const changed = window.sessionStorage.getItem('baladiguard-phone-changed') === '1';
+    if (changed) window.sessionStorage.removeItem('baladiguard-phone-changed');
+    return changed;
+  });
   const [step, setStep] = useState<Step>('phone');
   const [region, setRegion] = useState('LB');
   const [phone, setPhone] = useState('');
@@ -116,6 +121,12 @@ export function LoginPage() {
                 { phone },
               )}
         </p>
+
+        {phoneChanged && step === 'phone' ? (
+          <div className="notice notice-success" role="status">
+            {t('auth.phoneChanged')}
+          </div>
+        ) : null}
 
         {error ? (
           <div className="notice notice-error" role="alert">
