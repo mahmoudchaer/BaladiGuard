@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
 import { getStaffRoleLabel, isDeveloperOperator } from '@/services/auth';
@@ -99,19 +99,23 @@ export function DashboardLayout({
 
         <nav className="dashboard-rail__nav" aria-label={t('nav.mainNav')}>
           {navItems.map((item) => {
-            const active = isNavActive(pathname, item.to);
+            const active =
+              isNavActive(pathname, item.to) &&
+              !navItems.some(
+                (candidate) =>
+                  candidate.to.length > item.to.length && isNavActive(pathname, candidate.to),
+              );
             return (
-              <NavLink
+              <Link
                 key={item.id}
                 to={item.to}
-                end={item.to === '/'}
                 className={`dashboard-rail__link${active ? ' dashboard-rail__link--active' : ''}`}
                 aria-current={active ? 'page' : undefined}
                 title={item.label}
               >
                 <item.Icon />
                 <span className="dashboard-rail__link-label">{item.label}</span>
-              </NavLink>
+              </Link>
             );
           })}
         </nav>

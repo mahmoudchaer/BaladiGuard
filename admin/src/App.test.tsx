@@ -413,8 +413,11 @@ describe('App staff authentication', () => {
     expect(
       await screen.findByRole('heading', { name: 'Municipalities', level: 2 }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Municipalities' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Operations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Municipalities' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Operations' })).not.toHaveAttribute('aria-current');
   });
 
   it('denies municipal staff who enter the staff-account URL directly', async () => {
