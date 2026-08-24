@@ -315,7 +315,7 @@ export function ReportPage() {
           />
           <span className="character-count">{description.length} / 2,000</span>
           <h2 className="report-section-title">{t('report.stepLocation')}</h2>
-          <label className="field-label" htmlFor="address">
+          <label className="sr-only" htmlFor="address">
             {t('report.location')}
           </label>
           <div className="location-row">
