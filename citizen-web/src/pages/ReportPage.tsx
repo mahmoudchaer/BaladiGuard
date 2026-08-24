@@ -407,9 +407,27 @@ export function ReportPage() {
             <h2 id="report-review-heading" className="report-section-title">
               {t('report.reviewHeading')}
             </h2>
-            <p>{description.trim() || t('report.describePlaceholder')}</p>
-            <p className="muted">{location?.addressText || t('report.needLocation')}</p>
-            <p className="muted">{photoLabel || t('report.needPhoto')}</p>
+            <div className={`review-item${description.trim() ? ' review-item-ready' : ''}`}>
+              <span className="review-bullet" aria-hidden />
+              <div>
+                <strong>{t('report.describe')}</strong>
+                <p>{description.trim() || t('report.describePlaceholder')}</p>
+              </div>
+            </div>
+            <div className={`review-item${location ? ' review-item-ready' : ''}`}>
+              <span className="review-bullet" aria-hidden />
+              <div>
+                <strong>{t('report.location')}</strong>
+                <p>{location?.addressText || t('report.needLocation')}</p>
+              </div>
+            </div>
+            <div className={`review-item${photoLabel ? ' review-item-ready' : ''}`}>
+              <span className="review-bullet" aria-hidden />
+              <div>
+                <strong>{t('report.photo')}</strong>
+                <p>{photoLabel || t('report.needPhoto')}</p>
+              </div>
+            </div>
           </div>
           <div className="privacy-callout">
             <span aria-hidden>◉</span>

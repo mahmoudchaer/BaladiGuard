@@ -691,6 +691,59 @@ a {
   align-content: start;
   gap: 1rem;
 }
+.review-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.review-item > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.review-item strong {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.review-item p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.review-bullet {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  border: 2px solid #b8c0c8;
+  border-radius: 50%;
+}
+.review-item-ready {
+  border-color: #cce6d8;
+  background: #f5fbf8;
+}
+.review-item-ready .review-bullet {
+  display: grid;
+  place-items: center;
+  border-color: var(--brand);
+  background: var(--brand);
+}
+.review-item-ready .review-bullet::after {
+  content: '✓';
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.review-item-ready p {
+  color: var(--text);
+}
 .report-review .button,
 .report-review .text-button {
   width: 100%;
