@@ -36,6 +36,7 @@ export function ReportPage() {
   const [submissionId, setSubmissionId] = useState(newSubmissionId);
   const [uploadedKey, setUploadedKey] = useState<string | undefined>();
   const [phase, setPhase] = useState<Phase>('idle');
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const [result, setResult] = useState<SubmitTicketResponse | null>(null);
@@ -110,9 +111,11 @@ export function ReportPage() {
   async function getDeviceLocation() {
     setError(null);
     setPhase('validating');
+    setLocating(true);
     if (!navigator.geolocation) {
       setError(t('report.locationUnavailable'));
       setPhase('idle');
+      setLocating(false);
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -128,10 +131,14 @@ export function ReportPage() {
           .catch((err: unknown) =>
             setError(err instanceof Error ? err.message : t('report.validateFailed')),
           )
-          .finally(() => setPhase('idle')),
+          .finally(() => {
+            setPhase('idle');
+            setLocating(false);
+          }),
       () => {
         setError(t('report.locationDenied'));
         setPhase('idle');
+        setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 12000 },
     );
@@ -339,14 +346,14 @@ export function ReportPage() {
             </button>
           </div>
           <button
-            className="location-button"
+            className={`location-button${locating ? ' location-button-loading' : ''}`}
             disabled={busy}
             type="button"
             onClick={() => void getDeviceLocation()}
           >
             <span aria-hidden>⌖</span>
             <span>
-              <strong>{t('report.useCurrent')}</strong>
+              <strong>{locating ? t('report.validating') : t('report.useCurrent')}</strong>
               <small>{t('report.useCurrentHint')}</small>
             </span>
           </button>

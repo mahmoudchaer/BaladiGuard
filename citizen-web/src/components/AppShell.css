@@ -733,6 +733,23 @@ a {
   color: var(--brand-dark);
   font-size: 1.4rem;
 }
+.location-button-loading > span:first-child {
+  font-size: 0;
+}
+.location-button-loading > span:first-child::before {
+  width: 18px;
+  height: 18px;
+  content: '';
+  border: 2px solid rgb(0 124 65 / 0.25);
+  border-top-color: var(--brand-dark);
+  border-radius: 50%;
+  animation: location-spin 0.8s linear infinite;
+}
+@keyframes location-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .location-button > span:last-child,
 .validated-location div {
   display: grid;
