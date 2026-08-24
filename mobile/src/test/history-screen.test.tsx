@@ -299,6 +299,46 @@ describe('HistoryScreen', () => {
     await flush();
   });
 
+  it('keeps concurrent feedback failures on their respective ticket cards', async () => {
+    await seedSession();
+    vi.mocked(getCitizenTicketHistory).mockResolvedValue({
+      items: [
+        { ...firstPage.items[0], canSubmitResolutionFeedback: true },
+        { ...secondPage.items[0], canSubmitResolutionFeedback: true },
+      ],
+      nextCursor: null,
+      limit: 20,
+    });
+    const failures = new Map<string, (error: Error) => void>();
+    vi.mocked(submitCitizenResolutionFeedback).mockImplementation(
+      ({ trackingCode }) =>
+        new Promise((_resolve, reject) => {
+          failures.set(trackingCode, reject);
+        }),
+    );
+
+    const screen = await renderWithProvidersAsync(<HistoryScreen />);
+    await flush();
+
+    await act(async () => {
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-AB23CD' }).props.onPress();
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-CD45EF' }).props.onPress();
+    });
+
+    await act(async () => {
+      failures.get('AB23CD')?.(new Error('First ticket failed'));
+      failures.get('CD45EF')?.(new Error('Second ticket failed'));
+    });
+    await flush();
+
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-error-AB23CD' }).props.children,
+    ).toBe('First ticket failed');
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-error-CD45EF' }).props.children,
+    ).toBe('Second ticket failed');
+  });
+
   it('surfaces load errors without clearing the saved session', async () => {
     await seedSession();
     vi.mocked(getCitizenTicketHistory).mockRejectedValue(
