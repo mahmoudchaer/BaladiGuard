@@ -559,10 +559,50 @@ a {
 .setting-action small {
   color: #7c8492;
 }
-.toggle-row input {
+.toggle-row input[type='checkbox'] {
+  position: relative;
+  flex: 0 0 auto;
   width: 2.8rem;
   height: 1.55rem;
-  accent-color: var(--brand);
+  margin: 0;
+  appearance: none;
+  border: 1px solid #aeb6c1;
+  border-radius: 999px;
+  background: #dfe3e8;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+.toggle-row input[type='checkbox']::after {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: calc(1.55rem - 6px);
+  height: calc(1.55rem - 6px);
+  content: '';
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.24);
+  transition: transform 160ms ease;
+}
+.toggle-row input[type='checkbox']:checked {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+.toggle-row input[type='checkbox']:checked::after {
+  transform: translateX(1.25rem);
+}
+[dir='rtl'] .toggle-row input[type='checkbox']:checked::after {
+  transform: translateX(-1.25rem);
+}
+.toggle-row input[type='checkbox']:focus-visible {
+  outline: 3px solid rgb(0 124 65 / 0.24);
+  outline-offset: 2px;
+}
+.toggle-row input[type='checkbox']:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 .setting-action {
   border: 0;
@@ -576,6 +616,22 @@ a {
 }
 .setting-action:last-child {
   border-bottom: 0;
+}
+.setting-action > span:last-child:not(:first-child) {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f2f4f6;
+  color: var(--brand-dark);
+  font-size: 1rem;
+  font-weight: 800;
+}
+.danger-action > span:last-child:not(:first-child) {
+  background: #fff0f2;
+  color: var(--danger);
 }
 .danger-action strong {
   color: var(--danger);
@@ -604,6 +660,15 @@ a {
   width: 42px;
   height: 42px;
   cursor: pointer;
+}
+.profile-avatar-icon {
+  width: 55%;
+  height: 55%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 .nav-sign-in {
   min-height: 42px;

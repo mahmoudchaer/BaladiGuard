@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ProfileAvatarContent } from '@/components/ProfileAvatarContent';
 import { useI18n } from '@/i18n/LocaleProvider';
 import './AppShell.css';
 
@@ -91,7 +92,7 @@ export function AppShell() {
               aria-label={t('shell.openProfile')}
               onClick={() => navigate('/profile')}
             >
-              {auth.profile?.fullName?.[0]?.toUpperCase() || 'B'}
+              <ProfileAvatarContent fullName={auth.profile?.fullName} />
             </button>
           ) : (
             <NavLink className="button nav-sign-in" to="/login">

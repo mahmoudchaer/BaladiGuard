@@ -10,6 +10,7 @@ import {
 import { clearDraft, loadDraft } from '@/services/reportDraft';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { CountryRegionSelect } from '@/components/CountryRegionSelect';
+import { ProfileAvatarContent } from '@/components/ProfileAvatarContent';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 function DraftSignOutDialog({
@@ -256,7 +257,7 @@ export function ProfilePage() {
             <p className="lede">{t('profile.lede')}</p>
           </div>
           <div className="avatar-large" aria-hidden>
-            {profile.fullName?.[0]?.toUpperCase() || 'B'}
+            <ProfileAvatarContent fullName={profile.fullName} />
           </div>
         </div>
         <LanguageSwitcher />
