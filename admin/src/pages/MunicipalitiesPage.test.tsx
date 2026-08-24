@@ -83,6 +83,19 @@ describe('MunicipalitiesPage', () => {
     expect(screen.getByText(/roads, waste/i)).toBeInTheDocument();
   });
 
+  it('opens and focuses the municipality edit form', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MunicipalitiesPage />, { route: '/ops/municipalities' });
+    await screen.findByRole('heading', { name: 'Beirut Municipality' });
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByRole('heading', { name: 'Edit municipality' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Beirut Municipality');
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveFocus());
+    expect(screen.getByRole('article')).toHaveClass('municipalities-page__card--editing');
+  });
+
   it('provisions the first administrator for a municipality', async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
