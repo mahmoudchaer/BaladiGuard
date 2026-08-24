@@ -10,7 +10,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.85rem 0.55rem;
+  padding: 0.85rem 0.65rem;
   background: var(--color-rail);
   border-inline-end: 1px solid rgb(255 255 255 / 8%);
   z-index: 3;
@@ -45,11 +45,11 @@
   justify-content: center;
   gap: 0.2rem;
   min-height: 3.4rem;
-  padding: 0.45rem 0.2rem;
+  padding: 0.5rem 0.35rem;
   border-radius: 0.65rem;
   color: rgb(255 255 255 / 72%);
   text-decoration: none;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   transition:
@@ -75,10 +75,12 @@
 }
 
 .dashboard-rail__link-label {
-  max-width: 100%;
+  width: 100%;
   line-height: 1.15;
   text-align: center;
-  overflow-wrap: anywhere;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .dashboard-shell {
@@ -236,7 +238,7 @@
 }
 
 .dashboard-topbar__staff-name {
-  max-width: 8rem;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
