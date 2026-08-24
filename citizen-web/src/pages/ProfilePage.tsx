@@ -249,7 +249,11 @@ export function ProfilePage() {
 
   return (
     <section className="page page-enter narrow-page">
-      <div inert={draftChoice ? true : undefined} aria-hidden={draftChoice || undefined}>
+      <div
+        className="profile-content"
+        inert={draftChoice ? true : undefined}
+        aria-hidden={draftChoice || undefined}
+      >
         <div className="page-heading">
           <div>
             <span className="eyebrow">{t('profile.eyebrow')}</span>
