@@ -1569,24 +1569,27 @@ export function TicketDetailPage({
                 />
               </div>
 
-              <div className="ticket-detail__card">
+              <div className="ticket-detail__card ticket-detail__routing-card">
                 <h4 className="ticket-detail__card-title">{t('ticket.review.routingTitle')}</h4>
                 <p className="ticket-detail__card-hint">{t('ticket.review.routingHint')}</p>
-                <p className="ticket-detail__current-value">
-                  {ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}
-                  {ticket.municipalityId
-                    ? ` · ${ticket.municipalityId}`
-                    : ` · ${t('ticket.review.unassignedQueue')}`}
-                </p>
+                <div className="ticket-detail__routing-status" role="status">
+                  <span className="ticket-detail__routing-indicator" aria-hidden="true" />
+                  <span>{ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}</span>
+                  <span className="ticket-detail__routing-divider" aria-hidden="true" />
+                  <span>
+                    {ticket.municipalityId ?? t('ticket.review.unassignedQueue')}
+                  </span>
+                </div>
                 {ticket.municipalityRouting?.decision?.reason ? (
                   <p className="ticket-detail__card-hint">
                     {ticket.municipalityRouting.decision.reason}
                   </p>
                 ) : null}
-                {ticket.municipalityRouting?.canClaim ? (
-                  <button
-                    type="button"
-                    className="ticket-detail__primary-button"
+                <div className="ticket-detail__routing-actions">
+                  {ticket.municipalityRouting?.canClaim ? (
+                    <button
+                      type="button"
+                      className="ticket-detail__review-button"
                     onClick={() => {
                       void claimTicketMunicipality(ticket.ticketId, {
                         reasonCode: 'CONFIRMED_GEOGRAPHY',
@@ -1594,14 +1597,14 @@ export function TicketDetailPage({
                         if (next) setTicket(next);
                       });
                     }}
-                  >
-                    {t('ticket.review.claim')}
-                  </button>
-                ) : null}
-                {ticket.municipalityRouting?.canReject ? (
-                  <button
-                    type="button"
-                    className="ticket-detail__secondary-button"
+                    >
+                      {t('ticket.review.claim')}
+                    </button>
+                  ) : null}
+                  {ticket.municipalityRouting?.canReject ? (
+                    <button
+                      type="button"
+                      className="ticket-detail__review-button ticket-detail__review-button--secondary"
                     onClick={() => {
                       const note = window.prompt(t('ticket.review.rejectPrompt'));
                       if (!note) return;
@@ -1612,10 +1615,11 @@ export function TicketDetailPage({
                         if (next) setTicket(next);
                       });
                     }}
-                  >
-                    {t('ticket.review.rejectOwnership')}
-                  </button>
-                ) : null}
+                    >
+                      {t('ticket.review.rejectOwnership')}
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="ticket-detail__card">
