@@ -684,6 +684,8 @@ a {
 .report-review .review-summary {
   grid-row: 1 / span 4;
   align-self: stretch;
+  align-content: start;
+  gap: 1rem;
 }
 .report-review .button,
 .report-review .text-button {
