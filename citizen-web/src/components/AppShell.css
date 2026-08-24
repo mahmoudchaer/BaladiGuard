@@ -435,6 +435,35 @@ a {
   letter-spacing: 0.35em;
   text-align: center;
 }
+.legal-consent {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f7f8fa;
+  color: var(--text);
+  cursor: pointer;
+}
+.legal-consent input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--brand);
+}
+.legal-consent__copy {
+  display: inline;
+  line-height: 1.55;
+}
+.legal-consent__copy a {
+  font-weight: 700;
+}
+.legal-consent:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.12);
+}
 .inline-actions,
 .button-row {
   display: flex;

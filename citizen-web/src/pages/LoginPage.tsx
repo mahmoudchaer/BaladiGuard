@@ -161,15 +161,7 @@ export function LoginPage() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               autoFocus
             />
-            <label className="toggle-row" htmlFor="accept-legal">
-              <span>
-                {t('auth.legalAgreePrefix')} <Link to="/terms">{t('shell.terms')}</Link>
-                {t('auth.legalAgreeJoin1')}
-                <Link to="/privacy">{t('shell.privacy')}</Link>
-                {t('auth.legalAgreeJoin2')}
-                <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
-                {t('auth.legalAgreeSuffix')}
-              </span>
+            <label className="legal-consent" htmlFor="accept-legal">
               <input
                 id="accept-legal"
                 type="checkbox"
@@ -178,6 +170,14 @@ export function LoginPage() {
                 required
                 aria-required="true"
               />
+              <span className="legal-consent__copy">
+                {t('auth.legalAgreePrefix')} <Link to="/terms">{t('shell.terms')}</Link>
+                {t('auth.legalAgreeJoin1')}
+                <Link to="/privacy">{t('shell.privacy')}</Link>
+                {t('auth.legalAgreeJoin2')}
+                <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
+                {t('auth.legalAgreeSuffix')}
+              </span>
             </label>
             <button
               className="button button-large"
