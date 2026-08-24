@@ -360,7 +360,9 @@ export function WorkforcePage() {
                       ))}
                     </select>
                   </label>
-                  <button type="submit">{t('workforce.addWorker')}</button>
+                  <button type="submit" className="workforce-button workforce-button--primary">
+                    {t('workforce.addWorker')}
+                  </button>
                 </form>
               )}
               <table className="workforce-table">
@@ -415,14 +417,25 @@ export function WorkforcePage() {
                         <>
                           <td>{worker.displayName}</td>
                           <td>{formatDepartments(worker.departmentIds, departmentNames)}</td>
-                          <td>{worker.active ? t('workforce.active') : t('workforce.inactive')}</td>
+                          <td>
+                            <span
+                              className={`workforce-status workforce-status--${worker.active ? 'active' : 'inactive'}`}
+                            >
+                              {worker.active ? t('workforce.active') : t('workforce.inactive')}
+                            </span>
+                          </td>
                           {isAdmin ? (
                             <td>
-                              <button type="button" onClick={() => startEditWorker(worker)}>
+                              <button
+                                type="button"
+                                className="workforce-button workforce-button--secondary"
+                                onClick={() => startEditWorker(worker)}
+                              >
                                 {t('workforce.edit')}
                               </button>
                               <button
                                 type="button"
+                                className={`workforce-button ${worker.active ? 'workforce-button--danger' : 'workforce-button--primary'}`}
                                 onClick={() =>
                                   void handleToggleWorker(worker.workerId, !worker.active)
                                 }
@@ -472,7 +485,9 @@ export function WorkforcePage() {
                       ))}
                     </select>
                   </label>
-                  <button type="submit">{t('workforce.addTeam')}</button>
+                  <button type="submit" className="workforce-button workforce-button--primary">
+                    {t('workforce.addTeam')}
+                  </button>
                 </form>
               )}
               <table className="workforce-table">
@@ -568,14 +583,25 @@ export function WorkforcePage() {
                               ? (workerLookup[team.leadWorkerId] ?? team.leadWorkerId)
                               : t('workforce.none')}
                           </td>
-                          <td>{team.active ? t('workforce.active') : t('workforce.inactive')}</td>
+                          <td>
+                            <span
+                              className={`workforce-status workforce-status--${team.active ? 'active' : 'inactive'}`}
+                            >
+                              {team.active ? t('workforce.active') : t('workforce.inactive')}
+                            </span>
+                          </td>
                           {isAdmin ? (
                             <td>
-                              <button type="button" onClick={() => startEditTeam(team)}>
+                              <button
+                                type="button"
+                                className="workforce-button workforce-button--secondary"
+                                onClick={() => startEditTeam(team)}
+                              >
                                 {t('workforce.edit')}
                               </button>
                               <button
                                 type="button"
+                                className={`workforce-button ${team.active ? 'workforce-button--danger' : 'workforce-button--primary'}`}
                                 onClick={() => void handleToggleTeam(team.teamId, !team.active)}
                               >
                                 {team.active
