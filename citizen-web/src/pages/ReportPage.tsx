@@ -360,9 +360,9 @@ export function ReportPage() {
             </div>
           ) : null}
         </div>
-        <aside className="report-side settings-card">
+        <div className="report-photo settings-card">
           <h2 className="report-section-title">{t('report.stepPhoto')}</h2>
-          <label className="field-label" htmlFor="photo">
+          <label className="sr-only" htmlFor="photo">
             {t('report.photo')}
           </label>
           <label className="photo-drop" htmlFor="photo">
@@ -394,8 +394,12 @@ export function ReportPage() {
             }}
           />
           {photoLabel ? <span className="helper">{photoLabel}</span> : null}
+        </div>
+        <section className="report-review settings-card" aria-labelledby="report-review-heading">
           <div className="review-summary">
-            <h2 className="report-section-title">{t('report.reviewHeading')}</h2>
+            <h2 id="report-review-heading" className="report-section-title">
+              {t('report.reviewHeading')}
+            </h2>
             <p>{description.trim() || t('report.describePlaceholder')}</p>
             <p className="muted">{location?.addressText || t('report.needLocation')}</p>
             <p className="muted">{photoLabel || t('report.needPhoto')}</p>
@@ -426,7 +430,7 @@ export function ReportPage() {
           >
             {t('report.discard')}
           </button>
-        </aside>
+        </section>
       </form>
     </section>
   );

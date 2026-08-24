@@ -672,8 +672,22 @@ a {
   align-items: start;
 }
 .report-main,
-.report-side {
+.report-photo,
+.report-review {
   align-content: start;
+}
+.report-review {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  align-items: center;
+}
+.report-review .review-summary {
+  grid-row: 1 / span 4;
+  align-self: stretch;
+}
+.report-review .button,
+.report-review .text-button {
+  width: 100%;
 }
 .textarea {
   min-height: 150px;
@@ -1485,6 +1499,13 @@ a {
   .report-grid,
   .public-hero {
     grid-template-columns: 1fr;
+  }
+  .report-review {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+  .report-review .review-summary {
+    grid-row: auto;
   }
   .landing-features,
   .public-report-grid {
