@@ -676,6 +676,10 @@ a {
 .report-review {
   align-content: start;
 }
+.report-main,
+.report-photo {
+  align-self: stretch;
+}
 .report-review {
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
