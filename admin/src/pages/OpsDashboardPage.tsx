@@ -29,6 +29,19 @@ const JOB_FILTERS: Array<WorkerKind | 'all'> = [
 
 type OpsTab = 'overview' | 'alerts' | 'workers' | 'errors' | 'product';
 
+const JOB_STATUS_KEYS: Record<string, string> = {
+  queued: 'ops.jobStatus.queued',
+  running: 'ops.jobStatus.running',
+  succeeded: 'ops.jobStatus.succeeded',
+  dead_lettered: 'ops.jobStatus.deadLettered',
+};
+
+const JOB_REASON_KEYS: Record<string, string> = {
+  'AI providers returned no usable output.': 'ops.jobReason.noAiOutput',
+  STORAGE_NOT_CONFIGURED: 'ops.jobReason.storageNotConfigured',
+  CLAIM_EXPIRED: 'ops.jobReason.claimExpired',
+};
+
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback;
 }
@@ -390,11 +403,19 @@ export function OpsDashboardPage() {
                         <td className="ops-workers__job-id">{job.jobId}</td>
                         <td>
                           <span className={`ops-badge ops-badge--${badgeTone(job.status)}`}>
-                            {job.status}
+                            {JOB_STATUS_KEYS[job.status]
+                              ? t(JOB_STATUS_KEYS[job.status])
+                              : job.status}
                           </span>
                         </td>
                         <td>{job.attempts}</td>
-                        <td>{job.lastErrorCode ?? '—'}</td>
+                        <td>
+                          {job.lastErrorCode
+                            ? JOB_REASON_KEYS[job.lastErrorCode]
+                              ? t(JOB_REASON_KEYS[job.lastErrorCode])
+                              : job.lastErrorCode
+                            : '—'}
+                        </td>
                         <td>
                           {job.replayable ? (
                             <button

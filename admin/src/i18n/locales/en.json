@@ -133,6 +133,17 @@
     "status": "Status",
     "attempts": "Attempts",
     "replay": "Replay",
+    "jobStatus": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "deadLettered": "Dead lettered"
+    },
+    "jobReason": {
+      "noAiOutput": "AI providers returned no usable output.",
+      "storageNotConfigured": "Storage is not configured.",
+      "claimExpired": "The worker claim expired."
+    },
     "confirmReplay": "Replay this background job? Side effects may run again.",
     "category": "Category",
     "service": "Service",

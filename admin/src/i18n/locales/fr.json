@@ -133,6 +133,17 @@
     "status": "Statut",
     "attempts": "Tentatives",
     "replay": "Relancer",
+    "jobStatus": {
+      "queued": "En attente",
+      "running": "En cours",
+      "succeeded": "Terminée",
+      "deadLettered": "Échec définitif"
+    },
+    "jobReason": {
+      "noAiOutput": "Les services d’IA n’ont renvoyé aucun résultat exploitable.",
+      "storageNotConfigured": "Le stockage n’est pas configuré.",
+      "claimExpired": "La prise en charge de la tâche a expiré."
+    },
     "confirmReplay": "Relancer cette tâche de fond ? Les effets de bord peuvent se reproduire.",
     "category": "Catégorie",
     "service": "Service",
