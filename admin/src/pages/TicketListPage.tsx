@@ -410,8 +410,8 @@ export function TicketListPage() {
   );
   const highCount = aggregates?.highCount ?? 0;
   const totalCount =
-    aggregates?.openCount ??
     approximateTotal ??
+    aggregates?.openCount ??
     (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
   const previewMatchesSelection = previewForId === selectedTicketId;
@@ -618,21 +618,33 @@ export function TicketListPage() {
         <div className="ticket-list-page__error ticket-list-page__error--padded" role="alert">
           <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button
+            type="button"
+            className="ticket-list-page__retry"
+            onClick={() => setQueueEpoch((value) => value + 1)}
+          >
+            {t('common.tryAgain')}
+          </button>
         </div>
       )}
 
       {loadState === 'success' && aggregates && (
-        <p className="ticket-list-page__ops-counts" role="status">
-          {t('tickets.opsCounts', {
-            queued: aggregates.queuedCount ?? 0,
-            assigned: aggregates.assignedCount ?? 0,
-            inProgress: aggregates.inProgressCount ?? 0,
-            dueSoon: aggregates.dueSoonCount ?? 0,
-            workforceUnassigned: aggregates.workforceUnassignedCount ?? 0,
-            completed: aggregates.completedCount ?? 0,
-            cancelled: aggregates.cancelledCount ?? 0,
-          })}
-        </p>
+        <div className="ticket-list-page__ops-counts" role="status">
+          {[
+            ['queued', aggregates.queuedCount ?? 0],
+            ['assigned', aggregates.assignedCount ?? 0],
+            ['inProgress', aggregates.inProgressCount ?? 0],
+            ['dueSoon', aggregates.dueSoonCount ?? 0],
+            ['workforceUnassigned', aggregates.workforceUnassignedCount ?? 0],
+            ['completed', aggregates.completedCount ?? 0],
+            ['cancelled', aggregates.cancelledCount ?? 0],
+          ].map(([label, count]) => (
+            <span className="ticket-list-page__ops-count" key={label}>
+              <span>{t(`tickets.opsLabels.${label}`)}</span>
+              <strong>{count}</strong>
+            </span>
+          ))}
+        </div>
       )}
 
       {loadState === 'success' && (

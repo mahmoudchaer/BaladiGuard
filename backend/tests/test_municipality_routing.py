@@ -423,6 +423,18 @@ def test_operator_can_override_assignment(client, anonymous_client):
     assert overridden.json()["municipalityId"] == BEIRUT_WATER
 
 
+def test_operator_can_override_assignment_by_visible_ticket_number(client, anonymous_client):
+    created = _submit(client, VALID_PAYLOAD)
+    overridden = anonymous_client.post(
+        f"/v1/ops/tickets/{created['ticketNumber']}/municipality/override",
+        json={"municipalityId": BEIRUT_WATER, "reasonCode": "PROFILE_CORRECTION"},
+        headers=_headers(anonymous_client, "operator"),
+    )
+    assert overridden.status_code == 200, overridden.text
+    assert overridden.json()["ticketId"] == created["ticketId"]
+    assert overridden.json()["municipalityId"] == BEIRUT_WATER
+
+
 def test_in_flight_ai_does_not_overwrite_a_staff_claim(client, anonymous_client, monkeypatch):
     ticket_ids: list[str] = []
 

@@ -7,7 +7,8 @@ import type {
   StatusFilter,
   UrgencyFilter,
 } from '@/utils/ticketStats';
-import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import { departmentOptionsForSession, formatDepartment } from '@/utils/departments';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import { IconSearch } from '@/components/icons';
 import './TicketFilters.css';
@@ -85,6 +86,11 @@ export function TicketFilters({
   onClearFilters,
 }: TicketFiltersProps) {
   const { t } = useI18n();
+  const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     statusFilter !== 'ALL' ||
@@ -222,7 +228,7 @@ export function TicketFilters({
               onChange={(e) => onDepartmentChange(e.target.value as DepartmentFilter)}
             >
               <option value="ALL">{t('filters.allDepartments')}</option>
-              {DEPARTMENT_OPTIONS.map((department) => (
+              {departmentOptions.map((department) => (
                 <option key={department.departmentId} value={department.departmentId}>
                   {formatDepartment(department.departmentId)}
                 </option>

@@ -85,7 +85,8 @@
   },
   "layout": {
     "title": "Ticket Dashboard",
-    "subtitle": "Monitor and manage citizen infrastructure reports"
+    "subtitle": "Monitor and manage citizen infrastructure reports",
+    "accessDenied": "You do not have access to that module. You were returned to your home page."
   },
   "ops": {
     "eyebrow": "Developer control plane",
@@ -132,6 +133,18 @@
     "status": "Status",
     "attempts": "Attempts",
     "replay": "Replay",
+    "jobStatus": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "deadLettered": "Dead lettered"
+    },
+    "jobReason": {
+      "noAiOutput": "AI providers returned no usable output.",
+      "storageNotConfigured": "Storage is not configured.",
+      "claimExpired": "The worker claim expired."
+    },
+    "confirmReplay": "Replay this background job? Side effects may run again.",
     "category": "Category",
     "service": "Service",
     "count": "Count",
@@ -150,7 +163,7 @@
     "emptyAlerts": "No alerts in this range.",
     "emptyJobs": "No worker jobs match this filter.",
     "emptyErrors": "No grouped errors yet.",
-    "openDashboard": "Open CloudWatch",
+    "openDashboard": "Open CloudWatch dashboard",
     "updated": "Updated",
     "jobKind": {
       "all": "All workers",
@@ -203,8 +216,11 @@
     "category": "Category",
     "unassigned": "Unassigned queue",
     "overrideTitle": "Override ticket ownership",
-    "ticketId": "Ticket ID",
-    "override": "Override"
+    "ticketId": "Ticket number or internal ID",
+    "override": "Override",
+    "confirmOverride": "Reassign this ticket to another municipality? This changes ownership immediately.",
+    "confirmProvision": "Create a municipality administrator account with this password?",
+    "confirmDeactivate": "Deactivate this municipality? New tickets will no longer route to it."
   },
   "staffAccounts": {
     "eyebrow": "Access directory",
@@ -339,7 +355,8 @@
     "top": "Top",
     "width": "Width",
     "height": "Height",
-    "applyManual": "Apply manual blur"
+    "applyManual": "Apply manual blur",
+    "confirmReject": "Keep the original private and discard this public candidate?"
   },
   "contentSafety": {
     "loading": "Loading content safety review…",
@@ -351,6 +368,8 @@
     "approve": "Allow public eligibility",
     "privateOnly": "Keep private only",
     "reject": "Reject as unsafe",
+    "confirmPrivate": "Keep this report private only? It will not be eligible for the public feed.",
+    "confirmReject": "Reject this report as unsafe?",
     "reprocess": "Reprocess automatically",
     "authenticityUnavailable": "Authenticity signal unavailable — not used to reject this report.",
     "authenticityScore": "Authenticity risk score {score} (risk signal only; never auto-rejects).",
@@ -414,9 +433,17 @@
     "inProgress": "In progress {count}",
     "dueSoon": "Due soon {count}",
     "overdue": "Overdue {count}",
+    "completed": "Completed {count}",
+    "cancelled": "Cancelled {count}",
     "kindWorker": "worker",
     "kindTeam": "team",
-    "inactiveParen": ", inactive"
+    "workerDescription": "An individual field worker who can receive ticket assignments directly.",
+    "teamDescription": "A group of field workers that can receive assignments together.",
+    "unassignedDescription": "Tickets waiting for an individual worker or team assignment.",
+    "inactiveParen": ", inactive",
+    "teamLead": "Team lead",
+    "confirmDeactivateWorker": "Deactivate this worker? They will no longer receive new assignments.",
+    "confirmDeactivateTeam": "Deactivate this team? It will no longer receive new assignments."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -441,6 +468,15 @@
     "insights": "Operational insights",
     "insightsNote": "Secondary — category & workload",
     "opsCounts": "Queued {queued} · Assigned {assigned} · In progress {inProgress} · Due soon {dueSoon} · Workforce unassigned {workforceUnassigned} · Completed {completed} · Cancelled {cancelled}",
+    "opsLabels": {
+      "queued": "Queued",
+      "assigned": "Assigned",
+      "inProgress": "In progress",
+      "dueSoon": "Due soon",
+      "workforceUnassigned": "Workforce unassigned",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
     "bulk": {
       "title": "Bulk assignment",
       "selected": "{count} selected",
@@ -676,6 +712,7 @@
       "cancelReason": "Cancel reason",
       "selectCancelReason": "Select a cancel reason",
       "cancelWorkOrder": "Cancel work order",
+      "confirmCancel": "Cancel this work order? Field work stops and the ticket stays open.",
       "summary": "Summary",
       "summaryPlaceholder": "Optional operational summary",
       "assignWorkerOrTeam": "Assign worker or team",
@@ -811,6 +848,7 @@
       "noPublicPhoto": " · no public photo",
       "publish": "Publish",
       "unpublish": "Unpublish",
+      "confirmUnpublish": "Unpublish this report from the public feed?",
       "open": "Open",
       "openFull": "Open full ticket",
       "closePreview": "Close preview",

@@ -19,7 +19,7 @@ export function ProtectedRoute({ children, role, allowedRoles }: ProtectedRouteP
 
   const permitted = allowedRoles ?? (role ? [role] : undefined);
   if (permitted && session?.role && !permitted.includes(session.role)) {
-    return <Navigate to={homePathForRole(session.role)} replace />;
+    return <Navigate to={homePathForRole(session.role)} replace state={{ accessDenied: true }} />;
   }
 
   return children;

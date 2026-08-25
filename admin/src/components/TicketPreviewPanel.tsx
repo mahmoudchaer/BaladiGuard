@@ -12,7 +12,8 @@ import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { TicketPhoto } from '@/components/TicketPhoto';
 import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
-import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import { departmentOptionsForSession, formatDepartment } from '@/utils/departments';
 import {
   formatCategory,
   formatCreatedDate,
@@ -48,6 +49,11 @@ export function TicketPreviewPanel({
   onRetry,
 }: TicketPreviewPanelProps) {
   const { t } = useI18n();
+  const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
@@ -270,6 +276,9 @@ export function TicketPreviewPanel({
     if (!ticket) {
       return;
     }
+    if (publicStatus === 'UNPUBLISHED' && !window.confirm(t('ticket.preview.confirmUnpublish'))) {
+      return;
+    }
     setIsSavingPublic(true);
     setActionNotice(null);
     try {
@@ -383,7 +392,7 @@ export function TicketPreviewPanel({
             <select
               value={selectedCategory}
               onChange={(event) => setSelectedCategory(event.target.value)}
-              disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+              disabled={isSavingCategory}
             >
               <option value="">{t('ticket.review.selectCategory')}</option>
               {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
@@ -413,9 +422,7 @@ export function TicketPreviewPanel({
               type="button"
               className="ticket-preview__btn"
               onClick={() => void handleSaveCategory()}
-              disabled={
-                isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending' || !selectedCategory
-              }
+              disabled={isSavingCategory || !selectedCategory}
             >
               {isSavingCategory ? t('ticket.preview.saving') : t('ticket.review.saveFinalCategory')}
             </button>
@@ -477,7 +484,7 @@ export function TicketPreviewPanel({
               disabled={isSavingDepartment}
             >
               <option value="">{t('ticket.review.selectDepartment')}</option>
-              {DEPARTMENT_OPTIONS.map((option) => (
+              {departmentOptions.map((option) => (
                 <option key={option.departmentId} value={option.departmentId}>
                   {option.name}
                 </option>

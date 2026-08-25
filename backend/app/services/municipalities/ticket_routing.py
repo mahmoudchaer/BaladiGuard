@@ -161,7 +161,10 @@ def unassign_ticket_for_deactivation(
 def _require_ticket(ticket_id: str, principal: StaffPrincipal) -> StoredTicket:
     from app.services.complaints.ticket_service import TicketNotFoundError
 
-    ticket = get_ticket_store().get(ticket_id)
+    store = get_ticket_store()
+    ticket = store.get(ticket_id)
+    if ticket is None:
+        ticket = store.get_by_ticket_number(ticket_id)
     if ticket is None:
         raise TicketNotFoundError(ticket_id)
     if principal.role == "developer_operator":

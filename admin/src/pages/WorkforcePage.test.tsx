@@ -24,6 +24,10 @@ vi.mock('@/services/workforce', () => ({
   setTeamActive: vi.fn(),
 }));
 
+vi.mock('@/services/staffAccounts', () => ({
+  listStaffDepartments: vi.fn(async () => []),
+}));
+
 function installLocalStorage() {
   const store = new Map<string, string>();
   Object.defineProperty(window, 'localStorage', {
