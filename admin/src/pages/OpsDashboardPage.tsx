@@ -173,12 +173,13 @@ export function OpsDashboardPage() {
             </label>
             {overview?.cloudwatchDashboardUrl ? (
               <a
-                className="ops-page__link"
+                className="ops-page__link ops-page__dashboard-link"
                 href={overview.cloudwatchDashboardUrl}
                 target="_blank"
                 rel="noreferrer"
               >
-                {t('ops.openDashboard')}
+                <span>{t('ops.openDashboard')}</span>
+                <span aria-hidden="true">↗</span>
               </a>
             ) : null}
             <button

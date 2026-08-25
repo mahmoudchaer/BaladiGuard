@@ -163,7 +163,7 @@
     "emptyAlerts": "Aucune alerte sur cette période.",
     "emptyJobs": "Aucune tâche worker ne correspond à ce filtre.",
     "emptyErrors": "Aucun groupe d’erreurs pour le moment.",
-    "openDashboard": "Ouvrir CloudWatch",
+    "openDashboard": "Ouvrir le tableau CloudWatch",
     "updated": "Mis à jour",
     "jobKind": {
       "all": "Tous les workers",

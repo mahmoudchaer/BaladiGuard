@@ -163,7 +163,7 @@
     "emptyAlerts": "No alerts in this range.",
     "emptyJobs": "No worker jobs match this filter.",
     "emptyErrors": "No grouped errors yet.",
-    "openDashboard": "Open CloudWatch",
+    "openDashboard": "Open CloudWatch dashboard",
     "updated": "Updated",
     "jobKind": {
       "all": "All workers",

@@ -163,7 +163,7 @@
     "emptyAlerts": "لا توجد تنبيهات في هذا النطاق.",
     "emptyJobs": "لا توجد مهام عمال مطابقة لهذا التصفية.",
     "emptyErrors": "لا توجد أخطاء مجمّعة بعد.",
-    "openDashboard": "فتح CloudWatch",
+    "openDashboard": "فتح لوحة CloudWatch",
     "updated": "آخر تحديث",
     "jobKind": {
       "all": "كل العمال",

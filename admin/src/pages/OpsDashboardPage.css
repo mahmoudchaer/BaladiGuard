@@ -209,6 +209,24 @@
   text-decoration: underline;
 }
 
+.ops-page__dashboard-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.55rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--color-brand);
+  border-radius: 0.65rem;
+  background: var(--color-brand-soft);
+  white-space: nowrap;
+}
+
+.ops-page__dashboard-link:hover {
+  background: var(--color-surface);
+  text-decoration: none;
+}
+
 .ops-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
