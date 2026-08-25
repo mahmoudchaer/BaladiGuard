@@ -416,3 +416,72 @@
     min-width: 100%;
   }
 }
+
+@media (max-width: 600px) {
+  .ops-workers__table {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .ops-workers__table .ops-table,
+  .ops-workers__table tbody,
+  .ops-workers__table tr,
+  .ops-workers__table td {
+    display: block;
+    width: 100%;
+  }
+
+  .ops-workers__table thead {
+    display: none;
+  }
+
+  .ops-workers__table tbody {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .ops-workers__table tr {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 0.85rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .ops-workers__table td[data-label] {
+    display: grid;
+    grid-template-columns: minmax(6.25rem, 36%) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .ops-workers__table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .ops-workers__table .ops-workers__job-id {
+    max-width: none;
+    direction: ltr;
+    text-align: start;
+    unicode-bidi: isolate;
+    overflow-wrap: anywhere;
+  }
+
+  .ops-workers__table td:last-child {
+    border-bottom: 0;
+  }
+
+  .ops-workers__table button {
+    width: fit-content;
+    margin-inline-end: 0;
+  }
+}

@@ -401,23 +401,25 @@ export function OpsDashboardPage() {
                   ) : (
                     jobs.map((job) => (
                       <tr key={job.jobId}>
-                        <td className="ops-workers__job-id">{job.jobId}</td>
-                        <td>
+                        <td className="ops-workers__job-id" data-label={t('ops.jobId')}>
+                          {job.jobId}
+                        </td>
+                        <td data-label={t('ops.status')}>
                           <span className={`ops-badge ops-badge--${badgeTone(job.status)}`}>
                             {JOB_STATUS_KEYS[job.status]
                               ? t(JOB_STATUS_KEYS[job.status])
                               : job.status}
                           </span>
                         </td>
-                        <td>{job.attempts}</td>
-                        <td>
+                        <td data-label={t('ops.attempts')}>{job.attempts}</td>
+                        <td data-label={t('ops.reason')}>
                           {job.lastErrorCode
                             ? JOB_REASON_KEYS[job.lastErrorCode]
                               ? t(JOB_REASON_KEYS[job.lastErrorCode])
                               : job.lastErrorCode
                             : '—'}
                         </td>
-                        <td>
+                        <td data-label={t('ops.actions')}>
                           {job.replayable ? (
                             <button
                               type="button"
