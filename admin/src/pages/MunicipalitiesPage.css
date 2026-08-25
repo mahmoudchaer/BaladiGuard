@@ -13,6 +13,30 @@
   background: var(--lb-white);
 }
 
+.municipalities-page__card--editing {
+  border-color: var(--color-brand);
+  box-shadow: var(--focus-ring);
+}
+
+.municipalities-page__edit {
+  align-self: center;
+  min-width: 5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-brand);
+  border-radius: 0.65rem;
+  background: var(--lb-white);
+  color: var(--color-brand-dark);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.municipalities-page__edit:hover,
+.municipalities-page__edit:focus-visible {
+  background: var(--color-brand-soft);
+}
+
 .municipalities-page__card h3,
 .municipalities-page__form h3 {
   margin: 0 0 0.35rem;
