@@ -9,6 +9,7 @@ import {
   fetchOpsErrors,
   fetchOpsOverview,
   fetchOpsWorkers,
+  replayOpsJob,
 } from '@/services/ops';
 
 vi.mock('@/services/ops', () => ({
@@ -167,5 +168,28 @@ describe('OpsDashboardPage', () => {
       expect(acknowledgeOpsAlert).toHaveBeenCalledWith('BaladiGuard-Sustained5xx', undefined);
     });
     expect(screen.queryByText(/pothole/i)).not.toBeInTheDocument();
+  });
+
+  it('does not replay a job when the confirm is cancelled', async () => {
+    vi.mocked(fetchOpsWorkers).mockResolvedValue({
+      queues: overview.workers,
+      jobs: [
+        {
+          jobId: 'job_replay_1',
+          status: 'FAILED',
+          attempts: 2,
+          lastErrorCode: 'TIMEOUT',
+          replayable: true,
+        },
+      ],
+    } as never);
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderWithProviders(<OpsDashboardPage />, { route: '/ops' });
+    await user.click(await screen.findByRole('tab', { name: /workers/i }));
+    await user.click(await screen.findByRole('button', { name: /replay/i }));
+    expect(confirm).toHaveBeenCalled();
+    expect(replayOpsJob).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 });

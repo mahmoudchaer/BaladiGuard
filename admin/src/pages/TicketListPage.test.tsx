@@ -250,6 +250,18 @@ describe('TicketListPage', () => {
     expect(stats.getByText('Overdue')).toBeInTheDocument();
   });
 
+  it('uses the list total when the page includes closed tickets', async () => {
+    vi.mocked(fetchTicketAggregates).mockResolvedValue({
+      ...defaultAggregates,
+      openCount: 1,
+    });
+
+    renderWithProviders(<TicketListPage />);
+
+    expect(await screen.findByText('BG-2026-0002')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 2 of 2 tickets');
+  });
+
   it('localizes the ticket list chrome for Arabic and French', async () => {
     renderWithProviders(<TicketListPage />);
     expect(
@@ -276,17 +288,18 @@ describe('TicketListPage', () => {
     expect(
       screen.getByRole('heading', { level: 2, name: t('tickets.citizenReports') }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      t('tickets.opsCounts', {
-        queued: 0,
-        assigned: 0,
-        inProgress: 0,
-        dueSoon: 0,
-        workforceUnassigned: 0,
-        completed: 0,
-        cancelled: 0,
-      }),
-    );
+    const operations = screen.getByRole('status');
+    for (const label of [
+      'queued',
+      'assigned',
+      'inProgress',
+      'dueSoon',
+      'workforceUnassigned',
+      'completed',
+      'cancelled',
+    ]) {
+      expect(operations).toHaveTextContent(t(`tickets.opsLabels.${label}`));
+    }
   });
 
   it('lets staff select tickets, preview a bulk assignment, then commit it', async () => {
@@ -531,7 +544,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('keeps the dashboard visible while filter results refresh', async () => {
@@ -575,7 +588,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('filters the rendered ticket list by urgency', async () => {
@@ -594,7 +607,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.getByText('BG-2026-0001')).toBeInTheDocument();
     expect(screen.queryByText('BG-2026-0002')).not.toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('filters the rendered ticket list by department', async () => {
@@ -618,7 +631,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('combines status, category, urgency, and department filters', async () => {
@@ -696,7 +709,7 @@ describe('TicketListPage', () => {
 
     await waitFor(() => expect(fetchTicketsPage).toHaveBeenCalledTimes(2));
     expect(screen.getByText('No matching tickets')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 0 tickets');
   });
 
   it('shows an empty state when the dashboard has no tickets', async () => {
@@ -757,14 +770,20 @@ describe('TicketListPage', () => {
     expect(screen.queryByText('BG-2026-0011')).not.toBeInTheDocument();
   });
 
-  it('shows a failure state when tickets cannot be loaded', async () => {
-    vi.mocked(fetchTicketsPage).mockRejectedValue(new Error('Unable to reach backend.'));
+  it('shows a failure state when tickets cannot be loaded and retries', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketsPage)
+      .mockRejectedValueOnce(new Error('Unable to reach backend.'))
+      .mockImplementation(async (options) => pageFromTickets(applyFetchFilters(tickets, options)));
 
     renderWithProviders(<TicketListPage />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load tickets');
     expect(screen.getByText('Unable to reach backend.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('Loading tickets…')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
   });
 
   it('removes a ticket from the active status filter after a preview status change', async () => {

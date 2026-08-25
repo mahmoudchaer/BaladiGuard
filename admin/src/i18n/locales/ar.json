@@ -85,7 +85,8 @@
   },
   "layout": {
     "title": "لوحة التذاكر",
-    "subtitle": "مراقبة بلاغات البنية التحتية للمواطنين وإدارتها"
+    "subtitle": "مراقبة بلاغات البنية التحتية للمواطنين وإدارتها",
+    "accessDenied": "ليس لديك صلاحية للوصول إلى تلك الوحدة. تمت إعادتك إلى صفحتك الرئيسية."
   },
   "ops": {
     "eyebrow": "منصة تحكم المطوّرين",
@@ -132,6 +133,18 @@
     "status": "الحالة",
     "attempts": "المحاولات",
     "replay": "إعادة التشغيل",
+    "jobStatus": {
+      "queued": "في قائمة الانتظار",
+      "running": "قيد التشغيل",
+      "succeeded": "مكتملة",
+      "deadLettered": "فشل نهائي"
+    },
+    "jobReason": {
+      "noAiOutput": "لم تُرجع خدمات الذكاء الاصطناعي نتيجة صالحة.",
+      "storageNotConfigured": "خدمة التخزين غير مهيأة.",
+      "claimExpired": "انتهت مهلة استلام العامل للمهمة."
+    },
+    "confirmReplay": "إعادة تشغيل هذه المهمة الخلفية؟ قد تُنفَّذ الآثار الجانبية مرة أخرى.",
     "category": "الفئة",
     "service": "الخدمة",
     "count": "العدد",
@@ -150,7 +163,7 @@
     "emptyAlerts": "لا توجد تنبيهات في هذا النطاق.",
     "emptyJobs": "لا توجد مهام عمال مطابقة لهذا التصفية.",
     "emptyErrors": "لا توجد أخطاء مجمّعة بعد.",
-    "openDashboard": "فتح CloudWatch",
+    "openDashboard": "فتح لوحة CloudWatch",
     "updated": "آخر تحديث",
     "jobKind": {
       "all": "كل العمال",
@@ -203,8 +216,11 @@
     "category": "التصنيف",
     "unassigned": "طابور غير المعيّن",
     "overrideTitle": "تجاوز ملكية التذكرة",
-    "ticketId": "معرّف التذكرة",
-    "override": "تجاوز"
+    "ticketId": "رقم التذكرة أو المعرّف الداخلي",
+    "override": "تجاوز",
+    "confirmOverride": "إعادة إسناد هذه التذكرة إلى بلدية أخرى؟ يتغيّر المالك فوراً.",
+    "confirmProvision": "إنشاء حساب مدير بلدية بهذه كلمة المرور؟",
+    "confirmDeactivate": "إيقاف هذه البلدية؟ لن تُوجَّه التذاكر الجديدة إليها."
   },
   "staffAccounts": {
     "eyebrow": "دليل الوصول",
@@ -339,7 +355,8 @@
     "top": "الأعلى",
     "width": "العرض",
     "height": "الارتفاع",
-    "applyManual": "تطبيق التمويه اليدوي"
+    "applyManual": "تطبيق التمويه اليدوي",
+    "confirmReject": "الإبقاء على الأصل خاصاً وتجاهل هذه النسخة العامة المرشحة؟"
   },
   "contentSafety": {
     "loading": "جارٍ تحميل مراجعة سلامة المحتوى…",
@@ -351,6 +368,8 @@
     "approve": "السماح بالأهلية العامة",
     "privateOnly": "الإبقاء خاصاً فقط",
     "reject": "رفض لأنه غير آمن",
+    "confirmPrivate": "الإبقاء على هذا البلاغ خاصاً فقط؟ لن يكون مؤهلاً للخلاصة العامة.",
+    "confirmReject": "رفض هذا البلاغ لأنه غير آمن؟",
     "reprocess": "إعادة المعالجة تلقائياً",
     "authenticityUnavailable": "إشارة الأصالة غير متاحة — لا تُستخدم لرفض هذا البلاغ.",
     "authenticityScore": "درجة مخاطر الأصالة {score} (إشارة مخاطر فقط؛ لا ترفض تلقائياً).",
@@ -414,9 +433,17 @@
     "inProgress": "قيد التنفيذ {count}",
     "dueSoon": "يستحق قريباً {count}",
     "overdue": "متأخر {count}",
+    "completed": "مكتمل {count}",
+    "cancelled": "ملغى {count}",
     "kindWorker": "عامل",
     "kindTeam": "فريق",
-    "inactiveParen": "، غير نشط"
+    "workerDescription": "عامل ميداني فردي يمكن إسناد التذاكر إليه مباشرة.",
+    "teamDescription": "مجموعة من العمال الميدانيين يمكن إسناد التذاكر إليهم معاً.",
+    "unassignedDescription": "تذاكر بانتظار إسنادها إلى عامل فردي أو فريق.",
+    "inactiveParen": "، غير نشط",
+    "teamLead": "قائد الفريق",
+    "confirmDeactivateWorker": "إيقاف هذا العامل؟ لن يستلم تعيينات جديدة.",
+    "confirmDeactivateTeam": "إيقاف هذا الفريق؟ لن يستلم تعيينات جديدة."
   },
   "errors": {
     "generic": "حدث خطأ. يرجى المحاولة مرة أخرى.",
@@ -441,6 +468,15 @@
     "insights": "رؤى تشغيلية",
     "insightsNote": "ثانوي — التصنيف وعبء العمل",
     "opsCounts": "في الانتظار {queued} · مُسند {assigned} · قيد التنفيذ {inProgress} · يستحق قريباً {dueSoon} · بدون تعيين ميداني {workforceUnassigned} · مكتمل {completed} · ملغى {cancelled}",
+    "opsLabels": {
+      "queued": "في الانتظار",
+      "assigned": "مُسند",
+      "inProgress": "قيد التنفيذ",
+      "dueSoon": "يستحق قريباً",
+      "workforceUnassigned": "بدون تعيين ميداني",
+      "completed": "مكتمل",
+      "cancelled": "ملغى"
+    },
     "bulk": {
       "title": "تعيين جماعي",
       "selected": "{count} محدد",
@@ -676,6 +712,7 @@
       "cancelReason": "سبب الإلغاء",
       "selectCancelReason": "اختر سبب الإلغاء",
       "cancelWorkOrder": "إلغاء أمر العمل",
+      "confirmCancel": "إلغاء أمر العمل هذا؟ يتوقف العمل الميداني وتبقى التذكرة مفتوحة.",
       "summary": "الملخص",
       "summaryPlaceholder": "ملخص تشغيلي اختياري",
       "assignWorkerOrTeam": "تعيين عامل أو فريق",
@@ -811,6 +848,7 @@
       "noPublicPhoto": " · لا توجد صورة عامة",
       "publish": "نشر",
       "unpublish": "إلغاء النشر",
+      "confirmUnpublish": "إلغاء نشر هذا البلاغ من الخلاصة العامة؟",
       "open": "فتح",
       "openFull": "فتح التذكرة الكاملة",
       "closePreview": "إغلاق المعاينة",

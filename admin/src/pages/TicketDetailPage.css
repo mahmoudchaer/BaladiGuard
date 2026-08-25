@@ -739,6 +739,46 @@
   opacity: 0.55;
 }
 
+.ticket-detail__routing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.ticket-detail__routing-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: var(--space-3);
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--status-under-review-border);
+  border-radius: var(--radius-sm);
+  background: var(--status-under-review-bg);
+  color: var(--color-text-secondary);
+  font-size: var(--text-metadata);
+  font-weight: 700;
+}
+
+.ticket-detail__routing-indicator {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--status-under-review-text);
+}
+
+.ticket-detail__routing-divider {
+  width: 1px;
+  height: 1rem;
+  background: var(--status-under-review-border);
+}
+
+.ticket-detail__routing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* ---------- Review & actions ---------- */
 
 .ticket-detail__actions-grid {

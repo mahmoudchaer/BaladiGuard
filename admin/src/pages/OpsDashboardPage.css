@@ -45,12 +45,19 @@
 }
 
 .ops-page__controls,
-.ops-toolbar,
-.ops-stack {
+.ops-toolbar {
   display: flex;
   gap: 0.75rem;
   align-items: end;
   flex-wrap: wrap;
+}
+
+.ops-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.9rem;
+  min-width: 0;
 }
 
 .ops-field {
@@ -78,7 +85,8 @@
 .ops-note {
   display: grid;
   gap: 0.28rem;
-  flex: 1 1 18rem;
+  flex: none;
+  width: min(40rem, 100%);
   color: var(--color-text-secondary);
   font-size: 0.78rem;
   font-weight: 700;
@@ -202,10 +210,59 @@
   text-decoration: underline;
 }
 
+.ops-page__dashboard-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.55rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--color-brand);
+  border-radius: 0.65rem;
+  background: var(--color-brand-soft);
+  white-space: nowrap;
+}
+
+.ops-page__dashboard-link:hover {
+  background: var(--color-surface);
+  text-decoration: none;
+}
+
 .ops-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 0.9rem;
+}
+
+.ops-workers__filter {
+  width: min(20rem, 100%);
+}
+
+.ops-workers__filter select {
+  width: 100%;
+}
+
+.ops-workers__grid {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.ops-workers__card {
+  min-width: 0;
+}
+
+.ops-workers__card .ops-metric__value {
+  color: var(--color-brand-dark);
+}
+
+.ops-workers__table {
+  width: 100%;
+}
+
+.ops-workers__job-id {
+  max-width: 27rem;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--text-metadata);
 }
 
 .ops-metric,
@@ -358,5 +415,74 @@
   .ops-field select,
   .ops-note input {
     min-width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .ops-workers__table {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .ops-workers__table .ops-table,
+  .ops-workers__table tbody,
+  .ops-workers__table tr,
+  .ops-workers__table td {
+    display: block;
+    width: 100%;
+  }
+
+  .ops-workers__table thead {
+    display: none;
+  }
+
+  .ops-workers__table tbody {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .ops-workers__table tr {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 0.85rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .ops-workers__table td[data-label] {
+    display: grid;
+    grid-template-columns: minmax(6.25rem, 36%) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .ops-workers__table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .ops-workers__table .ops-workers__job-id {
+    max-width: none;
+    direction: ltr;
+    text-align: start;
+    unicode-bidi: isolate;
+    overflow-wrap: anywhere;
+  }
+
+  .ops-workers__table td:last-child {
+    border-bottom: 0;
+  }
+
+  .ops-workers__table button {
+    width: fit-content;
+    margin-inline-end: 0;
   }
 }

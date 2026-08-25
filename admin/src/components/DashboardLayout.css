@@ -10,7 +10,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.85rem 0.55rem;
+  padding: 0.85rem 0.65rem;
   background: var(--color-rail);
   border-inline-end: 1px solid rgb(255 255 255 / 8%);
   z-index: 3;
@@ -45,11 +45,11 @@
   justify-content: center;
   gap: 0.2rem;
   min-height: 3.4rem;
-  padding: 0.45rem 0.2rem;
+  padding: 0.5rem 0.35rem;
   border-radius: 0.65rem;
   color: rgb(255 255 255 / 72%);
   text-decoration: none;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   transition:
@@ -75,10 +75,12 @@
 }
 
 .dashboard-rail__link-label {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  width: 100%;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .dashboard-shell {
@@ -236,7 +238,7 @@
 }
 
 .dashboard-topbar__staff-name {
-  max-width: 8rem;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -290,12 +292,26 @@
   background: var(--color-desk);
 }
 
+.dashboard-access-denied {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgb(185 28 28 / 28%);
+  border-radius: 0.5rem;
+  background: rgb(254 226 226 / 70%);
+  color: #7f1d1d;
+  font-size: 0.92rem;
+}
+
 .dashboard-main--flush {
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.dashboard-main--flush > .dashboard-access-denied {
+  margin: 0.75rem 1rem 0;
 }
 
 @media (max-width: 960px) {
@@ -307,19 +323,25 @@
     flex-direction: row;
     justify-content: flex-start;
     gap: 0.5rem;
+    width: 100%;
+    max-width: 100vw;
     padding: 0.55rem 0.75rem;
     border-right: 0;
     border-bottom: 1px solid rgb(255 255 255 / 8%);
+    overflow-x: auto;
   }
 
   .dashboard-rail__nav {
     flex-direction: row;
+    flex: 1 1 auto;
+    min-width: 0;
     margin-top: 0;
-    width: auto;
+    width: 100%;
   }
 
   .dashboard-rail__link {
-    min-width: 4.5rem;
+    flex: 1 1 4.5rem;
+    min-width: 0;
     min-height: 2.8rem;
     flex-direction: row;
     gap: 0.35rem;

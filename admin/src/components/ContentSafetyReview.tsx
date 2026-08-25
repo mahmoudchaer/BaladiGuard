@@ -148,7 +148,10 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
           type="button"
           className="ticket-detail__ghost-button"
           disabled={busy || !review.canMarkPrivate}
-          onClick={() =>
+          onClick={() => {
+            if (!window.confirm(t('contentSafety.confirmPrivate'))) {
+              return;
+            }
             void runAction(() =>
               markContentSafetyPrivate(
                 ticketId,
@@ -156,8 +159,8 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
                 'STAFF_PRIVATE_ONLY',
                 note.trim() || undefined,
               ),
-            )
-          }
+            );
+          }}
         >
           {t('contentSafety.privateOnly')}
         </button>
@@ -165,7 +168,10 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
           type="button"
           className="ticket-detail__ghost-button"
           disabled={busy || !review.canReject}
-          onClick={() =>
+          onClick={() => {
+            if (!window.confirm(t('contentSafety.confirmReject'))) {
+              return;
+            }
             void runAction(() =>
               rejectContentSafety(
                 ticketId,
@@ -173,8 +179,8 @@ export function ContentSafetyReviewPanel({ ticketId, category, onChanged }: Prop
                 'STAFF_REJECTED',
                 note.trim() || undefined,
               ),
-            )
-          }
+            );
+          }}
         >
           {t('contentSafety.reject')}
         </button>
