@@ -12,6 +12,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { CountryRegionSelect } from '@/components/CountryRegionSelect';
 import { ProfileAvatarContent } from '@/components/ProfileAvatarContent';
 import { useI18n } from '@/i18n/LocaleProvider';
+import { markPhoneChangedNotice } from '@/services/phoneChangeNotice';
 
 function DraftSignOutDialog({
   onKeep,
@@ -166,14 +167,16 @@ export function ProfilePage() {
         phoneChangeChallengeId: challenge,
         phoneChangeCode: phoneCode,
       });
-      window.sessionStorage.setItem('baladiguard-phone-changed', '1');
-      auth.setProfile(null);
-      navigate('/login', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t('profile.phoneFailed'));
-    } finally {
       setBusy(false);
+      return;
     }
+
+    markPhoneChangedNotice();
+    auth.setProfile(null);
+    navigate('/login', { replace: true });
+    setBusy(false);
   }
 
   async function signOut(retainDraft?: boolean) {
