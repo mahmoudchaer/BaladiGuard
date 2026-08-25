@@ -85,7 +85,8 @@
 .ops-note {
   display: grid;
   gap: 0.28rem;
-  flex: 1 1 18rem;
+  flex: none;
+  width: min(40rem, 100%);
   color: var(--color-text-secondary);
   font-size: 0.78rem;
   font-weight: 700;
