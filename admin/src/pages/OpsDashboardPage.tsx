@@ -330,8 +330,8 @@ export function OpsDashboardPage() {
         ) : null}
 
         {tab === 'workers' ? (
-          <div className="ops-stack">
-            <label className="ops-field">
+          <div className="ops-stack ops-workers">
+            <label className="ops-field ops-workers__filter">
               <span>{t('ops.jobType')}</span>
               <select
                 value={jobType}
@@ -344,11 +344,11 @@ export function OpsDashboardPage() {
                 ))}
               </select>
             </label>
-            <div className="ops-grid">
+            <div className="ops-grid ops-workers__grid">
               {(overview?.workers ?? [])
                 .filter((item) => jobType === 'all' || item.kind === jobType)
                 .map((queue) => (
-                  <article className="ops-card" key={queue.kind}>
+                  <article className="ops-card ops-workers__card" key={queue.kind}>
                     <h3>{queue.label}</h3>
                     <p className="ops-metric__value">{queue.pending}</p>
                     <p>
@@ -366,7 +366,7 @@ export function OpsDashboardPage() {
                   </article>
                 ))}
             </div>
-            <div className="ops-table-wrap">
+            <div className="ops-table-wrap ops-workers__table">
               <table className="ops-table">
                 <thead>
                   <tr>
@@ -387,7 +387,7 @@ export function OpsDashboardPage() {
                   ) : (
                     jobs.map((job) => (
                       <tr key={job.jobId}>
-                        <td>{job.jobId}</td>
+                        <td className="ops-workers__job-id">{job.jobId}</td>
                         <td>
                           <span className={`ops-badge ops-badge--${badgeTone(job.status)}`}>
                             {job.status}
