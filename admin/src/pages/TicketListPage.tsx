@@ -410,8 +410,8 @@ export function TicketListPage() {
   );
   const highCount = aggregates?.highCount ?? 0;
   const totalCount =
-    aggregates?.openCount ??
     approximateTotal ??
+    aggregates?.openCount ??
     (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
   const previewMatchesSelection = previewForId === selectedTicketId;

@@ -250,6 +250,18 @@ describe('TicketListPage', () => {
     expect(stats.getByText('Overdue')).toBeInTheDocument();
   });
 
+  it('uses the list total when the page includes closed tickets', async () => {
+    vi.mocked(fetchTicketAggregates).mockResolvedValue({
+      ...defaultAggregates,
+      openCount: 1,
+    });
+
+    renderWithProviders(<TicketListPage />);
+
+    expect(await screen.findByText('BG-2026-0002')).toBeInTheDocument();
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 2 of 2 tickets');
+  });
+
   it('localizes the ticket list chrome for Arabic and French', async () => {
     renderWithProviders(<TicketListPage />);
     expect(
@@ -532,7 +544,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('keeps the dashboard visible while filter results refresh', async () => {
@@ -576,7 +588,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('filters the rendered ticket list by urgency', async () => {
@@ -595,7 +607,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.getByText('BG-2026-0001')).toBeInTheDocument();
     expect(screen.queryByText('BG-2026-0002')).not.toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('filters the rendered ticket list by department', async () => {
@@ -619,7 +631,7 @@ describe('TicketListPage', () => {
     );
     expect(screen.queryByText('BG-2026-0001')).not.toBeInTheDocument();
     expect(screen.getByText('BG-2026-0002')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 1 of 1 tickets');
   });
 
   it('combines status, category, urgency, and department filters', async () => {
@@ -697,7 +709,7 @@ describe('TicketListPage', () => {
 
     await waitFor(() => expect(fetchTicketsPage).toHaveBeenCalledTimes(2));
     expect(screen.getByText('No matching tickets')).toBeInTheDocument();
-    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 2 tickets');
+    expect(screen.getByText(/Showing/)).toHaveTextContent('Showing 0 of 0 tickets');
   });
 
   it('shows an empty state when the dashboard has no tickets', async () => {
