@@ -1574,11 +1574,11 @@ export function TicketDetailPage({
                 <p className="ticket-detail__card-hint">{t('ticket.review.routingHint')}</p>
                 <div className="ticket-detail__routing-status" role="status">
                   <span className="ticket-detail__routing-indicator" aria-hidden="true" />
-                  <span>{ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}</span>
-                  <span className="ticket-detail__routing-divider" aria-hidden="true" />
                   <span>
-                    {ticket.municipalityId ?? t('ticket.review.unassignedQueue')}
+                    {ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}
                   </span>
+                  <span className="ticket-detail__routing-divider" aria-hidden="true" />
+                  <span>{ticket.municipalityId ?? t('ticket.review.unassignedQueue')}</span>
                 </div>
                 {ticket.municipalityRouting?.decision?.reason ? (
                   <p className="ticket-detail__card-hint">
@@ -1590,13 +1590,13 @@ export function TicketDetailPage({
                     <button
                       type="button"
                       className="ticket-detail__review-button"
-                    onClick={() => {
-                      void claimTicketMunicipality(ticket.ticketId, {
-                        reasonCode: 'CONFIRMED_GEOGRAPHY',
-                      }).then((next) => {
-                        if (next) setTicket(next);
-                      });
-                    }}
+                      onClick={() => {
+                        void claimTicketMunicipality(ticket.ticketId, {
+                          reasonCode: 'CONFIRMED_GEOGRAPHY',
+                        }).then((next) => {
+                          if (next) setTicket(next);
+                        });
+                      }}
                     >
                       {t('ticket.review.claim')}
                     </button>
@@ -1605,16 +1605,16 @@ export function TicketDetailPage({
                     <button
                       type="button"
                       className="ticket-detail__review-button ticket-detail__review-button--secondary"
-                    onClick={() => {
-                      const note = window.prompt(t('ticket.review.rejectPrompt'));
-                      if (!note) return;
-                      void rejectTicketMunicipality(ticket.ticketId, {
-                        reasonCode: 'OUT_OF_GEOGRAPHY',
-                        note,
-                      }).then((next) => {
-                        if (next) setTicket(next);
-                      });
-                    }}
+                      onClick={() => {
+                        const note = window.prompt(t('ticket.review.rejectPrompt'));
+                        if (!note) return;
+                        void rejectTicketMunicipality(ticket.ticketId, {
+                          reasonCode: 'OUT_OF_GEOGRAPHY',
+                          note,
+                        }).then((next) => {
+                          if (next) setTicket(next);
+                        });
+                      }}
                     >
                       {t('ticket.review.rejectOwnership')}
                     </button>
