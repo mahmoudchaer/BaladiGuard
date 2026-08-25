@@ -392,7 +392,7 @@ export function TicketPreviewPanel({
             <select
               value={selectedCategory}
               onChange={(event) => setSelectedCategory(event.target.value)}
-              disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+              disabled={isSavingCategory}
             >
               <option value="">{t('ticket.review.selectCategory')}</option>
               {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
@@ -422,9 +422,7 @@ export function TicketPreviewPanel({
               type="button"
               className="ticket-preview__btn"
               onClick={() => void handleSaveCategory()}
-              disabled={
-                isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending' || !selectedCategory
-              }
+              disabled={isSavingCategory || !selectedCategory}
             >
               {isSavingCategory ? t('ticket.preview.saving') : t('ticket.review.saveFinalCategory')}
             </button>

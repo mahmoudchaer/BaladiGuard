@@ -538,7 +538,8 @@ describe('TicketDetailPage category review', () => {
     expect(screen.getAllByText('Waste').length).toBeGreaterThan(0);
   });
 
-  it('disables review controls while AI processing is pending', async () => {
+  it('allows manual category review while AI processing is pending', async () => {
+    const user = userEvent.setup();
     vi.mocked(fetchTicketById).mockResolvedValue({
       ...ticket,
       ai: {
@@ -549,8 +550,10 @@ describe('TicketDetailPage category review', () => {
     renderPage('/tickets/tkt_123?section=review');
 
     expect(await screen.findByText(/AI processing is still in progress/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Final category')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save final category' })).toBeDisabled();
+    const select = screen.getByLabelText('Final category');
+    expect(select).toBeEnabled();
+    await user.selectOptions(select, 'waste');
+    expect(screen.getByRole('button', { name: 'Save final category' })).toBeEnabled();
   });
 
   it('keeps the processing and failed AI states visible', async () => {

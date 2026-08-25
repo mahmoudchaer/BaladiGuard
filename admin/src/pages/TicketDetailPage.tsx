@@ -2372,7 +2372,7 @@ export function TicketDetailPage({
                       setSelectedCategory(event.target.value);
                       setCategoryReviewError(null);
                     }}
-                    disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+                    disabled={isSavingCategory}
                   >
                     <option value="">{t('ticket.review.selectCategory')}</option>
                     {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
@@ -2403,11 +2403,7 @@ export function TicketDetailPage({
                       type="button"
                       className="ticket-detail__review-button"
                       onClick={() => void handleCategoryReview(selectedCategory)}
-                      disabled={
-                        isSavingCategory ||
-                        ticket.ai?.aiProcessingStatus === 'pending' ||
-                        !selectedCategory
-                      }
+                      disabled={isSavingCategory || !selectedCategory}
                     >
                       {isSavingCategory
                         ? t('ticket.review.savingCategory')
