@@ -205,7 +205,7 @@
     "category": "Catégorie",
     "unassigned": "File non assignée",
     "overrideTitle": "Réassigner un ticket",
-    "ticketId": "ID du ticket",
+    "ticketId": "Numéro du ticket ou identifiant interne",
     "override": "Réassigner",
     "confirmOverride": "Réassigner ce ticket à une autre municipalité ? Cela change le propriétaire immédiatement.",
     "confirmProvision": "Créer un compte administrateur municipal avec ce mot de passe ?",

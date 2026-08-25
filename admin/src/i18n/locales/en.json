@@ -205,7 +205,7 @@
     "category": "Category",
     "unassigned": "Unassigned queue",
     "overrideTitle": "Override ticket ownership",
-    "ticketId": "Ticket ID",
+    "ticketId": "Ticket number or internal ID",
     "override": "Override",
     "confirmOverride": "Reassign this ticket to another municipality? This changes ownership immediately.",
     "confirmProvision": "Create a municipality administrator account with this password?",
