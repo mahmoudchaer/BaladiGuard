@@ -362,7 +362,7 @@ export function OpsDashboardPage() {
                 .filter((item) => jobType === 'all' || item.kind === jobType)
                 .map((queue) => (
                   <article className="ops-card ops-workers__card" key={queue.kind}>
-                    <h3>{queue.label}</h3>
+                    <h3>{t(`ops.jobKind.${queue.kind}`)}</h3>
                     <p className="ops-metric__value">{queue.pending}</p>
                     <p>
                       {t('ops.deployed')}: {queue.deployed ? t('ops.yes') : t('ops.no')}
