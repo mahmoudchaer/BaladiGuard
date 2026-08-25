@@ -81,7 +81,9 @@ function MapFeatures({ data }: { data: PublicTicketMapViewportResponse | null })
           icon={singleIcon}
         >
           <Popup>
-            <Link to={`/public/${marker.ticketNumber}`}>{marker.ticketNumber}</Link>
+            <Link to={`/public/${marker.ticketNumber}`} aria-label={marker.ticketNumber}>
+              {marker.ticketNumber}
+            </Link>
             <div>{marker.addressText}</div>
           </Popup>
         </Marker>

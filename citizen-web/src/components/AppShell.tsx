@@ -1,13 +1,34 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ProfileAvatarContent } from '@/components/ProfileAvatarContent';
 import { useI18n } from '@/i18n/LocaleProvider';
 import './AppShell.css';
+
+const COMPACT_NAV_PX = 768;
 
 export function AppShell() {
   const auth = useCitizenAuth();
   const navigate = useNavigate();
   const { t } = useI18n();
+  const [compact, setCompact] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < COMPACT_NAV_PX,
+  );
+  const [menuOpen, setMenuOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= COMPACT_NAV_PX,
+  );
+
+  useEffect(() => {
+    const onResize = () => {
+      const nextCompact = window.innerWidth < COMPACT_NAV_PX;
+      setCompact(nextCompact);
+      if (!nextCompact) setMenuOpen(true);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const links = auth.isAuthenticated
     ? [
         { to: '/', label: t('shell.home'), end: true },
@@ -15,14 +36,19 @@ export function AppShell() {
         { to: '/rewards', label: t('shell.rewards'), end: false },
         { to: '/leaderboard', label: t('shell.leaderboard'), end: false },
         { to: '/report', label: t('shell.newReport'), end: false },
+        { to: '/reports', label: t('shell.explore'), end: false },
       ]
     : [
         { to: '/', label: t('shell.home'), end: true },
         { to: '/reports', label: t('shell.explore'), end: false },
         { to: '/leaderboard', label: t('shell.leaderboard'), end: false },
+        { to: '/track', label: t('shell.trackCode'), end: false },
       ];
+  const navHidden = compact && !menuOpen;
+
   return (
     <div className="shell">
+      <div className="shell-stripe" aria-hidden />
       <header className="shell-header">
         <NavLink className="shell-brand" to="/" aria-label={t('shell.homeAria')}>
           <span className="shell-mark" aria-hidden>
@@ -34,25 +60,39 @@ export function AppShell() {
           </div>
         </NavLink>
         <nav className="shell-nav" aria-label={t('shell.mainNav')}>
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) =>
-                isActive ? 'shell-nav-link shell-nav-link-active' : 'shell-nav-link'
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
+          <button
+            type="button"
+            className="nav-menu-toggle tactile"
+            aria-expanded={menuOpen}
+            aria-controls="shell-nav-links"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? t('common.closeMenu') : t('common.openMenu')}
+          </button>
+          <div id="shell-nav-links" className="shell-nav-links" hidden={navHidden}>
+            {links.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                className={({ isActive }) =>
+                  isActive ? 'shell-nav-link shell-nav-link-active' : 'shell-nav-link'
+                }
+                onClick={() => {
+                  if (compact) setMenuOpen(false);
+                }}
+              >
+                {link.label}
+              </NavLink>
+            ))}
+          </div>
           {auth.isAuthenticated ? (
             <button
               className="nav-avatar tactile"
               aria-label={t('shell.openProfile')}
               onClick={() => navigate('/profile')}
             >
-              {auth.profile?.fullName?.[0]?.toUpperCase() || 'B'}
+              <ProfileAvatarContent fullName={auth.profile?.fullName} />
             </button>
           ) : (
             <NavLink className="button nav-sign-in" to="/login">

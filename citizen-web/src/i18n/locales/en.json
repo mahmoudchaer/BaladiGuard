@@ -18,7 +18,12 @@
     "previous": "← Previous",
     "department": "Department: {name}",
     "general": "General",
-    "optional": "Optional"
+    "optional": "Optional",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy. Select the code and copy it manually.",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "language": {
     "en": "English",
@@ -51,7 +56,8 @@
     "yourProfile": "Your profile",
     "citizenSignIn": "Citizen sign in",
     "footerTagline": "Built for clearer, safer civic reporting.",
-    "footerLegal": "Verified-phone accounts · Privacy-safe public data"
+    "footerLegal": "Verified-phone accounts · Privacy-safe public data",
+    "menu": "Menu"
   },
   "home": {
     "heroLine1": "Your city,",
@@ -130,7 +136,8 @@
     "unitedStates": "United States (+1)",
     "france": "France (+33)",
     "unitedKingdom": "United Kingdom (+44)",
-    "phonePlaceholder": "70 123 456"
+    "phonePlaceholder": "70 123 456",
+    "phoneChanged": "Phone number updated. Sign in with your new number."
   },
   "track": {
     "title": "Track a report",
@@ -152,10 +159,15 @@
     "optionalSignIn": "Sign in is optional. Tracking only needs a valid code from your notification. Status is shared when the code is valid—same as the track screen.",
     "codeFromLink": "Tracking code from the link: {code}. Choose how to continue.",
     "trackWithCode": "Track with this code",
-    "signInToContinue": "Sign in to continue"
+    "signInToContinue": "Sign in to continue",
+    "emptyTitle": "Have a tracking code?",
+    "emptyBody": "Enter the 6-character code from your confirmation screen or SMS to see private status updates.",
+    "whatItMeans": "What this status means",
+    "whatHappensNext": "What happens next",
+    "copyCode": "Copy tracking code"
   },
   "report": {
-    "signInAtSubmit": "Sign in at submit",
+    "signInAtSubmit": "You can complete the report now. Sign-in is required before sending.",
     "privateSubmission": "Private submission",
     "title": "What needs attention?",
     "eyebrow": "NEW REPORT",
@@ -202,7 +214,13 @@
     "privacyJitLink": "Read the privacy policy",
     "pleaseWait": "Please wait…",
     "submit": "Submit report",
-    "discard": "Discard draft"
+    "discard": "Discard draft",
+    "stepDetails": "Details",
+    "stepPhoto": "Photo",
+    "stepLocation": "Location",
+    "stepReview": "Review",
+    "reviewHeading": "Review before sending",
+    "notContributionReady": "This account cannot submit reports yet. Finish phone verification, then try again."
   },
   "history": {
     "title": "My reports",
@@ -232,7 +250,7 @@
     "sendFailed": "Unable to send a code.",
     "phoneUpdated": "Phone updated. Please sign in again with your new number.",
     "phoneFailed": "Unable to change your phone.",
-    "keepDraft": "Keep this account’s saved report draft for your next sign-in? Choose Cancel to clear it before signing out.",
+    "keepDraft": "Keep this account’s saved report draft for your next sign-in? Cancel stays signed in and leaves the draft unchanged.",
     "identity": "Identity",
     "verifiedPhone": "Verified phone",
     "verified": "✓ Verified",
@@ -287,7 +305,11 @@
     "acceptLegal": "Accept current Terms, Privacy, and Acceptable Use",
     "acceptingLegal": "Recording acceptance…",
     "legalAccepted": "Legal acceptance recorded.",
-    "legalAcceptFailed": "Unable to record legal acceptance."
+    "legalAcceptFailed": "Unable to record legal acceptance.",
+    "otpPlaceholder": "000000",
+    "keepDraftTitle": "Keep your saved draft?",
+    "keepDraftKeep": "Keep draft",
+    "keepDraftClear": "Clear and sign out"
   },
   "legal": {
     "loadingTitle": "Legal document",
@@ -338,7 +360,9 @@
     "noPhoto": "No public photo available",
     "network": "Unable to load public reports right now. Check your connection and try again.",
     "detailNetwork": "Unable to load that public report right now. Check your connection and try again.",
-    "detailNotFound": "We could not find that public report. It may have been unpublished or the link is incorrect."
+    "detailNotFound": "We could not find that public report. It may have been unpublished or the link is incorrect.",
+    "emptyMap": "No published reports in this map area. Zoom out or use the list view.",
+    "openInMaps": "Open in Maps"
   },
   "notFound": {
     "title": "Page not found",
@@ -352,7 +376,26 @@
     "ASSIGNED": "Assigned",
     "IN_PROGRESS": "In Progress",
     "RESOLVED": "Resolved",
-    "CLOSED": "Closed"
+    "CLOSED": "Closed",
+    "pendingCategory": "Category pending"
+  },
+  "statusMeaning": {
+    "SUBMITTED": "Your report was received and is in the queue for review.",
+    "UNDER_REVIEW": "A staff member is reviewing the report before it is routed.",
+    "ASSIGNED": "A department has taken ownership of this report.",
+    "IN_PROGRESS": "The assigned team is actively working on the issue.",
+    "RESOLVED": "The issue has been marked resolved.",
+    "CLOSED": "This report has been closed.",
+    "unknown": "Status details are not available right now."
+  },
+  "nextAction": {
+    "SUBMITTED": "Your report was received and will be reviewed by municipal staff.",
+    "UNDER_REVIEW": "Municipal staff are reviewing the report details and category.",
+    "ASSIGNED": "The responsible department has been assigned and will plan the next step.",
+    "IN_PROGRESS": "The assigned team is working on the issue and will update the status when done.",
+    "RESOLVED": "The issue has been marked resolved. No further action is expected right now.",
+    "CLOSED": "This report is closed and kept for your records.",
+    "unknown": "Check back later for the next status update."
   },
   "category": {
     "general": "General",
@@ -415,12 +458,14 @@
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
+    "network": "You appear to be offline. Check your connection and try again.",
     "notFound": "We could not find that report.",
     "validation": "Please correct the highlighted fields."
   },
   "a11y": {
     "languageGroup": "Application language",
     "statusWithLabel": "Status: {status}",
-    "urgencyWithLabel": "Urgency: {urgency}"
+    "urgencyWithLabel": "Urgency: {urgency}",
+    "skipToContent": "Skip to main content"
   }
 }

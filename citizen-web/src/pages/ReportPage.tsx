@@ -17,6 +17,7 @@ import {
   saveDraft,
 } from '@/services/reportDraft';
 import type { SubmitTicketResponse } from '@/types/ticket';
+import { CopyButton } from '@/components/CopyButton';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 type Phase = 'idle' | 'validating' | 'uploading' | 'submitting';
@@ -35,6 +36,7 @@ export function ReportPage() {
   const [submissionId, setSubmissionId] = useState(newSubmissionId);
   const [uploadedKey, setUploadedKey] = useState<string | undefined>();
   const [phase, setPhase] = useState<Phase>('idle');
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const [result, setResult] = useState<SubmitTicketResponse | null>(null);
@@ -109,9 +111,11 @@ export function ReportPage() {
   async function getDeviceLocation() {
     setError(null);
     setPhase('validating');
+    setLocating(true);
     if (!navigator.geolocation) {
       setError(t('report.locationUnavailable'));
       setPhase('idle');
+      setLocating(false);
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -127,10 +131,14 @@ export function ReportPage() {
           .catch((err: unknown) =>
             setError(err instanceof Error ? err.message : t('report.validateFailed')),
           )
-          .finally(() => setPhase('idle')),
+          .finally(() => {
+            setPhase('idle');
+            setLocating(false);
+          }),
       () => {
         setError(t('report.locationDenied'));
         setPhase('idle');
+        setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 12000 },
     );
@@ -180,6 +188,10 @@ export function ReportPage() {
         updatedAt: Date.now(),
       });
       navigate(loginPath('/report'));
+      return;
+    }
+    if (!profile.contributionReady) {
+      setError(t('report.notContributionReady'));
       return;
     }
     if (!photo && !uploadedKey) {
@@ -246,6 +258,7 @@ export function ReportPage() {
           <strong>{result.ticketNumber}</strong>
           <span>{t('report.trackingCode')}</span>
           <strong className="tracking-code">{result.trackingCode}</strong>
+          <CopyButton value={result.trackingCode} label={t('track.copyCode')} />
         </div>
         <div className="button-row">
           <Link className="button" to={`/track?trackingCode=${result.trackingCode}`}>
@@ -266,11 +279,13 @@ export function ReportPage() {
           <h1>{t('report.title')}</h1>
           <p className="lede">{t('report.lede')}</p>
         </div>
-        <span className="step-chip">
-          {profile ? t('report.privateSubmission') : t('report.signInAtSubmit')}
-        </span>
       </div>
       {restored ? <div className="notice notice-info">{t('report.draftRestored')}</div> : null}
+      {profile && !profile.contributionReady ? (
+        <div className="notice notice-error" role="alert">
+          {t('report.notContributionReady')}
+        </div>
+      ) : null}
       {error ? (
         <div className="notice notice-error" role="alert">
           {error}
@@ -290,6 +305,7 @@ export function ReportPage() {
       ) : null}
       <form className="report-grid" onSubmit={(event) => void submit(event)}>
         <div className="report-main settings-card">
+          <h2 className="report-section-title">{t('report.stepDetails')}</h2>
           <label className="field-label" htmlFor="description">
             {t('report.describe')}
           </label>
@@ -302,7 +318,8 @@ export function ReportPage() {
             onChange={(e) => setDescription(e.target.value)}
           />
           <span className="character-count">{description.length} / 2,000</span>
-          <label className="field-label" htmlFor="address">
+          <h2 className="report-section-title">{t('report.stepLocation')}</h2>
+          <label className="sr-only" htmlFor="address">
             {t('report.location')}
           </label>
           <div className="location-row">
@@ -326,14 +343,14 @@ export function ReportPage() {
             </button>
           </div>
           <button
-            className="location-button"
+            className={`location-button${locating ? ' location-button-loading' : ''}`}
             disabled={busy}
             type="button"
             onClick={() => void getDeviceLocation()}
           >
             <span aria-hidden>⌖</span>
             <span>
-              <strong>{t('report.useCurrent')}</strong>
+              <strong>{locating ? t('report.validating') : t('report.useCurrent')}</strong>
               <small>{t('report.useCurrentHint')}</small>
             </span>
           </button>
@@ -347,8 +364,9 @@ export function ReportPage() {
             </div>
           ) : null}
         </div>
-        <aside className="report-side settings-card">
-          <label className="field-label" htmlFor="photo">
+        <div className="report-photo settings-card">
+          <h2 className="report-section-title">{t('report.stepPhoto')}</h2>
+          <label className="sr-only" htmlFor="photo">
             {t('report.photo')}
           </label>
           <label className="photo-drop" htmlFor="photo">
@@ -380,6 +398,34 @@ export function ReportPage() {
             }}
           />
           {photoLabel ? <span className="helper">{photoLabel}</span> : null}
+        </div>
+        <section className="report-review settings-card" aria-labelledby="report-review-heading">
+          <div className="review-summary">
+            <h2 id="report-review-heading" className="report-section-title">
+              {t('report.reviewHeading')}
+            </h2>
+            <div className={`review-item${description.trim() ? ' review-item-ready' : ''}`}>
+              <span className="review-bullet" aria-hidden />
+              <div>
+                <strong>{t('report.describe')}</strong>
+                <p>{description.trim() || t('report.describePlaceholder')}</p>
+              </div>
+            </div>
+            <div className={`review-item${location ? ' review-item-ready' : ''}`}>
+              <span className="review-bullet" aria-hidden />
+              <div>
+                <strong>{t('report.location')}</strong>
+                <p>{location?.addressText || t('report.needLocation')}</p>
+              </div>
+            </div>
+            <div className={`review-item${photoLabel ? ' review-item-ready' : ''}`}>
+              <span className="review-bullet" aria-hidden />
+              <div>
+                <strong>{t('report.photo')}</strong>
+                <p>{photoLabel || t('report.needPhoto')}</p>
+              </div>
+            </div>
+          </div>
           <div className="privacy-callout">
             <span aria-hidden>◉</span>
             <p>
@@ -391,9 +437,14 @@ export function ReportPage() {
           <p className="helper" style={{ marginTop: '0.5rem' }}>
             {t('report.privacyJit')} <Link to="/privacy">{t('report.privacyJitLink')}</Link>
           </p>
-          <button className="button button-large" disabled={busy} type="submit">
+          <button
+            className="button button-large"
+            disabled={busy || Boolean(profile && !profile.contributionReady)}
+            type="submit"
+          >
             {busy ? t('report.pleaseWait') : t('report.submit')} <span aria-hidden>→</span>
           </button>
+          {!profile ? <p className="submit-sign-in-note">{t('report.signInAtSubmit')}</p> : null}
           <button
             className="text-button"
             disabled={busy}
@@ -402,7 +453,7 @@ export function ReportPage() {
           >
             {t('report.discard')}
           </button>
-        </aside>
+        </section>
       </form>
     </section>
   );

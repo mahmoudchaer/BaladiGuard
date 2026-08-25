@@ -7,7 +7,11 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
-from app.core.citizen_auth import CITIZEN_SESSION_TTL_SECONDS, issue_citizen_session
+from app.core.citizen_auth import (
+    CITIZEN_SESSION_TTL_SECONDS,
+    CITIZEN_WEB_SESSION_COOKIE,
+    issue_citizen_session,
+)
 from app.core.rate_limit import get_rate_limiter
 from app.database.memory_citizen_otp import citizen_otp_store
 from app.database.memory_citizen_session import citizen_session_store
@@ -463,6 +467,20 @@ def test_guest_change_phone_request_returns_401(anonymous_client: TestClient) ->
     )
     assert status == 401
     assert body["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_invalid_citizen_cookie_is_expired_on_unauthorized_response(
+    anonymous_client: TestClient,
+) -> None:
+    anonymous_client.cookies.set(CITIZEN_WEB_SESSION_COOKIE, "stale.cookie", path="/v1")
+
+    response = anonymous_client.get("/v1/citizen/me")
+
+    assert response.status_code == 401
+    cookie = response.headers.get("set-cookie", "")
+    assert f"{CITIZEN_WEB_SESSION_COOKIE}=" in cookie
+    assert "Max-Age=0" in cookie
+    assert "Path=/v1" in cookie
 
 
 def test_change_phone_via_otp_verify(anonymous_client: TestClient) -> None:

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotificationLinkPage } from '@/pages/NotificationLinkPage';
+import { LocaleProvider } from '@/i18n/LocaleProvider';
 import { resetLocaleForTests, setLocale, t } from '@/i18n';
 
 vi.mock('@/auth/CitizenAuthContext', () => ({
@@ -15,9 +16,11 @@ vi.mock('@/auth/CitizenAuthContext', () => ({
 function renderLink(code: string) {
   return render(
     <MemoryRouter initialEntries={[`/t/${code}`]}>
-      <Routes>
-        <Route path="t/:code" element={<NotificationLinkPage />} />
-      </Routes>
+      <LocaleProvider>
+        <Routes>
+          <Route path="t/:code" element={<NotificationLinkPage />} />
+        </Routes>
+      </LocaleProvider>
     </MemoryRouter>,
   );
 }

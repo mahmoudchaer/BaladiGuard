@@ -4,7 +4,9 @@ import { sanitizeReturnTo } from '@/auth/returnTo';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { ApiError } from '@/services/api';
 import { requestOtp } from '@/services/citizenAuth';
+import { CountryRegionSelect } from '@/components/CountryRegionSelect';
 import { useI18n } from '@/i18n/LocaleProvider';
+import { consumePhoneChangedNotice } from '@/services/phoneChangeNotice';
 
 type Step = 'phone' | 'code';
 
@@ -13,6 +15,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnTo = sanitizeReturnTo(params.get('returnTo'));
+  const [phoneChanged] = useState(consumePhoneChangedNotice);
   const [step, setStep] = useState<Step>('phone');
   const [region, setRegion] = useState('LB');
   const [phone, setPhone] = useState('');
@@ -116,6 +119,12 @@ export function LoginPage() {
               )}
         </p>
 
+        {phoneChanged && step === 'phone' ? (
+          <div className="notice notice-success" role="status">
+            {t('auth.phoneChanged')}
+          </div>
+        ) : null}
+
         {error ? (
           <div className="notice notice-error" role="alert">
             {error}
@@ -127,17 +136,7 @@ export function LoginPage() {
             <label className="field-label" htmlFor="region">
               {t('auth.country')}
             </label>
-            <select
-              id="region"
-              className="input"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-            >
-              <option value="LB">{t('auth.lebanon')}</option>
-              <option value="US">{t('auth.unitedStates')}</option>
-              <option value="FR">{t('auth.france')}</option>
-              <option value="GB">{t('auth.unitedKingdom')}</option>
-            </select>
+            <CountryRegionSelect id="region" value={region} onChange={setRegion} />
             <label className="field-label" htmlFor="phone">
               {t('auth.phone')}
             </label>
@@ -170,15 +169,7 @@ export function LoginPage() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               autoFocus
             />
-            <label className="toggle-row" htmlFor="accept-legal">
-              <span>
-                {t('auth.legalAgreePrefix')} <Link to="/terms">{t('shell.terms')}</Link>
-                {t('auth.legalAgreeJoin1')}
-                <Link to="/privacy">{t('shell.privacy')}</Link>
-                {t('auth.legalAgreeJoin2')}
-                <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
-                {t('auth.legalAgreeSuffix')}
-              </span>
+            <label className="legal-consent" htmlFor="accept-legal">
               <input
                 id="accept-legal"
                 type="checkbox"
@@ -187,6 +178,14 @@ export function LoginPage() {
                 required
                 aria-required="true"
               />
+              <span className="legal-consent__copy">
+                {t('auth.legalAgreePrefix')} <Link to="/terms">{t('shell.terms')}</Link>
+                {t('auth.legalAgreeJoin1')}
+                <Link to="/privacy">{t('shell.privacy')}</Link>
+                {t('auth.legalAgreeJoin2')}
+                <Link to="/acceptable-use">{t('shell.acceptableUse')}</Link>
+                {t('auth.legalAgreeSuffix')}
+              </span>
             </label>
             <button
               className="button button-large"

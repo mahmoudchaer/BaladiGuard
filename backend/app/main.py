@@ -24,6 +24,7 @@ from app.api.whatsapp import router as whatsapp_router
 from app.api.work_orders import router as work_orders_router
 from app.api.workforce import router as workforce_router
 from app.core.body_limits import RequestBodyTooLarge, payload_too_large_response
+from app.core.citizen_auth import CITIZEN_WEB_SESSION_COOKIE
 from app.core.config_validation import validate_configuration
 from app.core.cors import resolve_cors_origins
 from app.core.errors import (
@@ -148,6 +149,23 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     if exc.headers:
         for header_name, header_value in exc.headers.items():
             response.headers[header_name] = header_value
+    error_message = (
+        exc.detail.get("error", {}).get("message") if isinstance(exc.detail, dict) else None
+    )
+    if (
+        exc.status_code == 401
+        and error_message == "Citizen authentication required."
+        and request.cookies.get(CITIZEN_WEB_SESSION_COOKIE)
+    ):
+        from app.config import get_settings
+
+        response.delete_cookie(
+            CITIZEN_WEB_SESSION_COOKIE,
+            path="/v1",
+            secure=get_settings().app_env in {"staging", "production"},
+            httponly=True,
+            samesite="lax",
+        )
     return _with_request_id_header(response, request_id)
 
 

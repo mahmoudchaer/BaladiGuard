@@ -272,7 +272,22 @@ def patch_citizen_me(
     principal: CitizenDep,
 ) -> CitizenProfileResponse | JSONResponse:
     try:
-        return citizen_service.update_profile(principal.user_id, payload)
+        updated = citizen_service.update_profile(principal.user_id, payload)
+        if payload.phone is None:
+            return updated
+
+        # A verified phone change revokes every existing session. Expire the
+        # browser cookie in the same response so it cannot block the next login
+        # request as a stale credential.
+        response = JSONResponse(content=updated.model_dump(by_alias=True, mode="json"))
+        response.delete_cookie(
+            CITIZEN_WEB_SESSION_COOKIE,
+            path="/v1",
+            secure=_use_secure_cookie(),
+            httponly=True,
+            samesite="lax",
+        )
+        return response
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 
