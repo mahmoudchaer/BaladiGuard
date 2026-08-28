@@ -27,6 +27,7 @@ WORKDIR /app
 
 ARG UTIL_LINUX_VERSION=2.41.5-0+deb13u1
 ARG LOGIN_VERSION=1:4.16.0-2+really2.41.5-0+deb13u1
+ARG OPENSSL_VERSION=3.5.7-1~deb13u2
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends --only-upgrade \
         "bsdutils=1:${UTIL_LINUX_VERSION}" \
@@ -34,9 +35,12 @@ RUN apt-get update \
         "liblastlog2-2=${UTIL_LINUX_VERSION}" \
         "libmount1=${UTIL_LINUX_VERSION}" \
         "libsmartcols1=${UTIL_LINUX_VERSION}" \
+        "libssl3t64=${OPENSSL_VERSION}" \
         "libuuid1=${UTIL_LINUX_VERSION}" \
         "login=${LOGIN_VERSION}" \
         "mount=${UTIL_LINUX_VERSION}" \
+        "openssl=${OPENSSL_VERSION}" \
+        "openssl-provider-legacy=${OPENSSL_VERSION}" \
         "util-linux=${UTIL_LINUX_VERSION}" \
     && rm -rf /var/lib/apt/lists/* \
     && find "$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" -maxdepth 1 \
