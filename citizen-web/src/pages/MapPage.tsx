@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BrandMark } from '@/components/BrandMark';
 import { PublicReportsMap } from '@/components/PublicReportsMap';
 import {
   PUBLIC_TICKETS_NETWORK_MESSAGE,
@@ -129,7 +130,7 @@ export function MapPage() {
         {data?.truncated ? <p className="muted">{t('public.grouped')}</p> : null}
         {!loading && data && data.markers.length === 0 && data.clusters.length === 0 ? (
           <div className="empty-state compact">
-            <span>⌖</span>
+            <BrandMark size={48} />
             <h2>{t('public.noReports')}</h2>
             <p>{t('public.emptyMap')}</p>
           </div>

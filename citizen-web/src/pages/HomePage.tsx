@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
+import { BrandMark } from '@/components/BrandMark';
 import { StatusChip } from '@/components/StatusChip';
 import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -60,7 +61,7 @@ function CitizenHome() {
           <small>{t('home.trackHint')}</small>
         </Link>
         <Link className="quick-card tactile" to="/map">
-          <span>⌖</span>
+          <BrandMark size={28} />
           <strong>{t('home.nearby')}</strong>
           <small>{t('home.browseReports')}</small>
         </Link>
@@ -97,7 +98,9 @@ function CitizenHome() {
               key={report.trackingCode}
               to={`/track?trackingCode=${report.trackingCode}`}
             >
-              <span className="history-glyph">⌖</span>
+              <span className="history-glyph">
+                <BrandMark size={40} />
+              </span>
               <div className="history-copy">
                 <strong>{translateCategory(report.category)}</strong>
                 <span>{report.locationAddress}</span>
@@ -118,16 +121,16 @@ function PublicHome() {
     <div className="landing-page page-enter">
       <div className="public-hero">
         <div>
-          <span className="eyebrow">{t('home.welcome')}</span>
+          <p className="hero-welcome">{t('home.welcome')}</p>
           <h1>
             {t('home.heroLine1')}
             <br />
             {t('home.heroLine2')}
           </h1>
           <p className="lede">{t('home.publicLede')}</p>
-          <div className="button-row">
-            <Link className="button button-large" to="/report">
-              {t('home.reportCta')}
+          <div className="button-row home-auth-actions">
+            <Link className="button button-large" to="/login">
+              {t('common.signIn')}
             </Link>
             <Link className="button button-secondary button-large" to="/reports">
               {t('home.continueGuest')}
@@ -136,10 +139,9 @@ function PublicHome() {
           <p className="helper">{t('home.phoneHint')}</p>
         </div>
         <div className="hero-symbol" aria-hidden>
-          <div>⌖</div>
-          <span>
-            <i /> {t('home.builtFor')}
-          </span>
+          <div className="hero-symbol__plate">
+            <BrandMark className="hero-symbol__mark" size="100%" />
+          </div>
         </div>
       </div>
       <section className="landing-features" aria-label={t('home.howItWorks')}>

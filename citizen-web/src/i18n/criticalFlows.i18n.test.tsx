@@ -114,7 +114,7 @@ describe('citizen critical-flow localization', () => {
       await act(async () => {
         setLocale(locale);
       });
-      expect(screen.getByRole('radiogroup', { name: t('a11y.languageGroup') })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: t('a11y.languageGroup') })).toBeInTheDocument();
       expect(screen.getByLabelText(t('public.search'))).toBeInTheDocument();
       expect(screen.getByLabelText(t('public.filterStatus'))).toBeInTheDocument();
       expect(document.documentElement.dir).toBe(locale === 'ar' ? 'rtl' : 'ltr');

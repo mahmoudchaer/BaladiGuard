@@ -7,7 +7,7 @@ import { LocaleProvider } from '@/i18n/LocaleProvider';
 import { getLocale } from '@/i18n';
 
 describe('LanguageSwitcher', () => {
-  it('switches locale with accessible radio names', async () => {
+  it('shows the current language and switches locale from the dropdown', async () => {
     const user = userEvent.setup();
     render(
       <LocaleProvider>
@@ -15,12 +15,18 @@ describe('LanguageSwitcher', () => {
       </LocaleProvider>,
     );
 
-    expect(screen.getByRole('radiogroup')).toBeInTheDocument();
+    expect(screen.getByTestId('language-menu')).toHaveTextContent('English');
+    await user.click(screen.getByTestId('language-menu'));
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
     await user.click(screen.getByTestId('language-option-ar'));
     expect(getLocale()).toBe('ar');
     expect(document.documentElement.dir).toBe('rtl');
+    expect(screen.getByTestId('language-menu')).toHaveTextContent('العربية');
+
+    await user.click(screen.getByTestId('language-menu'));
     await user.click(screen.getByTestId('language-option-en'));
     expect(getLocale()).toBe('en');
     expect(document.documentElement.dir).toBe('ltr');
+    expect(screen.getByTestId('language-menu')).toHaveTextContent('English');
   });
 });

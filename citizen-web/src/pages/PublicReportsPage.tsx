@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BrandMark } from '@/components/BrandMark';
 import { PublicPhoto } from '@/components/PublicPhoto';
 import { StatusChip } from '@/components/StatusChip';
 import { PUBLIC_TICKETS_NETWORK_MESSAGE, getPublicTickets } from '@/services/tickets';
@@ -230,7 +231,9 @@ export function PublicReportsPage() {
                 </div>
                 <span className="muted">{formatCategory(report.category)}</span>
                 <p>{report.description}</p>
-                <span className="muted tile-location">⌖ {report.location.addressText}</span>
+                <span className="muted tile-location">
+                  <BrandMark className="tile-location__mark" size={16} /> {report.location.addressText}
+                </span>
               </Link>
             </article>
           ))}
