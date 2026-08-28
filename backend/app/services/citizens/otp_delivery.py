@@ -192,7 +192,9 @@ class WhatsAppCitizenOtpDeliveryProvider:
     """Meta Cloud API OTP delivery (auth template, or sandbox session text)."""
 
     def deliver(self, *, canonical_phone: str, code: str, settings: Settings) -> None:
-        if settings.notification_sandbox:
+        session_text = whatsapp_otp_uses_session_text(settings)
+        requires_allowlist = settings.notification_sandbox or session_text
+        if requires_allowlist:
             allowlist = set(settings.notification_allowlist_phones)
             if not allowlist or canonical_phone not in allowlist:
                 logger.warning(
@@ -203,10 +205,8 @@ class WhatsAppCitizenOtpDeliveryProvider:
                 )
                 raise OtpDeliveryError("sandbox_blocked")
 
-        session_text = whatsapp_otp_uses_session_text(settings)
-        if session_text:
-            if settings.app_env == "production" or not settings.notification_sandbox:
-                raise OtpDeliveryError("whatsapp_session_text_forbidden")
+        if session_text and settings.app_env != "production" and not settings.notification_sandbox:
+            raise OtpDeliveryError("whatsapp_session_text_forbidden")
 
         token = settings.citizen_otp_whatsapp_access_token
         phone_number_id = settings.citizen_otp_whatsapp_phone_number_id
