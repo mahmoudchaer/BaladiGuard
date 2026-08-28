@@ -1692,7 +1692,11 @@ a {
     font-size: 0.72rem;
   }
   .hero-symbol {
-    display: none;
+    display: grid;
+    margin-top: 1rem;
+  }
+  .hero-symbol .civic-illustration--hero {
+    width: min(100%, 17rem);
   }
   .public-hero {
     min-height: 0;

@@ -18,6 +18,7 @@ import {
 } from '@/services/reportDraft';
 import type { SubmitTicketResponse } from '@/types/ticket';
 import { CopyButton } from '@/components/CopyButton';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 type Phase = 'idle' | 'validating' | 'uploading' | 'submitting';
@@ -249,7 +250,7 @@ export function ReportPage() {
   if (result)
     return (
       <section className="success-page page-enter">
-        <div className="success-mark">✓</div>
+        <CivicIllustration name="report-resolved" className="civic-illustration--success" />
         <span className="eyebrow">{t('report.received')}</span>
         <h1>{t('report.thanks')}</h1>
         <p>{t('report.municipalityReview')}</p>

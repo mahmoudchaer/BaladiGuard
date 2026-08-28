@@ -5,6 +5,7 @@ import { useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
@@ -121,6 +122,7 @@ export default function ExploreScreen() {
         ) : null}
         {!loading && !error && reports.length === 0 ? (
           <View style={styles.empty} testID="explore-empty">
+            <CivicIllustration name="lebanon-service-map" style={styles.emptyArtwork} />
             <Text style={styles.emptyTitle}>{t('explore.emptyTitle')}</Text>
             <Text style={styles.muted}>{t('explore.empty')}</Text>
           </View>
@@ -130,6 +132,7 @@ export default function ExploreScreen() {
             <PublicReportFilters filters={filters} categories={categories} onChange={setFilters} />
             {filteredReports.length === 0 ? (
               <View style={styles.empty} testID="public-filter-empty">
+                <CivicIllustration name="search-empty" style={styles.emptyArtwork} />
                 <Text style={styles.emptyTitle}>{t('explore.noMatchTitle')}</Text>
                 <Text style={styles.muted}>{t('explore.noMatchBody')}</Text>
                 <Button mode="outlined" onPress={() => setFilters(DEFAULT_FILTERS)}>
@@ -247,6 +250,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
   },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  emptyArtwork: { width: 148, height: 124 },
   publicContent: { gap: spacing[4] },
   mapNote: { fontSize: 12, lineHeight: 18, color: colors.textMuted },
   list: { gap: spacing[3] },

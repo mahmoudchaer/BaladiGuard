@@ -331,7 +331,11 @@ export function MapViewPage() {
           )}
 
           {markers.length === 0 && clusters.length === 0 && !hasActiveFilters && (
-            <EmptyState title={t('map.emptyAreaTitle')} message={t('map.emptyAreaBody')} />
+            <EmptyState
+              title={t('map.emptyAreaTitle')}
+              message={t('map.emptyAreaBody')}
+              visual="map"
+            />
           )}
 
           {hasActiveFilters && markers.length === 0 && clusters.length === 0 && (
@@ -340,6 +344,7 @@ export function MapViewPage() {
                 ticketIds.length > 0 ? t('tickets.emptyGoneTitle') : t('tickets.emptyMatchTitle')
               }
               message={ticketIds.length > 0 ? t('map.emptyGoneBody') : t('tickets.emptyMatchBody')}
+              visual="search"
             />
           )}
 

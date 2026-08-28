@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
 import { BrandMark } from '@/components/BrandMark';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { StatusChip } from '@/components/StatusChip';
 import { TactilePressable } from '@/components/TactilePressable';
@@ -102,10 +103,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.heroSymbol} accessibilityElementsHidden>
-            <View style={styles.heroSymbolGlow} />
-            <View style={styles.heroSymbolCircle}>
-              <Icon source="map-marker-radius-outline" size={52} color={colors.textInverse} />
-            </View>
+            <CivicIllustration name="citizen-reporting" style={styles.heroArtwork} />
             <View style={styles.heroStatus}>
               <View style={styles.liveDot} />
               <Text style={styles.heroStatusText}>{t('home.builtFor')}</Text>
@@ -249,9 +247,7 @@ export default function HomeScreen() {
 
         {!summaryLoading && !summaryError && reports.length === 0 ? (
           <View style={styles.emptyState} testID="home-summary-empty">
-            <View style={styles.emptyIcon}>
-              <Icon source="check-circle-outline" size={28} color={colors.brand} />
-            </View>
+            <CivicIllustration name="report-clipboard" style={styles.emptyArtwork} />
             <Text style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
             <Text style={styles.emptyBody}>{t('home.emptyBody')}</Text>
           </View>
@@ -351,11 +347,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   heroSymbol: {
-    height: 190,
+    height: 220,
     marginVertical: spacing[5],
     alignItems: 'center',
     justifyContent: 'center',
   },
+  heroArtwork: { width: '100%', height: 220 },
   heroSymbolGlow: {
     position: 'absolute',
     width: 174,
@@ -544,6 +541,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.surface,
   },
+  emptyArtwork: { width: 138, height: 112 },
   emptyIcon: {
     width: 52,
     height: 52,

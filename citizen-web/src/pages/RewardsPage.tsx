@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getMyRewards } from '@/services/rewards';
 import type { CitizenRewards } from '@/types/rewards';
 import { useI18n } from '@/i18n/LocaleProvider';
+import { CivicIllustration } from '@/components/CivicIllustration';
 
 export function RewardsPage() {
   const { t } = useI18n();
@@ -108,7 +109,8 @@ function RewardsBody({ data }: { data: CitizenRewards }) {
         )}
       </div>
       {data.confirmedPoints === 0 ? (
-        <div className="notice" role="status">
+        <div className="empty-state" role="status">
+          <CivicIllustration name="community-contribution" className="civic-illustration--empty" />
           <strong>{t('rewards.emptyTitle')}</strong>
           <p>{t('rewards.emptyBody')}</p>
         </div>

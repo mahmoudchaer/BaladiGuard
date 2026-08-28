@@ -718,6 +718,7 @@ export function TicketListPage() {
                 message={
                   ticketIds.length > 0 ? t('tickets.emptyGoneBody') : t('tickets.emptyMatchBody')
                 }
+                visual="search"
               />
             )}
 

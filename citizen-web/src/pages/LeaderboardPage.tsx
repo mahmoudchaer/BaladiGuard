@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getLeaderboard } from '@/services/rewards';
 import type { PublicLeaderboardEntry, RewardsPeriod } from '@/types/rewards';
 import { useI18n } from '@/i18n/LocaleProvider';
+import { CivicIllustration } from '@/components/CivicIllustration';
 
 export function LeaderboardPage() {
   const { t } = useI18n();
@@ -64,7 +65,8 @@ export function LeaderboardPage() {
       ) : null}
       {loading && !items.length ? <p>{t('common.loading')}</p> : null}
       {!loading && !items.length && !error ? (
-        <div className="notice" role="status">
+        <div className="empty-state" role="status">
+          <CivicIllustration name="community-contribution" className="civic-illustration--empty" />
           <strong>{t('leaderboard.emptyTitle')}</strong>
           <p>{t('leaderboard.emptyBody')}</p>
         </div>

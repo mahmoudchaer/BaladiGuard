@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getHistory, submitResolutionFeedback } from '@/services/contributions';
 import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
 import { StatusChip } from '@/components/StatusChip';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
 
@@ -83,7 +84,7 @@ export function HistoryPage() {
       ) : null}
       {!loading && !error && items.length === 0 ? (
         <div className="empty-state">
-          <span>✓</span>
+          <CivicIllustration name="report-clipboard" className="civic-illustration--empty" />
           <h2>{t('history.emptyTitle')}</h2>
           <p>{t('history.emptyBody')}</p>
           <Link className="button" to="/report">

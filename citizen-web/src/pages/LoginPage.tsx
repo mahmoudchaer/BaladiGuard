@@ -5,6 +5,7 @@ import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { ApiError } from '@/services/api';
 import { requestOtp } from '@/services/citizenAuth';
 import { CountryRegionSelect } from '@/components/CountryRegionSelect';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { consumePhoneChangedNotice } from '@/services/phoneChangeNotice';
 
@@ -94,9 +95,7 @@ export function LoginPage() {
   return (
     <section className="auth-layout page-enter">
       <div className="auth-hero" aria-hidden="true">
-        <div className="hero-orbit">
-          <span>✓</span>
-        </div>
+        <CivicIllustration name="privacy-verified" className="civic-illustration--auth" priority />
         <p>{t('auth.hero')}</p>
       </div>
       <div className="auth-card glass-card">

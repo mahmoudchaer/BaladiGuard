@@ -1,0 +1,37 @@
+.civic-illustration {
+  display: block;
+  width: min(100%, 18rem);
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.civic-illustration--hero {
+  width: min(100%, 34rem);
+}
+
+.civic-illustration--empty {
+  width: min(100%, 10rem);
+  margin-inline: auto;
+}
+
+.civic-illustration--success {
+  width: min(100%, 20rem);
+  margin-inline: auto;
+}
+
+.civic-illustration--auth {
+  width: min(82%, 25rem);
+  margin-inline: auto;
+}
+
+@media (max-width: 720px) {
+  .civic-illustration--hero {
+    width: min(100%, 22rem);
+  }
+
+  .civic-illustration--auth {
+    width: min(72%, 15rem);
+  }
+}

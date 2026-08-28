@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { StatusChip } from '@/components/StatusChip';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { getHistory } from '@/services/contributions';
@@ -84,7 +85,7 @@ function CitizenHome() {
       ) : null}
       {!error && reports.length === 0 ? (
         <div className="empty-state compact">
-          <span>✓</span>
+          <CivicIllustration name="report-clipboard" className="civic-illustration--empty" />
           <h2>{t('home.emptyTitle')}</h2>
           <p>{t('home.emptyBody')}</p>
         </div>
@@ -136,7 +137,11 @@ function PublicHome() {
           <p className="helper">{t('home.phoneHint')}</p>
         </div>
         <div className="hero-symbol" aria-hidden>
-          <div>⌖</div>
+          <CivicIllustration
+            name="citizen-reporting"
+            className="civic-illustration--hero"
+            priority
+          />
           <span>
             <i /> {t('home.builtFor')}
           </span>

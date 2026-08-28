@@ -11,18 +11,6 @@
   background: var(--color-bg-elevated);
 }
 
-.empty-state__icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 50%;
-  background: var(--lb-red-soft);
-  color: var(--lb-red);
-  border: 1px solid #f0b8c0;
-}
-
 .empty-state__title {
   margin: 0;
   font-size: 1.1rem;

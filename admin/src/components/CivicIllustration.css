@@ -1,0 +1,13 @@
+.admin-civic-illustration {
+  display: block;
+  width: min(100%, 10rem);
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.admin-civic-illustration--auth {
+  width: min(38vw, 30rem);
+  max-height: 72vh;
+}

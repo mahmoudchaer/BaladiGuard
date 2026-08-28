@@ -4,6 +4,7 @@ import { useStaffAuth } from '@/auth/useStaffAuth';
 import { homePathForRole } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { useI18n } from '@/i18n/LocaleProvider';
 import '@/components/BrandMark.css';
 import './LoginPage.css';
@@ -83,6 +84,9 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
+      <div className="login-page__art" aria-hidden="true">
+        <CivicIllustration name="workforce" className="admin-civic-illustration--auth" priority />
+      </div>
       <section className="login-panel" aria-labelledby="login-title">
         <div className="login-panel__brand">
           <span className="login-panel__logo" aria-hidden="true">

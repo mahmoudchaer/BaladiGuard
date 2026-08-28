@@ -12,6 +12,7 @@ import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { buildLoginHref } from '@/auth/returnTo';
 import { StatusChip } from '@/components/StatusChip';
 import { ResolutionFeedbackCard } from '@/components/ResolutionFeedbackCard';
@@ -200,6 +201,7 @@ export default function CitizenTicketHistoryScreen() {
 
         {!isInitialLoading && items.length === 0 && !errorMessage ? (
           <View style={styles.emptyState} testID="history-empty">
+            <CivicIllustration name="report-clipboard" style={styles.emptyArtwork} />
             <Text variant="titleMedium" style={styles.emptyTitle}>
               {t('history.emptyTitle')}
             </Text>
@@ -346,9 +348,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[8],
   },
   emptyState: {
+    alignItems: 'center',
     gap: spacing[2],
     paddingVertical: spacing[4],
   },
+  emptyArtwork: { width: 148, height: 120 },
   emptyTitle: {
     fontWeight: '700',
     color: colors.text,

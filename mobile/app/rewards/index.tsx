@@ -5,6 +5,7 @@ import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCitizenAuth } from '@/auth';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { buildLoginHref } from '@/auth/returnTo';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { getMyRewards, type CitizenRewards } from '@/services/api/rewards';
@@ -131,6 +132,7 @@ function RewardsBody({ data }: { data: CitizenRewards }) {
       </View>
       {data.confirmedPoints === 0 ? (
         <View style={styles.notice}>
+          <CivicIllustration name="community-contribution" style={styles.emptyArtwork} />
           <Text style={styles.section}>{t('rewards.emptyTitle')}</Text>
           <Text style={styles.hint}>{t('rewards.emptyBody')}</Text>
         </View>
@@ -176,4 +178,5 @@ const styles = StyleSheet.create({
   section: { fontWeight: '700', color: colors.brandDark, marginTop: spacing[2] },
   hint: { color: colors.textMuted },
   error: { color: colors.danger },
+  emptyArtwork: { width: 148, height: 120 },
 });

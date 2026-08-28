@@ -4,6 +4,7 @@ import { ActivityIndicator, Button, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useI18n } from '@/i18n/LocaleProvider';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { getLeaderboard, type PublicLeaderboard, type RewardsPeriod } from '@/services/api/rewards';
 import { colors, radii, spacing } from '@/theme';
 
@@ -67,6 +68,7 @@ export default function LeaderboardScreen() {
         ) : null}
         {!loading && !items.length && !error ? (
           <View style={styles.card}>
+            <CivicIllustration name="community-contribution" style={styles.emptyArtwork} />
             <Text style={styles.section}>{t('leaderboard.emptyTitle')}</Text>
             <Text style={styles.lede}>{t('leaderboard.emptyBody')}</Text>
           </View>
@@ -105,4 +107,5 @@ const styles = StyleSheet.create({
     gap: spacing[2],
   },
   error: { color: colors.danger },
+  emptyArtwork: { width: 150, height: 124 },
 });

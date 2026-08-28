@@ -5,6 +5,7 @@ import { Link, type Href } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 
 import { useI18n } from '@/i18n/LocaleProvider';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
@@ -33,6 +34,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
 
   return (
     <View style={styles.container}>
+      <CivicIllustration name="report-resolved" style={styles.successArtwork} />
       <Text variant="headlineSmall" style={styles.title}>
         {t('report.submitted')}
       </Text>
@@ -121,6 +123,7 @@ const styles = StyleSheet.create({
     gap: spacing[5],
     padding: spacing[5],
   },
+  successArtwork: { width: 176, height: 146 },
   title: {
     fontWeight: '700',
     color: colors.text,

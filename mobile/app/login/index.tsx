@@ -6,6 +6,7 @@ import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-route
 import { useCitizenAuth } from '@/auth';
 import { sanitizeReturnTo } from '@/auth/returnTo';
 import { BrandMark, BrandStripe } from '@/components/BrandMark';
+import { CivicIllustration } from '@/components/CivicIllustration';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -45,6 +46,9 @@ export default function LoginScreen() {
             <BrandStripe />
             <BrandMark size={32} />
           </View>
+          {!challenge ? (
+            <CivicIllustration name="privacy-verified" style={styles.loginArtwork} />
+          ) : null}
           {challenge ? (
             <OtpVerifyForm
               challengeId={challenge.challengeId}
@@ -95,5 +99,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[2],
     marginBottom: spacing[5],
+  },
+  loginArtwork: {
+    width: 150,
+    height: 122,
+    marginBottom: spacing[3],
   },
 });

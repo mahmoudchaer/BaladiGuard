@@ -34,6 +34,8 @@
 }
 
 .login-panel {
+  position: relative;
+  z-index: 1;
   width: min(100%, 28rem);
   padding: 1.85rem 1.75rem 1.5rem;
   border: 1px solid rgb(255 255 255 / 28%);
@@ -43,6 +45,27 @@
     0 18px 48px rgb(8 30 20 / 35%),
     0 1px 0 rgb(255 255 255 / 55%) inset;
   backdrop-filter: blur(10px);
+}
+
+.login-page__art {
+  position: absolute;
+  inset-inline-start: max(3vw, calc(50% - 38rem));
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 900px) {
+  .login-panel {
+    margin-inline-start: min(36vw, 32rem);
+  }
+}
+
+@media (max-width: 899px) {
+  .login-page__art {
+    display: none;
+  }
 }
 
 .login-panel__brand {
