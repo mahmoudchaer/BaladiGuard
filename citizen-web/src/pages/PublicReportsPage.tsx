@@ -232,7 +232,8 @@ export function PublicReportsPage() {
                 <span className="muted">{formatCategory(report.category)}</span>
                 <p>{report.description}</p>
                 <span className="muted tile-location">
-                  <BrandMark className="tile-location__mark" size={16} /> {report.location.addressText}
+                  <BrandMark className="tile-location__mark" size={16} />{' '}
+                  {report.location.addressText}
                 </span>
               </Link>
             </article>
