@@ -17,7 +17,6 @@ import {
   saveDraft,
 } from '@/services/reportDraft';
 import type { SubmitTicketResponse } from '@/types/ticket';
-import { BrandMark } from '@/components/BrandMark';
 import { CopyButton } from '@/components/CopyButton';
 import { useI18n } from '@/i18n/LocaleProvider';
 
@@ -350,7 +349,7 @@ export function ReportPage() {
             onClick={() => void getDeviceLocation()}
           >
             <span aria-hidden className="location-button__mark">
-              <BrandMark size={28} />
+              ⌖
             </span>
             <span>
               <strong>{locating ? t('report.validating') : t('report.useCurrent')}</strong>

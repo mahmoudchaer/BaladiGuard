@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getHistory, submitResolutionFeedback } from '@/services/contributions';
 import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
-import { BrandMark } from '@/components/BrandMark';
 import { StatusChip } from '@/components/StatusChip';
 import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -97,8 +96,8 @@ export function HistoryPage() {
           {items.map((item) => (
             <article className="history-row" key={item.trackingCode}>
               <Link className="history-row tactile" to={`/track?trackingCode=${item.trackingCode}`}>
-                <span className="history-glyph">
-                  <BrandMark size={40} />
+                <span className="history-glyph" aria-hidden>
+                  ⌖
                 </span>
                 <div className="history-copy">
                   <strong>{label(item.category, t('history.generalReport'))}</strong>

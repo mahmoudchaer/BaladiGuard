@@ -61,7 +61,7 @@ function CitizenHome() {
           <small>{t('home.trackHint')}</small>
         </Link>
         <Link className="quick-card tactile" to="/map">
-          <BrandMark size={28} />
+          <span aria-hidden>⌖</span>
           <strong>{t('home.nearby')}</strong>
           <small>{t('home.browseReports')}</small>
         </Link>
@@ -98,8 +98,8 @@ function CitizenHome() {
               key={report.trackingCode}
               to={`/track?trackingCode=${report.trackingCode}`}
             >
-              <span className="history-glyph">
-                <BrandMark size={40} />
+              <span className="history-glyph" aria-hidden>
+                ⌖
               </span>
               <div className="history-copy">
                 <strong>{translateCategory(report.category)}</strong>
@@ -129,8 +129,8 @@ function PublicHome() {
           </h1>
           <p className="lede">{t('home.publicLede')}</p>
           <div className="button-row home-auth-actions">
-            <Link className="button button-large" to="/login">
-              {t('common.signIn')}
+            <Link className="button button-large" to="/report">
+              {t('home.reportCta')}
             </Link>
             <Link className="button button-secondary button-large" to="/reports">
               {t('home.continueGuest')}

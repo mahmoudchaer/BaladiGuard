@@ -95,7 +95,11 @@ export function AppShell() {
             >
               <ProfileAvatarContent fullName={auth.profile?.fullName} />
             </button>
-          ) : null}
+          ) : (
+            <NavLink className="button nav-sign-in" to="/login">
+              {t('common.signIn')}
+            </NavLink>
+          )}
           <LanguageSwitcher compact />
         </nav>
       </header>

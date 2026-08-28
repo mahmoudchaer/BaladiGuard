@@ -69,9 +69,10 @@
 }
 
 .language-switcher__option {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
-  min-height: 2.5rem;
+  min-height: 44px;
   padding: 0.45rem 0.75rem;
   border: 0;
   border-radius: 10px;
@@ -84,7 +85,8 @@
 }
 
 .language-switcher__option:hover,
-.language-switcher__option:focus-visible {
+.language-switcher__option:focus-visible,
+.language-switcher__option--active {
   background: #eef7f1;
   outline: none;
 }
