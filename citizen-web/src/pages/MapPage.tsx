@@ -129,7 +129,7 @@ export function MapPage() {
         {data?.truncated ? <p className="muted">{t('public.grouped')}</p> : null}
         {!loading && data && data.markers.length === 0 && data.clusters.length === 0 ? (
           <div className="empty-state compact">
-            <span>⌖</span>
+            <span aria-hidden>⌖</span>
             <h2>{t('public.noReports')}</h2>
             <p>{t('public.emptyMap')}</p>
           </div>

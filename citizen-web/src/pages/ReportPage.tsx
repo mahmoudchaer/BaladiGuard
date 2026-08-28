@@ -348,7 +348,9 @@ export function ReportPage() {
             type="button"
             onClick={() => void getDeviceLocation()}
           >
-            <span aria-hidden>⌖</span>
+            <span aria-hidden className="location-button__mark">
+              ⌖
+            </span>
             <span>
               <strong>{locating ? t('report.validating') : t('report.useCurrent')}</strong>
               <small>{t('report.useCurrentHint')}</small>
