@@ -74,9 +74,7 @@ export function LanguageSwitcher({ compact = false }: LanguageSwitcherProps) {
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setActiveIndex(
-        (index) => (index - 1 + SUPPORTED_LOCALES.length) % SUPPORTED_LOCALES.length,
-      );
+      setActiveIndex((index) => (index - 1 + SUPPORTED_LOCALES.length) % SUPPORTED_LOCALES.length);
       return;
     }
     if (event.key === 'Home') {
