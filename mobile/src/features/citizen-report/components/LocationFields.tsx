@@ -3,7 +3,7 @@ import { ActivityIndicator, Button, Chip, HelperText, Text, TextInput } from 're
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { Controller, useWatch } from 'react-hook-form';
 import { useEffect, useRef, useState } from 'react';
-import MapView, { Marker, type MapPressEvent, type Region } from 'react-native-maps';
+import type { MapPressEvent, Region } from 'react-native-maps';
 
 import { PLACEHOLDER_LOCATIONS } from '@/constants/locations';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -15,6 +15,18 @@ import {
   locationSourceForMapPin,
   validateLocation,
 } from '@/services/api/locations';
+
+const testNativeMaps =
+  process.env.NODE_ENV === 'test'
+    ? ({ default: 'MapView', Marker: 'Marker' } as unknown as typeof import('react-native-maps'))
+    : null;
+const nativeMaps =
+  testNativeMaps ??
+  (Platform.OS === 'web'
+    ? null
+    : (require('react-native-maps') as typeof import('react-native-maps')));
+const NativeMapView = nativeMaps?.default;
+const NativeMarker = nativeMaps?.Marker;
 
 type LocationFieldsProps = {
   control: Control<ReportFormValues>;
@@ -264,7 +276,7 @@ export function LocationFields({
 
       {hasPin ? (
         <View style={styles.confirmedBlock}>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === 'web' || !NativeMapView || !NativeMarker ? (
             <View style={styles.mapPlaceholder}>
               <Text variant="labelLarge">{t('report.mapPicker')}</Text>
               <Text variant="bodySmall" style={styles.mapText}>
@@ -273,7 +285,7 @@ export function LocationFields({
             </View>
           ) : (
             <View style={styles.mapContainer}>
-              <MapView
+              <NativeMapView
                 style={styles.map}
                 initialRegion={mapRegion}
                 region={mapRegion}
@@ -281,7 +293,7 @@ export function LocationFields({
                   void handleMapPress(event);
                 }}
               >
-                <Marker
+                <NativeMarker
                   coordinate={{
                     latitude: latitude as number,
                     longitude: longitude as number,
@@ -289,7 +301,7 @@ export function LocationFields({
                   title={t('report.reportLocation')}
                   description={addressText}
                 />
-              </MapView>
+              </NativeMapView>
               <Text variant="bodySmall" style={styles.mapHint}>
                 {t('report.tapMap')}
               </Text>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +13,18 @@ import { formatCategoryLabel } from '@/theme/labels';
 import type { PublicTicketResponse } from '@/types/ticket';
 import { openInMapsApp } from '@/utils/openMaps';
 import { isValidMapCoordinate } from '@/utils/publicMapClustering';
+
+const testNativeMaps =
+  process.env.NODE_ENV === 'test'
+    ? ({ default: 'MapView', Marker: 'Marker' } as unknown as typeof import('react-native-maps'))
+    : null;
+const nativeMaps =
+  testNativeMaps ??
+  (Platform.OS === 'web'
+    ? null
+    : (require('react-native-maps') as typeof import('react-native-maps')));
+const NativeMapView = nativeMaps?.default;
+const NativeMarker = nativeMaps?.Marker;
 
 export default function PublicReportDetailScreen() {
   const { t } = useI18n();
@@ -100,25 +111,37 @@ export default function PublicReportDetailScreen() {
             />
 
             <View style={styles.mapWrap}>
-              <MapView
-                style={styles.map}
-                initialRegion={{
-                  latitude: report.mapLocation.latitude,
-                  longitude: report.mapLocation.longitude,
-                  latitudeDelta: 0.025,
-                  longitudeDelta: 0.025,
-                }}
-              >
-                <Marker
-                  coordinate={{
+              {NativeMapView && NativeMarker ? (
+                <NativeMapView
+                  style={styles.map}
+                  initialRegion={{
                     latitude: report.mapLocation.latitude,
                     longitude: report.mapLocation.longitude,
+                    latitudeDelta: 0.025,
+                    longitudeDelta: 0.025,
                   }}
-                  title={report.ticketNumber}
-                  description={report.mapLocation.addressText}
-                  pinColor={colors.status[report.status]?.fg ?? colors.brand}
-                />
-              </MapView>
+                >
+                  <NativeMarker
+                    coordinate={{
+                      latitude: report.mapLocation.latitude,
+                      longitude: report.mapLocation.longitude,
+                    }}
+                    title={report.ticketNumber}
+                    description={report.mapLocation.addressText}
+                    pinColor={colors.status[report.status]?.fg ?? colors.brand}
+                  />
+                </NativeMapView>
+              ) : (
+                <View style={styles.webMapFallback}>
+                  <Text variant="titleSmall" style={styles.webMapTitle}>
+                    {report.mapLocation.addressText || report.location.addressText}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.metaText}>
+                    {report.mapLocation.latitude.toFixed(5)},{' '}
+                    {report.mapLocation.longitude.toFixed(5)}
+                  </Text>
+                </View>
+              )}
               <Button
                 mode="contained"
                 icon="map-marker-outline"
@@ -222,6 +245,19 @@ const styles = StyleSheet.create({
   },
   map: {
     height: 220,
+  },
+  webMapFallback: {
+    minHeight: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing[4],
+    gap: spacing[2],
+    backgroundColor: colors.brandSoft,
+  },
+  webMapTitle: {
+    color: colors.brandDark,
+    textAlign: 'center',
+    fontWeight: '700',
   },
   mapsButton: {
     marginHorizontal: spacing[3],

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View, Text as RNText } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  Text as RNText,
+} from 'react-native';
+import type MapView from 'react-native-maps';
+import type { Region } from 'react-native-maps';
 import { Button, Text } from 'react-native-paper';
 
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -16,6 +25,18 @@ import {
   regionForReports,
   type PublicMapRegion,
 } from '@/utils/publicMapClustering';
+
+const testNativeMaps =
+  process.env.NODE_ENV === 'test'
+    ? ({ default: 'MapView', Marker: 'Marker' } as unknown as typeof import('react-native-maps'))
+    : null;
+const nativeMaps =
+  testNativeMaps ??
+  (Platform.OS === 'web'
+    ? null
+    : (require('react-native-maps') as typeof import('react-native-maps')));
+const NativeMapView = nativeMaps?.default;
+const NativeMarker = nativeMaps?.Marker;
 
 type PublicReportsMapProps = {
   reports: PublicTicketResponse[];
@@ -98,9 +119,36 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
     );
   }
 
+  if (!NativeMapView || !NativeMarker) {
+    return (
+      <View style={styles.webMapFallback} testID="public-reports-map">
+        <Text variant="bodySmall" style={styles.webMapHint} testID="public-map-list-hint">
+          {t('explore.mapHint')}
+        </Text>
+        {plottable.slice(0, 6).map(({ report }) => (
+          <Pressable
+            key={report.ticketNumber}
+            accessibilityRole="button"
+            accessibilityLabel={t('explore.publicReportA11y', {
+              ticketNumber: report.ticketNumber,
+            })}
+            onPress={() => onOpenReport(report.ticketNumber)}
+            style={styles.webLocationButton}
+            testID={`public-map-marker-${report.ticketNumber}`}
+          >
+            <Text style={styles.webTicketNumber}>{report.ticketNumber}</Text>
+            <Text style={styles.webAddress} numberOfLines={1}>
+              {report.location.addressText}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.mapWrap} testID="public-reports-map">
-      <MapView
+      <NativeMapView
         ref={mapRef}
         style={styles.map}
         initialRegion={region}
@@ -112,7 +160,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
         {features.map((feature) => {
           if (feature.kind === 'single') {
             return (
-              <Marker
+              <NativeMarker
                 key={feature.id}
                 coordinate={{
                   latitude: feature.latitude,
@@ -133,7 +181,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
           const points = partitionPlottableReports(feature.reports).plottable;
           const mayExpand = clusterCanExpandByZoom(points);
           return (
-            <Marker
+            <NativeMarker
               key={feature.id}
               coordinate={{
                 latitude: feature.latitude,
@@ -154,10 +202,10 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
               >
                 <RNText style={styles.clusterCount}>{feature.count}</RNText>
               </View>
-            </Marker>
+            </NativeMarker>
           );
         })}
-      </MapView>
+      </NativeMapView>
       <Text variant="bodySmall" style={styles.mapHint} testID="public-map-list-hint">
         {t('explore.mapHint')}
       </Text>
@@ -251,6 +299,31 @@ const styles = StyleSheet.create({
   },
   emptyMapText: {
     color: colors.textSecondary,
+  },
+  webMapFallback: {
+    padding: spacing[4],
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    gap: spacing[2],
+  },
+  webMapHint: {
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing[1],
+  },
+  webLocationButton: {
+    minHeight: touchTargetMin,
+    padding: spacing[3],
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  webTicketNumber: {
+    color: colors.brandDark,
+    fontWeight: '700',
+  },
+  webAddress: {
+    color: colors.textMuted,
+    fontSize: 12,
   },
   clusterBubble: {
     minWidth: 36,

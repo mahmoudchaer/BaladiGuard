@@ -370,7 +370,16 @@ export function TicketListPage() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : t('errors.loadTickets'));
+        const message = error instanceof Error ? error.message : t('errors.loadTickets');
+        if (cursor && /cursor/i.test(message) && /invalid/i.test(message)) {
+          cursorHistoryRef.current = [];
+          setCanGoPrevious(false);
+          setNextCursor(null);
+          setCursor(null);
+          setIsRefreshing(false);
+          return;
+        }
+        setErrorMessage(message);
         if (isInitialLoad) {
           setLoadState('error');
         }
