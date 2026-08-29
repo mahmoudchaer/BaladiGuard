@@ -16,6 +16,7 @@ from app.core.metrics import recent_metric_samples
 from app.core.staff_auth import StaffPrincipal
 from app.database.store_factory import (
     get_ai_job_store,
+    get_content_safety_job_store,
     get_notification_delivery_store,
     get_ops_alert_ack_store,
     get_ops_audit_store,
@@ -152,6 +153,7 @@ def _health_summary(settings: Settings) -> HealthSummary:
 def _worker_summaries(now: int) -> list[WorkerQueueSummary]:
     ai_jobs = get_ai_job_store().list()
     redaction_jobs = get_redaction_job_store().list()
+    safety_jobs = get_content_safety_job_store().list()
     deliveries = []
     store = get_notification_delivery_store()
     list_all = getattr(store, "list_all", None)
@@ -175,6 +177,11 @@ def _worker_summaries(now: int) -> list[WorkerQueueSummary]:
     redaction_errors = [
         sanitize_ops_text(getattr(job, "last_error_code", None), max_len=80)
         for job in redaction_jobs
+        if job.status == "dead_lettered"
+    ]
+    safety_errors = [
+        sanitize_ops_text(getattr(job, "last_error_code", None), max_len=80)
+        for job in safety_jobs
         if job.status == "dead_lettered"
     ]
     return [
@@ -226,8 +233,14 @@ def _worker_summaries(now: int) -> list[WorkerQueueSummary]:
         WorkerQueueSummary(
             kind="moderation",
             label="Content safety",
-            deployed=False,
-            lastErrorCode=None,
+            deployed=True,
+            pending=sum(job.status == "queued" for job in safety_jobs),
+            running=sum(job.status == "running" for job in safety_jobs),
+            succeeded=sum(job.status == "succeeded" for job in safety_jobs),
+            deadLettered=sum(job.status == "dead_lettered" for job in safety_jobs),
+            oldestAgeSeconds=_age(safety_jobs, {"queued", "running"}),
+            retries=sum(job.attempts for job in safety_jobs),
+            lastErrorCode=next((code for code in safety_errors if code), None),
         ),
     ]
 
@@ -262,6 +275,21 @@ def _safe_jobs(*, job_type: str | None = None) -> list[SafeJobRow]:
                     updatedAt=job.updated_at,
                     lastErrorCode=sanitize_ops_text(job.last_error_code, max_len=80),
                     replayable=job.status == "dead_lettered",
+                )
+            )
+    if job_type in {None, "moderation"}:
+        for job in get_content_safety_job_store().list():
+            rows.append(
+                SafeJobRow(
+                    jobId=job.job_id,
+                    kind="moderation",
+                    ticketId=hash_identifier(job.ticket_id),
+                    status=job.status,
+                    attempts=job.attempts,
+                    createdAt=job.created_at,
+                    updatedAt=job.updated_at,
+                    lastErrorCode=sanitize_ops_text(job.last_error_code, max_len=80),
+                    replayable=False,
                 )
             )
     rows.sort(key=lambda row: row.updated_at, reverse=True)

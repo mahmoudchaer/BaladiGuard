@@ -22,6 +22,15 @@ TASK_DEFINITION_FIELDS = {
     "ephemeralStorage", "runtimePlatform",
 }
 
+BACKEND_TASK_FAMILIES = (
+    "migration",
+    "api",
+    "ai-worker",
+    "redaction-worker",
+    "content-safety-worker",
+)
+BACKEND_SERVICES = ("api", "ai-worker", "redaction-worker", "content-safety-worker")
+
 
 def aws(*args: str) -> dict[str, Any]:
     try:
@@ -271,11 +280,11 @@ def main() -> int:
         raise ValueError("--image must be an immutable digest")
     families = {
         name: f"baladiguard-{args.environment}-{name}"
-        for name in ("migration", "api", "ai-worker", "redaction-worker")
+        for name in BACKEND_TASK_FAMILIES
     }
     previous: dict[str, str] = {}
     promoted: dict[str, str] = {}
-    services = ["api", "ai-worker", "redaction-worker"]
+    services = list(BACKEND_SERVICES)
     try:
         # Snapshot the currently-running task definitions BEFORE registering new ones.
         previous = running_task_definition_arns(args.cluster, services, healthy_only=True)

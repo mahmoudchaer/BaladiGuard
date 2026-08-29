@@ -17,6 +17,7 @@ import unittest
 from unittest.mock import ANY, patch
 
 from deploy_backend import (
+    BACKEND_SERVICES,
     TASK_DEFINITION_FIELDS,
     aws,
     collect_stabilization_diagnostics,
@@ -151,6 +152,7 @@ class RunningTaskDefinitionArnsTests(unittest.TestCase):
             _make_service("api", "arn:aws:ecs:...:task-definition/baladiguard-staging-api:12"),
             _make_service("ai-worker", "arn:aws:ecs:...:task-definition/baladiguard-staging-ai-worker:8"),
             _make_service("redaction-worker", "arn:aws:ecs:...:task-definition/baladiguard-staging-redaction-worker:5"),
+            _make_service("content-safety-worker", "arn:aws:ecs:...:task-definition/baladiguard-staging-content-safety-worker:3"),
         ]
 
         def fake_aws(*args):
@@ -159,12 +161,13 @@ class RunningTaskDefinitionArnsTests(unittest.TestCase):
             return {}
 
         with patch("deploy_backend.aws", side_effect=fake_aws):
-            result = running_task_definition_arns("test-cluster", ["api", "ai-worker", "redaction-worker"])
+            result = running_task_definition_arns("test-cluster", list(BACKEND_SERVICES))
 
         self.assertEqual(result, {
             "api": "arn:aws:ecs:...:task-definition/baladiguard-staging-api:12",
             "ai-worker": "arn:aws:ecs:...:task-definition/baladiguard-staging-ai-worker:8",
             "redaction-worker": "arn:aws:ecs:...:task-definition/baladiguard-staging-redaction-worker:5",
+            "content-safety-worker": "arn:aws:ecs:...:task-definition/baladiguard-staging-content-safety-worker:3",
         })
 
     def test_handles_empty_services_list(self):
@@ -498,6 +501,7 @@ class MainRollbackTests(unittest.TestCase):
         running_api_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-api:12"
         running_ai_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-ai-worker:8"
         running_redaction_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-redaction-worker:5"
+        running_safety_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-content-safety-worker:3"
 
         # The family tip might be revision 15 (from a previous Terraform apply),
         # but the service is still running revision 12.
@@ -507,6 +511,8 @@ class MainRollbackTests(unittest.TestCase):
                                       "arn:aws:ecs:...:task-definition/baladiguard-staging-ai-worker:10")
         family_tip_redaction = self._make_td("baladiguard-staging-redaction-worker", 7,
                                              "arn:aws:ecs:...:task-definition/baladiguard-staging-redaction-worker:7")
+        family_tip_safety = self._make_td("baladiguard-staging-content-safety-worker", 4,
+                                          "arn:aws:ecs:...:task-definition/baladiguard-staging-content-safety-worker:4")
         family_tip_migration = self._make_td("baladiguard-staging-migration", 3,
                                              "arn:aws:ecs:...:task-definition/baladiguard-staging-migration:3")
 
@@ -530,6 +536,7 @@ class MainRollbackTests(unittest.TestCase):
                     _make_service("api", running_api_arn),
                     _make_service("ai-worker", running_ai_arn),
                     _make_service("redaction-worker", running_redaction_arn),
+                    _make_service("content-safety-worker", running_safety_arn),
                 ]}
             if cmd == ("ecs", "describe-task-definition"):
                 family = args[2]
@@ -537,6 +544,7 @@ class MainRollbackTests(unittest.TestCase):
                     "baladiguard-staging-api": family_tip_api,
                     "baladiguard-staging-ai-worker": family_tip_ai,
                     "baladiguard-staging-redaction-worker": family_tip_redaction,
+                    "baladiguard-staging-content-safety-worker": family_tip_safety,
                     "baladiguard-staging-migration": family_tip_migration,
                 }
                 return {"taskDefinition": td_map.get(family, family_tip_api)}
@@ -569,6 +577,7 @@ class MainRollbackTests(unittest.TestCase):
         self.assertEqual(all_updates.get("api"), running_api_arn)
         self.assertEqual(all_updates.get("ai-worker"), running_ai_arn)
         self.assertEqual(all_updates.get("redaction-worker"), running_redaction_arn)
+        self.assertEqual(all_updates.get("content-safety-worker"), running_safety_arn)
 
     def test_initial_deployment_failure_does_not_restore_non_running_placeholder(self):
         """A first release must preserve its real error, not roll back to a dead placeholder."""
@@ -580,7 +589,7 @@ class MainRollbackTests(unittest.TestCase):
             if cmd == ("ecs", "describe-services"):
                 return {"services": [
                     {"serviceName": name, "taskDefinition": f"arn:...:{name}:1", "runningCount": 0}
-                    for name in ("api", "ai-worker", "redaction-worker")
+                    for name in BACKEND_SERVICES
                 ]}
             if cmd == ("ecs", "describe-task-definition"):
                 return {"taskDefinition": td}
@@ -608,6 +617,7 @@ class MainRollbackTests(unittest.TestCase):
         running_api_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-api:12"
         running_ai_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-ai-worker:8"
         running_redaction_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-redaction-worker:5"
+        running_safety_arn = "arn:aws:ecs:...:task-definition/baladiguard-staging-content-safety-worker:3"
 
         td = _make_task_def()
         update_service_calls = []
@@ -623,12 +633,14 @@ class MainRollbackTests(unittest.TestCase):
                         _make_service("api", running_api_arn),
                         _make_service("ai-worker", running_ai_arn),
                         _make_service("redaction-worker", running_redaction_arn),
+                        _make_service("content-safety-worker", running_safety_arn),
                     ]}
                 # Post-deploy verification: services run the promoted revisions.
                 return {"services": [
                     _make_service("api", "arn:...:new"),
                     _make_service("ai-worker", "arn:...:new"),
                     _make_service("redaction-worker", "arn:...:new"),
+                    _make_service("content-safety-worker", "arn:...:new"),
                 ]}
             if cmd == ("ecs", "describe-task-definition"):
                 return {"taskDefinition": td}
@@ -654,15 +666,16 @@ class MainRollbackTests(unittest.TestCase):
             self.assertIn("readiness endpoint", str(ctx.exception))
 
         # Rollback should have been called with running ARNs.
-        # 3 promote calls (new ARNs) + 3 rollback calls (running ARNs).
-        self.assertEqual(len(update_service_calls), 6)
+        service_count = len(BACKEND_SERVICES)
+        self.assertEqual(len(update_service_calls), service_count * 2)
         # service name at index 5, task-definition ARN at index 7
-        promote_targets = {c[5]: c[7] for c in update_service_calls[0:3]}
-        rollback_targets = {c[5]: c[7] for c in update_service_calls[3:6]}
+        promote_targets = {c[5]: c[7] for c in update_service_calls[0:service_count]}
+        rollback_targets = {c[5]: c[7] for c in update_service_calls[service_count:]}
         self.assertNotEqual(promote_targets.get("api"), running_api_arn)
         self.assertEqual(rollback_targets.get("api"), running_api_arn)
         self.assertEqual(rollback_targets.get("ai-worker"), running_ai_arn)
         self.assertEqual(rollback_targets.get("redaction-worker"), running_redaction_arn)
+        self.assertEqual(rollback_targets.get("content-safety-worker"), running_safety_arn)
 
     def test_migration_failure_prevents_update_service(self):
         """When migration fails, update_service should NOT be called for promotion."""
@@ -670,6 +683,7 @@ class MainRollbackTests(unittest.TestCase):
             "api": "arn:...:api:12",
             "ai-worker": "arn:...:ai-worker:8",
             "redaction-worker": "arn:...:redaction-worker:5",
+            "content-safety-worker": "arn:...:content-safety-worker:3",
         }
         td = _make_task_def()
         update_service_calls = []
@@ -703,7 +717,7 @@ class MainRollbackTests(unittest.TestCase):
 
         # All update_service calls should be rollback only (no promotion).
         # service name at index 5, task-definition ARN at index 7.
-        self.assertEqual(len(update_service_calls), 3)
+        self.assertEqual(len(update_service_calls), len(BACKEND_SERVICES))
         for c in update_service_calls:
             service, td_arn = c[5], c[7]
             self.assertEqual(

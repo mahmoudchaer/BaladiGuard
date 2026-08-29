@@ -118,6 +118,12 @@ make content-safety-worker
 python -m app.workers.content_safety_worker --once
 ```
 
+Staging and production run the same command as an ECS Fargate service
+(`content-safety-worker`) next to `ai-worker` and `redaction-worker`. The
+task role can call Bedrock `InvokeModel` (Nova text screening) and
+Rekognition `DetectModerationLabels`. The authenticity ONNX model is already
+baked into the backend image.
+
 Create the DynamoDB table with `make db-migrate` (`content-safety-jobs`).
 
 Threshold rationale, 311/Nextdoor/marketplace patterns, and FP/FN sampling
