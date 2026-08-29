@@ -196,8 +196,8 @@ _RUNBOOKS: tuple[RunbookEntry, ...] = (
         summary="The content-safety worker failed a job or is not processing the queue.",
         steps=[
             "Check ECS service content-safety-worker and /ecs/<env>/content-safety-worker logs.",
-            "Confirm Bedrock InvokeModel and Rekognition DetectModerationLabels are allowed on the task role.",
-            "Keep public eligibility fail-closed; do not publish tickets that are still pending or review_required.",
+            "Confirm the task role allows Bedrock InvokeModel and Rekognition moderation.",
+            "Keep public eligibility fail-closed for pending or review_required tickets.",
             "Use staff content-safety review only for exception tickets, not as the default path.",
         ],
         url=f"{RUNBOOK_BASE}#moderation",
