@@ -100,7 +100,7 @@ export async function getPublicTickets({
   signal,
 }: PublicTicketListOptions = {}): Promise<PublicTicketListResponse> {
   if (config.useMockData) {
-    return getPublicTicketsMock({ limit });
+    return getPublicTicketsMock({ limit, cursor, q, status, category });
   }
 
   const params = new URLSearchParams({ limit: String(limit) });
@@ -196,10 +196,17 @@ export async function getPublicMapViewport(
   };
 }
 
-export async function getPublicTicketByNumber(ticketNumber: string): Promise<PublicTicketResponse> {
+export async function getPublicTicketByNumber(
+  ticketNumber: string,
+  options?: { signal?: AbortSignal },
+): Promise<PublicTicketResponse> {
   const normalized = ticketNumber.trim().toUpperCase();
   if (!normalized) {
     throw new Error(PUBLIC_TICKET_NOT_FOUND_MESSAGE);
+  }
+
+  if (options?.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
   }
 
   if (config.useMockData) {
@@ -210,8 +217,12 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
   try {
     response = await fetch(apiUrl(`/tickets/public/${encodeURIComponent(normalized)}`), {
       method: 'GET',
+      signal: options?.signal,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     if (isOfflineError(error)) {
       throw new Error(PUBLIC_TICKET_NETWORK_MESSAGE, { cause: error });
     }
@@ -326,10 +337,29 @@ const MOCK_PUBLIC: PublicTicketResponse[] = [
   },
 ];
 
-function getPublicTicketsMock({ limit = 20 }: { limit?: number }): PublicTicketListResponse {
+function getPublicTicketsMock({
+  limit = 20,
+  cursor,
+  q,
+  status,
+  category,
+}: PublicTicketListOptions): PublicTicketListResponse {
+  let items = MOCK_PUBLIC.map(sanitizePublicTicket);
+  const needle = q?.trim().toLowerCase();
+  if (needle) {
+    items = items.filter((item) =>
+      [item.ticketNumber, item.description, item.location.addressText, item.category]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }
+  if (status) items = items.filter((item) => item.status === status);
+  if (category) items = items.filter((item) => item.category === category);
+  const start = cursor ? Number.parseInt(cursor, 10) || 0 : 0;
+  const slice = items.slice(start, start + limit);
   return {
-    items: MOCK_PUBLIC.slice(0, limit).map(sanitizePublicTicket),
-    nextCursor: null,
+    items: slice,
+    nextCursor: start + limit < items.length ? String(start + limit) : null,
     limit,
   };
 }

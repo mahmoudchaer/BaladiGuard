@@ -66,6 +66,10 @@ const TARGETS = {
     'pages/NotificationLinkPage.tsx',
     'components/PublicPhoto.tsx',
     'components/PublicReportsMap.tsx',
+    'components/AppShell.tsx',
+    'components/StatusChip.tsx',
+    'App.tsx',
+    'auth/ProtectedRoute.tsx',
   ],
 };
 

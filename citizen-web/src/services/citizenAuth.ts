@@ -1,4 +1,4 @@
-import { apiError, apiFetch, jsonRequest } from '@/services/api';
+import { ApiError, apiError, apiFetch, jsonRequest } from '@/services/api';
 import type {
   CitizenDeleteResponse,
   CitizenProfile,
@@ -13,11 +13,22 @@ export async function requestOtp(
   region: string,
   purpose: 'LOGIN_OR_SIGNUP' | 'CHANGE_PHONE' = 'LOGIN_OR_SIGNUP',
 ): Promise<OtpChallenge> {
-  return jsonRequest(
-    '/citizen/auth/otp/request',
-    { method: 'POST', body: JSON.stringify({ phone, region, purpose }) },
-    'Unable to send a verification code right now.',
-  );
+  const send = () =>
+    jsonRequest<OtpChallenge>(
+      '/citizen/auth/otp/request',
+      { method: 'POST', body: JSON.stringify({ phone, region, purpose }) },
+      'Unable to send a verification code right now.',
+    );
+  try {
+    return await send();
+  } catch (error) {
+    // A phone change revokes the prior cookie. The API expires stale citizen
+    // cookies on 401; retry login once after the browser applies that header.
+    if (purpose === 'LOGIN_OR_SIGNUP' && error instanceof ApiError && error.status === 401) {
+      return send();
+    }
+    throw error;
+  }
 }
 
 export async function verifyOtp(

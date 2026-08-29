@@ -41,6 +41,9 @@ describe('citizen-web i18n', () => {
       expect(t('common.lookUp').length).toBeGreaterThan(0);
       expect(t('track.invalid').length).toBeGreaterThan(0);
       expect(t('errors.generic').length).toBeGreaterThan(0);
+      expect(t('a11y.skipToContent').length).toBeGreaterThan(0);
+      expect(t('statusMeaning.IN_PROGRESS').length).toBeGreaterThan(0);
+      expect(t('nextAction.RESOLVED').length).toBeGreaterThan(0);
       expect(isRtlLocale()).toBe(locale === 'ar');
     }
   });

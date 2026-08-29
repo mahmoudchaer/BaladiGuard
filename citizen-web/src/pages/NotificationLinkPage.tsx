@@ -11,9 +11,10 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { loginPath } from '@/auth/returnTo';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
-import { t } from '@/i18n';
+import { useI18n } from '@/i18n/LocaleProvider';
 
 export function NotificationLinkPage() {
+  const { t } = useI18n();
   const { code } = useParams<{ code?: string }>();
   const { isAuthenticated, isLoading } = useCitizenAuth();
   const normalized = normalizeTrackingCode(code ?? '');

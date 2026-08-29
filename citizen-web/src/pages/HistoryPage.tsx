@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getHistory, submitResolutionFeedback } from '@/services/contributions';
 import type { CitizenTicketHistoryItem, ResolutionFeedbackStatus } from '@/types/ticket';
-import { translateCategory, translateStatus } from '@/i18n';
+import { StatusChip } from '@/components/StatusChip';
+import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 function label(value: string | null, fallback: string): string {
@@ -95,15 +96,15 @@ export function HistoryPage() {
           {items.map((item) => (
             <article className="history-row" key={item.trackingCode}>
               <Link className="history-row tactile" to={`/track?trackingCode=${item.trackingCode}`}>
-                <span className="history-glyph">⌖</span>
+                <span className="history-glyph" aria-hidden>
+                  ⌖
+                </span>
                 <div className="history-copy">
                   <strong>{label(item.category, t('history.generalReport'))}</strong>
                   <span>{item.locationAddress}</span>
                   <small>{new Date(item.submittedAt).toLocaleDateString(locale)}</small>
                 </div>
-                <span className={`status status-${item.status.toLowerCase().replace('_', '-')}`}>
-                  {translateStatus(item.status)}
-                </span>
+                <StatusChip status={item.status} />
                 <span aria-hidden>›</span>
               </Link>
               {item.canSubmitResolutionFeedback || item.resolutionFeedbackStatus ? (

@@ -13,7 +13,7 @@ TF_VARS = TF_DIR / "variables.tf"
 STAGING_TFVARS = TF_DIR / "environments" / "staging.tfvars.example"
 PRODUCTION_TFVARS = TF_DIR / "environments" / "production.tfvars.example"
 
-BACKEND_TASKS = ("api", "ai-worker", "redaction-worker", "migration")
+BACKEND_TASKS = ("api", "ai-worker", "redaction-worker", "content-safety-worker", "migration")
 
 
 def _parse_tfvars(path: Path) -> dict[str, str]:
@@ -44,6 +44,13 @@ class TerraformAllowedHostsTests(unittest.TestCase):
         )
         self.assertIsNotNone(secrets_block)
         self.assertNotIn("ALLOWED_HOSTS", secrets_block.group(1))
+
+    def test_content_safety_worker_is_wired_like_other_workers(self) -> None:
+        text = TF_MAIN.read_text(encoding="utf-8")
+        self.assertIn('{ name = "CONTENT_SAFETY_ENABLED", value = "true" }', text)
+        self.assertIn('content-safety-worker = ["python", "-m", "app.workers.content_safety_worker"]', text)
+        self.assertIn("rekognition:DetectModerationLabels", text)
+        self.assertIn('toset(["ai-worker", "redaction-worker", "content-safety-worker"])', text)
 
     def test_staging_and_production_examples_supply_api_hostnames(self) -> None:
         staging = _parse_tfvars(STAGING_TFVARS)

@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import { config } from '@/services/config';
 
 type ApiErrorBody = { error?: { code?: string; message?: string } };
@@ -34,11 +35,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     if (response.status === 401) unauthorizedHandler?.();
     return response;
   } catch {
-    throw new ApiError(
-      'You appear to be offline. Check your connection and try again.',
-      0,
-      'OFFLINE',
-    );
+    throw new ApiError(t('errors.network'), 0, 'OFFLINE');
   }
 }
 
