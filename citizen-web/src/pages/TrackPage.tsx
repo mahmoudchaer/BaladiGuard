@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { CopyButton } from '@/components/CopyButton';
+import { StatusChip } from '@/components/StatusChip';
 import {
   TRACK_LOOKUP_INVALID_MESSAGE,
   TRACK_LOOKUP_NETWORK_MESSAGE,
@@ -8,7 +10,12 @@ import {
 } from '@/services/tickets';
 import type { CitizenTicketResponse } from '@/types/ticket';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
-import { translateCategory, translateStatus } from '@/i18n';
+import {
+  describeNextAction,
+  describeStatusMeaning,
+  translateCategory,
+  translateStatus,
+} from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
 
 function localizeTrackError(message: string, translate: (key: string) => string): string {
@@ -26,10 +33,12 @@ export function TrackPage() {
   const [result, setResult] = useState<CitizenTicketResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [lookedUp, setLookedUp] = useState(Boolean(initial));
   const didAutoLookup = useRef(false);
 
   async function lookup(value: string) {
     const normalized = normalizeTrackingCode(value);
+    setLookedUp(true);
     if (!isValidTrackingCode(normalized)) {
       setResult(null);
       setError(t('track.invalid'));
@@ -89,6 +98,14 @@ export function TrackPage() {
         </button>
       </form>
 
+      {!lookedUp && !result && !error ? (
+        <div className="empty-state compact">
+          <span>▦</span>
+          <h2>{t('track.emptyTitle')}</h2>
+          <p>{t('track.emptyBody')}</p>
+        </div>
+      ) : null}
+
       {error ? (
         <div className="error-banner" role="alert">
           {error}
@@ -97,13 +114,16 @@ export function TrackPage() {
 
       {result ? (
         <article className="panel stack" data-testid="track-result">
-          <span className="badge">{translateStatus(result.status)}</span>
+          <StatusChip status={result.status} />
           <h2 className="ltr-isolate" style={{ margin: 0 }}>
             {result.ticketNumber ?? t('track.reportFallback')}
           </h2>
-          <p className="muted ltr-isolate" style={{ margin: 0 }}>
-            {t('track.codeValue', { code: result.trackingCode })}
-          </p>
+          <div className="track-code-row">
+            <p className="muted ltr-isolate" style={{ margin: 0 }}>
+              {t('track.codeValue', { code: result.trackingCode })}
+            </p>
+            <CopyButton value={result.trackingCode} label={t('track.copyCode')} />
+          </div>
           <p style={{ margin: 0 }}>
             {translateCategory(result.category)}
             {result.location?.addressText ? ` · ${result.location.addressText}` : ''}
@@ -113,6 +133,12 @@ export function TrackPage() {
               {t('common.department', { name: result.department.name })}
             </p>
           ) : null}
+          <div className="track-guidance">
+            <strong>{t('track.whatItMeans')}</strong>
+            <p style={{ margin: 0 }}>{describeStatusMeaning(result.status)}</p>
+            <strong>{t('track.whatHappensNext')}</strong>
+            <p style={{ margin: 0 }}>{describeNextAction(result.status)}</p>
+          </div>
           {result.outcomeMessage ? (
             <p data-testid="track-outcome" style={{ margin: 0 }}>
               {result.outcomeMessage}
@@ -120,7 +146,7 @@ export function TrackPage() {
           ) : null}
           <div>
             <h3 style={{ margin: '0 0 0.5rem' }}>{t('track.timeline')}</h3>
-            <ol style={{ margin: 0, paddingLeft: '1.2rem' }}>
+            <ol style={{ margin: 0, paddingInlineStart: '1.2rem' }}>
               {result.timeline.map((entry) => (
                 <li key={`${entry.status}-${entry.changedAt}`}>
                   {translateStatus(entry.status)} —{' '}

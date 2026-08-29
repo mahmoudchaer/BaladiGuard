@@ -31,23 +31,39 @@ function formatDepartments(
   return ids.map((id) => names[id] ?? id).join(', ');
 }
 
-function countLine(
-  counts: WorkloadSnapshot['unassigned'],
-  translate: (key: string, vars?: Record<string, string | number>) => string,
-): string {
-  return translate('workforce.countLine', {
-    queued: counts.queued,
-    assigned: counts.assigned,
-    inProgress: counts.inProgress,
-    dueSoon: counts.dueSoon,
-    overdue: counts.overdue,
-    completed: counts.completed ?? 0,
-    cancelled: counts.cancelled ?? 0,
-  });
-}
-
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function WorkloadMetrics({
+  counts,
+  includeClosed = false,
+}: {
+  counts: WorkloadSnapshot['unassigned'];
+  includeClosed?: boolean;
+}) {
+  const { t } = useI18n();
+  const metrics = [
+    ['queued', counts.queued],
+    ['assigned', counts.assigned],
+    ['inProgress', counts.inProgress],
+    ['dueSoon', counts.dueSoon],
+    ['overdue', counts.overdue],
+    ...(includeClosed
+      ? [
+          ['completed', counts.completed ?? 0],
+          ['cancelled', counts.cancelled ?? 0],
+        ]
+      : []),
+  ] as Array<[string, number]>;
+
+  return (
+    <ul className="workforce-counts" aria-label={t('workforce.workload')}>
+      {metrics.map(([label, count]) => (
+        <li key={label}>{t(`workforce.${label}`, { count })}</li>
+      ))}
+    </ul>
+  );
 }
 
 function DepartmentChecklist({
@@ -255,6 +271,9 @@ export function WorkforcePage() {
   }
 
   async function handleToggleWorker(workerId: string, active: boolean) {
+    if (!active && !window.confirm(t('workforce.confirmDeactivateWorker'))) {
+      return;
+    }
     try {
       setErrorMessage(null);
       await setWorkerActive(workerId, active);
@@ -265,6 +284,9 @@ export function WorkforcePage() {
   }
 
   async function handleToggleTeam(teamId: string, active: boolean) {
+    if (!active && !window.confirm(t('workforce.confirmDeactivateTeam'))) {
+      return;
+    }
     try {
       setErrorMessage(null);
       await setTeamActive(teamId, active);
@@ -354,7 +376,9 @@ export function WorkforcePage() {
                       ))}
                     </select>
                   </label>
-                  <button type="submit">{t('workforce.addWorker')}</button>
+                  <button type="submit" className="workforce-button workforce-button--primary">
+                    {t('workforce.addWorker')}
+                  </button>
                 </form>
               )}
               <table className="workforce-table">
@@ -409,14 +433,25 @@ export function WorkforcePage() {
                         <>
                           <td>{worker.displayName}</td>
                           <td>{formatDepartments(worker.departmentIds, departmentNames)}</td>
-                          <td>{worker.active ? t('workforce.active') : t('workforce.inactive')}</td>
+                          <td>
+                            <span
+                              className={`workforce-status workforce-status--${worker.active ? 'active' : 'inactive'}`}
+                            >
+                              {worker.active ? t('workforce.active') : t('workforce.inactive')}
+                            </span>
+                          </td>
                           {isAdmin ? (
                             <td>
-                              <button type="button" onClick={() => startEditWorker(worker)}>
+                              <button
+                                type="button"
+                                className="workforce-button workforce-button--secondary"
+                                onClick={() => startEditWorker(worker)}
+                              >
                                 {t('workforce.edit')}
                               </button>
                               <button
                                 type="button"
+                                className={`workforce-button ${worker.active ? 'workforce-button--danger' : 'workforce-button--primary'}`}
                                 onClick={() =>
                                   void handleToggleWorker(worker.workerId, !worker.active)
                                 }
@@ -466,7 +501,9 @@ export function WorkforcePage() {
                       ))}
                     </select>
                   </label>
-                  <button type="submit">{t('workforce.addTeam')}</button>
+                  <button type="submit" className="workforce-button workforce-button--primary">
+                    {t('workforce.addTeam')}
+                  </button>
                 </form>
               )}
               <table className="workforce-table">
@@ -474,7 +511,7 @@ export function WorkforcePage() {
                   <tr>
                     <th>{t('workforce.name')}</th>
                     <th>{t('workforce.members')}</th>
-                    <th>{t('workforce.teamLead', { defaultValue: 'Team lead' })}</th>
+                    <th>{t('workforce.teamLead')}</th>
                     <th>{t('workforce.status')}</th>
                     {isAdmin ? <th>{t('workforce.actions')}</th> : null}
                   </tr>
@@ -526,11 +563,11 @@ export function WorkforcePage() {
                               ))}
                             </fieldset>
                             <label>
-                              {t('workforce.teamLead', { defaultValue: 'Team lead' })}
+                              {t('workforce.teamLead')}
                               <select
                                 value={editTeamLeadId}
                                 onChange={(event) => setEditTeamLeadId(event.target.value)}
-                                aria-label={t('workforce.teamLead', { defaultValue: 'Team lead' })}
+                                aria-label={t('workforce.teamLead')}
                               >
                                 <option value="">{t('workforce.none')}</option>
                                 {workers
@@ -562,14 +599,25 @@ export function WorkforcePage() {
                               ? (workerLookup[team.leadWorkerId] ?? team.leadWorkerId)
                               : t('workforce.none')}
                           </td>
-                          <td>{team.active ? t('workforce.active') : t('workforce.inactive')}</td>
+                          <td>
+                            <span
+                              className={`workforce-status workforce-status--${team.active ? 'active' : 'inactive'}`}
+                            >
+                              {team.active ? t('workforce.active') : t('workforce.inactive')}
+                            </span>
+                          </td>
                           {isAdmin ? (
                             <td>
-                              <button type="button" onClick={() => startEditTeam(team)}>
+                              <button
+                                type="button"
+                                className="workforce-button workforce-button--secondary"
+                                onClick={() => startEditTeam(team)}
+                              >
                                 {t('workforce.edit')}
                               </button>
                               <button
                                 type="button"
+                                className={`workforce-button ${team.active ? 'workforce-button--danger' : 'workforce-button--primary'}`}
                                 onClick={() => void handleToggleTeam(team.teamId, !team.active)}
                               >
                                 {team.active
@@ -592,7 +640,8 @@ export function WorkforcePage() {
           <div className="workforce-page__grid">
             <section className="workforce-card">
               <h2>{t('workforce.unassigned')}</h2>
-              <p>{countLine(workload.unassigned, t)}</p>
+              <p className="workforce-card__description">{t('workforce.unassignedDescription')}</p>
+              <WorkloadMetrics counts={workload.unassigned} includeClosed />
               <ul>
                 {workload.unassignedTickets.map((ticket) => (
                   <li key={ticket.ticketId}>
@@ -604,20 +653,19 @@ export function WorkforcePage() {
             </section>
             {[...workload.workers, ...workload.teams].map((subject) => (
               <section className="workforce-card" key={`${subject.kind}-${subject.id}`}>
-                <h3>
-                  {subject.displayName}{' '}
-                  <small>
-                    ({subject.kind === 'team' ? t('workforce.kindTeam') : t('workforce.kindWorker')}
-                    {subject.active ? '' : t('workforce.inactiveParen')})
-                  </small>
-                </h3>
-                <ul className="workforce-counts">
-                  <li>{t('workforce.queued', { count: subject.counts.queued })}</li>
-                  <li>{t('workforce.assigned', { count: subject.counts.assigned })}</li>
-                  <li>{t('workforce.inProgress', { count: subject.counts.inProgress })}</li>
-                  <li>{t('workforce.dueSoon', { count: subject.counts.dueSoon })}</li>
-                  <li>{t('workforce.overdue', { count: subject.counts.overdue })}</li>
-                </ul>
+                <div className="workforce-card__heading">
+                  <h3>{subject.displayName}</h3>
+                  <span className="workforce-card__type">
+                    {subject.kind === 'team' ? t('workforce.kindTeam') : t('workforce.kindWorker')}
+                    {subject.active ? '' : t('workforce.inactiveParen')}
+                  </span>
+                </div>
+                <p className="workforce-card__description">
+                  {subject.kind === 'team'
+                    ? t('workforce.teamDescription')
+                    : t('workforce.workerDescription')}
+                </p>
+                <WorkloadMetrics counts={subject.counts} />
                 <table className="workforce-table">
                   <tbody>
                     {subject.tickets.map((ticket) => (

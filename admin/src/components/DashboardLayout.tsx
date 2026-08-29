@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
 import { getStaffRoleLabel, isDeveloperOperator } from '@/services/auth';
@@ -64,7 +64,9 @@ export function DashboardLayout({
   subtitle,
   flush = false,
 }: DashboardLayoutProps) {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  const accessDenied = Boolean((location.state as { accessDenied?: boolean } | null)?.accessDenied);
   const navigate = useNavigate();
   const { logout, session } = useStaffAuth();
   const { t } = useI18n();
@@ -97,19 +99,23 @@ export function DashboardLayout({
 
         <nav className="dashboard-rail__nav" aria-label={t('nav.mainNav')}>
           {navItems.map((item) => {
-            const active = isNavActive(pathname, item.to);
+            const active =
+              isNavActive(pathname, item.to) &&
+              !navItems.some(
+                (candidate) =>
+                  candidate.to.length > item.to.length && isNavActive(pathname, candidate.to),
+              );
             return (
-              <NavLink
+              <Link
                 key={item.id}
                 to={item.to}
-                end={item.to === '/'}
                 className={`dashboard-rail__link${active ? ' dashboard-rail__link--active' : ''}`}
                 aria-current={active ? 'page' : undefined}
                 title={item.label}
               >
                 <item.Icon />
                 <span className="dashboard-rail__link-label">{item.label}</span>
-              </NavLink>
+              </Link>
             );
           })}
         </nav>
@@ -177,7 +183,14 @@ export function DashboardLayout({
         <h1 className="sr-only">{resolvedTitle}</h1>
         {resolvedSubtitle ? <p className="sr-only">{resolvedSubtitle}</p> : null}
 
-        <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>{children}</main>
+        <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>
+          {accessDenied ? (
+            <p className="dashboard-access-denied" role="alert">
+              {t('layout.accessDenied')}
+            </p>
+          ) : null}
+          {children}
+        </main>
       </div>
 
       <StaffAssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />

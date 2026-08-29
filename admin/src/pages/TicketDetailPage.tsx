@@ -35,7 +35,6 @@ import {
 import { fetchResolutionFeedback, reviewResolutionFeedback } from '@/services/resolutionFeedback';
 import type { StaffResolutionFeedback } from '@/types/resolutionFeedback';
 import { useI18n } from '@/i18n/LocaleProvider';
-import { useStaffAuth } from '@/auth/useStaffAuth';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -55,7 +54,12 @@ import {
   formatTicketAge,
   SUPPORTED_CATEGORY_OPTIONS,
 } from '@/utils/labels';
-import { DEPARTMENT_OPTIONS, formatDepartment, isKnownDepartmentId } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import {
+  departmentOptionsForSession,
+  formatDepartment,
+  isKnownDepartmentId,
+} from '@/utils/departments';
 import { effectiveTicketCategory } from '@/utils/ticketCategory';
 import { statusToModifier } from '@/utils/statusTheme';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
@@ -246,6 +250,10 @@ export function TicketDetailPage({
   const { ticketId: routeTicketId } = useParams<{ ticketId: string }>();
   const ticketId = ticketIdProp ?? routeTicketId;
   const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const [embeddedSection, setEmbeddedSection] = useState<TicketDetailSection>('review');
   const activeSection = embedded
@@ -1000,6 +1008,9 @@ export function TicketDetailPage({
     try {
       // Bounded projection: no contact, tracking code, storage key, or history.
       const comparison = await fetchDuplicateComparison(sourceTicketId, candidateId);
+      if (currentTicketId.current !== sourceTicketId) {
+        return;
+      }
       if (!comparison) {
         requestedComparisonsRef.current.delete(candidateId);
         setComparisons((current) => ({
@@ -1017,6 +1028,9 @@ export function TicketDetailPage({
         [candidateId]: { status: 'ready', data: comparison },
       }));
     } catch (error) {
+      if (currentTicketId.current !== sourceTicketId) {
+        return;
+      }
       // Allow a retry for this candidate only; other rows stay untouched.
       requestedComparisonsRef.current.delete(candidateId);
       setComparisons((current) => ({
@@ -1275,6 +1289,9 @@ export function TicketDetailPage({
         <div className="ticket-detail-page__error" role="alert">
           <h3>{t('ticket.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button type="button" className="ticket-detail__review-button" onClick={handleRefresh}>
+            {t('common.tryAgain')}
+          </button>
         </div>
       )}
 
@@ -1552,53 +1569,57 @@ export function TicketDetailPage({
                 />
               </div>
 
-              <div className="ticket-detail__card">
+              <div className="ticket-detail__card ticket-detail__routing-card">
                 <h4 className="ticket-detail__card-title">{t('ticket.review.routingTitle')}</h4>
                 <p className="ticket-detail__card-hint">{t('ticket.review.routingHint')}</p>
-                <p className="ticket-detail__current-value">
-                  {ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}
-                  {ticket.municipalityId
-                    ? ` · ${ticket.municipalityId}`
-                    : ` · ${t('ticket.review.unassignedQueue')}`}
-                </p>
+                <div className="ticket-detail__routing-status" role="status">
+                  <span className="ticket-detail__routing-indicator" aria-hidden="true" />
+                  <span>
+                    {ticket.municipalityRouting?.status ?? t('ticket.review.routingPending')}
+                  </span>
+                  <span className="ticket-detail__routing-divider" aria-hidden="true" />
+                  <span>{ticket.municipalityId ?? t('ticket.review.unassignedQueue')}</span>
+                </div>
                 {ticket.municipalityRouting?.decision?.reason ? (
                   <p className="ticket-detail__card-hint">
                     {ticket.municipalityRouting.decision.reason}
                   </p>
                 ) : null}
-                {ticket.municipalityRouting?.canClaim ? (
-                  <button
-                    type="button"
-                    className="ticket-detail__primary-button"
-                    onClick={() => {
-                      void claimTicketMunicipality(ticket.ticketId, {
-                        reasonCode: 'CONFIRMED_GEOGRAPHY',
-                      }).then((next) => {
-                        if (next) setTicket(next);
-                      });
-                    }}
-                  >
-                    {t('ticket.review.claim')}
-                  </button>
-                ) : null}
-                {ticket.municipalityRouting?.canReject ? (
-                  <button
-                    type="button"
-                    className="ticket-detail__secondary-button"
-                    onClick={() => {
-                      const note = window.prompt(t('ticket.review.rejectPrompt'));
-                      if (!note) return;
-                      void rejectTicketMunicipality(ticket.ticketId, {
-                        reasonCode: 'OUT_OF_GEOGRAPHY',
-                        note,
-                      }).then((next) => {
-                        if (next) setTicket(next);
-                      });
-                    }}
-                  >
-                    {t('ticket.review.rejectOwnership')}
-                  </button>
-                ) : null}
+                <div className="ticket-detail__routing-actions">
+                  {ticket.municipalityRouting?.canClaim ? (
+                    <button
+                      type="button"
+                      className="ticket-detail__review-button"
+                      onClick={() => {
+                        void claimTicketMunicipality(ticket.ticketId, {
+                          reasonCode: 'CONFIRMED_GEOGRAPHY',
+                        }).then((next) => {
+                          if (next) setTicket(next);
+                        });
+                      }}
+                    >
+                      {t('ticket.review.claim')}
+                    </button>
+                  ) : null}
+                  {ticket.municipalityRouting?.canReject ? (
+                    <button
+                      type="button"
+                      className="ticket-detail__review-button ticket-detail__review-button--secondary"
+                      onClick={() => {
+                        const note = window.prompt(t('ticket.review.rejectPrompt'));
+                        if (!note) return;
+                        void rejectTicketMunicipality(ticket.ticketId, {
+                          reasonCode: 'OUT_OF_GEOGRAPHY',
+                          note,
+                        }).then((next) => {
+                          if (next) setTicket(next);
+                        });
+                      }}
+                    >
+                      {t('ticket.review.rejectOwnership')}
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="ticket-detail__card">
@@ -1742,7 +1763,7 @@ export function TicketDetailPage({
                         disabled={isSavingDepartment}
                       >
                         <option value="">{t('ticket.review.selectDepartment')}</option>
-                        {DEPARTMENT_OPTIONS.map((department) => (
+                        {departmentOptions.map((department) => (
                           <option key={department.departmentId} value={department.departmentId}>
                             {department.name}
                           </option>
@@ -2120,7 +2141,10 @@ export function TicketDetailPage({
                           type="button"
                           className="ticket-detail__review-button ticket-detail__review-button--secondary"
                           disabled={isMutatingWorkOrder || !workOrderCancelReason}
-                          onClick={() =>
+                          onClick={() => {
+                            if (!window.confirm(t('ticket.workOrder.confirmCancel'))) {
+                              return;
+                            }
                             void runWorkOrderMutation(
                               () =>
                                 cancelWorkOrder(
@@ -2129,8 +2153,8 @@ export function TicketDetailPage({
                                   workOrderNote,
                                 ),
                               t('ticket.workOrder.cancelled'),
-                            )
-                          }
+                            );
+                          }}
                         >
                           {t('ticket.workOrder.cancelWorkOrder')}
                         </button>
@@ -2348,7 +2372,7 @@ export function TicketDetailPage({
                       setSelectedCategory(event.target.value);
                       setCategoryReviewError(null);
                     }}
-                    disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+                    disabled={isSavingCategory}
                   >
                     <option value="">{t('ticket.review.selectCategory')}</option>
                     {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
@@ -2379,11 +2403,7 @@ export function TicketDetailPage({
                       type="button"
                       className="ticket-detail__review-button"
                       onClick={() => void handleCategoryReview(selectedCategory)}
-                      disabled={
-                        isSavingCategory ||
-                        ticket.ai?.aiProcessingStatus === 'pending' ||
-                        !selectedCategory
-                      }
+                      disabled={isSavingCategory || !selectedCategory}
                     >
                       {isSavingCategory
                         ? t('ticket.review.savingCategory')

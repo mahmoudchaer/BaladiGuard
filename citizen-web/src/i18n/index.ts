@@ -86,9 +86,21 @@ export function translateStatus(status: string): string {
 }
 
 export function translateCategory(category: string | null | undefined): string {
-  if (!category) {
-    return t('category.general');
+  if (!category || category === 'pending_classification') {
+    return category === 'pending_classification'
+      ? t('status.pendingCategory')
+      : t('category.general');
   }
   const translated = t(`category.${category}`);
   return translated !== `category.${category}` ? translated : category.replaceAll('_', ' ');
+}
+
+export function describeStatusMeaning(status: string): string {
+  const translated = t(`statusMeaning.${status}`);
+  return translated !== `statusMeaning.${status}` ? translated : t('statusMeaning.unknown');
+}
+
+export function describeNextAction(status: string): string {
+  const translated = t(`nextAction.${status}`);
+  return translated !== `nextAction.${status}` ? translated : t('nextAction.unknown');
 }

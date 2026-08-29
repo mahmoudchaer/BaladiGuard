@@ -7,7 +7,7 @@ import { LocaleProvider } from '@/i18n/LocaleProvider';
 import { getLocale } from '@/i18n';
 
 describe('LanguageSwitcher', () => {
-  it('switches locale with accessible radio names', async () => {
+  it('shows the current language and switches locale from the dropdown', async () => {
     const user = userEvent.setup();
     render(
       <LocaleProvider>
@@ -15,12 +15,39 @@ describe('LanguageSwitcher', () => {
       </LocaleProvider>,
     );
 
-    expect(screen.getByRole('radiogroup')).toBeInTheDocument();
-    await user.click(screen.getByTestId('language-option-ar'));
+    const trigger = screen.getByRole('combobox', { name: 'English' });
+    expect(trigger).toHaveTextContent('English');
+    await user.click(trigger);
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Arabic' }));
     expect(getLocale()).toBe('ar');
     expect(document.documentElement.dir).toBe('rtl');
-    await user.click(screen.getByTestId('language-option-en'));
-    expect(getLocale()).toBe('en');
-    expect(document.documentElement.dir).toBe('ltr');
+    expect(screen.getByRole('combobox')).toHaveTextContent('العربية');
+  });
+
+  it('supports keyboard open, escape, select, and focus return', async () => {
+    const user = userEvent.setup();
+    render(
+      <LocaleProvider>
+        <LanguageSwitcher />
+      </LocaleProvider>,
+    );
+
+    const trigger = screen.getByRole('combobox', { name: 'English' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'English' })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Enter}');
+    expect(getLocale()).toBe('ar');
+    expect(document.documentElement.dir).toBe('rtl');
+    expect(screen.getByRole('combobox')).toHaveFocus();
   });
 });

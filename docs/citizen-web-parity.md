@@ -1,10 +1,16 @@
-# Citizen web parity matrix (issue #265)
+# Citizen web parity matrix (issues #265 / #314)
 
 Behavioral parity with the mobile citizen app through the **same backend
 contracts**, not pixel-for-pixel native UI. Language, RTL, and translated
 validation copy are owned by [#259](https://github.com/mahmoudchaer/BaladiGuard/issues/259)
 (`docs/localization.md`). This issue consumes that allowlist (`en` / `ar` / `fr`)
 and does not fork catalogs.
+
+Sprint 8 issue [#314](https://github.com/mahmoudchaer/BaladiGuard/issues/314)
+owns production-readiness refinement of the already-shipped web client: shared
+terminology and status meaning, navigation completeness, empty/retry states,
+localized chrome, contribution gating, and removal of leftover stub surfaces.
+The codebases remain independent; mobile is the product reference.
 
 Agreed responsive widths: **phone 390px**, **tablet 768px**, **desktop 1024px**.
 Agreed browser E2E subset: Playwright against the **built/served SPA** and a
@@ -34,7 +40,10 @@ and the 390 / 768 / 1024 viewports. CI runs that subset as
 | Drafts / retries | Yes | Yes — IndexedDB + memory fallback | Guest draft 24h; migrate after OTP |
 | Resolution feedback | Yes | Yes — history row actions | `CONFIRMED_FIXED` / `STILL_UNRESOLVED` |
 | Privacy copy | Yes | Yes — `/privacy` | Public projection boundaries |
-| Logout | Yes | Yes — profile | Clears cookie session; optional draft retain |
+| Logout | Yes | Yes — profile | Clears cookie session; optional draft retain via in-page dialog |
+| Status meaning / next action | Yes — track | Yes — `/track` | Shared `statusMeaning` / `nextAction` copy |
+| Contribution-ready gate | Yes | Yes — `/report` | Blocks submit when `contributionReady` is false |
+| Explore while signed in | Yes — tab | Yes — header Explore | Web also keeps map/list as separate routes |
 
 ## Intentionally deferred native-only capabilities
 
@@ -55,7 +64,8 @@ These remain mobile-only on purpose. They are not web gaps.
 Verified on home, public browse/map/detail, track, login OTP, report, history,
 profile, and `/t/:code`:
 
-- Skip link to `#main-content`, landmarks (`banner` / `navigation` / `main` / `contentinfo`), one `h1` per page
+- Skip link to `#main-content` (localized), landmarks (`banner` / `navigation` / `main` / `contentinfo`), one `h1` per page
+- Compact disclosure navigation below 768px; 44×44px minimum targets on primary controls
 - Visible `:focus-visible` rings and 44×44px minimum targets on primary controls
 - Status and urgency use text labels, not color alone
 - Public map stays geographically LTR under Arabic RTL (#259)
@@ -73,4 +83,5 @@ projections.
 ## Related issues
 
 #253 (redaction), #255 (staff review), #256 (public projection), #257
-(notification links), #258 (resolution feedback), #259 (i18n / RTL).
+(notification links), #258 (resolution feedback), #259 (i18n / RTL),
+#312 (production integration), #314 (Sprint 8 web production-readiness).

@@ -413,8 +413,11 @@ describe('App staff authentication', () => {
     expect(
       await screen.findByRole('heading', { name: 'Municipalities', level: 2 }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Municipalities' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Operations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Municipalities' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Operations' })).not.toHaveAttribute('aria-current');
   });
 
   it('denies municipal staff who enter the staff-account URL directly', async () => {
@@ -423,6 +426,9 @@ describe('App staff authentication', () => {
     expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Staff accounts' })).not.toBeInTheDocument();
     expect(listStaffAccounts).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'You do not have access to that module. You were returned to your home page.',
+    );
   });
 
   it('clears corrupt stored sessions with non-string fields', () => {

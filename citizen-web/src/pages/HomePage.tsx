@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
-import { translateCategory, translateStatus } from '@/i18n';
+import { BrandMark } from '@/components/BrandMark';
+import { StatusChip } from '@/components/StatusChip';
+import { translateCategory } from '@/i18n';
 import { useI18n } from '@/i18n/LocaleProvider';
 import { getHistory } from '@/services/contributions';
 import type { CitizenTicketHistoryItem } from '@/types/ticket';
@@ -24,11 +26,15 @@ function CitizenHome() {
   const { profile } = useCitizenAuth();
   const [reports, setReports] = useState<CitizenTicketHistoryItem[]>([]);
   const [error, setError] = useState(false);
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(false);
     void getHistory(3)
       .then((page) => setReports(page.items))
       .catch(() => setError(true));
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
   const firstName = profile?.fullName?.trim().split(/\s+/)[0];
   const active = reports.filter((item) => !['RESOLVED', 'CLOSED'].includes(item.status)).length;
   return (
@@ -55,7 +61,7 @@ function CitizenHome() {
           <small>{t('home.trackHint')}</small>
         </Link>
         <Link className="quick-card tactile" to="/map">
-          <span>⌖</span>
+          <span aria-hidden>⌖</span>
           <strong>{t('home.nearby')}</strong>
           <small>{t('home.browseReports')}</small>
         </Link>
@@ -69,7 +75,14 @@ function CitizenHome() {
         </div>
         <Link to="/history">{t('home.viewAll')}</Link>
       </div>
-      {error ? <div className="notice notice-info">{t('home.refreshFailed')}</div> : null}
+      {error ? (
+        <div className="notice notice-info">
+          <p>{t('home.refreshFailed')}</p>
+          <button type="button" className="text-button" onClick={load}>
+            {t('common.retry')}
+          </button>
+        </div>
+      ) : null}
       {!error && reports.length === 0 ? (
         <div className="empty-state compact">
           <span>✓</span>
@@ -85,14 +98,14 @@ function CitizenHome() {
               key={report.trackingCode}
               to={`/track?trackingCode=${report.trackingCode}`}
             >
-              <span className="history-glyph">⌖</span>
+              <span className="history-glyph" aria-hidden>
+                ⌖
+              </span>
               <div className="history-copy">
                 <strong>{translateCategory(report.category)}</strong>
                 <span>{report.locationAddress}</span>
               </div>
-              <span className={`status status-${report.status.toLowerCase().replace('_', '-')}`}>
-                {translateStatus(report.status)}
-              </span>
+              <StatusChip status={report.status} />
               <span>›</span>
             </Link>
           ))}
@@ -108,14 +121,14 @@ function PublicHome() {
     <div className="landing-page page-enter">
       <div className="public-hero">
         <div>
-          <span className="eyebrow">{t('home.welcome')}</span>
+          <p className="hero-welcome">{t('home.welcome')}</p>
           <h1>
             {t('home.heroLine1')}
             <br />
             {t('home.heroLine2')}
           </h1>
           <p className="lede">{t('home.publicLede')}</p>
-          <div className="button-row">
+          <div className="button-row home-auth-actions">
             <Link className="button button-large" to="/report">
               {t('home.reportCta')}
             </Link>
@@ -126,10 +139,9 @@ function PublicHome() {
           <p className="helper">{t('home.phoneHint')}</p>
         </div>
         <div className="hero-symbol" aria-hidden>
-          <div>⌖</div>
-          <span>
-            <i /> {t('home.builtFor')}
-          </span>
+          <div className="hero-symbol__plate">
+            <BrandMark className="hero-symbol__mark" size="100%" />
+          </div>
         </div>
       </div>
       <section className="landing-features" aria-label={t('home.howItWorks')}>

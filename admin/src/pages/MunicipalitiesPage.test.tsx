@@ -83,8 +83,22 @@ describe('MunicipalitiesPage', () => {
     expect(screen.getByText(/roads, waste/i)).toBeInTheDocument();
   });
 
+  it('opens and focuses the municipality edit form', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MunicipalitiesPage />, { route: '/ops/municipalities' });
+    await screen.findByRole('heading', { name: 'Beirut Municipality' });
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByRole('heading', { name: 'Edit municipality' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Beirut Municipality');
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveFocus());
+    expect(screen.getByRole('article')).toHaveClass('municipalities-page__card--editing');
+  });
+
   it('provisions the first administrator for a municipality', async () => {
     const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderWithProviders(<MunicipalitiesPage />, { route: '/ops/municipalities' });
     await screen.findByRole('heading', { name: 'Beirut Municipality' });
 
@@ -95,6 +109,9 @@ describe('MunicipalitiesPage', () => {
     await user.type(screen.getByLabelText('Initial password'), 'secret-pass');
     await user.click(screen.getByRole('button', { name: 'Create administrator' }));
 
+    expect(confirm).toHaveBeenCalledWith(
+      'Create a municipality administrator account with this password?',
+    );
     await waitFor(() => {
       expect(provisionMunicipalityAdmin).toHaveBeenCalledWith(beirut.municipalityId, {
         username: 'sidon.admin',
@@ -103,5 +120,23 @@ describe('MunicipalitiesPage', () => {
         password: 'secret-pass',
       });
     });
+    confirm.mockRestore();
+  });
+
+  it('does not provision an administrator when the confirm is cancelled', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderWithProviders(<MunicipalitiesPage />, { route: '/ops/municipalities' });
+    await screen.findByRole('heading', { name: 'Beirut Municipality' });
+
+    await user.selectOptions(screen.getAllByLabelText('Municipality')[0], beirut.municipalityId);
+    await user.type(screen.getByLabelText('Username'), 'sidon.admin');
+    await user.type(screen.getByLabelText('Full name'), 'Sidon Admin');
+    await user.type(screen.getByLabelText('Email'), 'sidon@example.test');
+    await user.type(screen.getByLabelText('Initial password'), 'secret-pass');
+    await user.click(screen.getByRole('button', { name: 'Create administrator' }));
+
+    expect(provisionMunicipalityAdmin).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 });

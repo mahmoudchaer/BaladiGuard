@@ -8,7 +8,7 @@ export function NotFoundPage() {
       <h1>{t('notFound.title')}</h1>
       <div className="panel stack">
         <p style={{ margin: 0, lineHeight: 1.55 }}>{t('notFound.body')}</p>
-        <Link className="button" to="/">
+        <Link className="button" to="/reports">
           {t('notFound.browse')}
         </Link>
         <Link to="/track">{t('notFound.track')}</Link>
