@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, Text } from 'react-native-paper';
 import { Link, type Href } from 'expo-router';
@@ -28,18 +28,23 @@ export function LegalDocumentScreen({
   const [version, setVersion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadGeneration = useRef(0);
 
   const load = async () => {
+    const generation = loadGeneration.current + 1;
+    loadGeneration.current = generation;
     setLoading(true);
     setError(null);
     try {
       const doc = await getLegalDocument(documentId, locale);
+      if (generation !== loadGeneration.current) return;
       setMarkdown(doc.markdown);
       setVersion(doc.version);
     } catch (err) {
+      if (generation !== loadGeneration.current) return;
       setError(err instanceof Error ? err.message : t('legal.loadFailed'));
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   };
 
