@@ -13,6 +13,7 @@ import { getCitizenMe } from '@/services/api/citizenAuth';
 import {
   getPublicTickets,
   getCitizenTicketHistory,
+  submitCitizenResolutionFeedback,
   TICKET_HISTORY_UNAUTHORIZED_MESSAGE,
 } from '@/services/api/tickets';
 import { __getRouterMockState, __resetExpoRouterMock } from '@/test/mocks/expo-router';
@@ -20,7 +21,7 @@ import { __resetSecureStoreMock } from '@/test/mocks/expo-secure-store';
 import { setLocale, t } from '@/i18n';
 import { renderWithProvidersAsync } from '@/test/render';
 import type { CitizenProfile } from '@/types/citizen';
-import type { CitizenTicketHistoryResponse } from '@/types/ticket';
+import type { CitizenResolutionFeedback, CitizenTicketHistoryResponse } from '@/types/ticket';
 
 vi.mock('@/services/api/citizenAuth', async () => {
   const actual = await vi.importActual<typeof import('@/services/api/citizenAuth')>(
@@ -38,6 +39,7 @@ vi.mock('@/services/api/tickets', async () => {
   return {
     ...actual,
     getCitizenTicketHistory: vi.fn(),
+    submitCitizenResolutionFeedback: vi.fn(),
     getPublicTickets: vi.fn(async () => ({ items: [], nextCursor: null, limit: 20 })),
   };
 });
@@ -123,6 +125,7 @@ describe('HistoryScreen', () => {
     __resetSecureStoreMock();
     vi.mocked(getCitizenMe).mockReset();
     vi.mocked(getCitizenTicketHistory).mockReset();
+    vi.mocked(submitCitizenResolutionFeedback).mockReset();
   });
 
   it('shows the history entry point on the signed-in home screen', async () => {
@@ -227,6 +230,113 @@ describe('HistoryScreen', () => {
     expect(screen.root.findByProps({ children: 'AB23CD' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'CD45EF' })).toBeTruthy();
     expect(() => screen.root.findByProps({ testID: 'history-load-more' })).toThrow();
+  });
+
+  it('tracks concurrent feedback submissions per ticket and blocks duplicate requests', async () => {
+    await seedSession();
+    vi.mocked(getCitizenTicketHistory).mockResolvedValue({
+      items: [
+        { ...firstPage.items[0], canSubmitResolutionFeedback: true },
+        { ...secondPage.items[0], canSubmitResolutionFeedback: true },
+      ],
+      nextCursor: null,
+      limit: 20,
+    });
+    const pending = new Map<string, (value: CitizenResolutionFeedback) => void>();
+    vi.mocked(submitCitizenResolutionFeedback).mockImplementation(
+      ({ trackingCode }) =>
+        new Promise((resolve) => {
+          pending.set(trackingCode, resolve);
+        }),
+    );
+
+    const screen = await renderWithProvidersAsync(<HistoryScreen />);
+    await flush();
+    const first = screen.root.findByProps({ testID: 'resolution-feedback-fixed-AB23CD' });
+    const second = screen.root.findByProps({ testID: 'resolution-feedback-fixed-CD45EF' });
+
+    await act(async () => {
+      first.props.onPress();
+      second.props.onPress();
+    });
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-AB23CD' }).props.disabled,
+    ).toBe(true);
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-CD45EF' }).props.disabled,
+    ).toBe(true);
+
+    await act(async () => {
+      first.props.onPress();
+      second.props.onPress();
+    });
+    expect(submitCitizenResolutionFeedback).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      pending.get('AB23CD')?.({
+        trackingCode: 'AB23CD',
+        ticketStatus: 'IN_PROGRESS',
+        canSubmit: false,
+        status: 'CONFIRMED_FIXED',
+        submittedAt: '2026-08-23T09:00:00Z',
+      });
+    });
+    await flush();
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-CD45EF' }).props.disabled,
+    ).toBe(true);
+    expect(submitCitizenResolutionFeedback).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      pending.get('CD45EF')?.({
+        trackingCode: 'CD45EF',
+        ticketStatus: 'SUBMITTED',
+        canSubmit: false,
+        status: 'CONFIRMED_FIXED',
+        submittedAt: '2026-08-23T09:00:00Z',
+      });
+    });
+    await flush();
+  });
+
+  it('keeps concurrent feedback failures on their respective ticket cards', async () => {
+    await seedSession();
+    vi.mocked(getCitizenTicketHistory).mockResolvedValue({
+      items: [
+        { ...firstPage.items[0], canSubmitResolutionFeedback: true },
+        { ...secondPage.items[0], canSubmitResolutionFeedback: true },
+      ],
+      nextCursor: null,
+      limit: 20,
+    });
+    const failures = new Map<string, (error: Error) => void>();
+    vi.mocked(submitCitizenResolutionFeedback).mockImplementation(
+      ({ trackingCode }) =>
+        new Promise((_resolve, reject) => {
+          failures.set(trackingCode, reject);
+        }),
+    );
+
+    const screen = await renderWithProvidersAsync(<HistoryScreen />);
+    await flush();
+
+    await act(async () => {
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-AB23CD' }).props.onPress();
+      screen.root.findByProps({ testID: 'resolution-feedback-fixed-CD45EF' }).props.onPress();
+    });
+
+    await act(async () => {
+      failures.get('AB23CD')?.(new Error('First ticket failed'));
+      failures.get('CD45EF')?.(new Error('Second ticket failed'));
+    });
+    await flush();
+
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-error-AB23CD' }).props.children,
+    ).toBe('First ticket failed');
+    expect(
+      screen.root.findByProps({ testID: 'resolution-feedback-error-CD45EF' }).props.children,
+    ).toBe('Second ticket failed');
   });
 
   it('surfaces load errors without clearing the saved session', async () => {

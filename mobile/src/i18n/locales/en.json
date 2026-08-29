@@ -21,7 +21,7 @@
     "ar": "Arabic",
     "fr": "French",
     "chooser": "Choose language",
-    "hint": "This changes the app language on this device. Report text you write is not translated."
+    "hint": "This changes the app language on this device. Switching to or from Arabic may need an app restart so layout direction updates. Report text you write is not translated."
   },
   "tabs": {
     "home": "Home",
@@ -81,7 +81,10 @@
     "legalAgreeJoin2": ", and ",
     "legalAgreeSuffix": ".",
     "legalRequired": "You must accept the Terms, Privacy Policy, and Acceptable Use Policy to continue.",
-    "legalCheckboxA11y": "Agree to Terms, Privacy Policy, and Acceptable Use"
+    "legalCheckboxA11y": "Agree to Terms, Privacy Policy, and Acceptable Use",
+    "checkingSession": "Checking your session…",
+    "accountBlockedTitle": "This account cannot submit reports",
+    "accountBlockedBody": "Your session is signed in, but this account is inactive or not ready to contribute. Sign out, or contact your municipality if you believe this is a mistake."
   },
   "legal": {
     "termsTitle": "Terms of Service",
@@ -394,6 +397,9 @@
     "trackingCode": "Tracking code",
     "copy": "Copy",
     "copied": "Copied",
+    "copyFailed": "Couldn't copy. Select the code and copy it manually.",
+    "gpsPermissionDenied": "Location permission is required to use your current position.",
+    "gpsUnavailable": "Unable to read your current location right now.",
     "saveCodes": "Save this number and tracking code — you'll need them to follow your report's progress.",
     "trackThis": "Track this report",
     "backHome": "Back to home",
@@ -420,6 +426,7 @@
     "lookUpAnother": "Look up another code",
     "emptyTimeline": "No status updates are available for this report yet.",
     "feedbackFailed": "Unable to submit resolution feedback.",
+    "feedbackLoadFailed": "Unable to load resolution feedback for this report.",
     "openingA11y": "Opening report",
     "opening": "Opening report status…",
     "invalidTitle": "Link cannot be used",

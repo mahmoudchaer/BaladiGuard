@@ -1,0 +1,136 @@
+{
+  "generatedAt": "2026-08-24T16:23:51.083323Z",
+  "scenario": "staff-mutate",
+  "baseUrl": "https://api.staging.baladiguard.site",
+  "concurrency": 4,
+  "durationSeconds": 16.0,
+  "maxRequests": 100,
+  "minIntervalMs": 50.0,
+  "totals": {
+    "requests": 39,
+    "ok2xx": 34,
+    "client4xx": 5,
+    "rateLimited429": 0,
+    "server5xx": 0,
+    "transportErrors": 0
+  },
+  "latencyMs": {
+    "p50": 1208.7207000004128,
+    "p95": 4532.5870000117,
+    "p99": 5155.7218200014895,
+    "mean": 1838.7839435920632,
+    "max": 5321.80309999967
+  },
+  "byName": {
+    "staff_status": {
+      "count": 9,
+      "status_counts": {
+        "200": 4,
+        "400": 5
+      },
+      "latency_ms": {
+        "p50": 855.1714000059292,
+        "p95": 1976.4839600014966,
+        "p99": 2016.0369519970845,
+        "mean": 1238.555144447471
+      }
+    },
+    "staff_list": {
+      "count": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "latency_ms": {
+        "p50": 1212.8785499953665,
+        "p95": 1997.0270999998313,
+        "p99": 2205.6859799998347,
+        "mean": 1345.5774400004884
+      }
+    },
+    "staff_category": {
+      "count": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "latency_ms": {
+        "p50": 1071.7553499998758,
+        "p95": 1247.9128750084783,
+        "p99": 1273.5659350137576,
+        "mean": 1041.8717700027628
+      }
+    },
+    "staff_detail": {
+      "count": 10,
+      "status_counts": {
+        "200": 10
+      },
+      "latency_ms": {
+        "p50": 3491.751399997156,
+        "p95": 5125.127900001826,
+        "p99": 5282.468060000101,
+        "mean": 3669.1085400030715
+      }
+    }
+  },
+  "slosEvaluation": {
+    "submitP95Ms": {
+      "target": 2500,
+      "actual": null,
+      "pass": null
+    },
+    "trackOrListP95Ms": {
+      "target": 800,
+      "actual": 1997.0270999998313,
+      "pass": false
+    },
+    "server5xxRate": {
+      "target": 0.01,
+      "actual": 0.0,
+      "pass": true
+    },
+    "routeCoverage": {
+      "required": {
+        "staff_status": 2,
+        "staff_category": 2,
+        "staff_detail": 2,
+        "staff_list": 2
+      },
+      "actual": {
+        "staff_status": 9,
+        "staff_category": 10,
+        "staff_detail": 10,
+        "staff_list": 10
+      },
+      "missing": {},
+      "pass": true
+    },
+    "aiQueueSamples": {
+      "required": false,
+      "count": 0,
+      "last": null,
+      "maxPending": null,
+      "pass": null
+    }
+  },
+  "createdTicketIdsSample": [
+    "tkt_f913324879024c339986995b1f715d68",
+    "tkt_fe8dc47be2c1416d99010737701a41e6",
+    "tkt_36e612e23b604b3cbda21b29df23668a",
+    "tkt_7290282b43194409ac5d5ab70e91998d",
+    "tkt_fc157bbfcf3342688a0834e7920f84ee",
+    "tkt_7130977bfac0431fb2bbf2b3334c4637"
+  ],
+  "uploadedObjectKeysSample": [],
+  "aiQueueSamples": [],
+  "costDrivers": [
+    "Bedrock per-ticket AI",
+    "DynamoDB RCU/WCU on tickets + GSI",
+    "S3 PUT for report photos",
+    "SES/SNS when real notifications enabled"
+  ],
+  "notes": [
+    "Synthetic/light load only \u2014 see docs/capacity-validation.md",
+    "Email uniqueness is not a product invariant; phone claim races covered in CI.",
+    "Write scenarios post unique synthetic tickets/uploads; clean staging as needed."
+  ]
+}

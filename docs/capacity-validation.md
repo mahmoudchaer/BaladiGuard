@@ -118,6 +118,9 @@ and evaluates SLOs into `slosEvaluation`. It **does not** delete cloud resources
 - DynamoDB throttles / `DynamoDbErrors`  
 - S3 errors (upload scenario / separate `verify_cloud_report_flow.py`)  
 - AI queue depth while synthetic submits run  
+- `CAPACITY_ECS_CLUSTER=baladiguard-staging` adds API, AI-worker, and redaction-worker
+  Container Insights evidence to a deployed run. The collector also records BaladiGuard
+  HTTP throughput/latency, AI queue/provider outcomes, retries, and dead letters.
 - Rate-limit 429 pattern vs policy tables  
 - Provider throttling: mock or SES/SNS sandbox — unit tests already classify `Throttling` as transient  
 

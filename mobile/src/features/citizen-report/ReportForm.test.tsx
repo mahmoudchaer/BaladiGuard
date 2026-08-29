@@ -184,7 +184,6 @@ describe('ReportForm', () => {
     vi.mocked(getCurrentDeviceLocation).mockResolvedValue({
       ok: false,
       reason: 'unavailable',
-      message: 'Unable to read your current location right now.',
     });
     vi.mocked(validateLocation).mockResolvedValue({
       success: true,
@@ -309,6 +308,17 @@ describe('ReportForm', () => {
 
     await pressButton(screen, 'Copy');
     expect(setStringAsyncMock).toHaveBeenCalledWith('ZX98YU');
+  });
+
+  it('surfaces a clipboard failure after a successful submit', async () => {
+    setStringAsyncMock.mockRejectedValueOnce(new Error('denied'));
+    const screen = renderWithProviders(<ReportForm />);
+
+    await completeAllStepsToReview(screen);
+    await pressButton(screen, 'Submit report');
+    await pressButton(screen, 'Copy');
+
+    expect(hasText(screen, "Couldn't copy. Select the code and copy it manually.")).toBe(true);
   });
 
   it('shows the GPS success state when current location is detected', async () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 import { Link, useRouter, type Href } from 'expo-router';
@@ -26,6 +26,7 @@ type ActionProps = {
 };
 
 function Action({ icon, label, detail, onPress, primary = false, testID }: ActionProps) {
+  const { isRtl } = useI18n();
   return (
     <TactilePressable
       onPress={onPress}
@@ -43,30 +44,39 @@ function Action({ icon, label, detail, onPress, primary = false, testID }: Actio
           <Text style={[styles.actionDetail, primary && styles.primaryActionDetail]}>{detail}</Text>
         ) : null}
       </View>
-      <Icon source="chevron-right" size={21} color={primary ? '#C8E9D7' : colors.textMuted} />
+      <Icon
+        source={isRtl ? 'chevron-left' : 'chevron-right'}
+        size={21}
+        color={primary ? '#C8E9D7' : colors.textMuted}
+      />
     </TactilePressable>
   );
 }
 
 export default function HomeScreen() {
-  const { t } = useI18n();
+  const { t, isRtl } = useI18n();
   const router = useRouter();
   const { accessToken, isAuthenticated, isLoading, profile } = useCitizenAuth();
   const [reports, setReports] = useState<CitizenTicketHistoryItem[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState(false);
+  const summaryGeneration = useRef(0);
 
   const loadSummary = useCallback(async () => {
     if (!accessToken) return;
+    const generation = summaryGeneration.current + 1;
+    summaryGeneration.current = generation;
     setSummaryLoading(true);
     setSummaryError(false);
     try {
       const page = await getCitizenTicketHistory({ accessToken, limit: 3 });
+      if (generation !== summaryGeneration.current) return;
       setReports(page.items);
     } catch {
+      if (generation !== summaryGeneration.current) return;
       setSummaryError(true);
     } finally {
-      setSummaryLoading(false);
+      if (generation === summaryGeneration.current) setSummaryLoading(false);
     }
   }, [accessToken]);
 
@@ -118,7 +128,11 @@ export default function HomeScreen() {
                 style={styles.signInButton}
               >
                 <Text style={styles.signInText}>{t('home.signInCreate')}</Text>
-                <Icon source="arrow-right" size={21} color={colors.textInverse} />
+                <Icon
+                  source={isRtl ? 'arrow-left' : 'arrow-right'}
+                  size={21}
+                  color={colors.textInverse}
+                />
               </TactilePressable>
             </Link>
             <Link href={'/explore' as Href} asChild>
@@ -279,7 +293,11 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.reportTrailing}>
                   <StatusChip status={report.status} />
-                  <Icon source="chevron-right" size={18} color={colors.textMuted} />
+                  <Icon
+                    source={isRtl ? 'chevron-left' : 'chevron-right'}
+                    size={18}
+                    color={colors.textMuted}
+                  />
                 </View>
               </TactilePressable>
             ))}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,20 +14,25 @@ export default function LeaderboardScreen() {
   const [page, setPage] = useState<PublicLeaderboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(
     async (next?: string | null) => {
+      const generation = loadGeneration.current + 1;
+      loadGeneration.current = generation;
       setError(null);
       setLoading(true);
       try {
         const result = await getLeaderboard(period, next);
+        if (generation !== loadGeneration.current) return;
         setPage((current) =>
           next && current ? { ...result, items: [...current.items, ...result.items] } : result,
         );
       } catch (err) {
+        if (generation !== loadGeneration.current) return;
         setError(err instanceof Error ? err.message : t('leaderboard.loadFailed'));
       } finally {
-        setLoading(false);
+        if (generation === loadGeneration.current) setLoading(false);
       }
     },
     [period, t],
@@ -59,7 +64,14 @@ export default function LeaderboardScreen() {
             {t('leaderboard.monthly')}
           </Button>
         </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <>
+            <Text style={styles.error}>{error}</Text>
+            <Button mode="outlined" onPress={() => void load()} testID="leaderboard-retry">
+              {t('common.tryAgain')}
+            </Button>
+          </>
+        ) : null}
         {loading && !items.length ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.brand} />

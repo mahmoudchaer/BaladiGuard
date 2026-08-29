@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Text } from 'react-native-paper';
 import { Redirect, useRouter, type Href } from 'expo-router';
@@ -18,16 +18,22 @@ export default function RewardsScreen() {
   const [data, setData] = useState<CitizenRewards | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async () => {
+    const generation = loadGeneration.current + 1;
+    loadGeneration.current = generation;
     setError(null);
     setLoading(true);
     try {
-      setData(await getMyRewards());
+      const next = await getMyRewards();
+      if (generation !== loadGeneration.current) return;
+      setData(next);
     } catch (err) {
+      if (generation !== loadGeneration.current) return;
       setError(err instanceof Error ? err.message : t('rewards.loadFailed'));
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, [t]);
 
@@ -58,7 +64,14 @@ export default function RewardsScreen() {
             <Text style={styles.hint}>{t('common.loading')}</Text>
           </View>
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <>
+            <Text style={styles.error}>{error}</Text>
+            <Button mode="outlined" onPress={() => void load()} testID="rewards-retry">
+              {t('common.tryAgain')}
+            </Button>
+          </>
+        ) : null}
         {data ? <RewardsBody data={data} /> : null}
         <Button mode="contained" onPress={() => router.push('/leaderboard' as Href)}>
           {t('rewards.openLeaderboard')}

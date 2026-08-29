@@ -153,7 +153,11 @@ export function LocationFields({
       const result = await getCurrentDeviceLocation();
       if (!result.ok) {
         if (shouldApplyGpsResult(requestId)) {
-          setGpsHint(result.message);
+          setGpsHint(
+            result.reason === 'permission_denied'
+              ? t('report.gpsPermissionDenied')
+              : t('report.gpsUnavailable'),
+          );
         }
         return;
       }
@@ -477,6 +481,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing[1],
+    direction: 'ltr',
   },
   map: {
     width: '100%',

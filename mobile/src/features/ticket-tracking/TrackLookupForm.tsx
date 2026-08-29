@@ -84,8 +84,13 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
                 trackingCode: ticket.trackingCode,
               }),
             );
-          } catch {
+          } catch (feedbackLoadError) {
             setOwnerFeedback(null);
+            setFeedbackError(
+              feedbackLoadError instanceof Error
+                ? feedbackLoadError.message
+                : t('track.feedbackLoadFailed'),
+            );
           }
         }
       } catch (error) {
@@ -95,7 +100,7 @@ export function TrackLookupForm({ initialTrackingCode }: TrackLookupFormProps) {
         requestInFlight.current = false;
       }
     },
-    [accessToken, isAuthenticated],
+    [accessToken, isAuthenticated, t],
   );
 
   useEffect(() => {
