@@ -17,14 +17,16 @@ import { ProtectedRoute } from '@/auth/ProtectedRoute';
 import { CitizenAuthProvider } from '@/auth/CitizenAuthContext';
 import { LocaleProvider } from '@/i18n/LocaleProvider';
 import { NotificationLinkPage } from '@/pages/NotificationLinkPage';
+import { useI18n } from '@/i18n/LocaleProvider';
 import '@/components/AppShell.css';
 import '@/a11y.css';
 
 function RouteTree() {
+  const { t } = useI18n();
   return (
     <>
       <a className="skip-link" href="#main-content">
-        Skip to main content
+        {t('a11y.skipToContent')}
       </a>
       <Routes>
         <Route element={<AppShell />}>

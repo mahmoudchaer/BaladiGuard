@@ -192,6 +192,10 @@ def test_verified_phone_change_transfers_claim_and_revokes_sessions(
     )
     assert response.status_code == 200, response.text
     assert response.json()["phone"] == "+96171222333"
+    cookie = response.headers.get("set-cookie", "")
+    assert "baladiguard_citizen_session=" in cookie
+    assert "Max-Age=0" in cookie
+    assert "Path=/v1" in cookie
 
     assert citizen_service.get_by_phone("+96170123456") is None
     assert citizen_service.get_by_phone("+96171222333") is not None

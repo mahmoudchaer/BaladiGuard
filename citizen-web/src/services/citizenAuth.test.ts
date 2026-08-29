@@ -36,6 +36,27 @@ describe('citizen web authentication API', () => {
     );
   });
 
+  it('retries login OTP once after the API clears a stale cookie', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } }),
+          { status: 401 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ challengeId: 'chl_2', expiresIn: 300, message: 'Sent' }), {
+          status: 202,
+        }),
+      );
+
+    await expect(requestOtp('70123456', 'LB')).resolves.toMatchObject({
+      challengeId: 'chl_2',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('opts verification into HttpOnly cookie mode and does not need a bearer token', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')

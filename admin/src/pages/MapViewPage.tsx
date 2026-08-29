@@ -53,6 +53,7 @@ export function MapViewPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [viewport, setViewport] = useState<TicketMapViewport | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryEpoch, setRetryEpoch] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(
@@ -219,6 +220,7 @@ export function MapViewPage() {
     openOnly,
     t,
     ticketIds,
+    retryEpoch,
   ]);
 
   const handleViewportChange = useCallback((next: MapBounds) => {
@@ -286,6 +288,9 @@ export function MapViewPage() {
         <div className="map-view-page__error" role="alert">
           <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button type="button" onClick={() => setRetryEpoch((value) => value + 1)}>
+            {t('common.tryAgain')}
+          </button>
         </div>
       )}
 

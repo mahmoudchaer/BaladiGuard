@@ -27,7 +27,7 @@ staff, municipality administrators, and citizens cannot use it.
 | --- | --- | --- |
 | Overview | CloudWatch when AWS is reachable, otherwise the in-process metric buffer + health/queue stores | Environment, version, readiness, traffic, backup, workers |
 | Alerts | CloudWatch `DescribeAlarms` or derived local conditions | Acknowledge is audited; AWS console links are deep-links only |
-| Workers | AI job store, redaction job store, notification deliveries | WhatsApp and content-safety rows stay `deployed: false` until those issues land |
+| Workers | AI, redaction, and content-safety job stores, plus notification deliveries | WhatsApp stays `deployed: false` until that channel lands |
 | Errors | Grouped 5xx / job failures | Request/job ids only — no ticket text, contacts, OTPs, or images |
 | Product | Aggregate ticket/notification counts | No citizen identifiers |
 

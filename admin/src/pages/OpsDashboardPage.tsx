@@ -29,6 +29,19 @@ const JOB_FILTERS: Array<WorkerKind | 'all'> = [
 
 type OpsTab = 'overview' | 'alerts' | 'workers' | 'errors' | 'product';
 
+const JOB_STATUS_KEYS: Record<string, string> = {
+  queued: 'ops.jobStatus.queued',
+  running: 'ops.jobStatus.running',
+  succeeded: 'ops.jobStatus.succeeded',
+  dead_lettered: 'ops.jobStatus.deadLettered',
+};
+
+const JOB_REASON_KEYS: Record<string, string> = {
+  'AI providers returned no usable output.': 'ops.jobReason.noAiOutput',
+  STORAGE_NOT_CONFIGURED: 'ops.jobReason.storageNotConfigured',
+  CLAIM_EXPIRED: 'ops.jobReason.claimExpired',
+};
+
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback;
 }
@@ -113,6 +126,9 @@ export function OpsDashboardPage() {
   }
 
   async function handleReplay(jobId: string) {
+    if (!window.confirm(t('ops.confirmReplay'))) {
+      return;
+    }
     setBusyJob(jobId);
     try {
       await replayOpsJob(jobId);
@@ -157,12 +173,13 @@ export function OpsDashboardPage() {
             </label>
             {overview?.cloudwatchDashboardUrl ? (
               <a
-                className="ops-page__link"
+                className="ops-page__link ops-page__dashboard-link"
                 href={overview.cloudwatchDashboardUrl}
                 target="_blank"
                 rel="noreferrer"
               >
-                {t('ops.openDashboard')}
+                <span>{t('ops.openDashboard')}</span>
+                <span aria-hidden="true">↗</span>
               </a>
             ) : null}
             <button
@@ -327,8 +344,8 @@ export function OpsDashboardPage() {
         ) : null}
 
         {tab === 'workers' ? (
-          <div className="ops-stack">
-            <label className="ops-field">
+          <div className="ops-stack ops-workers">
+            <label className="ops-field ops-workers__filter">
               <span>{t('ops.jobType')}</span>
               <select
                 value={jobType}
@@ -341,12 +358,12 @@ export function OpsDashboardPage() {
                 ))}
               </select>
             </label>
-            <div className="ops-grid">
+            <div className="ops-grid ops-workers__grid">
               {(overview?.workers ?? [])
                 .filter((item) => jobType === 'all' || item.kind === jobType)
                 .map((queue) => (
-                  <article className="ops-card" key={queue.kind}>
-                    <h3>{queue.label}</h3>
+                  <article className="ops-card ops-workers__card" key={queue.kind}>
+                    <h3>{t(`ops.jobKind.${queue.kind}`)}</h3>
                     <p className="ops-metric__value">{queue.pending}</p>
                     <p>
                       {t('ops.deployed')}: {queue.deployed ? t('ops.yes') : t('ops.no')}
@@ -363,7 +380,7 @@ export function OpsDashboardPage() {
                   </article>
                 ))}
             </div>
-            <div className="ops-table-wrap">
+            <div className="ops-table-wrap ops-workers__table">
               <table className="ops-table">
                 <thead>
                   <tr>
@@ -384,15 +401,25 @@ export function OpsDashboardPage() {
                   ) : (
                     jobs.map((job) => (
                       <tr key={job.jobId}>
-                        <td>{job.jobId}</td>
-                        <td>
+                        <td className="ops-workers__job-id" data-label={t('ops.jobId')}>
+                          {job.jobId}
+                        </td>
+                        <td data-label={t('ops.status')}>
                           <span className={`ops-badge ops-badge--${badgeTone(job.status)}`}>
-                            {job.status}
+                            {JOB_STATUS_KEYS[job.status]
+                              ? t(JOB_STATUS_KEYS[job.status])
+                              : job.status}
                           </span>
                         </td>
-                        <td>{job.attempts}</td>
-                        <td>{job.lastErrorCode ?? '—'}</td>
-                        <td>
+                        <td data-label={t('ops.attempts')}>{job.attempts}</td>
+                        <td data-label={t('ops.reason')}>
+                          {job.lastErrorCode
+                            ? JOB_REASON_KEYS[job.lastErrorCode]
+                              ? t(JOB_REASON_KEYS[job.lastErrorCode])
+                              : job.lastErrorCode
+                            : '—'}
+                        </td>
+                        <td data-label={t('ops.actions')}>
                           {job.replayable ? (
                             <button
                               type="button"

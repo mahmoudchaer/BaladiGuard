@@ -142,12 +142,42 @@ describe('citizen web public browsing', () => {
     });
   });
 
+  it('keeps compact navigation hidden until the menu is opened', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const user = userEvent.setup();
+
+    try {
+      renderApp('/reports');
+      const links = document.getElementById('shell-nav-links');
+
+      expect(links).toHaveAttribute('hidden');
+      expect(screen.getByRole('button', { name: 'Open menu' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+
+      expect(links).not.toHaveAttribute('hidden');
+      expect(screen.getByRole('button', { name: 'Close menu' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
+  });
+
   it('opens public detail from the list', async () => {
     const user = userEvent.setup();
     renderApp('/reports');
     await user.click(await screen.findByRole('link', { name: /BG-100001/i }));
     expect(await screen.findByTestId('public-detail')).toBeInTheDocument();
-    expect(getPublicTicketByNumber).toHaveBeenCalledWith('BG-100001');
+    expect(getPublicTicketByNumber).toHaveBeenCalledWith(
+      'BG-100001',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('loads only the visible map viewport', async () => {
@@ -165,7 +195,7 @@ describe('citizen web public browsing', () => {
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Browse public reports' })).toHaveAttribute(
       'href',
-      '/',
+      '/reports',
     );
   });
 
@@ -183,7 +213,9 @@ describe('citizen web public browsing', () => {
     expect(
       await screen.findByRole('heading', { name: 'What needs attention?' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Sign in at submit')).toBeInTheDocument();
+    expect(
+      screen.getByText('You can complete the report now. Sign-in is required before sending.'),
+    ).toBeInTheDocument();
   });
 
   it('exposes privacy copy and stub protected routes', async () => {

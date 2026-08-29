@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingState } from '@/components/LoadingState';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -92,6 +92,8 @@ export function MunicipalitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const editFormRef = useRef<HTMLFormElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [adminForm, setAdminForm] = useState({
     municipalityId: '',
@@ -131,12 +133,24 @@ export function MunicipalitiesPage() {
 
   const selectedOverrideOptions = useMemo(() => items.filter((item) => item.active), [items]);
 
+  function handleEdit(item: MunicipalityProfile) {
+    setEditingId(item.municipalityId);
+    setForm(toInput(item));
+    window.requestAnimationFrame(() => {
+      editFormRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      nameInputRef.current?.focus();
+    });
+  }
+
   async function handleSave(event: FormEvent) {
     event.preventDefault();
+    const payload = toPayload(form);
+    if (editingId && !payload.active && !window.confirm(t('municipalities.confirmDeactivate'))) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const payload = toPayload(form);
       if (editingId) {
         await updateMunicipality(editingId, payload);
       } else {
@@ -154,6 +168,9 @@ export function MunicipalitiesPage() {
 
   async function handleProvision(event: FormEvent) {
     event.preventDefault();
+    if (!window.confirm(t('municipalities.confirmProvision'))) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -192,6 +209,9 @@ export function MunicipalitiesPage() {
 
   async function handleOverride(event: FormEvent) {
     event.preventDefault();
+    if (!window.confirm(t('municipalities.confirmOverride'))) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -227,7 +247,12 @@ export function MunicipalitiesPage() {
         ) : (
           <section className="ops-stack municipalities-page__list">
             {items.map((item) => (
-              <article key={item.municipalityId} className="municipalities-page__card">
+              <article
+                key={item.municipalityId}
+                className={`municipalities-page__card${
+                  editingId === item.municipalityId ? ' municipalities-page__card--editing' : ''
+                }`}
+              >
                 <div>
                   <h3>{item.name}</h3>
                   <p>{item.description}</p>
@@ -243,11 +268,8 @@ export function MunicipalitiesPage() {
                 </div>
                 <button
                   type="button"
-                  className="ops-tabs__tab ops-tabs__tab--active"
-                  onClick={() => {
-                    setEditingId(item.municipalityId);
-                    setForm(toInput(item));
-                  }}
+                  className="municipalities-page__edit"
+                  onClick={() => handleEdit(item)}
                 >
                   {t('municipalities.edit')}
                 </button>
@@ -256,11 +278,12 @@ export function MunicipalitiesPage() {
           </section>
         )}
 
-        <form className="municipalities-page__form" onSubmit={handleSave}>
+        <form ref={editFormRef} className="municipalities-page__form" onSubmit={handleSave}>
           <h3>{editingId ? t('municipalities.editTitle') : t('municipalities.createTitle')}</h3>
           <label className="ops-field">
             {t('municipalities.name')}
             <input
+              ref={nameInputRef}
               required
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}

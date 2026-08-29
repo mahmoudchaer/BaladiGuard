@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DEPARTMENT_OPTIONS } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import { departmentOptionsForSession } from '@/utils/departments';
 import { useI18n } from '@/i18n/LocaleProvider';
 import {
   bulkAssignTicketDepartment,
@@ -37,6 +38,11 @@ export function BulkTicketAssignmentBar({
   onCommitted,
 }: BulkTicketAssignmentBarProps) {
   const { t } = useI18n();
+  const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [mode, setMode] = useState<BulkMode>('department');
   const [departmentId, setDepartmentId] = useState('');
   const [workforceValue, setWorkforceValue] = useState('');
@@ -189,7 +195,7 @@ export function BulkTicketAssignmentBar({
               }}
             >
               <option value="">{t('tickets.bulk.chooseDepartment')}</option>
-              {DEPARTMENT_OPTIONS.map((department) => (
+              {departmentOptions.map((department) => (
                 <option key={department.departmentId} value={department.departmentId}>
                   {department.name}
                 </option>
