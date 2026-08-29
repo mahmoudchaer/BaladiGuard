@@ -44,6 +44,14 @@ class TerraformAllowedHostsTests(unittest.TestCase):
         )
         self.assertIsNotNone(secrets_block)
         self.assertNotIn("ALLOWED_HOSTS", secrets_block.group(1))
+        for required in (
+            "CITIZEN_OTP_DELIVERY_CHANNEL",
+            "CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN",
+            "CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID",
+            "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE",
+            "NOTIFICATION_ALLOWLIST_PHONES",
+        ):
+            self.assertIn(required, secrets_block.group(1))
 
     def test_content_safety_worker_is_wired_like_other_workers(self) -> None:
         text = TF_MAIN.read_text(encoding="utf-8")
