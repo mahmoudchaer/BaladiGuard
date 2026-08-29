@@ -104,7 +104,7 @@ def test_ops_empty_states_are_safe_arrays(anonymous_client):
     assert errors.json()["items"] == []
     workers = anonymous_client.get("/v1/ops/workers?jobType=moderation", headers=headers)
     assert workers.json()["jobs"] == []
-    assert workers.json()["queues"][0]["deployed"] is False
+    assert workers.json()["queues"][0]["deployed"] is True
 
 
 def test_operator_can_acknowledge_alert_with_audit(anonymous_client):

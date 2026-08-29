@@ -11,6 +11,7 @@ For the live AWS resource inventory, domains, and service purposes, see [AWS and
 | Backend API | ECS Fargate behind an Application Load Balancer | HTTPS at `api.<environment-domain>` | Backend/on-call |
 | AI worker | ECS Fargate service | No inbound route | Backend/on-call |
 | Image-redaction worker | ECS Fargate service | No inbound route | Backend/on-call |
+| Content-safety worker | ECS Fargate service | No inbound route | Backend/on-call |
 | Admin UI | Private S3 origin behind CloudFront | HTTPS at `admin.<environment-domain>` | Web/on-call |
 | Report photos | Private, encrypted, versioned S3 bucket | Runtime IAM only | Backend/on-call |
 | Application data | Existing DynamoDB account, with environment-prefixed tables | Runtime IAM only | Backend/on-call |
