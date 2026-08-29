@@ -240,7 +240,8 @@ make content-safety-worker
 
 `make content-safety-worker-once` processes at most one available job and
 `make content-safety-worker-drain` processes all jobs whose backoff delay has
-elapsed. See [content-safety.md](./content-safety.md).
+elapsed. Staging and production run this same worker as the ECS
+`content-safety-worker` service. See [content-safety.md](./content-safety.md).
 
 ## Verify setup
 

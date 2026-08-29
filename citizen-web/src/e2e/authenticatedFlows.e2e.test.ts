@@ -47,7 +47,8 @@ describe('authenticated OTP, profile, report, history, and logout E2E', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open profile' }));
     await user.click(await screen.findByRole('button', { name: /Sign out/ }));
-    expect(await screen.findByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Citizen sign in' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open profile' })).not.toBeInTheDocument();
   });
 
   it('returns a citizen to a clean sign-in after changing phone', async () => {

@@ -22,7 +22,7 @@ Browser / mobile
        |
        +--> ALB --> ECS Fargate API --> DynamoDB, private report-photo S3, AWS services
                          |
-                         +--> ECS AI worker and image-redaction worker
+                         +--> ECS AI, image-redaction, and content-safety workers
 
 GitHub Actions -- OIDC --> environment-specific AWS deploy role
        --> ECR image --> Terraform --> ECS migration --> ECS service promotion
@@ -38,7 +38,7 @@ Staging and production do not share application data, runtime secrets, ECS clust
 | ACM | Separate certificates for every API/admin/citizen hostname in `us-east-1` | TLS for the ALBs and CloudFront distributions |
 | VPC, subnets, security groups | One VPC per environment, with two public subnets | ECS networking; only the ALB can reach the API on port 8000; workers have no inbound route |
 | Application Load Balancer | One HTTPS ALB per environment | Terminates API HTTPS and forwards to the ECS API task; HTTP redirects to HTTPS |
-| ECS Fargate | `baladiguard-staging` and `baladiguard-production` clusters | API, AI worker, image-redaction worker, and one-off migration tasks |
+| ECS Fargate | `baladiguard-staging` and `baladiguard-production` clusters | API, AI worker, image-redaction worker, content-safety worker, and one-off migration tasks |
 | ECR | One immutable backend repository per environment | Stores digest-pinned backend images built by GitHub Actions |
 | DynamoDB | Environment-prefixed application tables, plus a Terraform state-lock table | Tickets, accounts, OTP/session state, workforce data, queues, audit/history, rate limiting, and deployment locking |
 | S3 | Environment photo buckets; admin buckets; production citizen-web bucket; Terraform state bucket | Private report photos, static web assets, and encrypted/versioned Terraform state |
@@ -51,8 +51,8 @@ Staging and production do not share application data, runtime secrets, ECS clust
 
 | Integration | Current use | Operational note |
 | --- | --- | --- |
-| Amazon Bedrock | AI worker classification | Nova Lite is the active model integration. Monitor worker logs and queue tables for failures/backlog. |
-| Amazon Rekognition | Image-redaction worker | Production runtime enables redaction before a photo is made publicly usable. |
+| Amazon Bedrock | AI worker classification; content-safety text screening | Nova Lite is the active model integration. Monitor worker logs and queue tables for failures/backlog. |
+| Amazon Rekognition | Image-redaction worker (`DetectFaces`); content-safety worker (`DetectModerationLabels`) | Redaction blurs faces/plates. Content safety screens photos before public eligibility. |
 | Amazon Location Service | Place validation/search | Uses the `baladiguard-places` place index. |
 | Amazon SES | Email notifications from `baladi.guard@outlook.com` | The account is currently in the SES sandbox: delivery is limited to verified recipients until SES production access is approved. |
 | SNS | SMS integration configuration | Sender/configuration is held only in the runtime secret; validate provider approval before relying on real OTP delivery. |
@@ -93,7 +93,7 @@ curl -fsS https://api.baladiguard.site/health/ready
 
 # ECS service status (use an authorised profile)
 aws ecs describe-services --cluster baladiguard-production \
-  --services api ai-worker redaction-worker --region us-east-1
+  --services api ai-worker redaction-worker content-safety-worker --region us-east-1
 
 # Recent API logs
 aws logs tail /ecs/baladiguard-production/api --since 30m --region us-east-1

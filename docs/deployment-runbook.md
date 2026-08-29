@@ -32,4 +32,4 @@ Run all three scenarios above in staging: failed migration, unhealthy image roll
 
 ## Emergency stop
 
-Cancel the active GitHub workflow to stop further promotion. If a harmful API is already live, update the API/worker services to the last known-good task definitions from the previous manifest. Scaling workers to zero is acceptable only when processing itself is harmful; keep the API available when safe. Escalate credentials or data exposure immediately and rotate affected secrets.
+Cancel the active GitHub workflow to stop further promotion. If a harmful API is already live, update the API/worker services (`api`, `ai-worker`, `redaction-worker`, `content-safety-worker`) to the last known-good task definitions from the previous manifest. Scaling workers to zero is acceptable only when processing itself is harmful; keep the API available when safe. Escalate credentials or data exposure immediately and rotate affected secrets.

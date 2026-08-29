@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useCitizenAuth } from '@/auth/CitizenAuthContext';
+import { BrandMark } from '@/components/BrandMark';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { ProfileAvatarContent } from '@/components/ProfileAvatarContent';
 import { useI18n } from '@/i18n/LocaleProvider';
@@ -52,7 +53,7 @@ export function AppShell() {
       <header className="shell-header">
         <NavLink className="shell-brand" to="/" aria-label={t('shell.homeAria')}>
           <span className="shell-mark" aria-hidden>
-            <span>⌖</span>
+            <BrandMark size={40} />
           </span>
           <div>
             <p className="shell-title">BaladiGuard</p>
@@ -108,7 +109,7 @@ export function AppShell() {
       <footer className="shell-footer">
         <div className="footer-brand">
           <span className="shell-mark" aria-hidden>
-            ⌖
+            <BrandMark size={40} />
           </span>
           <div>
             <strong>BaladiGuard</strong>

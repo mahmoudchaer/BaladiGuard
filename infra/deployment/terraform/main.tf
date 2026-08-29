@@ -28,6 +28,7 @@ locals {
     { name = "OTP_DEV_PLAINTEXT_STDOUT", value = "false" },
     { name = "IMAGE_REDACTION_ENABLED", value = "true" },
     { name = "IMAGE_REDACTION_DETECTOR", value = "aws_rekognition" },
+    { name = "CONTENT_SAFETY_ENABLED", value = "true" },
     { name = "LOG_FORMAT", value = "json" },
     { name = "METRICS_EMF", value = "true" },
     { name = "TRUST_X_FORWARDED_FOR", value = "true" },
@@ -189,7 +190,7 @@ resource "aws_s3_bucket_policy" "photos" {
 }
 
 resource "aws_cloudwatch_log_group" "backend" {
-  for_each          = toset(["api", "ai-worker", "redaction-worker", "migration"])
+  for_each          = toset(["api", "ai-worker", "redaction-worker", "content-safety-worker", "migration"])
   name              = "/ecs/${local.name}/${each.key}"
   retention_in_days = var.log_retention_days
 }
@@ -216,7 +217,7 @@ resource "aws_iam_role_policy" "execution_secrets" {
 }
 
 resource "aws_iam_role" "runtime" {
-  for_each = toset(["api", "ai-worker", "redaction-worker", "migration"])
+  for_each = toset(["api", "ai-worker", "redaction-worker", "content-safety-worker", "migration"])
   name     = "${local.name}-${each.key}"
   assume_role_policy = jsonencode({
     Version   = "2012-10-17"
@@ -270,7 +271,19 @@ resource "aws_iam_role_policy" "runtime_services" {
         Effect   = "Allow"
         Action   = ["rekognition:DetectFaces"]
         Resource = "*"
-      }] : []
+      }] : [],
+      each.key == "content-safety-worker" ? [
+        {
+          Effect   = "Allow"
+          Action   = ["bedrock:InvokeModel"]
+          Resource = "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-*"
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["rekognition:DetectModerationLabels"]
+          Resource = "*"
+        }
+      ] : []
     )
   })
 }
@@ -376,16 +389,18 @@ resource "aws_lb_listener" "https" {
 
 locals {
   commands = {
-    api              = ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    ai-worker        = ["python", "-m", "app.workers.ai_worker"]
-    redaction-worker = ["python", "-m", "app.workers.image_redaction_worker"]
-    migration        = ["python", "scripts/db/migrate.py"]
+    api                   = ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ai-worker             = ["python", "-m", "app.workers.ai_worker"]
+    redaction-worker      = ["python", "-m", "app.workers.image_redaction_worker"]
+    content-safety-worker = ["python", "-m", "app.workers.content_safety_worker"]
+    migration             = ["python", "scripts/db/migrate.py"]
   }
   task_resources = {
-    api              = { cpu = var.api_cpu, memory = var.api_memory }
-    ai-worker        = { cpu = var.worker_cpu, memory = var.worker_memory }
-    redaction-worker = { cpu = var.redaction_cpu, memory = var.redaction_memory }
-    migration        = { cpu = var.api_cpu, memory = var.api_memory }
+    api                   = { cpu = var.api_cpu, memory = var.api_memory }
+    ai-worker             = { cpu = var.worker_cpu, memory = var.worker_memory }
+    redaction-worker      = { cpu = var.redaction_cpu, memory = var.redaction_memory }
+    content-safety-worker = { cpu = var.redaction_cpu, memory = var.redaction_memory }
+    migration             = { cpu = var.api_cpu, memory = var.api_memory }
   }
 }
 
@@ -460,7 +475,7 @@ resource "aws_ecs_service" "api" {
 }
 
 resource "aws_ecs_service" "worker" {
-  for_each        = toset(["ai-worker", "redaction-worker"])
+  for_each        = toset(["ai-worker", "redaction-worker", "content-safety-worker"])
   name            = each.key
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.backend[each.key].arn
