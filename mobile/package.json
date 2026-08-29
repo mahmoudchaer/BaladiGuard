@@ -50,6 +50,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@emnapi/core": "1.11.3",
+    "@emnapi/runtime": "1.11.3",
     "@babel/core": "^7.29.7",
     "@types/react": "~19.2.18",
     "@types/react-test-renderer": "^19.1.0",
