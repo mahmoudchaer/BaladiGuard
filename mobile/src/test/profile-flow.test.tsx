@@ -2,7 +2,7 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HomeScreen from '../../app/index';
+import HomeScreen from '../../app/(tabs)';
 import ProfileScreen from '../../app/profile/index';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
 import { __getRouterMockState, __resetExpoRouterMock } from '@/test/mocks/expo-router';
@@ -60,6 +60,7 @@ const readyProfile: CitizenProfile = {
   email: null,
   notificationPreferences: { ticketUpdates: 'NONE', announcements: false },
   publicNameVisible: false,
+  leaderboardOptIn: false,
   active: true,
   contributionReady: true,
   createdAt: '2026-08-01T12:00:00Z',
@@ -97,11 +98,8 @@ describe('citizen profile flows', () => {
     vi.mocked(logoutCitizen).mockReset();
   });
 
-  it('loads the authenticated profile summary from home', async () => {
+  it('loads the authenticated profile summary', async () => {
     await seedSession();
-
-    const home = await renderWithProvidersAsync(<HomeScreen />);
-    expect(findByTestId(home, 'profile-entry-button')).toBeTruthy();
 
     const screen = await renderWithProvidersAsync(<ProfileScreen />);
     expect(findByTestId(screen, 'profile-summary')).toBeTruthy();
@@ -139,7 +137,7 @@ describe('citizen profile flows', () => {
     await act(async () => {
       findByTestId(screen, 'edit-full-name-input').props.onChangeText('Ada Updated');
       findByTestId(screen, 'edit-email-input').props.onChangeText('ada@example.com');
-      findByTestId(screen, 'ticket-updates-EMAIL').props.onPress();
+      findByTestId(screen, 'edit-emailEnabled-switch').props.onValueChange(true);
       findByTestId(screen, 'edit-announcements-switch').props.onValueChange(true);
       findByTestId(screen, 'edit-public-name-switch').props.onValueChange(true);
     });
@@ -154,10 +152,10 @@ describe('citizen profile flows', () => {
         fullName: 'Ada Updated',
         email: 'ada@example.com',
         publicNameVisible: true,
-        notificationPreferences: {
-          ticketUpdates: 'EMAIL',
+        notificationPreferences: expect.objectContaining({
+          emailEnabled: true,
           announcements: true,
-        },
+        }),
       }),
     );
     expect(screen.root.findByProps({ children: PROFILE_UPDATE_SUCCESS_MESSAGE })).toBeTruthy();

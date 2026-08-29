@@ -258,6 +258,23 @@
         "mustPreserve": ["playground slide", "municipal playground", "cracked plastic", "sharp edge"],
         "mustNotInvent": ["injured child", "playground closure", "equipment brand"]
       }
+    },
+    {
+      "id": "ai-multi-016-power-outage-en",
+      "languageTags": ["en"],
+      "input": "Whole block in Hamra has no electricity since 6pm, street is dark and shops closed early.",
+      "expectedCategory": "power_outage",
+      "classificationNotes": "Electrical distribution outage, not a single broken street lamp.",
+      "cleaningExpectations": {
+        "requiredProperties": [
+          "identifies a power outage for the block",
+          "mentions Hamra",
+          "mentions the outage started at 6pm",
+          "mentions the street is dark"
+        ],
+        "mustPreserve": ["power outage", "Hamra", "since 6pm", "dark street"],
+        "mustNotInvent": ["transformer explosion", "utility company ticket number", "injured residents"]
+      }
     }
   ]
 }

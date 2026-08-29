@@ -366,6 +366,29 @@ def _write_markdown(
                 lines.append(f"- S3 `{key}`: error={data['error']}")
             else:
                 lines.append(f"- S3 `{key}`: sum={data.get('sum')} points={data.get('points')}")
+        application = cloudwatch.get("application") or {}
+        for key in (
+            "HttpRequests",
+            "HttpRequestDurationP95",
+            "Http5xx",
+            "ReportsSubmitted",
+            "AiJobsQueued",
+            "AiJobsSucceeded",
+            "AiJobsRetried",
+            "AiJobsDeadLettered",
+            "AiJobOldestAgeSeconds",
+        ):
+            data = application.get(key) or {}
+            lines.append(
+                f"- BaladiGuard `{key}` ({data.get('stat')}): "
+                f"value={data.get('value')} points={data.get('points')}"
+            )
+        for service, service_metrics in (cloudwatch.get("ecs") or {}).items():
+            for key, data in service_metrics.items():
+                lines.append(
+                    f"- ECS `{service}` `{key}` ({data.get('stat')}): "
+                    f"value={data.get('value')} points={data.get('points')}"
+                )
 
     lines.extend(
         [
@@ -406,7 +429,14 @@ def _write_markdown(
     wm_ai = ((runs.get("write-mixed") or {}).get("slosEvaluation") or {}).get(
         "aiQueueSamples"
     ) or {}
-    if wm_ai.get("pass") is True:
+    oldest = ((cloudwatch or {}).get("application") or {}).get("AiJobOldestAgeSeconds") or {}
+    if oldest.get("points", 0) > 0:
+        ai_result = (
+            f"CloudWatch max oldest age={oldest.get('value')}s across "
+            f"{oldest.get('points')} points; readiness samples={wm_ai.get('count')}"
+        )
+        ai_pass = _pass_label(oldest.get("value") is not None and float(oldest["value"]) < 120)
+    elif wm_ai.get("pass") is True and wm_ai.get("maxPending") is not None:
         ai_result = (
             f"samples={wm_ai.get('count')} maxPending={wm_ai.get('maxPending')} "
             "(pending-count proxy; wall-age needs multi-worker fleet)"
@@ -440,7 +470,9 @@ def _write_markdown(
 
     s3_mode = (
         "real S3"
-        if os.environ.get("CAPACITY_USE_REAL_S3") == "1" or "cloud" in profile
+        if os.environ.get("CAPACITY_USE_REAL_S3") == "1"
+        or "cloud" in profile
+        or profile == "staging-remote"
         else "fake S3 put_object stub for safety"
     )
     evidence_names = (
@@ -456,12 +488,16 @@ def _write_markdown(
         "- **DynamoDB indexes / pagination:** exercised via submit + staff list/detail/"
         f"status mutations ({'real DynamoDB' if cloudwatch else 'memory/local'}).",
         f"- **S3 uploads:** photo_upload scenario path measured ({s3_mode}).",
-        "- **AI jobs:** submit creates AI work; readiness `health_ready_ai` samples queue "
-        "signals (classifier stubbed in capacity_api_app unless CAPACITY_USE_REAL_AI=1).",
-        "- **Cost drivers:** Bedrock/AI (stubbed here), Dynamo RCU/WCU, S3 PUT, SES/SNS "
-        "when real adapter on.",
-        "- **Config changes:** keep NOTIFICATION_ADAPTER=mock on capacity staging; raise "
-        "WCU only if CloudWatch shows WriteThrottleEvents under write-mixed.",
+        (
+            "- **AI jobs:** deployed staging submits use the real AI worker/provider; "
+            "readiness and CloudWatch capture queue age and completion signals."
+            if profile == "staging-remote"
+            else "- **AI jobs:** local capacity_api_app uses its classifier stub unless "
+            "CAPACITY_USE_REAL_AI=1."
+        ),
+        "- **Cost drivers:** Bedrock/AI, Dynamo RCU/WCU, S3 PUT, and enabled notifications.",
+        "- **Config changes:** raise capacity only if CloudWatch throttles or queue age breach "
+        "the documented thresholds.",
     ]
     if findings_extra:
         findings.extend(findings_extra)
@@ -733,6 +769,15 @@ def main() -> int:
                 defects_extra.append(
                     f"`{scenario}` required AI queue readiness samples were not observed"
                 )
+            slos = runs[scenario].get("slosEvaluation") or {}
+            for slo_name in ("submitP95Ms", "trackOrListP95Ms"):
+                evaluation = slos.get(slo_name) or {}
+                if evaluation.get("pass") is False:
+                    defects_extra.append(
+                        f"`{scenario}` {slo_name} exceeded target: "
+                        f"actual={evaluation.get('actual'):.2f}ms "
+                        f"target={evaluation.get('target')}ms"
+                    )
 
         coverage_invalid = any(
             not ((r.get("slosEvaluation") or {}).get("routeCoverage") or {}).get("pass", True)
@@ -761,6 +806,8 @@ def main() -> int:
                 region=region,
                 table_prefix=prefix,
                 s3_bucket=bucket,
+                environment=("staging" if remote else (env_probe.get("APP_ENV") or "local")),
+                ecs_cluster=(env_probe.get("CAPACITY_ECS_CLUSTER") or None),
                 window_minutes=elapsed_min,
             )
             cw_path = EVIDENCE_DIR / f"{run_prefix}-capacity-cloudwatch.json"

@@ -1,3 +1,4 @@
+import { useI18n } from '@/i18n/LocaleProvider';
 import type { QueueAttentionStats } from '@/utils/ticketStats';
 import './QueueViewsSidebar.css';
 
@@ -27,27 +28,28 @@ export function QueueViewsSidebar({
   approximate = false,
   onViewChange,
 }: QueueViewsSidebarProps) {
+  const { t } = useI18n();
   const views: ViewItem[] = [
-    { id: 'all', label: 'All tickets', count: totalCount },
-    { id: 'critical', label: 'Critical', count: stats.critical, tone: 'critical' },
-    { id: 'high', label: 'High priority', count: highCount, tone: 'warn' },
-    { id: 'unassigned', label: 'Unassigned', count: stats.unassigned },
-    { id: 'aging', label: 'Overdue', count: stats.aging },
+    { id: 'all', label: t('queue.all'), count: totalCount },
+    { id: 'critical', label: t('queue.critical'), count: stats.critical, tone: 'critical' },
+    { id: 'high', label: t('queue.high'), count: highCount, tone: 'warn' },
+    { id: 'unassigned', label: t('queue.unassigned'), count: stats.unassigned },
+    { id: 'aging', label: t('queue.overdue'), count: stats.aging },
   ];
 
   return (
-    <aside className="queue-views" aria-label="Ticket views">
+    <aside className="queue-views" aria-label={t('queue.views')}>
       <div className="queue-views__header">
-        <p className="queue-views__eyebrow">Ticket views</p>
-        <h2 className="queue-views__title">Needs attention</h2>
+        <p className="queue-views__eyebrow">{t('queue.views')}</p>
+        <h2 className="queue-views__title">{t('queue.needsAttention')}</h2>
         {approximate ? (
           <p className="queue-views__approx" aria-live="polite">
-            Counts are approximate
+            {t('queue.approximate')}
           </p>
         ) : null}
       </div>
 
-      <div className="queue-views__list" role="group" aria-label="Ticket summary">
+      <div className="queue-views__list" role="group" aria-label={t('queue.summary')}>
         {views.map((view) => {
           const active = activeView === view.id;
           const className = [
@@ -76,9 +78,7 @@ export function QueueViewsSidebar({
       </div>
 
       <div className="queue-views__footer">
-        <p className="queue-views__hint">
-          Views triage the queue. Status and department filters stay available in the list toolbar.
-        </p>
+        <p className="queue-views__hint">{t('queue.hint')}</p>
       </div>
     </aside>
   );

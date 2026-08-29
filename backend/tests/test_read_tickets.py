@@ -44,7 +44,7 @@ def test_list_tickets_returns_submitted_tickets(client):
         "name": "Road Maintenance",
     }
     assert body[0]["departmentId"] == "d1111111-1111-1111-1111-111111111111"
-    assert body[0]["municipalityId"] is None
+    assert body[0]["municipalityId"] == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     assert set(body[0]["location"]) == {"latitude", "longitude", "addressText"}
     assert body[0]["location"]["latitude"] == VALID_PAYLOAD["location"]["latitude"]
     assert body[0]["location"]["longitude"] == VALID_PAYLOAD["location"]["longitude"]

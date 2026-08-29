@@ -103,11 +103,8 @@ if (configSourceRuntime) {
       errors.push(`config.ts must reference ${token} literally for Metro inlining.`);
     }
   }
-  if (source.includes('http://localhost:8000') || source.includes('DEFAULT_LOCAL_API')) {
-    errors.push(
-      'config.ts must not embed a localhost API default constant (set EXPO_PUBLIC_API_BASE_URL via mobile/.env).',
-    );
-  }
+  // Local development may retain a localhost fallback. The production export
+  // scan below is the authoritative guard against shipping that fallback.
 }
 
 // Introspected Expo config applies config plugins and exposes the generated

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assignTicketDepartment,
+  assignTicketWorkforce,
   createTicketComment,
   fetchTicketActivity,
   fetchTicketComments,
@@ -13,7 +14,19 @@ import {
   fetchDuplicateComparison,
   fetchTicketById,
   mergeDuplicateTickets,
+  updateTicketStatus,
+  fetchImageRedactionReview,
+  fetchContentSafetyReview,
+  claimTicketMunicipality,
+  rejectTicketMunicipality,
 } from '@/services/tickets';
+import { fetchResolutionFeedback } from '@/services/resolutionFeedback';
+import {
+  assignWorkOrder,
+  completeWorkOrder,
+  createTicketWorkOrder,
+  listTicketWorkOrders,
+} from '@/services/workOrders';
 import { renderWithProviders } from '@/test/render';
 import type {
   DuplicateCandidate,
@@ -21,7 +34,9 @@ import type {
   DuplicateComparison,
   Ticket,
 } from '@/types/ticket';
+import { setLocale, t } from '@/i18n';
 import { TicketDetailPage } from '@/pages/TicketDetailPage';
+import { listWorkers } from '@/services/workforce';
 
 vi.mock('@/services/tickets', () => ({
   fetchTicketById: vi.fn(),
@@ -31,9 +46,47 @@ vi.mock('@/services/tickets', () => ({
   reviewTicketCategory: vi.fn(),
   updateTicketStatus: vi.fn(),
   assignTicketDepartment: vi.fn(),
+  assignTicketWorkforce: vi.fn(),
   createTicketComment: vi.fn(),
   fetchTicketActivity: vi.fn(),
   fetchTicketComments: vi.fn(),
+  fetchImageRedactionReview: vi.fn(),
+  fetchContentSafetyReview: vi.fn(),
+  claimTicketMunicipality: vi.fn(),
+  rejectTicketMunicipality: vi.fn(),
+  fetchAssignmentHistory: vi.fn(async () => ({ ticketId: 'tkt_123', items: [] })),
+}));
+
+vi.mock('@/services/workforce', () => ({
+  listWorkers: vi.fn(async () => []),
+  listTeams: vi.fn(async () => []),
+}));
+
+vi.mock('@/services/workOrders', () => ({
+  listTicketWorkOrders: vi.fn(async () => ({ items: [], activeWorkOrderId: null })),
+  createTicketWorkOrder: vi.fn(),
+  assignWorkOrder: vi.fn(),
+  startWorkOrder: vi.fn(),
+  completeWorkOrder: vi.fn(),
+  cancelWorkOrder: vi.fn(),
+  uploadWorkOrderEvidence: vi.fn(),
+}));
+
+vi.mock('@/services/resolutionFeedback', () => ({
+  fetchResolutionFeedback: vi.fn(async () => ({
+    ticketId: 'tkt_123',
+    trackingCode: 'ABC123',
+    ticketStatus: 'ASSIGNED',
+    status: null,
+    note: null,
+    submittedAt: null,
+    reviewStatus: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewAction: null,
+    needsReview: false,
+  })),
+  reviewResolutionFeedback: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -89,11 +142,11 @@ function renderPage(route = '/tickets/tkt_123') {
   );
 }
 
-function TicketNavigationHarness() {
+function TicketNavigationHarness({ secondSection = 'activity' }: { secondSection?: string }) {
   const navigate = useNavigate();
   return (
     <>
-      <button type="button" onClick={() => navigate('/tickets/tkt_456?section=activity')}>
+      <button type="button" onClick={() => navigate(`/tickets/tkt_456?section=${secondSection}`)}>
         Open second ticket
       </button>
       <Routes>
@@ -165,6 +218,8 @@ beforeEach(() => {
   vi.mocked(fetchDuplicateComparison).mockResolvedValue(buildComparison());
   vi.mocked(fetchTicketActivity).mockResolvedValue({ events: [], nextCursor: null });
   vi.mocked(fetchTicketComments).mockResolvedValue([]);
+  vi.mocked(fetchImageRedactionReview).mockResolvedValue(null);
+  vi.mocked(fetchContentSafetyReview).mockResolvedValue(null);
 });
 
 describe('TicketDetailPage states', () => {
@@ -193,6 +248,20 @@ describe('TicketDetailPage states', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load ticket');
     expect(screen.getByText('Ticket service unavailable.')).toBeInTheDocument();
   });
+
+  it('loads the full workspace in the queue side panel without dashboard chrome', async () => {
+    renderWithProviders(<TicketDetailPage ticketId="tkt_123" embedded />);
+
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '← Back to ticket queue' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Review & Actions' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('combobox', { name: 'New status' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Assigned department' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Final category' })).toBeInTheDocument();
+  });
 });
 
 describe('TicketDetailPage summary header', () => {
@@ -204,6 +273,60 @@ describe('TicketDetailPage summary header', () => {
     expect(screen.getByText('Road Maintenance')).toBeInTheDocument();
     expect(screen.getAllByText('Road Damage').length).toBeGreaterThan(0);
     expect(screen.getByText('Age')).toBeInTheDocument();
+  });
+
+  it('localizes ticket detail chrome and workspace tabs for Arabic and French', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Ticket Details' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    expect(screen.getByRole('heading', { name: t('ticket.details') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('ticket.section.overview') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('ticket.section.review') })).toBeInTheDocument();
+    expect(screen.getByText(t('ticket.age'))).toBeInTheDocument();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    expect(screen.getByRole('heading', { name: t('ticket.details') })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: t('ticket.section.overview') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: t('ticket.reviewUpdate') })).toBeInTheDocument();
+  });
+
+  it('localizes review, duplicates, and activity workflow chrome for Arabic and French', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
+
+    async function assertWorkflowChrome() {
+      await user.click(screen.getByRole('tab', { name: t('ticket.section.review') }));
+      expect(screen.getByRole('heading', { name: t('ticket.review.heading') })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: t('ticket.review.applyStatus') }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(t('ticket.review.assignedDepartment'))).toBeInTheDocument();
+      expect(screen.getByLabelText(t('ticket.review.finalCategory'))).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: t('ticket.section.duplicates') }));
+      expect(screen.getByLabelText(t('ticket.duplicates.search'))).toBeInTheDocument();
+
+      await user.click(screen.getByRole('tab', { name: t('ticket.section.activity') }));
+      expect(screen.getByLabelText(t('ticket.comments.add'))).toBeInTheDocument();
+    }
+
+    await act(async () => {
+      setLocale('ar');
+    });
+    await assertWorkflowChrome();
+
+    await act(async () => {
+      setLocale('fr');
+    });
+    await assertWorkflowChrome();
   });
 
   it('keeps technical identifiers inside a collapsed technical disclosure', async () => {
@@ -415,7 +538,8 @@ describe('TicketDetailPage category review', () => {
     expect(screen.getAllByText('Waste').length).toBeGreaterThan(0);
   });
 
-  it('disables review controls while AI processing is pending', async () => {
+  it('allows manual category review while AI processing is pending', async () => {
+    const user = userEvent.setup();
     vi.mocked(fetchTicketById).mockResolvedValue({
       ...ticket,
       ai: {
@@ -426,8 +550,10 @@ describe('TicketDetailPage category review', () => {
     renderPage('/tickets/tkt_123?section=review');
 
     expect(await screen.findByText(/AI processing is still in progress/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Final category')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Save final category' })).toBeDisabled();
+    const select = screen.getByLabelText('Final category');
+    expect(select).toBeEnabled();
+    await user.selectOptions(select, 'waste');
+    expect(screen.getByRole('button', { name: 'Save final category' })).toBeEnabled();
   });
 
   it('keeps the processing and failed AI states visible', async () => {
@@ -892,6 +1018,40 @@ function queryComparisonRegion(candidateNumber = 'BG-2026-0201') {
 }
 
 describe('TicketDetailPage duplicate comparison', () => {
+  it('ignores a comparison response after navigation starts loading another ticket', async () => {
+    const user = userEvent.setup();
+    let resolveComparison!: (value: DuplicateComparison | null) => void;
+    vi.mocked(fetchTicketById).mockImplementation(async (id) => ({
+      ...ticket,
+      ticketId: id,
+      ticketNumber: id === 'tkt_456' ? 'BG-2026-0002' : ticket.ticketNumber,
+    }));
+    vi.mocked(fetchDuplicateCandidates).mockResolvedValue(candidatePage([comparisonCandidate]));
+    vi.mocked(fetchDuplicateComparison).mockReturnValue(
+      new Promise((resolve) => {
+        resolveComparison = resolve;
+      }),
+    );
+    renderWithProviders(<TicketNavigationHarness secondSection="duplicates" />, {
+      route: '/tickets/tkt_123?section=duplicates',
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Compare BG-2026-0201' }));
+    await user.click(screen.getByRole('button', { name: 'Open second ticket' }));
+    await screen.findByRole('heading', { name: 'BG-2026-0002' });
+
+    await act(async () => {
+      resolveComparison(
+        buildComparison({ description: 'Stale comparison from the first ticket.' }),
+      );
+    });
+
+    expect(screen.queryByText('Stale comparison from the first ticket.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /Comparison of .*BG-2026-0001/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it('keeps expanding a candidate separate from selecting it', async () => {
     const user = userEvent.setup();
     mockComparisonDetail();
@@ -1400,6 +1560,16 @@ describe('TicketDetailPage activity', () => {
     expect(screen.getByRole('heading', { name: 'BG-2026-0001' })).toBeInTheDocument();
   });
 
+  it('renders a full-width labeled comment composer', async () => {
+    renderPage('/tickets/tkt_123?section=activity');
+
+    const composer = await screen.findByLabelText('Add internal comment');
+    expect(composer.tagName).toBe('TEXTAREA');
+    expect(composer).toHaveAttribute('rows', '4');
+    expect(composer).toHaveClass('ticket-detail__comment-input');
+    expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
+  });
+
   it('keeps a posted comment when the activity refresh fails', async () => {
     const user = userEvent.setup();
     vi.mocked(createTicketComment).mockResolvedValue({
@@ -1471,5 +1641,350 @@ describe('TicketDetailPage activity', () => {
 
     expect(screen.queryByText('Comment for the first ticket')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled();
+  });
+});
+
+describe('TicketDetailPage workforce assignment', () => {
+  it('assigns an eligible worker from the review workspace', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listWorkers).mockResolvedValue([
+      {
+        workerId: 'wrk_1',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        displayName: 'Karim Roads',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        teamIds: [],
+        active: true,
+        createdAt: '2026-07-17T08:00:00Z',
+        updatedAt: '2026-07-17T08:00:00Z',
+      },
+    ]);
+    vi.mocked(assignTicketWorkforce).mockResolvedValue({
+      ...ticket,
+      assignedWorkerId: 'wrk_1',
+      assignedTeamId: null,
+    });
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    const select = await screen.findByLabelText('Assigned worker or team');
+    await user.selectOptions(select, 'worker:wrk_1');
+    await user.click(screen.getByRole('button', { name: 'Save assignment' }));
+
+    await waitFor(() => {
+      expect(assignTicketWorkforce).toHaveBeenCalledWith('tkt_123', { workerId: 'wrk_1' });
+    });
+    expect(await screen.findByText('Workforce assignment updated.')).toBeInTheDocument();
+  });
+
+  it('keeps an inactive current assignee visible so staff can clear it', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      assignedWorkerId: 'wrk_inactive',
+      assignedTeamId: null,
+    });
+    vi.mocked(listWorkers).mockResolvedValue([
+      {
+        workerId: 'wrk_inactive',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        displayName: 'Retired crew',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        teamIds: [],
+        active: false,
+        createdAt: '2026-07-17T08:00:00Z',
+        updatedAt: '2026-07-17T08:00:00Z',
+      },
+    ]);
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    expect(await screen.findByLabelText('Assigned worker or team')).toHaveValue(
+      'worker:wrk_inactive',
+    );
+    expect(
+      screen.getByRole('option', { name: 'Worker: Retired crew (inactive)' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage work orders and outcome reasons', () => {
+  it('requires a structured reason before closing from review', async () => {
+    const user = userEvent.setup();
+    renderPage('/tickets/tkt_123?section=review');
+
+    const statusSelect = await screen.findByLabelText('New status');
+    await user.selectOptions(statusSelect, 'CLOSED');
+    await user.click(screen.getByRole('button', { name: 'Apply status change' }));
+
+    expect(updateTicketStatus).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText('Select a structured reason before applying this status.'),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Required reason'), 'DUPLICATE');
+    await user.click(screen.getByRole('button', { name: 'Apply status change' }));
+
+    await waitFor(() => {
+      expect(updateTicketStatus).toHaveBeenCalledWith('tkt_123', 'CLOSED', {
+        reasonCode: 'DUPLICATE',
+        note: undefined,
+      });
+    });
+  });
+
+  it('creates a work order from the review workspace', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createTicketWorkOrder).mockResolvedValue({
+      workOrderId: 'wo_1',
+      ticketId: 'tkt_123',
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      state: 'QUEUED',
+      summary: 'Repair the pothole',
+      createdAt: '2026-07-17T08:10:00Z',
+      createdBy: 'staff_admin_001',
+      updatedAt: '2026-07-17T08:10:00Z',
+      updatedBy: 'staff_admin_001',
+      created: true,
+    });
+    vi.mocked(listTicketWorkOrders)
+      .mockResolvedValueOnce({ items: [], activeWorkOrderId: null })
+      .mockResolvedValue({
+        items: [
+          {
+            workOrderId: 'wo_1',
+            ticketId: 'tkt_123',
+            municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+            departmentId: 'd1111111-1111-1111-1111-111111111111',
+            state: 'QUEUED',
+            summary: 'Repair the pothole',
+            createdAt: '2026-07-17T08:10:00Z',
+            createdBy: 'staff_admin_001',
+            updatedAt: '2026-07-17T08:10:00Z',
+            updatedBy: 'staff_admin_001',
+          },
+        ],
+        activeWorkOrderId: 'wo_1',
+      });
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      status: 'ASSIGNED',
+      activeWorkOrderId: 'wo_1',
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+    const summary = await screen.findByLabelText('Summary');
+    await user.type(summary, 'Repair the pothole');
+    await user.click(screen.getByRole('button', { name: 'Create work order' }));
+
+    await waitFor(() => {
+      expect(createTicketWorkOrder).toHaveBeenCalledWith('tkt_123', {
+        summary: 'Repair the pothole',
+      });
+    });
+    expect(await screen.findByText(/Work order saved/)).toBeInTheDocument();
+  });
+
+  it('loads the current work-order assignee and does not clear it on save', async () => {
+    const user = userEvent.setup();
+    vi.mocked(listWorkers).mockResolvedValue([
+      {
+        workerId: 'wrk_road',
+        municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        displayName: 'Road crew A',
+        departmentIds: ['d1111111-1111-1111-1111-111111111111'],
+        teamIds: [],
+        active: true,
+        createdAt: '2026-07-17T08:00:00Z',
+        updatedAt: '2026-07-17T08:00:00Z',
+      },
+    ]);
+    vi.mocked(listTicketWorkOrders).mockResolvedValue({
+      items: [
+        {
+          workOrderId: 'wo_assigned',
+          ticketId: 'tkt_123',
+          municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          departmentId: 'd1111111-1111-1111-1111-111111111111',
+          state: 'ASSIGNED',
+          summary: 'Inspect the pothole',
+          assignedWorkerId: 'wrk_road',
+          createdAt: '2026-07-17T08:10:00Z',
+          createdBy: 'staff_admin_001',
+          updatedAt: '2026-07-17T08:10:00Z',
+          updatedBy: 'staff_admin_001',
+        },
+      ],
+      activeWorkOrderId: 'wo_assigned',
+    });
+    vi.mocked(assignWorkOrder).mockResolvedValue({
+      workOrderId: 'wo_assigned',
+      ticketId: 'tkt_123',
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      departmentId: 'd1111111-1111-1111-1111-111111111111',
+      state: 'ASSIGNED',
+      summary: 'Inspect the pothole',
+      assignedWorkerId: 'wrk_road',
+      createdAt: '2026-07-17T08:10:00Z',
+      createdBy: 'staff_admin_001',
+      updatedAt: '2026-07-17T08:12:00Z',
+      updatedBy: 'staff_admin_001',
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+
+    const assignee = await screen.findByLabelText('Work-order assignee');
+    expect(assignee).toHaveValue('worker:wrk_road');
+
+    await user.click(screen.getByRole('button', { name: 'Save work-order assignment' }));
+
+    await waitFor(() => {
+      expect(assignWorkOrder).toHaveBeenCalledWith('wo_assigned', { workerId: 'wrk_road' });
+    });
+    expect(assignWorkOrder).not.toHaveBeenCalledWith('wo_assigned', { clear: true });
+  });
+
+  it('separates evidence groups and blocks complete until an after image exists', async () => {
+    vi.mocked(listTicketWorkOrders).mockResolvedValue({
+      items: [
+        {
+          workOrderId: 'wo_progress',
+          ticketId: 'tkt_123',
+          municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          departmentId: 'd1111111-1111-1111-1111-111111111111',
+          state: 'IN_PROGRESS',
+          summary: 'Patch the road',
+          createdAt: '2026-07-17T08:10:00Z',
+          createdBy: 'staff_admin_001',
+          updatedAt: '2026-07-17T08:10:00Z',
+          updatedBy: 'staff_admin_001',
+          evidence: [
+            {
+              evidenceId: 'ev_original',
+              ticketId: 'tkt_123',
+              workOrderId: 'wo_progress',
+              kind: 'ORIGINAL_REPORT',
+              objectKey: 'reports/photos/v2/owner/a.jpg',
+              contentType: 'image/jpeg',
+              uploadedBy: 'staff_admin_001',
+              createdAt: '2026-07-17T08:10:00Z',
+              source: 'TICKET_ORIGINAL',
+            },
+          ],
+          afterImageCount: 0,
+        },
+      ],
+      activeWorkOrderId: 'wo_progress',
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Citizen report evidence' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Maintenance before' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Maintenance after' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Complete work' })).toBeDisabled();
+    expect(completeWorkOrder).not.toHaveBeenCalled();
+  });
+
+  it('shows citizen resolution feedback and review actions', async () => {
+    vi.mocked(fetchResolutionFeedback).mockResolvedValue({
+      ticketId: 'tkt_123',
+      trackingCode: 'ABC123',
+      ticketStatus: 'RESOLVED',
+      status: 'STILL_UNRESOLVED',
+      note: 'The hole is still there.',
+      submittedAt: '2026-07-17T12:00:00Z',
+      reviewStatus: 'PENDING',
+      reviewedAt: null,
+      reviewedBy: null,
+      reviewAction: null,
+      needsReview: true,
+    });
+
+    renderPage('/tickets/tkt_123?section=review');
+
+    expect(await screen.findByText(/still unresolved/i)).toBeInTheDocument();
+    expect(screen.getByText(/The hole is still there/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep resolved after review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return to in progress' })).toBeInTheDocument();
+  });
+});
+
+describe('TicketDetailPage municipality routing', () => {
+  it('claims an unassigned ticket for the signed-in municipality', async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      municipalityRouting: {
+        status: 'unassigned',
+        canClaim: true,
+        canReject: false,
+        canOverride: false,
+        decision: {
+          status: 'unassigned',
+          reason: 'Overlapping electricity mandates',
+          reasonCode: 'ROUTE_AMBIGUOUS',
+        },
+      },
+    });
+    vi.mocked(claimTicketMunicipality).mockResolvedValue({
+      ...ticket,
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      municipalityRouting: {
+        status: 'assigned',
+        canClaim: false,
+        canReject: true,
+        canOverride: false,
+      },
+    });
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    await user.click(screen.getByRole('button', { name: 'Claim for my municipality' }));
+
+    await waitFor(() => {
+      expect(claimTicketMunicipality).toHaveBeenCalledWith('tkt_123', {
+        reasonCode: 'CONFIRMED_GEOGRAPHY',
+      });
+    });
+  });
+
+  it('rejects ownership with a required reason', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'prompt').mockReturnValue('This is a water leak, not a road.');
+    vi.mocked(fetchTicketById).mockResolvedValue({
+      ...ticket,
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      municipalityRouting: {
+        status: 'assigned',
+        canClaim: false,
+        canReject: true,
+        canOverride: false,
+      },
+    });
+    vi.mocked(rejectTicketMunicipality).mockResolvedValue({
+      ...ticket,
+      municipalityId: null,
+      municipalityRouting: {
+        status: 'unassigned',
+        canClaim: true,
+        canReject: false,
+        canOverride: false,
+      },
+    });
+
+    renderPage();
+    await openSection(user, 'Review & Actions');
+    await user.click(screen.getByRole('button', { name: 'Reject ownership' }));
+
+    await waitFor(() => {
+      expect(rejectTicketMunicipality).toHaveBeenCalledWith('tkt_123', {
+        reasonCode: 'OUT_OF_GEOGRAPHY',
+        note: 'This is a water leak, not a road.',
+      });
+    });
   });
 });

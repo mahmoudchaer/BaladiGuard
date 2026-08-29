@@ -28,7 +28,15 @@ def test_backup_scope_covers_persistent_mvp_data():
         "ai-processing-jobs",
         "image-redaction-jobs",
         "duplicate-groups",
+        "workforce-workers",
+        "workforce-teams",
         "rate-limit-buckets",
+        "ops-alert-acks",
+        "ops-error-groups",
+        "ops-audit",
+        "privacy-request-audit",
+        "rewards-ledger",
+        "rewards-projection",
     }.issubset(DEFAULT_TABLE_SUFFIXES)
 
 

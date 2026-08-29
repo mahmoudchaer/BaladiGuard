@@ -1,7 +1,10 @@
 import { type FormEvent, useId, useState } from 'react';
 import { Link, Navigate, type Location, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
+import { homePathForRole } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useI18n } from '@/i18n/LocaleProvider';
 import '@/components/BrandMark.css';
 import './LoginPage.css';
 
@@ -13,7 +16,7 @@ type LoginLocationState = {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, login } = useStaffAuth();
+  const { isAuthenticated, login, session } = useStaffAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +24,7 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const errorId = useId();
   const successId = useId();
+  const { t } = useI18n();
 
   const state = location.state as LoginLocationState | null;
   const returnTo = state?.from
@@ -28,8 +32,17 @@ export function LoginPage() {
     : '/';
   const resetSuccess = state?.resetSuccess;
 
+  const home = homePathForRole(session?.role);
   if (isAuthenticated) {
-    return <Navigate to={returnTo} replace />;
+    const destination =
+      session?.role === 'developer_operator'
+        ? returnTo.startsWith('/ops')
+          ? returnTo
+          : home
+        : returnTo.startsWith('/ops')
+          ? home
+          : returnTo;
+    return <Navigate to={destination} replace />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -38,7 +51,7 @@ export function LoginPage() {
 
     const trimmedUsername = username.trim();
     if (!trimmedUsername || !password) {
-      setError('Enter your username and password.');
+      setError(t('login.missingCredentials'));
       return;
     }
 
@@ -53,7 +66,16 @@ export function LoginPage() {
         return;
       }
 
-      navigate(returnTo, { replace: true });
+      navigate(
+        result.session.role === 'developer_operator'
+          ? returnTo.startsWith('/ops')
+            ? returnTo
+            : '/ops'
+          : returnTo.startsWith('/ops')
+            ? '/'
+            : returnTo,
+        { replace: true },
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -67,14 +89,14 @@ export function LoginPage() {
             <BrandMark size={24} />
           </span>
           <div>
-            <p className="login-panel__eyebrow">Municipal Staff Portal</p>
-            <h1 id="login-title">BaladiGuard staff login</h1>
+            <p className="login-panel__eyebrow">{t('login.eyebrow')}</p>
+            <h1 id="login-title">{t('login.title')}</h1>
           </div>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-form__field">
-            <span>Username</span>
+            <span>{t('login.username')}</span>
             <input
               autoComplete="username"
               name="username"
@@ -89,7 +111,7 @@ export function LoginPage() {
           </label>
 
           <label className="login-form__field">
-            <span>Password</span>
+            <span>{t('login.password')}</span>
             <span className="login-form__password-wrap">
               <input
                 autoComplete="current-password"
@@ -108,7 +130,7 @@ export function LoginPage() {
                 onClick={() => setShowPassword((value) => !value)}
                 aria-pressed={showPassword}
               >
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? t('login.hide') : t('login.show')}
               </button>
             </span>
           </label>
@@ -126,12 +148,14 @@ export function LoginPage() {
           )}
 
           <button className="login-form__submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in…' : 'Sign in'}
+            {isSubmitting ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
 
+        <LanguageSwitcher />
+
         <p className="login-form__footer">
-          <Link to="/forgot-password">Forgot password?</Link>
+          <Link to="/forgot-password">{t('login.forgotPassword')}</Link>
         </p>
       </section>
     </main>

@@ -21,6 +21,18 @@ from app.services.redaction.processor import (
 
 logger = logging.getLogger(__name__)
 
+_MAX_UNREDACTABLE_SKIPS_PER_POLL = 250
+
+
+def _ticket_can_be_redacted(ticket) -> bool:
+    """Legacy tickets default to pending in the model but were never enrolled."""
+    return bool(
+        ticket.image_redaction_enrolled
+        and ticket.image_redaction_status in {"pending", "processing"}
+        and ticket.image_object_key
+        and ticket.image_object_key != "unavailable"
+    )
+
 
 class ImageRedactionQueue:
     def __init__(self, jobs: RedactionJobStore, tickets: TicketStore, processor) -> None:
@@ -41,7 +53,7 @@ class ImageRedactionQueue:
         timestamp = now if now is not None else int(time.time())
         created = 0
         for ticket in self.tickets.list():
-            if ticket.image_redaction_status not in {"pending", "processing"}:
+            if not _ticket_can_be_redacted(ticket):
                 continue
             job_id = redaction_job_id(ticket.ticket_id, ticket.image_redaction_generation)
             if self.jobs.get(job_id) is None:
@@ -61,11 +73,20 @@ class ImageRedactionQueue:
                     _iso(timestamp),
                 )
         settings = get_settings()
-        job = self.jobs.claim_next(
-            now=timestamp, claim_ttl_seconds=settings.image_redaction_job_timeout_seconds
-        )
-        if job is None:
-            return "idle"
+        skipped = 0
+        while skipped < _MAX_UNREDACTABLE_SKIPS_PER_POLL:
+            job = self.jobs.claim_next(
+                now=timestamp, claim_ttl_seconds=settings.image_redaction_job_timeout_seconds
+            )
+            if job is None:
+                return "idle"
+            outcome = self._run_claimed_job(job, timestamp=timestamp, settings=settings)
+            if outcome != "skipped_unredactable":
+                return outcome
+            skipped += 1
+        return "idle"
+
+    def _run_claimed_job(self, job: StoredRedactionJob, *, timestamp: int, settings) -> str:
         token = job.claim_token
         assert token
         ticket = self.tickets.get(job.ticket_id)
@@ -74,6 +95,15 @@ class ImageRedactionQueue:
                 job.job_id, token, now=timestamp, reason="TICKET_MISSING"
             )
             return "dead_lettered" if transitioned else "claim_lost"
+        if not ticket.image_redaction_enrolled or ticket.image_object_key in {"", "unavailable"}:
+            logger.info(
+                "Skipping unredactable redaction job job_id=%s reason=REDACTION_NOT_ENROLLED",
+                job.job_id,
+            )
+            transitioned = self.jobs.dead_letter(
+                job.job_id, token, now=timestamp, reason="REDACTION_NOT_ENROLLED"
+            )
+            return "skipped_unredactable" if transitioned else "claim_lost"
         if ticket.image_redaction_generation != job.generation or ticket.image_redaction_status in {
             "completed",
             "review_required",
@@ -137,15 +167,22 @@ class ImageRedactionQueue:
                 "image_redaction_plate_count": result.plate_count,
                 "image_redaction_completed_at": completed_at,
                 "image_redaction_reason_code": result.reason_code,
+                "image_redaction_candidate_object_key": result.derivative_key,
+                "image_redaction_candidate_revision": claimed.image_redaction_candidate_revision
+                + 1,
+                "image_redaction_regions": list(result.regions),
                 "image_redaction_history": [
                     entry.model_dump(by_alias=True, mode="json") for entry in history
                 ],
                 "updated_at": completed_at,
             }
-            # Only an automatically approved derivative becomes public. During
-            # reprocessing, the previous approved derivative remains atomic/current.
+            # Only an automatically approved derivative becomes public, and only
+            # after content safety has passed (or the ticket predates screening).
             if result.status == "completed":
-                fields["public_image_object_key"] = result.derivative_key
+                from app.services.content_safety.policy import content_safety_allows_public_image
+
+                if content_safety_allows_public_image(claimed):
+                    fields["public_image_object_key"] = result.derivative_key
             updated = self.tickets.finalize_image_redaction(
                 job.ticket_id, job.generation, token, fields
             )
@@ -220,6 +257,31 @@ class ImageRedactionQueue:
             return "claim_lost"
         emit_metric("ImageRedactionJobsDeadLettered")
         return "dead_lettered"
+
+    def replay(self, job_id: str, *, now: int | None = None) -> bool:
+        timestamp = now if now is not None else int(time.time())
+        job = self.jobs.get(job_id)
+        if job is None or job.status != "dead_lettered":
+            return False
+        replayed = self.jobs.replay(job_id, now=timestamp)
+        if replayed is None:
+            return False
+        ticket = self.tickets.get(job.ticket_id)
+        if ticket is None:
+            emit_metric("ImageRedactionJobsQueued", dimensions={"source": "manual_replay"})
+            return True
+        if ticket.image_redaction_status != "completed":
+            self.tickets.save(
+                ticket.model_copy(
+                    update={
+                        "image_redaction_status": "pending",
+                        "image_redaction_claim_token": None,
+                        "updated_at": _iso(timestamp),
+                    }
+                )
+            )
+        emit_metric("ImageRedactionJobsQueued", dimensions={"source": "manual_replay"})
+        return True
 
 
 def _iso(timestamp: int) -> str:

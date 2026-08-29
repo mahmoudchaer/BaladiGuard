@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Banner, Button, HelperText, Text } from 'react-native-paper';
+import { Banner, Button, Checkbox, HelperText, Text } from 'react-native-paper';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Link, type Href } from 'expo-router';
 
 import { OtpCodeInput } from '@/components/OtpCodeInput';
 import {
@@ -15,6 +16,7 @@ import {
   requestCitizenOtp,
   verifyCitizenOtp,
 } from '@/services/api/citizenAuth';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenOtpPurpose, CitizenOtpVerifyResponse } from '@/types/citizen';
 
@@ -24,7 +26,12 @@ type OtpVerifyFormProps = {
   phone: string;
   region?: string;
   purpose?: CitizenOtpPurpose;
-  onChallengeReplaced: (next: { challengeId: string; expiresIn: number }) => void;
+  deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
+  onChallengeReplaced: (next: {
+    challengeId: string;
+    expiresIn: number;
+    deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
+  }) => void;
   onVerified: (response: CitizenOtpVerifyResponse) => void;
 };
 
@@ -34,12 +41,26 @@ function formatCountdown(totalSeconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function otpSubtitleKey(channel: 'sms' | 'whatsapp' | 'dev' | undefined): string {
+  if (channel === 'whatsapp') {
+    return 'auth.otpSubtitleWhatsapp';
+  }
+  if (channel === 'dev') {
+    return 'auth.otpSubtitleDev';
+  }
+  if (channel === 'sms') {
+    return 'auth.otpSubtitleSms';
+  }
+  return 'auth.otpSubtitle';
+}
+
 export function OtpVerifyForm({
   challengeId,
   expiresIn,
   phone,
   region,
   purpose = 'LOGIN_OR_SIGNUP',
+  deliveryChannel,
   onChallengeReplaced,
   onVerified,
 }: OtpVerifyFormProps) {
@@ -48,7 +69,15 @@ export function OtpVerifyForm({
   const [secondsLeft, setSecondsLeft] = useState(expiresIn);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
+  const [acceptLegal, setAcceptLegal] = useState(false);
+  const [activeDeliveryChannel, setActiveDeliveryChannel] = useState(deliveryChannel);
+  const { t, locale } = useI18n();
   const requestInFlight = useRef(false);
+  const requiresLegal = purpose === 'LOGIN_OR_SIGNUP';
+
+  useEffect(() => {
+    setActiveDeliveryChannel(deliveryChannel);
+  }, [deliveryChannel, challengeId]);
 
   useEffect(() => {
     setSecondsLeft(expiresIn);
@@ -81,17 +110,29 @@ export function OtpVerifyForm({
     mode: 'onBlur',
   });
 
-  const mapError = useCallback((error: unknown) => {
-    if (error instanceof CitizenAuthApiError) {
-      setFormError(error.message);
-      setRetryAfterSeconds(error.retryAfterSeconds);
-      return;
-    }
-    setFormError('Something went wrong. Please try again.');
-  }, []);
+  const mapError = useCallback(
+    (error: unknown) => {
+      if (error instanceof CitizenAuthApiError) {
+        if (error.code === 'LEGAL_ACCEPTANCE_REQUIRED') {
+          setFormError(t('auth.legalRequired'));
+          setRetryAfterSeconds(null);
+          return;
+        }
+        setFormError(error.message);
+        setRetryAfterSeconds(error.retryAfterSeconds);
+        return;
+      }
+      setFormError(t('errors.generic'));
+    },
+    [t],
+  );
 
   const onSubmit = async (values: OtpVerifyValues) => {
     if (requestInFlight.current) {
+      return;
+    }
+    if (requiresLegal && !acceptLegal) {
+      setFormError(t('auth.legalRequired'));
       return;
     }
     requestInFlight.current = true;
@@ -102,6 +143,7 @@ export function OtpVerifyForm({
       const response = await verifyCitizenOtp({
         challengeId,
         code: values.code.trim(),
+        ...(requiresLegal ? { acceptLegal: true, legalLocale: locale } : {}),
       });
       onVerified(response);
     } catch (error) {
@@ -128,7 +170,9 @@ export function OtpVerifyForm({
       onChallengeReplaced({
         challengeId: response.challengeId,
         expiresIn: response.expiresIn,
+        deliveryChannel: response.deliveryChannel,
       });
+      setActiveDeliveryChannel(response.deliveryChannel);
       reset(defaultOtpVerifyValues);
       setResendCooldown(30);
       setSecondsLeft(response.expiresIn);
@@ -144,22 +188,21 @@ export function OtpVerifyForm({
   return (
     <View style={styles.container}>
       <Text variant="titleLarge" style={styles.title}>
-        Enter verification code
+        {t('auth.otpTitle')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        We sent a 6-digit code by SMS to {phone}. Enter it below to continue — it expires in{' '}
-        {formatCountdown(secondsLeft)}.
+        {t(otpSubtitleKey(activeDeliveryChannel))} {phone} · {formatCountdown(secondsLeft)}
       </Text>
 
       {formError ? (
         <Banner visible icon="alert-circle" style={styles.banner}>
-          {`${formError}${retryAfterSeconds ? ` Try again in about ${retryAfterSeconds}s.` : ''}`}
+          {`${formError}${retryAfterSeconds ? ` ${t('auth.retryAfter', { seconds: retryAfterSeconds })}` : ''}`}
         </Banner>
       ) : null}
 
       {expired ? (
         <Banner visible icon="clock-outline" style={styles.banner}>
-          This code has expired. Request a new one to continue.
+          {t('auth.otpExpired')}
         </Banner>
       ) : null}
 
@@ -183,11 +226,40 @@ export function OtpVerifyForm({
         </HelperText>
       ) : null}
 
+      {requiresLegal ? (
+        <View style={styles.legalRow}>
+          <Checkbox
+            status={acceptLegal ? 'checked' : 'unchecked'}
+            onPress={() => setAcceptLegal((prev) => !prev)}
+            testID="accept-legal-checkbox"
+          />
+          <Text
+            style={styles.legalText}
+            accessibilityRole="text"
+            accessibilityLabel={t('auth.legalCheckboxA11y')}
+          >
+            {t('auth.legalAgreePrefix')}{' '}
+            <Link href={'/terms' as Href} style={styles.legalLink}>
+              {t('legal.termsTitle')}
+            </Link>
+            {t('auth.legalAgreeJoin1')}
+            <Link href={'/privacy' as Href} style={styles.legalLink}>
+              {t('legal.privacyTitle')}
+            </Link>
+            {t('auth.legalAgreeJoin2')}
+            <Link href={'/acceptable-use' as Href} style={styles.legalLink}>
+              {t('legal.acceptableUseTitle')}
+            </Link>
+            {t('auth.legalAgreeSuffix')}
+          </Text>
+        </View>
+      ) : null}
+
       <Button
         mode="contained"
         onPress={handleSubmit(onSubmit)}
         loading={isSubmitting}
-        disabled={isSubmitting || expired}
+        disabled={isSubmitting || expired || (requiresLegal && !acceptLegal)}
         style={styles.button}
         contentStyle={styles.controlContent}
         labelStyle={styles.controlLabel}
@@ -195,7 +267,7 @@ export function OtpVerifyForm({
         textColor={colors.textInverse}
         testID="verify-otp-button"
       >
-        Verify code
+        {t('auth.verify')}
       </Button>
 
       <Button
@@ -208,7 +280,7 @@ export function OtpVerifyForm({
         textColor={colors.brandDark}
         testID="resend-otp-button"
       >
-        {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+        {resendCooldown > 0 ? `${t('auth.resend')} (${resendCooldown}s)` : t('auth.resend')}
       </Button>
     </View>
   );
@@ -230,6 +302,22 @@ const styles = StyleSheet.create({
   banner: {
     marginBottom: spacing[1],
     borderRadius: radii.md,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[1],
+  },
+  legalText: {
+    flex: 1,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    paddingTop: 6,
+  },
+  legalLink: {
+    color: colors.brandDark,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   button: {
     width: '100%',

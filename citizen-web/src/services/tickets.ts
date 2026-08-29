@@ -2,6 +2,7 @@ import { config } from '@/services/config';
 import type {
   CitizenTicketResponse,
   PublicTicketListResponse,
+  PublicTicketMapViewportResponse,
   PublicTicketResponse,
 } from '@/types/ticket';
 import { isValidTrackingCode, normalizeTrackingCode } from '@/utils/trackingCode';
@@ -22,7 +23,18 @@ export const PUBLIC_TICKET_NETWORK_MESSAGE =
 type PublicTicketListOptions = {
   limit?: number;
   cursor?: string | null;
+  q?: string;
+  status?: string;
+  category?: string;
   signal?: AbortSignal;
+};
+
+export type PublicMapViewport = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  zoom: number;
 };
 
 function apiUrl(path: string): string {
@@ -82,16 +94,22 @@ export function sanitizePublicTicket(raw: PublicTicketResponse): PublicTicketRes
 export async function getPublicTickets({
   limit = 20,
   cursor,
+  q,
+  status,
+  category,
   signal,
 }: PublicTicketListOptions = {}): Promise<PublicTicketListResponse> {
   if (config.useMockData) {
-    return getPublicTicketsMock({ limit });
+    return getPublicTicketsMock({ limit, cursor, q, status, category });
   }
 
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) {
     params.set('cursor', cursor);
   }
+  if (q?.trim()) params.set('q', q.trim());
+  if (status) params.set('status', status);
+  if (category) params.set('category', category);
 
   let response: Response;
   try {
@@ -118,10 +136,77 @@ export async function getPublicTickets({
   };
 }
 
-export async function getPublicTicketByNumber(ticketNumber: string): Promise<PublicTicketResponse> {
+export async function getPublicMapViewport(
+  viewport: PublicMapViewport,
+  options: { limit?: number; signal?: AbortSignal } = {},
+): Promise<PublicTicketMapViewportResponse> {
+  const limit = options.limit ?? 200;
+  const params = new URLSearchParams({
+    north: String(viewport.north),
+    south: String(viewport.south),
+    east: String(viewport.east),
+    west: String(viewport.west),
+    zoom: String(viewport.zoom),
+    limit: String(limit),
+  });
+
+  if (config.useMockData) {
+    const reports = getPublicTicketsMock({ limit }).items;
+    return {
+      markers: reports.map((report) => ({
+        ticketNumber: report.ticketNumber,
+        status: report.status,
+        category: report.category,
+        addressText: report.mapLocation.addressText,
+        latitude: report.mapLocation.latitude,
+        longitude: report.mapLocation.longitude,
+      })),
+      clusters: [],
+      limit,
+      truncated: false,
+      zoom: viewport.zoom,
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(`/tickets/public/map?${params.toString()}`), {
+      method: 'GET',
+      signal: options.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+    if (isOfflineError(error)) {
+      throw new Error(PUBLIC_TICKETS_NETWORK_MESSAGE, { cause: error });
+    }
+    throw error;
+  }
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, PUBLIC_TICKETS_NETWORK_MESSAGE));
+  }
+  const body = (await response.json()) as PublicTicketMapViewportResponse;
+  return {
+    markers: body.markers ?? [],
+    clusters: body.clusters ?? [],
+    limit: body.limit ?? limit,
+    truncated: Boolean(body.truncated),
+    zoom: body.zoom ?? viewport.zoom,
+  };
+}
+
+export async function getPublicTicketByNumber(
+  ticketNumber: string,
+  options?: { signal?: AbortSignal },
+): Promise<PublicTicketResponse> {
   const normalized = ticketNumber.trim().toUpperCase();
   if (!normalized) {
     throw new Error(PUBLIC_TICKET_NOT_FOUND_MESSAGE);
+  }
+
+  if (options?.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
   }
 
   if (config.useMockData) {
@@ -132,8 +217,12 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
   try {
     response = await fetch(apiUrl(`/tickets/public/${encodeURIComponent(normalized)}`), {
       method: 'GET',
+      signal: options?.signal,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     if (isOfflineError(error)) {
       throw new Error(PUBLIC_TICKET_NETWORK_MESSAGE, { cause: error });
     }
@@ -148,6 +237,29 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
   }
 
   return sanitizePublicTicket((await response.json()) as PublicTicketResponse);
+}
+
+/** Strip staff-only keys if a misconfigured proxy leaks them onto tracking. */
+export function sanitizeCitizenTicket(raw: CitizenTicketResponse): CitizenTicketResponse {
+  return {
+    ticketNumber: raw.ticketNumber ?? null,
+    trackingCode: String(raw.trackingCode ?? ''),
+    status: raw.status,
+    category: raw.category ?? null,
+    location: raw.location?.addressText ? { addressText: String(raw.location.addressText) } : null,
+    department: raw.department?.name ? { name: raw.department.name } : null,
+    createdAt: String(raw.createdAt ?? ''),
+    updatedAt: raw.updatedAt ?? null,
+    lastUpdatedAt: String(raw.lastUpdatedAt ?? raw.updatedAt ?? raw.createdAt ?? ''),
+    timeline: (raw.timeline ?? []).map((entry) => ({
+      status: entry.status,
+      changedAt: String(entry.changedAt ?? ''),
+    })),
+    outcomeMessage:
+      typeof raw.outcomeMessage === 'string' && raw.outcomeMessage.trim()
+        ? raw.outcomeMessage.trim()
+        : null,
+  };
 }
 
 export async function getTicketByTrackingCode(
@@ -184,7 +296,7 @@ export async function getTicketByTrackingCode(
     throw new Error(await parseApiError(response, TRACK_LOOKUP_NETWORK_MESSAGE));
   }
 
-  return response.json() as Promise<CitizenTicketResponse>;
+  return sanitizeCitizenTicket((await response.json()) as CitizenTicketResponse);
 }
 
 /** Local mock dataset for offline UI work — never used in staging/production. */
@@ -225,10 +337,29 @@ const MOCK_PUBLIC: PublicTicketResponse[] = [
   },
 ];
 
-function getPublicTicketsMock({ limit = 20 }: { limit?: number }): PublicTicketListResponse {
+function getPublicTicketsMock({
+  limit = 20,
+  cursor,
+  q,
+  status,
+  category,
+}: PublicTicketListOptions): PublicTicketListResponse {
+  let items = MOCK_PUBLIC.map(sanitizePublicTicket);
+  const needle = q?.trim().toLowerCase();
+  if (needle) {
+    items = items.filter((item) =>
+      [item.ticketNumber, item.description, item.location.addressText, item.category]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }
+  if (status) items = items.filter((item) => item.status === status);
+  if (category) items = items.filter((item) => item.category === category);
+  const start = cursor ? Number.parseInt(cursor, 10) || 0 : 0;
+  const slice = items.slice(start, start + limit);
   return {
-    items: MOCK_PUBLIC.slice(0, limit).map(sanitizePublicTicket),
-    nextCursor: null,
+    items: slice,
+    nextCursor: start + limit < items.length ? String(start + limit) : null,
     limit,
   };
 }
@@ -257,6 +388,25 @@ function getTicketByTrackingCodeMock(code: string): CitizenTicketResponse {
         { status: 'SUBMITTED', changedAt: '2026-08-01T10:00:00Z' },
         { status: 'IN_PROGRESS', changedAt: '2026-08-02T12:00:00Z' },
       ],
+      outcomeMessage: null,
+    };
+  }
+  if (code === 'RES234') {
+    return {
+      ticketNumber: 'BG-100003',
+      trackingCode: code,
+      status: 'RESOLVED',
+      category: 'road_damage',
+      location: { addressText: 'Near AUB Main Gate, Beirut' },
+      department: { name: 'Roads' },
+      createdAt: '2026-08-01T10:00:00Z',
+      updatedAt: '2026-08-04T12:00:00Z',
+      lastUpdatedAt: '2026-08-04T12:00:00Z',
+      timeline: [
+        { status: 'SUBMITTED', changedAt: '2026-08-01T10:00:00Z' },
+        { status: 'RESOLVED', changedAt: '2026-08-04T12:00:00Z' },
+      ],
+      outcomeMessage: 'The reported issue has been resolved.',
     };
   }
   throw new Error(TRACK_LOOKUP_NOT_FOUND_MESSAGE);

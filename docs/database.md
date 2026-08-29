@@ -60,6 +60,15 @@ Primary key: `ticketId` (string, format `tkt_<hex>`).
 | `createdBy` | string | No | Staff/system actor identifier for workflow mutations; citizen ownership uses `ownerUserId`. |
 | `municipalityId` | string | No | Set by geocoding / municipality routing. |
 | `departmentId` | string | No | Staff-assigned / currently effective department. |
+| `assignedWorkerId` | string | No | Municipality field worker (`wrk_…`). Mutually exclusive with `assignedTeamId`. |
+| `assignedTeamId` | string | No | Municipality field team (`team_…`). Mutually exclusive with `assignedWorkerId`. |
+| `activeWorkOrderId` | string | No | Current active maintenance work order (`wo_…`), if any. Cleared on complete/cancel. |
+| `resolutionReasonCode` | string | No | Structured reason when the ticket was resolved. Legacy tickets may omit it. |
+| `resolutionNote` | string | No | Private staff note for the resolution (max 500). Never citizen-visible. |
+| `resolvedAt` / `resolvedBy` | string | No | Authenticated actor and timestamp for the resolution. |
+| `closureReasonCode` | string | No | Structured rejection or post-resolution closure reason. |
+| `closureNote` | string | No | Private staff note for the closure (max 500). Never citizen-visible. |
+| `closedAt` / `closedBy` | string | No | Authenticated actor and timestamp for the closure. |
 | `suggestedDepartmentId` | string | No | Automatic department suggestion; preserved when staff overrides `departmentId`. |
 | `duplicateGroupId` | string | No | Set by duplicate detection. |
 | `updatedAt` | string | No | ISO 8601 timestamp of the last update. |
@@ -215,8 +224,8 @@ or returned by any API. Username uniqueness is enforced by a transactional
 | `name` | string | Yes | Display name for the admin UI. |
 | `email` | string | Yes | Staff contact email (not a citizen identity). |
 | `passwordHash` | string | Yes | PBKDF2-HMAC-SHA256 credential metadata. Never returned from APIs or written to logs. |
-| `role` | enum | Yes | `municipal_staff` or `administrator`. |
-| `municipalityId` | string, nullable | Conditional | Required for `municipal_staff`; null for global administrators. |
+| `role` | enum | Yes | `municipal_staff`, `administrator`, or `developer_operator`. |
+| `municipalityId` | string, nullable | Conditional | Required for `municipal_staff` and `administrator`; null for `developer_operator`. |
 | `departmentIds` | string[] or null | Conditional | Assigned departments for `municipal_staff`; `null` for administrators, meaning all departments. An empty array is not a valid administrator sentinel. |
 | `active` | boolean | Yes | Inactive staff cannot authenticate; deactivation increments `sessionEpoch`. |
 | `sessionEpoch` | number | Yes | Monotonic generation checked on every authenticated request (`ConsistentRead`). Logout and deactivation increment it. |
@@ -231,9 +240,10 @@ department to be in their assigned scope. Administrators with `departmentIds = n
 across municipalities and departments. Identity/contact reads are least-privilege and audited. The
 citizen `users` table and phone-claim table are not used for staff login.
 
-Local/test bootstrap creates demo `admin` (administrator) and `staff` (municipal_staff) accounts
-when `SEED_DEMO_STAFF` is enabled; production should keep that flag false and provision real
-accounts separately.
+Local/test bootstrap creates demo `admin` (administrator), `staff` (municipal_staff), and
+`operator` (developer_operator) accounts when `SEED_DEMO_STAFF` is enabled; production should
+keep that flag false and provision real accounts separately. Municipality administrators cannot
+create or promote the developer-operator role.
 
 ## 5. TicketStatusHistory
 
@@ -265,7 +275,7 @@ Client-provided `updatedBy` / `categoryReviewedBy` / `mergedBy` fields are not t
 | --- | --- | --- |
 | `auditId` | string | Primary key. |
 | `ticketId` | string | Parent ticket. |
-| `actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, or `DUPLICATE_MERGE`. |
+| `actionType` | enum | `STATUS_CHANGE`, `CATEGORY_REVIEW`, `DEPARTMENT_ASSIGN`, `DUPLICATE_MERGE`, `PUBLIC_CONTENT_UPDATE`, `STAFF_COMMENT`, `WORKFORCE_ASSIGN`, `WORK_ORDER_CREATE`, `WORK_ORDER_ASSIGN`, `WORK_ORDER_START`, `WORK_ORDER_COMPLETE`, or `WORK_ORDER_CANCEL`. |
 | `actorId` | string, nullable | Verified staff actor identifier when available. |
 | `actorRole` | enum, nullable | `municipal_staff` or `administrator` from the verified principal (issue #181). |
 | `summary` | string | Concise human-readable change summary. |
@@ -461,6 +471,9 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `staff-password-reset-challenges` | `challengeId` | Hashed staff reset codes (#178); TTL on `ttl` |
 | `municipalities` | `municipalityId` | |
 | `departments` | `departmentId` | GSI on `municipalityId` |
+| `workforce-workers` | `workerId` | Field workforce directory (#245); GSI on `municipalityId`. Not staff login accounts. |
+| `workforce-teams` | `teamId` | Field teams (#245); GSI on `municipalityId`; membership via `workerIds` / worker `teamIds`. |
+| `work-orders` | `workOrderId` | Private maintenance execution records (#247); GSI on `ticketId`. Active-claim items use `wo_active_<ticketId>` so create is unique per ticket. |
 | `ticket-status-history` | `historyId` | GSI on `ticketId` |
 | `ai-outputs` | `aiOutputId` | GSI on `ticketId` |
 | `duplicate-groups` | `duplicateGroupId` | |
@@ -468,3 +481,4 @@ See [local-database-setup.md](./local-database-setup.md) for Docker local comman
 | `counters` | `counterId` | Ticket number sequence counter |
 | `rate-limit-buckets` | `bucketKey` | Shared fixed-window rate-limit counters (issue #186); TTL on `expiresAt` |
 | `ticket-submission-claims` | `idempotencyKey` | Citizen ticket submit ledger (#258); TTL on `ttl` (~14d completed; shorter for abandoned claims). Covered by backup PITR suffix list. |
+| `content-safety-jobs` | `jobId` | Durable content-safety screening queue (#319). Isolated from classification and redaction. |

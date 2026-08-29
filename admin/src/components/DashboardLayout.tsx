@@ -1,10 +1,21 @@
-import type { ReactNode } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffAuth } from '@/auth/useStaffAuth';
 import { config } from '@/services/config';
-import { getStaffRoleLabel } from '@/services/auth';
+import { getStaffRoleLabel, isDeveloperOperator } from '@/services/auth';
 import { BrandMark } from '@/components/BrandMark';
-import { IconMap, IconSearch, IconTickets } from '@/components/icons';
+import { GlobalSearch } from '@/components/GlobalSearch';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { StaffAssistantPanel } from '@/components/StaffAssistantPanel';
+import { useI18n } from '@/i18n/LocaleProvider';
+import {
+  IconAnalytics,
+  IconDocument,
+  IconMap,
+  IconPeople,
+  IconSparkles,
+  IconTickets,
+} from '@/components/icons';
 import './BrandMark.css';
 import './DashboardLayout.css';
 
@@ -14,12 +25,6 @@ type DashboardLayoutProps = {
   subtitle?: string;
   /** When true, main content is flush for multi-pane desk layouts. */
   flush?: boolean;
-  search?: {
-    value: string;
-    onChange: (value: string) => void;
-    label?: string;
-    placeholder?: string;
-  };
 };
 
 type NavItem = {
@@ -29,10 +34,21 @@ type NavItem = {
   to: string;
 };
 
-/** Analytics stays off the nav until a dedicated page exists; queue insights remain secondary on Tickets. */
-const NAV_ITEMS: NavItem[] = [
-  { id: 'tickets', label: 'Tickets', Icon: IconTickets, to: '/' },
-  { id: 'map', label: 'Map View', Icon: IconMap, to: '/map' },
+const MUNICIPAL_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
+  { id: 'tickets', labelKey: 'nav.tickets', Icon: IconTickets, to: '/' },
+  { id: 'map', labelKey: 'nav.map', Icon: IconMap, to: '/map' },
+  { id: 'workforce', labelKey: 'nav.workforce', Icon: IconPeople, to: '/workforce' },
+  { id: 'staff-accounts', labelKey: 'nav.staffAccounts', Icon: IconPeople, to: '/staff-accounts' },
+];
+
+const OPERATOR_NAV: Array<Omit<NavItem, 'label'> & { labelKey: string }> = [
+  { id: 'ops', labelKey: 'nav.ops', Icon: IconAnalytics, to: '/ops' },
+  {
+    id: 'municipalities',
+    labelKey: 'nav.municipalities',
+    Icon: IconPeople,
+    to: '/ops/municipalities',
+  },
 ];
 
 function isNavActive(pathname: string, to: string): boolean {
@@ -44,16 +60,26 @@ function isNavActive(pathname: string, to: string): boolean {
 
 export function DashboardLayout({
   children,
-  title = 'Ticket Dashboard',
-  subtitle = 'Monitor and manage citizen infrastructure reports',
+  title,
+  subtitle,
   flush = false,
-  search,
 }: DashboardLayoutProps) {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  const accessDenied = Boolean((location.state as { accessDenied?: boolean } | null)?.accessDenied);
   const navigate = useNavigate();
   const { logout, session } = useStaffAuth();
-  const searchLabel = search?.label ?? 'Search tickets';
-  const searchId = 'dashboard-global-search';
+  const { t } = useI18n();
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const resolvedTitle = title ?? t('layout.title');
+  const resolvedSubtitle = subtitle ?? t('layout.subtitle');
+  const operator = isDeveloperOperator(session?.role);
+  const navItems = (operator ? OPERATOR_NAV : MUNICIPAL_NAV)
+    .filter((item) => item.id !== 'staff-accounts' || session?.role === 'administrator')
+    .map((item) => ({
+      ...item,
+      label: t(item.labelKey),
+    }));
 
   function handleLogout() {
     logout();
@@ -62,65 +88,76 @@ export function DashboardLayout({
 
   return (
     <div className={`dashboard-layout${flush ? ' dashboard-layout--flush' : ''}`}>
-      <aside className="dashboard-rail" aria-label="Primary modules">
-        <NavLink to="/" className="dashboard-rail__brand" aria-label="BaladiGuard home">
+      <aside className="dashboard-rail" aria-label={t('nav.primaryModules')} inert={assistantOpen}>
+        <NavLink
+          to={operator ? '/ops' : '/'}
+          className="dashboard-rail__brand"
+          aria-label={t('nav.home')}
+        >
           <BrandMark size={22} />
         </NavLink>
 
-        <nav className="dashboard-rail__nav" aria-label="Main navigation">
-          {NAV_ITEMS.map((item) => {
-            const active = isNavActive(pathname, item.to);
+        <nav className="dashboard-rail__nav" aria-label={t('nav.mainNav')}>
+          {navItems.map((item) => {
+            const active =
+              isNavActive(pathname, item.to) &&
+              !navItems.some(
+                (candidate) =>
+                  candidate.to.length > item.to.length && isNavActive(pathname, candidate.to),
+              );
             return (
-              <NavLink
+              <Link
                 key={item.id}
                 to={item.to}
-                end={item.to === '/'}
                 className={`dashboard-rail__link${active ? ' dashboard-rail__link--active' : ''}`}
                 aria-current={active ? 'page' : undefined}
                 title={item.label}
               >
                 <item.Icon />
                 <span className="dashboard-rail__link-label">{item.label}</span>
-              </NavLink>
+              </Link>
             );
           })}
         </nav>
+
+        <NavLink
+          to="/legal"
+          className={`dashboard-rail__link${pathname === '/legal' || pathname.startsWith('/legal/') ? ' dashboard-rail__link--active' : ''}`}
+          aria-current={pathname === '/legal' ? 'page' : undefined}
+          title={t('nav.legal')}
+        >
+          <IconDocument />
+          <span className="dashboard-rail__link-label">{t('nav.legal')}</span>
+        </NavLink>
       </aside>
 
-      <div className="dashboard-shell">
+      <div className="dashboard-shell" inert={assistantOpen}>
         <header className="dashboard-topbar">
           <div className="dashboard-topbar__brand-block">
-            <p className="dashboard-topbar__product">BaladiGuard</p>
-            <p className="dashboard-topbar__context">Municipal desk</p>
+            <p className="dashboard-topbar__product">{t('topbar.product')}</p>
+            <p className="dashboard-topbar__context">
+              {operator ? t('topbar.opsContext') : t('topbar.context')}
+            </p>
           </div>
 
-          {search ? (
-            <div className="dashboard-topbar__search">
-              <label className="sr-only" htmlFor={searchId}>
-                {searchLabel}
-              </label>
-              <span className="dashboard-topbar__search-icon" aria-hidden="true">
-                <IconSearch />
-              </span>
-              <input
-                id={searchId}
-                type="search"
-                className="dashboard-topbar__search-input"
-                value={search.value}
-                onChange={(event) => search.onChange(event.target.value)}
-                placeholder={search.placeholder ?? 'Search Capacity…'}
-                autoComplete="off"
-              />
-            </div>
-          ) : (
-            <div className="dashboard-topbar__titles">
-              <h1 className="dashboard-topbar__title">{title}</h1>
-              {subtitle ? <p className="dashboard-topbar__subtitle">{subtitle}</p> : null}
-            </div>
-          )}
+          {operator ? null : <GlobalSearch />}
 
           <div className="dashboard-topbar__actions">
-            {config.useMockData && <span className="dashboard-topbar__badge">Mock data</span>}
+            {operator ? null : (
+              <button
+                type="button"
+                className="dashboard-topbar__assistant"
+                aria-expanded={assistantOpen}
+                aria-controls="staff-assistant-panel"
+                onClick={() => setAssistantOpen(true)}
+              >
+                <IconSparkles />
+                {t('topbar.assistant')}
+              </button>
+            )}
+            {config.useMockData && (
+              <span className="dashboard-topbar__badge">{t('topbar.mockData')}</span>
+            )}
             <span className="dashboard-topbar__date">
               {new Intl.DateTimeFormat(undefined, {
                 weekday: 'short',
@@ -136,17 +173,27 @@ export function DashboardLayout({
                 {session?.name ?? session?.username ?? 'Staff'}
               </span>
             </div>
+            <LanguageSwitcher compact />
             <button className="dashboard-topbar__logout" type="button" onClick={handleLogout}>
-              Logout
+              {t('topbar.logout')}
             </button>
           </div>
         </header>
 
-        {/* Keep page title available for screen readers / tests when search occupies the topbar. */}
-        {search ? <h1 className="sr-only">{title}</h1> : null}
+        <h1 className="sr-only">{resolvedTitle}</h1>
+        {resolvedSubtitle ? <p className="sr-only">{resolvedSubtitle}</p> : null}
 
-        <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>{children}</main>
+        <main className={`dashboard-main${flush ? ' dashboard-main--flush' : ''}`}>
+          {accessDenied ? (
+            <p className="dashboard-access-denied" role="alert">
+              {t('layout.accessDenied')}
+            </p>
+          ) : null}
+          {children}
+        </main>
       </div>
+
+      <StaffAssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </div>
   );
 }

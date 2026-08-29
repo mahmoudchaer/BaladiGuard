@@ -27,6 +27,12 @@ class DynamoNotificationDeliveryStore:
         )
         return [item_to_notification_delivery(item) for item in response.get("Items", [])]
 
+    def list_recent(self, *, limit: int = 100) -> list[StoredNotificationDelivery]:
+        response = self._table.scan(Limit=max(1, min(limit, 200)))
+        items = [item_to_notification_delivery(item) for item in response.get("Items", [])]
+        items.sort(key=lambda entry: entry.created_at, reverse=True)
+        return items[: max(1, min(limit, 200))]
+
     def clear(self) -> None:
         message = (
             "DynamoNotificationDeliveryStore does not support clear(). Use db-reset for local dev."

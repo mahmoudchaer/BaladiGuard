@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, HelperText, Text } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
+import { Link, type Href } from 'expo-router';
 
+import { ReportPhoto } from '@/components/ReportPhoto';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 
@@ -12,22 +15,23 @@ type PhotoPickerFieldProps = {
   control: Control<ReportFormValues>;
   errors: FieldErrors<ReportFormValues>;
   setValue: UseFormSetValue<ReportFormValues>;
+  onPhotoChanged?: () => void;
 };
 
 type PickerSource = 'camera' | 'library';
 
-const CAMERA_PERMISSION_MESSAGE =
-  'Camera access is needed to take a photo. You can choose one from your gallery instead, or enable camera access in your device settings.';
-const LIBRARY_PERMISSION_MESSAGE =
-  'Photo library access is needed to attach a photo. Enable it in your device settings and try again.';
-const PICKER_FAILURE_MESSAGE =
-  'Something went wrong while opening the camera or gallery. Please try again.';
-
-export function PhotoPickerField({ control, errors, setValue }: PhotoPickerFieldProps) {
+export function PhotoPickerField({
+  control,
+  errors,
+  setValue,
+  onPhotoChanged,
+}: PhotoPickerFieldProps) {
+  const { t } = useI18n();
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [activePicker, setActivePicker] = useState<PickerSource | null>(null);
 
   const applyAsset = (asset: ImagePicker.ImagePickerAsset, onChange: (uri: string) => void) => {
+    onPhotoChanged?.();
     onChange(asset.uri);
     setValue('photoFileName', asset.fileName ?? `photo-${Date.now()}.jpg`);
     setValue('photoContentType', asset.mimeType ?? 'image/jpeg');
@@ -44,17 +48,17 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
 
       if (!permission.granted) {
         setPermissionError(
-          source === 'camera' ? CAMERA_PERMISSION_MESSAGE : LIBRARY_PERMISSION_MESSAGE,
+          source === 'camera' ? t('report.cameraPermission') : t('report.libraryPermission'),
         );
         return;
       }
 
       const result =
         source === 'camera'
-          ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 })
+          ? await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 0.8 })
           : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              allowsEditing: true,
+              mediaTypes: ['images'],
+              allowsEditing: false,
               quality: 0.8,
             });
 
@@ -62,7 +66,7 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
         applyAsset(result.assets[0], onChange);
       }
     } catch {
-      setPermissionError(PICKER_FAILURE_MESSAGE);
+      setPermissionError(t('report.pickerFailed'));
     } finally {
       setActivePicker(null);
     }
@@ -75,15 +79,15 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
       render={({ field: { value, onChange } }) => (
         <View style={styles.container}>
           <Text variant="titleMedium" style={styles.label}>
-            Photo
+            {t('report.photo')}
           </Text>
           <Text variant="bodySmall" style={styles.helper}>
-            Attach a clear photo of the infrastructure issue so crews know what to expect.
+            {t('report.photoHelper')}
           </Text>
 
           {value ? (
             <View style={styles.previewWrap}>
-              <Image source={{ uri: value }} style={styles.preview} />
+              <ReportPhoto uri={value} accessibilityLabel={t('report.photo')} variant="hero" />
               <View style={styles.actionRow}>
                 <Button
                   mode="outlined"
@@ -95,7 +99,7 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
                     void pickFrom('library', onChange);
                   }}
                 >
-                  Replace photo
+                  {t('report.replacePhoto')}
                 </Button>
                 <Button
                   mode="text"
@@ -103,13 +107,14 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
                   style={styles.actionButton}
                   contentStyle={styles.actionButtonContent}
                   onPress={() => {
+                    onPhotoChanged?.();
                     onChange('');
                     setValue('photoFileName', '');
                     setValue('photoContentType', '');
                     setPermissionError(null);
                   }}
                 >
-                  Remove photo
+                  {t('report.removePhoto')}
                 </Button>
               </View>
             </View>
@@ -126,7 +131,7 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
                   void pickFrom('camera', onChange);
                 }}
               >
-                Take photo
+                {t('report.takePhoto')}
               </Button>
               <Button
                 mode="outlined"
@@ -139,7 +144,7 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
                   void pickFrom('library', onChange);
                 }}
               >
-                Choose photo
+                {t('report.choosePhoto')}
               </Button>
             </View>
           )}
@@ -155,6 +160,13 @@ export function PhotoPickerField({ control, errors, setValue }: PhotoPickerField
               {errors.photoUri.message}
             </HelperText>
           ) : null}
+
+          <Text variant="bodySmall" style={styles.privacyJit}>
+            {t('report.privacyJit')}{' '}
+            <Link href={'/privacy' as Href} style={styles.privacyLink}>
+              {t('report.privacyJitLink')}
+            </Link>
+          </Text>
         </View>
       )}
     />
@@ -186,10 +198,13 @@ const styles = StyleSheet.create({
   previewWrap: {
     gap: spacing[3],
   },
-  preview: {
-    width: '100%',
-    height: 220,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surfaceSubtle,
+  privacyJit: {
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  privacyLink: {
+    color: colors.brandDark,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

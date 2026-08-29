@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Icon, Text } from 'react-native-paper';
 
+import { TactilePressable } from '@/components/TactilePressable';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel, formatStatusLabel } from '@/theme/labels';
 import type { TicketStatus } from '@/types/ticket';
@@ -23,120 +25,124 @@ type PublicReportFiltersProps = {
 };
 
 export function PublicReportFilters({ filters, categories, onChange }: PublicReportFiltersProps) {
+  const { t } = useI18n();
   return (
     <View style={styles.wrap} testID="public-report-filters">
-      <Text variant="labelLarge" style={styles.heading}>
-        Filter public map
-      </Text>
-      <Text variant="bodySmall" style={styles.hint}>
-        Filters apply to both the map clusters and the list alternative.
-      </Text>
+      <View style={styles.headingRow}>
+        <View>
+          <Text style={styles.heading}>{t('explore.refine')}</Text>
+          <Text style={styles.hint}>{t('explore.refineHint')}</Text>
+        </View>
+        <Icon source="tune-variant" size={20} color={colors.textMuted} />
+      </View>
 
-      <Text variant="labelMedium" style={styles.groupLabel}>
-        Status
-      </Text>
-      <View style={styles.row} accessibilityRole="tablist">
+      <Text style={styles.groupLabel}>{t('explore.status')}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        accessibilityRole="tablist"
+      >
         {STATUS_OPTIONS.map((status) => {
           const selected = filters.status === status;
-          const label = status === 'ALL' ? 'All statuses' : formatStatusLabel(status);
+          const label = status === 'ALL' ? t('explore.allStatuses') : formatStatusLabel(status);
           return (
-            <Pressable
+            <TactilePressable
               key={status}
               onPress={() => onChange({ ...filters, status })}
               style={[styles.chip, selected && styles.chipSelected]}
               testID={`public-filter-status-${status}`}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`Filter status ${label}`}
+              accessibilityLabel={t('explore.filterStatus', { label })}
             >
-              <Text
-                variant="labelMedium"
-                style={[styles.chipLabel, selected && styles.chipLabelSelected]}
-              >
-                {label}
-              </Text>
-            </Pressable>
+              <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
+            </TactilePressable>
           );
         })}
-      </View>
+      </ScrollView>
 
-      <Text variant="labelMedium" style={styles.groupLabel}>
-        Category
-      </Text>
-      <View style={styles.row} accessibilityRole="tablist">
-        <Pressable
+      <Text style={styles.groupLabel}>{t('explore.category')}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        accessibilityRole="tablist"
+      >
+        <TactilePressable
           onPress={() => onChange({ ...filters, category: 'ALL' })}
           style={[styles.chip, filters.category === 'ALL' && styles.chipSelected]}
           testID="public-filter-category-ALL"
           accessibilityRole="button"
           accessibilityState={{ selected: filters.category === 'ALL' }}
-          accessibilityLabel="Filter category All categories"
+          accessibilityLabel={t('explore.filterCategory', { label: t('explore.allCategories') })}
         >
-          <Text
-            variant="labelMedium"
-            style={[styles.chipLabel, filters.category === 'ALL' && styles.chipLabelSelected]}
-          >
-            All categories
+          <Text style={[styles.chipLabel, filters.category === 'ALL' && styles.chipLabelSelected]}>
+            {t('explore.allCategories')}
           </Text>
-        </Pressable>
+        </TactilePressable>
         {categories.map((category) => {
           const selected = filters.category === category;
           return (
-            <Pressable
+            <TactilePressable
               key={category}
               onPress={() => onChange({ ...filters, category })}
               style={[styles.chip, selected && styles.chipSelected]}
               testID={`public-filter-category-${category}`}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`Filter category ${formatCategoryLabel(category)}`}
+              accessibilityLabel={t('explore.filterCategory', {
+                label: formatCategoryLabel(category),
+              })}
             >
-              <Text
-                variant="labelMedium"
-                style={[styles.chipLabel, selected && styles.chipLabelSelected]}
-              >
+              <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
                 {formatCategoryLabel(category)}
               </Text>
-            </Pressable>
+            </TactilePressable>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: spacing[2],
+    gap: spacing[3],
+    paddingVertical: spacing[1],
   },
+  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heading: {
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
   },
   hint: {
+    marginTop: 2,
+    fontSize: 12,
     color: colors.textMuted,
   },
   groupLabel: {
-    color: colors.textSecondary,
-    marginTop: spacing[1],
+    marginLeft: spacing[1],
+    marginBottom: -spacing[1],
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.65,
+    color: colors.textMuted,
   },
   row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing[2],
+    paddingRight: spacing[5],
   },
   chip: {
     minHeight: touchTargetMin,
     paddingHorizontal: spacing[3],
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderRadius: radii.pill,
     backgroundColor: colors.surface,
     justifyContent: 'center',
   },
   chipSelected: {
-    backgroundColor: colors.brandSoft,
-    borderColor: colors.brand,
+    backgroundColor: colors.brand,
   },
   chipLabel: {
     color: colors.textSecondary,
@@ -144,6 +150,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chipLabelSelected: {
-    color: colors.brandDark,
+    color: colors.textInverse,
   },
 });

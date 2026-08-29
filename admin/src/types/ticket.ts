@@ -1,3 +1,5 @@
+import type { TicketOutcome } from '@/types/workOrder';
+
 /**
  * Shared ticket shape aligned with:
  * - backend/app/schemas/stored_ticket.py (StoredTicket)
@@ -72,9 +74,31 @@ export type TicketAuditActionType =
   | 'CATEGORY_REVIEW'
   | 'DEPARTMENT_ASSIGN'
   | 'DUPLICATE_MERGE'
-  | 'PUBLIC_CONTENT_UPDATE';
+  | 'PUBLIC_CONTENT_UPDATE'
+  | 'STAFF_COMMENT'
+  | 'IMAGE_REDACTION_APPROVE'
+  | 'IMAGE_REDACTION_REJECT'
+  | 'IMAGE_REDACTION_REPROCESS'
+  | 'IMAGE_REDACTION_MANUAL_BLUR'
+  | 'CONTENT_SAFETY_APPROVE'
+  | 'CONTENT_SAFETY_REJECT'
+  | 'CONTENT_SAFETY_PRIVATE_ONLY'
+  | 'CONTENT_SAFETY_REPROCESS'
+  | 'WORKFORCE_ASSIGN'
+  | 'WORK_ORDER_CREATE'
+  | 'WORK_ORDER_ASSIGN'
+  | 'WORK_ORDER_START'
+  | 'WORK_ORDER_COMPLETE'
+  | 'WORK_ORDER_CANCEL'
+  | 'WORK_ORDER_EVIDENCE_ADD'
+  | 'RESOLUTION_FEEDBACK_SUBMIT'
+  | 'RESOLUTION_FEEDBACK_REVIEW'
+  | 'MUNICIPALITY_ASSIGN'
+  | 'MUNICIPALITY_CLAIM'
+  | 'MUNICIPALITY_REJECT'
+  | 'MUNICIPALITY_OVERRIDE';
 
-export type TicketStaffRole = 'municipal_staff' | 'administrator';
+export type TicketStaffRole = 'municipal_staff' | 'administrator' | 'developer_operator';
 
 /**
  * Staff-only audit entry returned by the ticket read endpoint.
@@ -200,7 +224,37 @@ export type TicketPublicFields = {
 };
 
 export type ImageRedactionStatus =
-  'pending' | 'processing' | 'completed' | 'failed' | 'review_required';
+  'pending' | 'processing' | 'completed' | 'failed' | 'review_required' | 'private_only';
+
+export type ImageRedactionRegion = {
+  kind: 'face' | 'plate' | 'manual';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  confidence?: number | null;
+};
+
+export type ImageRedactionReview = {
+  ticketId: string;
+  generation: number;
+  candidateRevision: number;
+  status: ImageRedactionStatus;
+  originalImageUrl?: string | null;
+  candidateImageUrl?: string | null;
+  publicImageReady: boolean;
+  detector?: string | null;
+  detectorVersion?: string | null;
+  faceCount: number;
+  plateCount: number;
+  completedAt?: string | null;
+  reasonCode?: string | null;
+  regions: ImageRedactionRegion[];
+  canApprove: boolean;
+  canReject: boolean;
+  canReprocess: boolean;
+  canAddManualRegions: boolean;
+};
 
 export type TicketImageRedaction = {
   status: ImageRedactionStatus;
@@ -213,6 +267,54 @@ export type TicketImageRedaction = {
   reasonCode?: string | null;
 };
 
+export type ContentSafetyStatus =
+  | 'pending'
+  | 'processing'
+  | 'passed'
+  | 'review_required'
+  | 'private_only'
+  | 'rejected'
+  | 'failed'
+  | 'superseded';
+
+export type ContentSafetySeverity = 'none' | 'low' | 'medium' | 'high';
+
+export type TicketContentSafety = {
+  status: ContentSafetyStatus;
+  generation: number;
+  reasonCode?: string | null;
+  severity?: ContentSafetySeverity | null;
+  textModel?: string | null;
+  imageLabels: string[];
+  authenticityScore?: number | null;
+  authenticityModel?: string | null;
+  authenticityModelVersion?: string | null;
+  authenticitySignals: string[];
+  completedAt?: string | null;
+};
+
+export type ContentSafetyReview = {
+  ticketId: string;
+  generation: number;
+  status: ContentSafetyStatus;
+  reasonCode?: string | null;
+  severity?: ContentSafetySeverity | null;
+  textModel?: string | null;
+  imageLabels: string[];
+  authenticityScore?: number | null;
+  authenticityModel?: string | null;
+  authenticityModelVersion?: string | null;
+  authenticitySignals: string[];
+  completedAt?: string | null;
+  originalImageUrl?: string | null;
+  staffNote?: string | null;
+  publicImageReady: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+  canMarkPrivate: boolean;
+  canReprocess: boolean;
+};
+
 export type TicketSla = {
   state: 'on_track' | 'due_soon' | 'overdue' | 'completed' | 'unavailable';
   acknowledgementDueAt?: string | null;
@@ -221,6 +323,32 @@ export type TicketSla = {
   remainingSeconds?: number | null;
   overdueSeconds?: number | null;
   policyKey?: TicketPriority | null;
+};
+
+export type TicketMunicipalityRouting = {
+  status?: string | null;
+  decision?: {
+    status: string;
+    municipalityId?: string | null;
+    suggestedMunicipalityId?: string | null;
+    confidence?: number | null;
+    method?: string;
+    reasonCode?: string;
+    reason?: string;
+  } | null;
+  history?: Array<{
+    status: string;
+    municipalityId?: string | null;
+    reasonCode?: string;
+    reason?: string;
+    method?: string;
+    actorRole?: string | null;
+    note?: string | null;
+    recordedAt?: string;
+  }>;
+  canClaim: boolean;
+  canReject: boolean;
+  canOverride: boolean;
 };
 
 export type Ticket = {
@@ -238,7 +366,10 @@ export type Ticket = {
   priority: TicketPriority | null;
   createdBy: string | null;
   municipalityId: string | null;
+  municipalityRouting?: TicketMunicipalityRouting | null;
   departmentId: string | null;
+  assignedWorkerId?: string | null;
+  assignedTeamId?: string | null;
   departmentName?: string;
   department?: TicketDepartment | null;
   duplicateGroupId: string | null;
@@ -253,6 +384,9 @@ export type Ticket = {
   sla?: TicketSla | null;
   public?: TicketPublicFields;
   imageRedaction?: TicketImageRedaction;
+  contentSafety?: TicketContentSafety | null;
+  activeWorkOrderId?: string | null;
+  outcome?: TicketOutcome | null;
 };
 
 export type TicketListItem = Pick<

@@ -1,0 +1,91 @@
+.content-safety-review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.content-safety-review__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.content-safety-review__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.content-safety-review__badge--passed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.content-safety-review__badge--review_required,
+.content-safety-review__badge--processing,
+.content-safety-review__badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.content-safety-review__badge--rejected,
+.content-safety-review__badge--failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.content-safety-review__badge--private_only {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.content-safety-review__reason,
+.content-safety-review__hint,
+.content-safety-review__signals,
+.content-safety-review__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #475569);
+}
+
+.content-safety-review__error {
+  color: #b91c1c;
+}
+
+.content-safety-review__label {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary, #475569);
+}
+
+.content-safety-review__note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.content-safety-review__note-input {
+  width: 100%;
+  max-width: 36rem;
+  resize: vertical;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border, #cbd5e1);
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+.content-safety-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

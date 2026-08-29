@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.content_safety import ContentSafetyStatus
 from app.schemas.ticket_response import TicketPriority
 from app.schemas.ticket_status import TicketStatus
 
@@ -40,6 +41,11 @@ class TicketListItemResponse(BaseModel):
     updated_at: str | None = Field(default=None, alias="updatedAt")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
     assignment_state: AssignmentState = Field(alias="assignmentState")
+    assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
+    assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
+    content_safety_status: ContentSafetyStatus | None = Field(
+        default=None, alias="contentSafetyStatus"
+    )
     location: TicketListLocation
 
     model_config = {"populate_by_name": True}
@@ -94,6 +100,13 @@ class TicketAggregatesResponse(BaseModel):
     high_count: int = Field(alias="highCount", ge=0)
     unassigned_count: int = Field(alias="unassignedCount", ge=0)
     overdue_count: int = Field(alias="overdueCount", ge=0)
+    queued_count: int = Field(default=0, alias="queuedCount", ge=0)
+    assigned_count: int = Field(default=0, alias="assignedCount", ge=0)
+    in_progress_count: int = Field(default=0, alias="inProgressCount", ge=0)
+    due_soon_count: int = Field(default=0, alias="dueSoonCount", ge=0)
+    completed_count: int = Field(default=0, alias="completedCount", ge=0)
+    cancelled_count: int = Field(default=0, alias="cancelledCount", ge=0)
+    workforce_unassigned_count: int = Field(default=0, alias="workforceUnassignedCount", ge=0)
     approximate: bool = False
 
     model_config = {"populate_by_name": True}

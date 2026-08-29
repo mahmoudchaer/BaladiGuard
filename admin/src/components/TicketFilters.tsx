@@ -1,4 +1,5 @@
-import type { TicketPriority, TicketStatus } from '@/types/ticket';
+import type { ContentSafetyStatus, TicketPriority, TicketStatus } from '@/types/ticket';
+import { useI18n } from '@/i18n/LocaleProvider';
 import type {
   CategoryFilter,
   CategoryFilterOption,
@@ -6,12 +7,14 @@ import type {
   StatusFilter,
   UrgencyFilter,
 } from '@/utils/ticketStats';
-import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import { departmentOptionsForSession, formatDepartment } from '@/utils/departments';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import { IconSearch } from '@/components/icons';
 import './TicketFilters.css';
 
 export type SlaFilter = 'ALL' | 'on_track' | 'due_soon' | 'overdue';
+export type ContentSafetyFilter = 'ALL' | ContentSafetyStatus;
 
 type TicketFiltersProps = {
   searchQuery: string;
@@ -20,6 +23,7 @@ type TicketFiltersProps = {
   urgencyFilter: UrgencyFilter;
   departmentFilter: DepartmentFilter;
   slaFilter?: SlaFilter;
+  contentSafetyFilter?: ContentSafetyFilter;
   categoryOptions: CategoryFilterOption[];
   resultCount: number;
   totalCount: number;
@@ -32,32 +36,31 @@ type TicketFiltersProps = {
   onUrgencyChange: (urgency: UrgencyFilter) => void;
   onDepartmentChange: (department: DepartmentFilter) => void;
   onSlaChange?: (sla: SlaFilter) => void;
+  onContentSafetyChange?: (status: ContentSafetyFilter) => void;
   onClearFilters: () => void;
 };
 
-const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'ALL', label: 'All' },
-  { value: 'SUBMITTED', label: 'Submitted' },
-  { value: 'UNDER_REVIEW', label: 'Under Review' },
-  { value: 'ASSIGNED', label: 'Assigned' },
-  { value: 'IN_PROGRESS', label: 'In Progress' },
-  { value: 'RESOLVED', label: 'Resolved' },
-  { value: 'CLOSED', label: 'Closed' },
+const STATUS_VALUES: StatusFilter[] = [
+  'ALL',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'RESOLVED',
+  'CLOSED',
 ];
 
-const URGENCY_OPTIONS: { value: UrgencyFilter; label: string }[] = [
-  { value: 'ALL', label: 'All urgencies' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
-];
-
-const SLA_OPTIONS: { value: SlaFilter; label: string }[] = [
-  { value: 'ALL', label: 'All SLA states' },
-  { value: 'overdue', label: 'Overdue' },
-  { value: 'due_soon', label: 'Due soon' },
-  { value: 'on_track', label: 'On track' },
+const URGENCY_VALUES: UrgencyFilter[] = ['ALL', 'low', 'medium', 'high', 'critical'];
+const SLA_VALUES: SlaFilter[] = ['ALL', 'overdue', 'due_soon', 'on_track'];
+const CONTENT_SAFETY_VALUES: ContentSafetyFilter[] = [
+  'ALL',
+  'review_required',
+  'pending',
+  'processing',
+  'passed',
+  'private_only',
+  'rejected',
+  'failed',
 ];
 
 export function TicketFilters({
@@ -67,6 +70,7 @@ export function TicketFilters({
   urgencyFilter,
   departmentFilter,
   slaFilter = 'ALL',
+  contentSafetyFilter = 'ALL',
   categoryOptions,
   resultCount,
   totalCount,
@@ -78,15 +82,32 @@ export function TicketFilters({
   onUrgencyChange,
   onDepartmentChange,
   onSlaChange = () => undefined,
+  onContentSafetyChange = () => undefined,
   onClearFilters,
 }: TicketFiltersProps) {
+  const { t } = useI18n();
+  const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
     statusFilter !== 'ALL' ||
     categoryFilter !== 'ALL' ||
     urgencyFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
-    slaFilter !== 'ALL';
+    slaFilter !== 'ALL' ||
+    contentSafetyFilter !== 'ALL';
+
+  const slaLabel =
+    slaFilter === 'overdue'
+      ? t('filters.overdue')
+      : slaFilter === 'due_soon'
+        ? t('filters.dueSoon')
+        : slaFilter === 'on_track'
+          ? t('filters.onTrack')
+          : t('filters.allSla');
 
   const activeFilterLabels: string[] = [];
   if (statusFilter !== 'ALL') {
@@ -101,7 +122,10 @@ export function TicketFilters({
   if (departmentFilter !== 'ALL') {
     activeFilterLabels.push(formatDepartment(departmentFilter));
   }
-  if (slaFilter !== 'ALL') activeFilterLabels.push(slaFilter.replace('_', ' '));
+  if (slaFilter !== 'ALL') activeFilterLabels.push(slaLabel);
+  if (contentSafetyFilter !== 'ALL') {
+    activeFilterLabels.push(t(`contentSafety.status.${contentSafetyFilter}`));
+  }
   if (searchQuery.trim()) {
     activeFilterLabels.push(`“${searchQuery.trim()}”`);
   }
@@ -117,17 +141,17 @@ export function TicketFilters({
             <input
               type="search"
               className="ticket-filters__search"
-              placeholder="Search ticket #, location, or description…"
+              placeholder={t('filters.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              aria-label="Search tickets"
+              aria-label={t('filters.search')}
             />
           </div>
         ) : null}
 
         <div className="ticket-filters__selects">
           <label className="ticket-filters__select-wrap">
-            <span className="ticket-filters__select-label">Category</span>
+            <span className="ticket-filters__select-label">{t('filters.category')}</span>
             <select
               className="ticket-filters__select"
               value={categoryFilter}
@@ -135,51 +159,76 @@ export function TicketFilters({
             >
               {categoryOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.value === 'ALL' ? opt.label : formatCategory(opt.value)}
+                  {opt.value === 'ALL' ? t('filters.allCategories') : formatCategory(opt.value)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="ticket-filters__select-wrap">
-            <span className="ticket-filters__select-label">SLA</span>
+            <span className="ticket-filters__select-label">{t('filters.sla')}</span>
             <select
               className="ticket-filters__select"
               value={slaFilter}
               onChange={(e) => onSlaChange(e.target.value as SlaFilter)}
             >
-              {SLA_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {SLA_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {value === 'ALL'
+                    ? t('filters.allSla')
+                    : value === 'overdue'
+                      ? t('filters.overdue')
+                      : value === 'due_soon'
+                        ? t('filters.dueSoon')
+                        : t('filters.onTrack')}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="ticket-filters__select-wrap">
-            <span className="ticket-filters__select-label">Urgency</span>
+            <span className="ticket-filters__select-label">{t('filters.contentSafety')}</span>
+            <select
+              className="ticket-filters__select"
+              value={contentSafetyFilter}
+              onChange={(e) => onContentSafetyChange(e.target.value as ContentSafetyFilter)}
+            >
+              {CONTENT_SAFETY_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {value === 'ALL'
+                    ? t('filters.allContentSafety')
+                    : t(`contentSafety.status.${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ticket-filters__select-wrap">
+            <span className="ticket-filters__select-label">{t('filters.urgency')}</span>
             <select
               className="ticket-filters__select"
               value={urgencyFilter}
               onChange={(e) => onUrgencyChange(e.target.value as UrgencyFilter)}
             >
-              {URGENCY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.value === 'ALL' ? opt.label : formatPriority(opt.value as TicketPriority)}
+              {URGENCY_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {value === 'ALL'
+                    ? t('filters.allUrgencies')
+                    : formatPriority(value as TicketPriority)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="ticket-filters__select-wrap">
-            <span className="ticket-filters__select-label">Department</span>
+            <span className="ticket-filters__select-label">{t('filters.department')}</span>
             <select
               className="ticket-filters__select"
               value={departmentFilter}
               onChange={(e) => onDepartmentChange(e.target.value as DepartmentFilter)}
             >
-              <option value="ALL">All departments</option>
-              {DEPARTMENT_OPTIONS.map((department) => (
+              <option value="ALL">{t('filters.allDepartments')}</option>
+              {departmentOptions.map((department) => (
                 <option key={department.departmentId} value={department.departmentId}>
                   {formatDepartment(department.departmentId)}
                 </option>
@@ -189,34 +238,36 @@ export function TicketFilters({
         </div>
       </div>
 
-      <div className="ticket-filters__pills" role="group" aria-label="Filter by status">
-        {STATUS_OPTIONS.map((opt) => (
+      <div className="ticket-filters__pills" role="group" aria-label={t('filters.statusGroup')}>
+        {STATUS_VALUES.map((value) => (
           <button
-            key={opt.value}
+            key={value}
             type="button"
             className={`ticket-filters__pill${
-              statusFilter === opt.value ? ' ticket-filters__pill--active' : ''
+              statusFilter === value ? ' ticket-filters__pill--active' : ''
             }`}
-            onClick={() => onStatusChange(opt.value)}
-            aria-pressed={statusFilter === opt.value}
+            onClick={() => onStatusChange(value)}
+            aria-pressed={statusFilter === value}
           >
-            {opt.value === 'ALL' ? opt.label : formatStatus(opt.value as TicketStatus)}
+            {value === 'ALL' ? t('filters.all') : formatStatus(value as TicketStatus)}
           </button>
         ))}
       </div>
 
       <div className="ticket-filters__meta">
         <p className="ticket-filters__count" aria-live="polite">
-          Showing <strong>{resultCount}</strong> of {totalCount} tickets
-          {isRefreshing && <span className="ticket-filters__refreshing">Updating...</span>}
+          {t('filters.showing', { shown: String(resultCount), total: String(totalCount) })}
+          {isRefreshing && (
+            <span className="ticket-filters__refreshing">{t('filters.updating')}</span>
+          )}
         </p>
 
         {hasActiveFilters && (
           <div className="ticket-filters__active">
-            <span className="ticket-filters__active-label">Active:</span>
+            <span className="ticket-filters__active-label">{t('filters.active')}</span>
             <span className="ticket-filters__active-values">{activeFilterLabels.join(' · ')}</span>
             <button type="button" className="ticket-filters__clear" onClick={onClearFilters}>
-              Clear all
+              {t('filters.clearAll')}
             </button>
           </div>
         )}

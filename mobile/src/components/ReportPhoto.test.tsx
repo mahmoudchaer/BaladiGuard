@@ -21,6 +21,7 @@ describe('ReportPhoto', () => {
     );
 
     const image = screen.root.findByType(Image);
+    expect(image.props.resizeMode).toBe('contain');
     expect(typeof image.props.onError).toBe('function');
 
     await act(async () => {

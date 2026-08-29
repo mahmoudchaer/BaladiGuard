@@ -16,7 +16,7 @@ DeliveryAttemptStatus = Literal[
     "SKIPPED_OPT_OUT",
 ]
 
-DeliveryChannel = Literal["EMAIL", "SMS"]
+DeliveryChannel = Literal["EMAIL", "SMS", "WHATSAPP", "PUSH"]
 
 
 class StoredNotificationDelivery(BaseModel):

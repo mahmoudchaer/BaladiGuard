@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -18,6 +19,49 @@ class StaffTicketPage:
     items: list[StoredTicket]
     next_cursor: str | None
     scanned_count: int
+
+
+def public_ticket_matches_query(
+    ticket: StoredTicket,
+    *,
+    q: str | None = None,
+    status: TicketStatus | None = None,
+    category: str | None = None,
+    north: float | None = None,
+    south: float | None = None,
+    east: float | None = None,
+    west: float | None = None,
+) -> bool:
+    """Apply public discovery predicates before pagination limits are imposed."""
+    effective_category = (ticket.final_category or ticket.category or "").casefold()
+    if status is not None and ticket.status != status:
+        return False
+    if category and effective_category != category.strip().casefold():
+        return False
+    if q:
+        searchable = " ".join(
+            (
+                ticket.ticket_number,
+                ticket.public_description or "",
+                ticket.public_location_label or "",
+                effective_category.replace("_", " "),
+            )
+        ).casefold()
+        if q.strip().casefold() not in searchable:
+            return False
+
+    bounds = (north, south, east, west)
+    if not any(value is not None for value in bounds):
+        return True
+    if any(value is None for value in bounds):
+        raise ValueError("Public viewport bounds must be provided together.")
+    assert north is not None and south is not None
+    assert east is not None and west is not None
+    if ticket.location.latitude > north or ticket.location.latitude < south:
+        return False
+    if west <= east:
+        return west <= ticket.location.longitude <= east
+    return ticket.location.longitude >= west or ticket.location.longitude <= east
 
 
 class TicketStore(Protocol):
@@ -43,7 +87,7 @@ class TicketStore(Protocol):
         cursor: str | None,
         status: str | None = None,
         category: str | None = None,
-        urgency: str | None = None,
+        urgency: str | Sequence[str] | None = None,
         department_id: str | None = None,
         assignment_state: Literal["assigned", "unassigned"] | None = None,
         q: str | None = None,
@@ -64,7 +108,16 @@ class TicketStore(Protocol):
         *,
         limit: int,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
+        north: float | None = None,
+        south: float | None = None,
+        east: float | None = None,
+        west: float | None = None,
     ) -> TicketHistoryPage: ...
+
+    def public_continuation_cursor(self, ticket: StoredTicket) -> str: ...
 
     def list_by_owner(
         self,
@@ -78,6 +131,23 @@ class TicketStore(Protocol):
         self,
         ticket_id: str,
         fields: dict[str, Any],
+        expected_updated_at: str | None = None,
+        expected_municipality_id: str | None = None,
+        expected_department_id: str | None = None,
+        require_assignment_scope: bool = False,
+        expected_values: dict[str, Any] | None = None,
+        forbid_pending_unresolved_feedback: bool = False,
+    ) -> StoredTicket | None: ...
+
+    def commit_resolution_feedback(
+        self,
+        ticket_id: str,
+        fields: dict[str, Any],
+        *,
+        expected_updated_at: str,
+        expected_values: dict[str, Any],
+        review_item: object | None = None,
+        delete_review: bool = False,
     ) -> StoredTicket | None: ...
 
     def update_status(
@@ -103,7 +173,12 @@ class TicketStore(Protocol):
     def requeue_ai_processing(self, ticket_id: str, updated_at: str) -> StoredTicket | None: ...
 
     def patch_ai_fields(
-        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+        self,
+        ticket_id: str,
+        claim_token: str,
+        fields: dict[str, object],
+        *,
+        expected_values: dict[str, object] | None = None,
     ) -> StoredTicket | None: ...
 
     def claim_image_redaction(
@@ -118,7 +193,61 @@ class TicketStore(Protocol):
         self, ticket_id: str, generation: int, claim_token: str, updated_at: str
     ) -> StoredTicket | None: ...
 
-    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None: ...
+    def start_image_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+    ) -> StoredTicket | None: ...
+
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_candidate_revision: int,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None: ...
+
+    def claim_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None: ...
+
+    def finalize_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, fields: dict[str, Any]
+    ) -> StoredTicket | None: ...
+
+    def requeue_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None: ...
+
+    def start_content_safety_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
+    ) -> StoredTicket | None: ...
+
+    def apply_content_safety_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None: ...
 
     def has_ticket_id(self, ticket_id: str) -> bool: ...
 

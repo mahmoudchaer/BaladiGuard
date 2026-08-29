@@ -40,9 +40,17 @@ DEFAULT_TABLE_SUFFIXES = (
     "duplicate-groups",
     "municipalities",
     "departments",
+    "workforce-workers",
+    "workforce-teams",
     "categories",
     "counters",
     "rate-limit-buckets",
+    "ops-alert-acks",
+    "ops-error-groups",
+    "ops-audit",
+    "privacy-request-audit",
+    "rewards-ledger",
+    "rewards-projection",
 )
 
 

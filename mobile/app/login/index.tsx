@@ -8,6 +8,7 @@ import { sanitizeReturnTo } from '@/auth/returnTo';
 import { BrandMark, BrandStripe } from '@/components/BrandMark';
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, spacing } from '@/theme';
 import type { CitizenOtpVerifyResponse } from '@/types/citizen';
 
@@ -17,6 +18,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = useMemo(() => sanitizeReturnTo(params.returnTo), [params.returnTo]);
+  const { t } = useI18n();
   const { applyVerifyResponse, contributionReady, isAuthenticated, isLoading } = useCitizenAuth();
 
   const [challenge, setChallenge] = useState<ChallengeState>(null);
@@ -49,6 +51,7 @@ export default function LoginScreen() {
               expiresIn={challenge.expiresIn}
               phone={challenge.phone}
               region={challenge.region}
+              deliveryChannel={challenge.deliveryChannel}
               onChallengeReplaced={(next) =>
                 setChallenge((prev) =>
                   prev
@@ -56,6 +59,7 @@ export default function LoginScreen() {
                         ...prev,
                         challengeId: next.challengeId,
                         expiresIn: next.expiresIn,
+                        deliveryChannel: next.deliveryChannel ?? prev.deliveryChannel,
                       }
                     : prev,
                 )
@@ -65,7 +69,8 @@ export default function LoginScreen() {
           ) : (
             <PhoneEntryForm
               onSuccess={setChallenge}
-              subtitle="Enter your mobile number to receive a one-time verification code. A verified phone is enough to submit reports — no password or full name required."
+              title={t('auth.continueTitle')}
+              subtitle={t('auth.continueSubtitle')}
             />
           )}
         </View>

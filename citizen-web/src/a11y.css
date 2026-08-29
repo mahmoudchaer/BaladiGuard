@@ -1,0 +1,58 @@
+/* Critical-flow accessibility for issue #265. Language/RTL remains #259. */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  top: 0.75rem;
+  z-index: 100;
+  padding: 0.65rem 1rem;
+  min-height: 44px;
+  min-width: 44px;
+  background: #005c2e;
+  color: #fff;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  font-weight: 600;
+  transform: translateY(-220%);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: none;
+}
+
+:focus-visible {
+  outline: 3px solid #005c2e;
+  outline-offset: 3px;
+}
+
+.button,
+.shell-nav-link,
+.nav-sign-in,
+.nav-avatar,
+.text-button,
+.input,
+.otp-input,
+.setting-action,
+.location-button {
+  min-height: 44px;
+}
+
+@media (min-width: 768px) {
+  .page,
+  .narrow-page {
+    max-width: 52rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page,
+  .narrow-page {
+    max-width: 64rem;
+  }
+}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -27,8 +28,20 @@ from app.database.serialization import (
     prepare_dynamodb_value,
     ticket_to_item,
 )
-from app.database.ticket_patch import build_update_expression
-from app.database.ticket_store import StaffTicketPage, TicketHistoryPage
+from app.database.ticket_patch import (
+    append_content_safety_review_condition,
+    append_expected_values_condition,
+    append_no_pending_unresolved_feedback_condition,
+    append_redaction_review_condition,
+    append_ticket_access_scope_condition,
+    append_ticket_assignment_scope_condition,
+    build_update_expression,
+)
+from app.database.ticket_store import (
+    StaffTicketPage,
+    TicketHistoryPage,
+    public_ticket_matches_query,
+)
 from app.schemas.stored_ticket import StoredTicket
 from app.schemas.ticket_response import TicketStatus
 from app.utils.ticket_ids import normalize_tracking_code
@@ -67,7 +80,10 @@ class DynamoTicketStore:
         self._tickets_table.put_item(Item=ticket_to_item(ticket))
 
     def get(self, ticket_id: str) -> StoredTicket | None:
-        response = self._tickets_table.get_item(Key={"ticketId": ticket_id})
+        response = self._tickets_table.get_item(
+            Key={"ticketId": ticket_id},
+            ConsistentRead=True,
+        )
         item = response.get("Item")
         if not item:
             return None
@@ -120,7 +136,7 @@ class DynamoTicketStore:
         cursor: str | None,
         status: str | None = None,
         category: str | None = None,
-        urgency: str | None = None,
+        urgency: str | Sequence[str] | None = None,
         department_id: str | None = None,
         assignment_state: Literal["assigned", "unassigned"] | None = None,
         q: str | None = None,
@@ -180,6 +196,12 @@ class DynamoTicketStore:
                     municipality_id=municipality_id,
                     department_ids=department_ids,
                     department_id=department_id,
+                ):
+                    continue
+                if (
+                    browse_mode == "admin"
+                    and municipality_id
+                    and ticket.municipality_id not in {None, municipality_id}
                 ):
                     continue
                 items.append(ticket)
@@ -265,6 +287,13 @@ class DynamoTicketStore:
         *,
         limit: int,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
+        north: float | None = None,
+        south: float | None = None,
+        east: float | None = None,
+        west: float | None = None,
     ) -> TicketHistoryPage:
         query_kwargs: dict[str, object] = {
             "IndexName": PUBLIC_TICKETS_INDEX,
@@ -275,37 +304,88 @@ class DynamoTicketStore:
         if cursor:
             query_kwargs["ExclusiveStartKey"] = _decode_public_cursor(cursor)
 
-        items: list[dict[str, Any]] = []
+        tickets: list[StoredTicket] = []
         last_key: dict[str, Any] | None = None
-        while len(items) < limit:
+        while len(tickets) <= limit:
             response = self._tickets_table.query(**query_kwargs)
             last_key = response.get("LastEvaluatedKey")
             for item in response.get("Items", []):
                 ticket = item_to_ticket(item)
-                if is_public_ticket_publishable(ticket):
-                    items.append(item)
-                    if len(items) == limit:
+                if is_public_ticket_publishable(ticket) and public_ticket_matches_query(
+                    ticket,
+                    q=q,
+                    status=status,
+                    category=category,
+                    north=north,
+                    south=south,
+                    east=east,
+                    west=west,
+                ):
+                    tickets.append(ticket)
+                    if len(tickets) > limit:
                         break
-            if not last_key or len(items) == limit:
+            if not last_key or len(tickets) > limit:
                 break
             query_kwargs["ExclusiveStartKey"] = last_key
 
+        page = tickets[:limit]
+        next_cursor = self.public_continuation_cursor(page[-1]) if len(tickets) > limit else None
         return TicketHistoryPage(
-            [item_to_ticket(item) for item in items],
-            _encode_public_cursor(last_key),
+            page,
+            next_cursor,
         )
+
+    def public_continuation_cursor(self, ticket: StoredTicket) -> str:
+        cursor = _encode_public_cursor(
+            {
+                "publicStatus": PUBLIC_TICKET_STATUS_PUBLISHED,
+                PUBLIC_SORT_KEY: build_public_sort_key(ticket),
+                "ticketId": ticket.ticket_id,
+            }
+        )
+        if cursor is None:  # pragma: no cover - all fields above are present
+            raise ValueError("Unable to create public ticket cursor.")
+        return cursor
 
     def patch_fields(
         self,
         ticket_id: str,
         fields: dict[str, object],
+        expected_updated_at: str | None = None,
+        expected_municipality_id: str | None = None,
+        expected_department_id: str | None = None,
+        require_assignment_scope: bool = False,
+        expected_values: dict[str, object] | None = None,
+        forbid_pending_unresolved_feedback: bool = False,
     ) -> StoredTicket | None:
         """Apply a partial attribute update so concurrent writers do not clobber each other."""
         expression, names, values = build_update_expression(fields)
+        if require_assignment_scope:
+            condition = append_ticket_assignment_scope_condition(
+                names,
+                values,
+                expected_updated_at=expected_updated_at,
+                expected_municipality_id=expected_municipality_id,
+                expected_department_id=expected_department_id,
+            )
+        elif expected_updated_at is None:
+            condition = "attribute_exists(ticketId)"
+        else:
+            condition = "attribute_exists(ticketId) AND updatedAt = :expectedUpdatedAt"
+            values[":expectedUpdatedAt"] = expected_updated_at
+        extra_conditions: list[str] = []
+        if expected_values:
+            extra_conditions.append(
+                append_expected_values_condition(names, values, expected_values)
+            )
+        if forbid_pending_unresolved_feedback:
+            extra_conditions.append(append_no_pending_unresolved_feedback_condition(names, values))
+        if extra_conditions:
+            condition = " AND ".join([condition, *extra_conditions])
         update_kwargs: dict[str, object] = {
             "Key": {"ticketId": ticket_id},
             "UpdateExpression": expression,
-            "ConditionExpression": "attribute_exists(ticketId)",
+            "ConditionExpression": condition,
             "ExpressionAttributeNames": names,
             "ReturnValues": "ALL_NEW",
         }
@@ -322,6 +402,69 @@ class DynamoTicketStore:
         if PUBLIC_INDEX_FIELDS.intersection(fields):
             self._sync_public_index_fields(updated_ticket)
         return updated_ticket
+
+    def commit_resolution_feedback(
+        self,
+        ticket_id: str,
+        fields: dict[str, object],
+        *,
+        expected_updated_at: str,
+        expected_values: dict[str, object],
+        review_item: object | None = None,
+        delete_review: bool = False,
+    ) -> StoredTicket | None:
+        from app.database.dynamo_resolution_review_store import REVIEW_ITEM_TYPE, review_item_id
+
+        expression, names, values = build_update_expression(fields)
+        condition = "attribute_exists(ticketId) AND updatedAt = :expectedUpdatedAt"
+        values[":expectedUpdatedAt"] = expected_updated_at
+        if expected_values:
+            condition = " AND ".join(
+                [condition, append_expected_values_condition(names, values, expected_values)]
+            )
+        update_item: dict[str, object] = {
+            "TableName": self._tickets_table.name,
+            "Key": {"ticketId": ticket_id},
+            "UpdateExpression": expression,
+            "ConditionExpression": condition,
+            "ExpressionAttributeNames": names,
+        }
+        if values:
+            update_item["ExpressionAttributeValues"] = prepare_dynamodb_value(values)
+        transact_items: list[dict[str, object]] = [{"Update": update_item}]
+        work_orders = self._resource.Table(
+            build_table_name(self._settings.dynamodb_table_prefix, "work-orders")
+        )
+        if review_item is not None:
+            payload = review_item.model_dump(by_alias=True, mode="json")
+            payload["workOrderId"] = review_item_id(review_item.ticket_id)
+            payload["itemType"] = REVIEW_ITEM_TYPE
+            transact_items.append(
+                {"Put": {"TableName": work_orders.name, "Item": prepare_dynamodb_value(payload)}}
+            )
+        elif delete_review:
+            transact_items.append(
+                {
+                    "Delete": {
+                        "TableName": work_orders.name,
+                        "Key": {"workOrderId": review_item_id(ticket_id)},
+                    }
+                }
+            )
+        try:
+            self._resource.meta.client.transact_write_items(TransactItems=transact_items)
+        except ClientError as error:
+            code = error.response.get("Error", {}).get("Code")
+            if code == "ConditionalCheckFailedException":
+                return None
+            if code == "TransactionCanceledException":
+                reasons = error.response.get("CancellationReasons") or []
+                ticket_reason = reasons[0].get("Code") if reasons else None
+                if ticket_reason == "ConditionalCheckFailed":
+                    return None
+                raise
+            raise
+        return self.get(ticket_id)
 
     def update_status(
         self,
@@ -444,7 +587,12 @@ class DynamoTicketStore:
         return item_to_ticket(response["Attributes"])
 
     def patch_ai_fields(
-        self, ticket_id: str, claim_token: str, fields: dict[str, object]
+        self,
+        ticket_id: str,
+        claim_token: str,
+        fields: dict[str, object],
+        *,
+        expected_values: dict[str, object] | None = None,
     ) -> StoredTicket | None:
         expression, names, values = build_update_expression(
             {**fields, "ai_processing_claim_token": None}
@@ -452,13 +600,19 @@ class DynamoTicketStore:
         names["#ai"] = "aiProcessingStatus"
         values[":processing"] = "processing"
         values[":claimToken"] = claim_token
+        condition = "#ai = :processing AND aiProcessingClaimToken = :claimToken"
+        if expected_values:
+            condition = (
+                f"{condition} AND "
+                f"{append_expected_values_condition(names, values, expected_values)}"
+            )
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=expression,
-                ConditionExpression=("#ai = :processing AND aiProcessingClaimToken = :claimToken"),
+                ConditionExpression=condition,
                 ExpressionAttributeNames=names,
-                ExpressionAttributeValues=values,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
                 ReturnValues="ALL_NEW",
             )
         except ClientError as error:
@@ -555,25 +709,290 @@ class DynamoTicketStore:
                 return None
             raise
 
-    def start_image_reprocessing(self, ticket_id: str, updated_at: str) -> StoredTicket | None:
+    def start_image_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+    ) -> StoredTicket | None:
+        names: dict[str, str] = {}
+        values: dict[str, Any] = {
+            ":pending": "pending",
+            ":updated": updated_at,
+            ":one": 1,
+            ":zero": 0,
+        }
+        scope = append_ticket_access_scope_condition(
+            names,
+            values,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
         try:
             response = self._tickets_table.update_item(
                 Key={"ticketId": ticket_id},
                 UpdateExpression=(
                     "SET imageRedactionStatus=:pending, updatedAt=:updated, "
-                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one "
+                    "imageRedactionGeneration=if_not_exists(imageRedactionGeneration,:one)+:one, "
+                    "imageRedactionCandidateRevision=:zero "
                     "REMOVE imageRedactionClaimToken, imageRedactionCompletedAt, "
-                    "imageRedactionReasonCode"
+                    "imageRedactionReasonCode, imageRedactionCandidateObjectKey, "
+                    "imageRedactionRegions"
                 ),
-                ConditionExpression="attribute_exists(ticketId)",
+                ConditionExpression=f"attribute_exists(ticketId) AND {scope}",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def apply_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_candidate_revision: int,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        patch_fields = dict(fields)
+        if copy_candidate_to_public:
+            patch_fields.pop("public_image_object_key", None)
+        expression, names, values = build_update_expression(patch_fields)
+        condition = append_redaction_review_condition(
+            names,
+            values,
+            expected_status=expected_status,
+            expected_generation=expected_generation,
+            expected_candidate_revision=expected_candidate_revision,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
+        if copy_candidate_to_public:
+            names["#pub"] = "publicImageObjectKey"
+            names["#cand"] = "imageRedactionCandidateObjectKey"
+            if expression.startswith("SET "):
+                expression = "SET #pub = #cand, " + expression[4:]
+            elif expression:
+                expression = "SET #pub = #cand " + expression
+            else:
+                expression = "SET #pub = #cand"
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression=condition,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def claim_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=(
+                    "SET contentSafetyStatus=:processing, "
+                    "contentSafetyClaimToken=:token, updatedAt=:updated"
+                ),
+                ConditionExpression=(
+                    "contentSafetyStatus=:pending AND contentSafetyGeneration=:generation"
+                ),
                 ExpressionAttributeValues={
+                    ":processing": "processing",
                     ":pending": "pending",
+                    ":token": claim_token,
                     ":updated": updated_at,
-                    ":one": 1,
+                    ":generation": generation,
                 },
                 ReturnValues="ALL_NEW",
             )
             return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def finalize_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, fields: dict[str, object]
+    ) -> StoredTicket | None:
+        expression, names, values = build_update_expression(
+            {**fields, "content_safety_claim_token": None}
+        )
+        names.update(
+            {
+                "#css": "contentSafetyStatus",
+                "#csg": "contentSafetyGeneration",
+                "#cst": "contentSafetyClaimToken",
+            }
+        )
+        values.update(
+            {":processing": "processing", ":generation": generation, ":token": claim_token}
+        )
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression="#css=:processing AND #csg=:generation AND #cst=:token",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            updated = item_to_ticket(response["Attributes"])
+            self._sync_public_index_fields(updated)
+            return updated
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def requeue_content_safety(
+        self, ticket_id: str, generation: int, claim_token: str, updated_at: str
+    ) -> StoredTicket | None:
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=(
+                    "SET contentSafetyStatus=:pending, updatedAt=:updated "
+                    "REMOVE contentSafetyClaimToken"
+                ),
+                ConditionExpression=(
+                    "contentSafetyStatus=:processing AND contentSafetyGeneration=:generation "
+                    "AND contentSafetyClaimToken=:token"
+                ),
+                ExpressionAttributeValues={
+                    ":pending": "pending",
+                    ":processing": "processing",
+                    ":updated": updated_at,
+                    ":generation": generation,
+                    ":token": claim_token,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return item_to_ticket(response["Attributes"])
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def start_content_safety_reprocessing(
+        self,
+        ticket_id: str,
+        updated_at: str,
+        *,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any] | None = None,
+    ) -> StoredTicket | None:
+        extra = dict(fields or {})
+        increment_generation = "content_safety_generation" not in extra
+        patch_fields: dict[str, Any] = {
+            "content_safety_status": "pending",
+            "updated_at": updated_at,
+            "content_safety_claim_token": None,
+            "content_safety_completed_at": None,
+            "content_safety_reason_code": None,
+            "content_safety_severity": None,
+            "content_safety_text_model": None,
+            "content_safety_image_labels": None,
+            "authenticity_score": None,
+            "authenticity_model": None,
+            "authenticity_model_version": None,
+            "authenticity_signals": None,
+            "content_safety_staff_note": None,
+        }
+        patch_fields.update(extra)
+        expression, names, values = build_update_expression(patch_fields)
+        if increment_generation:
+            names["#csg"] = "contentSafetyGeneration"
+            values[":one"] = 1
+            if expression.startswith("SET "):
+                expression = "SET #csg = if_not_exists(#csg,:one)+:one, " + expression[4:]
+            else:
+                expression = "SET #csg = if_not_exists(#csg,:one)+:one " + expression
+        scope = append_ticket_access_scope_condition(
+            names,
+            values,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression=f"attribute_exists(ticketId) AND {scope}",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            updated = item_to_ticket(response["Attributes"])
+            self._sync_public_index_fields(updated)
+            return updated
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def apply_content_safety_review(
+        self,
+        ticket_id: str,
+        *,
+        expected_generation: int,
+        expected_status: str,
+        expected_municipality_id: str | None,
+        expected_department_id: str | None,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        patch_fields = dict(fields)
+        if copy_candidate_to_public:
+            patch_fields.pop("public_image_object_key", None)
+        expression, names, values = build_update_expression(patch_fields)
+        condition = append_content_safety_review_condition(
+            names,
+            values,
+            expected_status=expected_status,
+            expected_generation=expected_generation,
+            expected_municipality_id=expected_municipality_id,
+            expected_department_id=expected_department_id,
+        )
+        if copy_candidate_to_public:
+            names["#pub"] = "publicImageObjectKey"
+            names["#cand"] = "imageRedactionCandidateObjectKey"
+            if expression.startswith("SET "):
+                expression = "SET #pub = #cand, " + expression[4:]
+            elif expression:
+                expression = "SET #pub = #cand " + expression
+            else:
+                expression = "SET #pub = #cand"
+        try:
+            response = self._tickets_table.update_item(
+                Key={"ticketId": ticket_id},
+                UpdateExpression=expression,
+                ConditionExpression=condition,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=prepare_dynamodb_value(values),
+                ReturnValues="ALL_NEW",
+            )
+            updated = item_to_ticket(response["Attributes"])
+            self._sync_public_index_fields(updated)
+            return updated
         except ClientError as error:
             if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 return None
@@ -714,18 +1133,25 @@ def _staff_query_target(
 ) -> tuple[str, str, str]:
     if department_id and browse_mode == "municipality":
         return DEPARTMENT_STAFF_INDEX, "departmentId", department_id
-    if browse_mode == "admin":
-        return ADMIN_BROWSE_INDEX, ADMIN_BROWSE_KEY, ADMIN_BROWSE_ALL
-    if not municipality_id:
-        raise ValueError("municipality_id is required for municipality browse mode.")
-    return STAFF_SCOPE_INDEX, STAFF_SCOPE_KEY, municipality_id
+    del municipality_id, browse_mode
+    # Municipality and admin browse share the admin partition so unassigned
+    # tickets (staffScopeKey=UNSCOPED) stay visible, then post-filter owners.
+    return ADMIN_BROWSE_INDEX, ADMIN_BROWSE_KEY, ADMIN_BROWSE_ALL
+
+
+def _priority_filter_values(urgency: str | Sequence[str] | None) -> list[str]:
+    if urgency is None:
+        return []
+    if isinstance(urgency, str):
+        return [urgency]
+    return list(urgency)
 
 
 def _staff_filter_expression(
     *,
     status: str | None,
     category: str | None,
-    urgency: str | None,
+    urgency: str | Sequence[str] | None,
     department_id: str | None,
     department_ids: list[str] | None,
     assignment_state: Literal["assigned", "unassigned"] | None = None,
@@ -740,8 +1166,11 @@ def _staff_filter_expression(
     if category is not None:
         clause = Attr("category").eq(category)
         expression = clause if expression is None else expression & clause
-    if urgency is not None:
-        clause = Attr("priority").eq(urgency)
+    levels = _priority_filter_values(urgency)
+    if levels:
+        clause = (
+            Attr("priority").is_in(levels) if len(levels) > 1 else Attr("priority").eq(levels[0])
+        )
         expression = clause if expression is None else expression & clause
     if assignment_state == "unassigned":
         clause = Attr("departmentId").not_exists()
@@ -781,6 +1210,8 @@ def _municipal_post_filter(
 ) -> bool:
     if ticket.municipality_id is not None and ticket.municipality_id != municipality_id:
         return False
+    if department_ids is None and department_id is None:
+        return True
     if department_id is not None:
         return ticket.department_id == department_id
     if ticket.department_id is None:

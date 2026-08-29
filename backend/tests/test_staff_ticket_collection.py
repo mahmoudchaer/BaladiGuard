@@ -302,6 +302,13 @@ def test_aggregates_requires_staff_auth_and_shape(client):
         "highCount",
         "unassignedCount",
         "overdueCount",
+        "queuedCount",
+        "assignedCount",
+        "inProgressCount",
+        "dueSoonCount",
+        "completedCount",
+        "cancelledCount",
+        "workforceUnassignedCount",
         "approximate",
     }
     assert body["approximate"] is False

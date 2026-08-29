@@ -320,17 +320,36 @@ def require_admin(
     return principal
 
 
+def require_developer_operator(
+    request: Request,
+    principal: Annotated[StaffPrincipal, Depends(require_staff)],
+) -> StaffPrincipal:
+    """FastAPI dependency for developer-operator control-plane routes."""
+    if principal.role != "developer_operator":
+        raise forbidden(request)
+    return principal
+
+
+def require_municipal_actor(
+    request: Request,
+    principal: Annotated[StaffPrincipal, Depends(require_staff)],
+) -> StaffPrincipal:
+    """Staff routes for municipal ticket/workforce work. Operators are excluded."""
+    if principal.role == "developer_operator":
+        raise forbidden(request)
+    return principal
+
+
 def staff_can_access_ticket(principal: StaffPrincipal, ticket: StoredTicket) -> bool:
     """Return True when a staff principal may read or mutate a ticket resource."""
-    if principal.role == "administrator":
-        return True
-
+    if principal.role == "developer_operator":
+        return False
     if ticket.municipality_id is not None and ticket.municipality_id != principal.municipality_id:
         return False
-
+    if principal.role == "administrator":
+        return True
     if ticket.department_id is None:
         return True
-
     return ticket.department_id in set(principal.department_ids or [])
 
 
@@ -343,16 +362,20 @@ def department_municipality_id(department_id: str) -> str | None:
 
 def staff_can_assign_department(principal: StaffPrincipal, department_id: str) -> bool:
     """Return True when a staff principal may assign a ticket to ``department_id``."""
-    if principal.role == "administrator":
-        return True
-    if department_id not in set(principal.department_ids or []):
+    if principal.role == "developer_operator":
         return False
     department_municipality = department_municipality_id(department_id)
+    if principal.role == "administrator":
+        return department_municipality in {None, principal.municipality_id}
+    if department_id not in set(principal.department_ids or []):
+        return False
     return department_municipality in {None, principal.municipality_id}
 
 
 StaffDep = Annotated[StaffPrincipal, Depends(require_staff)]
 AdminStaffDep = Annotated[StaffPrincipal, Depends(require_admin)]
+DeveloperOperatorDep = Annotated[StaffPrincipal, Depends(require_developer_operator)]
+MunicipalStaffDep = Annotated[StaffPrincipal, Depends(require_municipal_actor)]
 
 # Re-export for typing convenience
-StaffRoleName = Literal["municipal_staff", "administrator"]
+StaffRoleName = Literal["municipal_staff", "administrator", "developer_operator"]

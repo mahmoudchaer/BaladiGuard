@@ -34,6 +34,7 @@ const verifyResponse = {
   email: null,
   notificationPreferences: { ticketUpdates: 'NONE' as const, announcements: false },
   publicNameVisible: false,
+  leaderboardOptIn: false,
   active: true,
   contributionReady: true,
   createdAt: '2026-08-01T12:00:00Z',
@@ -76,10 +77,18 @@ describe('OtpVerifyForm', () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('123456');
     });
     await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
+    });
+    await act(async () => {
       findButton(screen, 'Verify code').props.onPress();
     });
 
-    expect(verifyCitizenOtp).toHaveBeenCalledWith({ challengeId: 'ch_1', code: '123456' });
+    expect(verifyCitizenOtp).toHaveBeenCalledWith({
+      challengeId: 'ch_1',
+      code: '123456',
+      acceptLegal: true,
+      legalLocale: 'en',
+    });
     expect(onVerified).toHaveBeenCalledWith(verifyResponse);
   });
 
@@ -99,6 +108,9 @@ describe('OtpVerifyForm', () => {
 
     await act(async () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('000000');
+    });
+    await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
     });
     await act(async () => {
       findButton(screen, 'Verify code').props.onPress();

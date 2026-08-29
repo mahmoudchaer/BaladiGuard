@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CircleMarker,
@@ -11,6 +11,7 @@ import {
   ZoomControl,
 } from 'react-leaflet';
 import L from 'leaflet';
+import { useI18n } from '@/i18n/LocaleProvider';
 import type { Ticket, TicketPriority, TicketStatus } from '@/types/ticket';
 import type { TicketMapCluster, TicketMapMarker } from '@/types/ticketCollection';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
@@ -22,6 +23,12 @@ type TicketMapViewportProps = {
   markers: TicketMapMarker[];
   clusters: TicketMapCluster[];
   truncated?: boolean;
+  initialBounds?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  } | null;
   onViewportChange?: (viewport: {
     north: number;
     south: number;
@@ -142,6 +149,27 @@ function FitTicketBounds({ tickets, singleZoom }: { tickets: Ticket[]; singleZoo
   return null;
 }
 
+function FitInitialBounds({ bounds }: { bounds: TicketMapViewportProps['initialBounds'] }) {
+  const map = useMap();
+  const applied = useRef(false);
+
+  useEffect(() => {
+    if (!bounds || applied.current) {
+      return;
+    }
+    applied.current = true;
+    map.fitBounds(
+      [
+        [bounds.south, bounds.west],
+        [bounds.north, bounds.east],
+      ],
+      { padding: [28, 28], maxZoom: 16 },
+    );
+  }, [bounds, map]);
+
+  return null;
+}
+
 function ViewportReporter({
   onViewportChange,
 }: {
@@ -177,6 +205,7 @@ function ViewportReporter({
 }
 
 function ClusterMarker({ cluster }: { cluster: TicketMapCluster }) {
+  const { t } = useI18n();
   const map = useMap();
   return (
     <CircleMarker
@@ -196,8 +225,10 @@ function ClusterMarker({ cluster }: { cluster: TicketMapCluster }) {
     >
       <Popup>
         <div className="ticket-map__popup">
-          <p className="ticket-map__popup-id">{cluster.count} reports</p>
-          <p className="ticket-map__popup-meta">Zoom in to see individual tickets</p>
+          <p className="ticket-map__popup-id">
+            {t('map.clusterReports', { count: cluster.count })}
+          </p>
+          <p className="ticket-map__popup-meta">{t('map.zoomTickets')}</p>
         </div>
       </Popup>
     </CircleMarker>
@@ -205,21 +236,20 @@ function ClusterMarker({ cluster }: { cluster: TicketMapCluster }) {
 }
 
 function DetailTicketMap({ tickets }: { tickets: Ticket[] }) {
+  const { t } = useI18n();
   const singleZoom = 16;
   const [colorMode] = useState<MarkerColorMode>('status');
 
   if (tickets.length === 0) {
     return (
-      <div className="ticket-map ticket-map--empty" data-testid="ticket-map">
-        <p className="ticket-map__empty-message">
-          No tickets with map coordinates to display right now.
-        </p>
+      <div className="ticket-map ticket-map--empty ltr-isolate" dir="ltr" data-testid="ticket-map">
+        <p className="ticket-map__empty-message">{t('map.emptyCoordinates')}</p>
       </div>
     );
   }
 
   return (
-    <div className="ticket-map ticket-map--detail" data-testid="ticket-map">
+    <div className="ticket-map ticket-map--detail ltr-isolate" dir="ltr" data-testid="ticket-map">
       <MapContainer
         center={[BEIRUT_CENTER.latitude, BEIRUT_CENTER.longitude]}
         zoom={singleZoom}
@@ -250,7 +280,9 @@ function DetailTicketMap({ tickets }: { tickets: Ticket[] }) {
                   <p className="ticket-map__popup-id">{ticket.ticketNumber}</p>
                   <p className="ticket-map__popup-meta">
                     {formatCategory(ticket.category)} · {formatStatus(ticket.status)}
-                    {ticket.priority ? ` · ${formatPriority(ticket.priority)} urgency` : ''}
+                    {ticket.priority
+                      ? t('map.urgencySuffix', { priority: formatPriority(ticket.priority) })
+                      : ''}
                   </p>
                   <p className="ticket-map__popup-address">{ticket.location.addressText}</p>
                   <div className="ticket-map__popup-actions">
@@ -260,7 +292,7 @@ function DetailTicketMap({ tickets }: { tickets: Ticket[] }) {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Open in Maps
+                      {t('map.openMaps')}
                     </a>
                   </div>
                 </div>
@@ -277,8 +309,10 @@ function OverviewTicketMap({
   markers,
   clusters,
   truncated = false,
+  initialBounds = null,
   onViewportChange,
 }: TicketMapViewportProps) {
+  const { t } = useI18n();
   const [colorMode, setColorMode] = useState<MarkerColorMode>('status');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
 
@@ -303,10 +337,10 @@ function OverviewTicketMap({
   const hasContent = markers.length > 0 || clusters.length > 0;
 
   return (
-    <div className="ticket-map" data-testid="ticket-map">
-      <div className="ticket-map__legend" aria-label="Map legend">
-        <p className="ticket-map__legend-title">Map layers</p>
-        <div className="ticket-map__legend-toggle" role="group" aria-label="Color pins by">
+    <div className="ticket-map ltr-isolate" dir="ltr" data-testid="ticket-map">
+      <div className="ticket-map__legend" aria-label={t('map.legend')}>
+        <p className="ticket-map__legend-title">{t('map.layers')}</p>
+        <div className="ticket-map__legend-toggle" role="group" aria-label={t('map.colorBy')}>
           <button
             type="button"
             className={`ticket-map__legend-toggle-btn${
@@ -315,7 +349,7 @@ function OverviewTicketMap({
             aria-pressed={colorMode === 'status'}
             onClick={() => setColorMode('status')}
           >
-            Status
+            {t('map.status')}
           </button>
           <button
             type="button"
@@ -325,7 +359,7 @@ function OverviewTicketMap({
             aria-pressed={colorMode === 'urgency'}
             onClick={() => setColorMode('urgency')}
           >
-            Urgency
+            {t('map.urgency')}
           </button>
         </div>
         <ul className="ticket-map__legend-list">
@@ -343,7 +377,7 @@ function OverviewTicketMap({
         </ul>
         {truncated ? (
           <p className="ticket-map__truncated" role="status">
-            Showing a bounded sample for this viewport
+            {t('map.truncatedSample')}
           </p>
         ) : null}
       </div>
@@ -362,6 +396,7 @@ function OverviewTicketMap({
           subdomains="abcd"
         />
         <ZoomControl position="bottomright" />
+        <FitInitialBounds bounds={initialBounds} />
         <ViewportReporter onViewportChange={onViewportChange} />
         {clusters.map((cluster) => (
           <ClusterMarker key={cluster.id} cluster={cluster} />
@@ -388,11 +423,13 @@ function OverviewTicketMap({
                   <p className="ticket-map__popup-id">{label}</p>
                   <p className="ticket-map__popup-meta">
                     {formatCategory(marker.category)} · {formatStatus(marker.status)}
-                    {marker.priority ? ` · ${formatPriority(marker.priority)} urgency` : ''}
+                    {marker.priority
+                      ? t('map.urgencySuffix', { priority: formatPriority(marker.priority) })
+                      : ''}
                   </p>
                   <div className="ticket-map__popup-actions">
                     <Link className="ticket-map__popup-link" to={`/tickets/${marker.ticketId}`}>
-                      View ticket
+                      {t('map.viewTicket')}
                     </Link>
                     <a
                       className="ticket-map__popup-link ticket-map__popup-link--secondary"
@@ -400,7 +437,7 @@ function OverviewTicketMap({
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Open in Maps
+                      {t('map.openMaps')}
                     </a>
                   </div>
                 </div>
@@ -412,7 +449,7 @@ function OverviewTicketMap({
 
       {!hasContent && (
         <p className="ticket-map__empty-overlay" role="status">
-          Pan or zoom to load reports in this area.
+          {t('map.emptyOverlay')}
         </p>
       )}
     </div>
@@ -429,6 +466,7 @@ export function TicketMap(props: TicketMapProps) {
       markers={props.markers}
       clusters={props.clusters}
       truncated={props.truncated}
+      initialBounds={props.initialBounds}
       onViewportChange={props.onViewportChange}
     />
   );

@@ -79,9 +79,37 @@ def _publish_report(
             "public_location_label": location_label,
             "public_published_at": published_at,
             "updated_at": published_at,
+            "content_safety_status": "passed",
         },
     )
     assert patched is not None
+
+
+def _seed_newer_public_reports(
+    template_ticket_id: str,
+    *,
+    count: int = 500,
+    latitude: float = 40.0,
+    longitude: float = 40.0,
+) -> None:
+    template = ticket_store.get(template_ticket_id)
+    assert template is not None
+    for index in range(count):
+        ticket_store.save(
+            template.model_copy(
+                update={
+                    "ticket_id": f"tkt_newer_public_{index}",
+                    "ticket_number": f"BG-2026-{10_000 + index}",
+                    "tracking_code": f"NEW{index:05d}",
+                    "public_description": f"Newer unrelated public report {index}.",
+                    "public_location_label": f"Outside viewport {index}",
+                    "public_published_at": "2026-08-06T12:00:00Z",
+                    "location": template.location.model_copy(
+                        update={"latitude": latitude, "longitude": longitude}
+                    ),
+                }
+            )
+        )
 
 
 def test_public_ticket_feed_is_guest_readable_and_privacy_safe(anonymous_client):
@@ -120,6 +148,144 @@ def test_public_ticket_feed_is_guest_readable_and_privacy_safe(anonymous_client)
     assert "+96170111111" not in str(item)
     assert created["trackingCode"] not in str(item)
     assert VALID_PAYLOAD["location"]["addressText"] not in str(item)
+
+
+def test_public_map_is_viewport_bounded_and_privacy_safe(anonymous_client):
+    created = _submit_public_report(
+        anonymous_client,
+        phone="+96170111112",
+        full_name="Map Reporter",
+    )
+    _publish_report(created)
+
+    clustered = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 34.1,
+            "south": 33.7,
+            "east": 35.7,
+            "west": 35.3,
+            "zoom": 10,
+        },
+    )
+    assert clustered.status_code == 200, clustered.text
+    cluster_body = clustered.json()
+    assert cluster_body["markers"] == []
+    assert cluster_body["clusters"][0]["count"] == 1
+
+    markers = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 34.1,
+            "south": 33.7,
+            "east": 35.7,
+            "west": 35.3,
+            "zoom": 15,
+        },
+    )
+    assert markers.status_code == 200, markers.text
+    marker = markers.json()["markers"][0]
+    assert marker == {
+        "ticketNumber": created["ticketNumber"],
+        "status": "SUBMITTED",
+        "category": "road_damage",
+        "addressText": "Hamra, Beirut",
+        "latitude": 33.896,
+        "longitude": 35.478,
+    }
+    assert PUBLIC_FORBIDDEN_FIELDS.isdisjoint(marker)
+    assert "Map Reporter" not in str(marker)
+
+    outside = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 10,
+            "south": 9,
+            "east": 10,
+            "west": 9,
+            "zoom": 15,
+        },
+    )
+    assert outside.status_code == 200
+    assert outside.json()["markers"] == []
+
+
+def test_public_feed_search_and_filters_apply_before_pagination(anonymous_client):
+    road = _submit_public_report(
+        anonymous_client,
+        phone="+96170111113",
+        full_name="Road Reporter",
+        description="Pothole beside the university library.",
+    )
+    _publish_report(road, category="road_damage", location_label="Ras Beirut")
+    waste = _submit_public_report(
+        anonymous_client,
+        phone="+96170111114",
+        full_name="Waste Reporter",
+        description="Overflowing bins beside the market.",
+    )
+    _publish_report(waste, category="waste", location_label="Hamra Market")
+    ticket_store.patch_fields(waste["ticketId"], {"status": "RESOLVED"})
+
+    searched = anonymous_client.get("/v1/tickets/public", params={"q": "market"})
+    assert searched.status_code == 200
+    assert [item["ticketNumber"] for item in searched.json()["items"]] == [waste["ticketNumber"]]
+
+    filtered = anonymous_client.get(
+        "/v1/tickets/public",
+        params={"category": "road_damage", "status": "SUBMITTED", "limit": 1},
+    )
+    assert filtered.status_code == 200
+    assert [item["ticketNumber"] for item in filtered.json()["items"]] == [road["ticketNumber"]]
+    assert filtered.json()["nextCursor"] is None
+
+
+def test_public_feed_search_finds_match_beyond_500_newer_reports(anonymous_client):
+    older_match = _submit_public_report(
+        anonymous_client,
+        phone="+96170111115",
+        full_name="Older Reporter",
+        description="Exact older report that must remain discoverable.",
+    )
+    _publish_report(older_match, published_at="2026-08-05T12:00:00Z")
+    _seed_newer_public_reports(older_match["ticketId"])
+
+    response = anonymous_client.get(
+        "/v1/tickets/public",
+        params={"q": older_match["ticketNumber"], "limit": 6},
+    )
+
+    assert response.status_code == 200
+    assert [item["ticketNumber"] for item in response.json()["items"]] == [
+        older_match["ticketNumber"]
+    ]
+    assert response.json()["nextCursor"] is None
+
+
+def test_public_map_finds_in_viewport_report_beyond_500_newer_reports(anonymous_client):
+    older_in_view = _submit_public_report(
+        anonymous_client,
+        phone="+96170111116",
+        full_name="Map Reporter",
+    )
+    _publish_report(older_in_view, published_at="2026-08-05T12:00:00Z")
+    _seed_newer_public_reports(older_in_view["ticketId"])
+
+    response = anonymous_client.get(
+        "/v1/tickets/public/map",
+        params={
+            "north": 34,
+            "south": 33,
+            "east": 36,
+            "west": 35,
+            "zoom": 15,
+        },
+    )
+
+    assert response.status_code == 200
+    assert [marker["ticketNumber"] for marker in response.json()["markers"]] == [
+        older_in_view["ticketNumber"]
+    ]
 
 
 def test_public_ticket_detail_uses_ticket_number_and_name_opt_in(anonymous_client):
@@ -339,7 +505,10 @@ def test_public_ticket_photo_requires_staff_approved_public_image_key(
     )
     patched = ticket_store.patch_fields(
         created["ticketId"],
-        {"public_image_object_key": approved_key},
+        {
+            "public_image_object_key": approved_key,
+            "content_safety_status": "passed",
+        },
     )
     assert patched is not None
 

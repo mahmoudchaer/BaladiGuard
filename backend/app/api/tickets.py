@@ -7,15 +7,32 @@ from app.api.deps import ContributionReadyCitizenDep, StaffActorDep
 from app.core.citizen_auth import unauthorized
 from app.core.errors import ErrorDetail, build_error_response, get_request_id
 from app.core.rate_limit import enforce_rate_limit
-from app.core.staff_auth import StaffDep
+from app.core.staff_auth import MunicipalStaffDep as StaffDep
 from app.database.store_factory import get_citizen_store
-from app.schemas.image_redaction import ReprocessImageResponse
+from app.schemas.assignment_history import AssignmentHistoryResponse
+from app.schemas.bulk_ticket_ops import (
+    BulkDepartmentAssignmentRequest,
+    BulkMutationResponse,
+    BulkWorkforceAssignmentRequest,
+)
+from app.schemas.content_safety import (
+    ContentSafetyDecisionRequest,
+    ContentSafetyReviewResponse,
+    ReprocessContentSafetyResponse,
+)
+from app.schemas.image_redaction import (
+    ImageRedactionDecisionRequest,
+    ImageRedactionReviewResponse,
+    ReprocessImageResponse,
+)
+from app.schemas.municipality import MunicipalityClaimRequest, MunicipalityRejectRequest
 from app.schemas.staff_assistant import StaffAssistantQuery, StaffAssistantResponse
 from app.schemas.staff_comment import (
     ActivityTimelineResponse,
     CreateStaffCommentRequest,
     StaffCommentResponse,
 )
+from app.schemas.staff_search import StaffSearchResponse
 from app.schemas.staff_ticket_collection import (
     TicketAggregatesResponse,
     TicketListPageResponse,
@@ -33,11 +50,14 @@ from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
     PublicTicketListResponse,
+    PublicTicketMapViewportResponse,
     PublicTicketResponse,
     TicketResponse,
     UpdateTicketPublicContentRequest,
     UpdateTicketStatusRequest,
 )
+from app.schemas.ticket_status import TicketStatus
+from app.schemas.workforce import AssignWorkforceRequest
 from app.services.ai_job_queue import ai_job_queue
 from app.services.citizens.service import snapshot_contact_for_ticket
 from app.services.complaints.status_workflow import (
@@ -46,6 +66,8 @@ from app.services.complaints.status_workflow import (
 )
 from app.services.complaints.ticket_list_filters import parse_ticket_list_filters
 from app.services.complaints.ticket_service import (
+    PUBLIC_MAP_DEFAULT_LIMIT,
+    PUBLIC_MAP_MAX_LIMIT,
     STAFF_MAP_DEFAULT_LIMIT,
     STAFF_MAP_MAX_LIMIT,
     STAFF_TICKET_DEFAULT_LIMIT,
@@ -57,9 +79,25 @@ from app.services.complaints.ticket_service import (
     TicketSubmissionInProgressError,
     ticket_service,
 )
+from app.services.content_safety.queue import content_safety_queue
+from app.services.content_safety.review import (
+    ContentSafetyReviewConflictError,
+    ContentSafetyReviewError,
+)
 from app.services.redaction.queue import image_redaction_queue
+from app.services.redaction.review import (
+    ImageRedactionReviewConflictError,
+    ImageRedactionReviewError,
+)
 from app.services.staff.assistant import staff_assistant_service
 from app.services.staff.comments import StaffCommentError, staff_comment_service
+from app.services.staff.search import (
+    MAX_SEARCH_QUERY_LENGTH,
+    MIN_SEARCH_QUERY_LENGTH,
+    staff_search_service,
+)
+from app.services.work_orders.reasons import OutcomeReasonError
+from app.services.workforce.service import WorkforceError
 from app.utils.ticket_ids import is_valid_tracking_code
 
 router = APIRouter(prefix="/v1", tags=["tickets"])
@@ -69,10 +107,51 @@ logger = logging.getLogger(__name__)
 @router.post("/staff-assistant/query", response_model=StaffAssistantResponse)
 def query_staff_assistant(
     payload: StaffAssistantQuery,
+    request: Request,
     principal: StaffDep,
-) -> StaffAssistantResponse:
+) -> StaffAssistantResponse | JSONResponse:
     """Read-only deterministic assistant, grounded in the caller's visible tickets."""
+    limited = enforce_rate_limit(
+        request,
+        "staff-assistant-query",
+        extra_identity=principal.staff_id,
+        message="Too many assistant questions. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
     return staff_assistant_service.answer(payload.question, principal=principal)
+
+
+@router.get("/staff-search", response_model=StaffSearchResponse)
+def search_staff_records(
+    request: Request,
+    principal: StaffDep,
+    q: str = Query(min_length=1, max_length=MAX_SEARCH_QUERY_LENGTH),
+) -> StaffSearchResponse | JSONResponse:
+    """Permission-scoped global search across approved operational fields (#42 / #260)."""
+    limited = enforce_rate_limit(
+        request,
+        "staff-search",
+        extra_identity=principal.staff_id,
+        message="Too many search requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+    normalized = q.strip()
+    if len(normalized) < MIN_SEARCH_QUERY_LENGTH:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[
+                ErrorDetail(
+                    field="q",
+                    message=f"Search query must be at least {MIN_SEARCH_QUERY_LENGTH} characters.",
+                )
+            ],
+            status_code=400,
+        )
+    return staff_search_service.search(normalized, principal=principal)
 
 
 def _staff_comment_error(request: Request, exc: StaffCommentError) -> JSONResponse:
@@ -185,6 +264,14 @@ def submit_ticket(
             response.ticket_id,
             type(exc).__name__,
         )
+    try:
+        content_safety_queue.enqueue(response.ticket_id)
+    except Exception as exc:
+        logger.warning(
+            "Content safety queue write deferred ticket_id=%s error=%s",
+            response.ticket_id,
+            type(exc).__name__,
+        )
     return response
 
 
@@ -207,8 +294,239 @@ def reprocess_ticket_image(
             request_id=get_request_id(request),
             status_code=404,
         )
+    except ImageRedactionReviewConflictError as exc:
+        return _redaction_review_error(request, exc)
     image_redaction_queue.enqueue(ticket_id, generation)
     return ReprocessImageResponse(ticketId=ticket_id, generation=generation)
+
+
+def _redaction_review_error(request: Request, exc: ImageRedactionReviewError) -> JSONResponse:
+    status = 409 if isinstance(exc, ImageRedactionReviewConflictError) else 400
+    return build_error_response(
+        code=exc.code,
+        message=str(exc),
+        request_id=get_request_id(request),
+        status_code=status,
+    )
+
+
+def _content_safety_review_error(request: Request, exc: ContentSafetyReviewError) -> JSONResponse:
+    status = 409 if isinstance(exc, ContentSafetyReviewConflictError) else 400
+    return build_error_response(
+        code=exc.code,
+        message=str(exc),
+        request_id=get_request_id(request),
+        status_code=status,
+    )
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/reprocess",
+    response_model=ReprocessContentSafetyResponse,
+    status_code=202,
+)
+def reprocess_ticket_content_safety(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ReprocessContentSafetyResponse | JSONResponse:
+    try:
+        generation = ticket_service.request_content_safety_reprocessing(
+            ticket_id, staff_principal=principal
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+    content_safety_queue.enqueue(ticket_id, generation)
+    return ReprocessContentSafetyResponse(ticketId=ticket_id, generation=generation)
+
+
+@router.get(
+    "/tickets/{ticket_id}/content-safety/review",
+    response_model=ContentSafetyReviewResponse,
+)
+def get_content_safety_review(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.get_content_safety_review(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/approve",
+    response_model=ContentSafetyReviewResponse,
+)
+def approve_content_safety(
+    ticket_id: str,
+    payload: ContentSafetyDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.approve_content_safety(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/reject",
+    response_model=ContentSafetyReviewResponse,
+)
+def reject_content_safety(
+    ticket_id: str,
+    payload: ContentSafetyDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.reject_content_safety(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/content-safety/private-only",
+    response_model=ContentSafetyReviewResponse,
+)
+def mark_content_safety_private(
+    ticket_id: str,
+    payload: ContentSafetyDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ContentSafetyReviewResponse | JSONResponse:
+    try:
+        return ticket_service.mark_content_safety_private(
+            ticket_id, payload, staff_principal=principal
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ContentSafetyReviewError as exc:
+        return _content_safety_review_error(request, exc)
+
+
+@router.get(
+    "/tickets/{ticket_id}/image-redaction/review",
+    response_model=ImageRedactionReviewResponse,
+)
+def get_image_redaction_review(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.get_image_redaction_review(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/approve",
+    response_model=ImageRedactionReviewResponse,
+)
+def approve_image_redaction(
+    ticket_id: str,
+    payload: ImageRedactionDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.approve_image_redaction(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ImageRedactionReviewError as exc:
+        return _redaction_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/reject",
+    response_model=ImageRedactionReviewResponse,
+)
+def reject_image_redaction(
+    ticket_id: str,
+    payload: ImageRedactionDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.reject_image_redaction(ticket_id, payload, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ImageRedactionReviewError as exc:
+        return _redaction_review_error(request, exc)
+
+
+@router.post(
+    "/tickets/{ticket_id}/image-redaction/manual-regions",
+    response_model=ImageRedactionReviewResponse,
+)
+def apply_manual_image_redaction(
+    ticket_id: str,
+    payload: ImageRedactionDecisionRequest,
+    request: Request,
+    principal: StaffDep,
+) -> ImageRedactionReviewResponse | JSONResponse:
+    try:
+        return ticket_service.apply_manual_image_redaction(
+            ticket_id, payload, staff_principal=principal
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except ImageRedactionReviewError as exc:
+        return _redaction_review_error(request, exc)
 
 
 @router.get("/tickets", response_model=TicketListPageResponse)
@@ -221,8 +539,13 @@ def list_tickets(
     department_id: str | None = Query(default=None, alias="departmentId"),
     sla_state: str | None = Query(default=None, alias="slaState"),
     assignment_state: str | None = Query(default=None, alias="assignmentState"),
-    q: str | None = Query(default=None),
+    worker_id: str | None = Query(default=None, alias="workerId"),
+    team_id: str | None = Query(default=None, alias="teamId"),
+    workforce_unassigned: bool = Query(default=False, alias="workforceUnassigned"),
+    q: str | None = Query(default=None, max_length=MAX_SEARCH_QUERY_LENGTH),
     open_only: bool = Query(default=False, alias="openOnly"),
+    ticket_ids: str | None = Query(default=None, alias="ticketIds"),
+    content_safety_status: str | None = Query(default=None, alias="contentSafetyStatus"),
     limit: int = Query(default=STAFF_TICKET_DEFAULT_LIMIT, ge=1, le=STAFF_TICKET_MAX_LIMIT),
     cursor: str | None = Query(default=None),
 ) -> TicketListPageResponse | JSONResponse:
@@ -234,8 +557,13 @@ def list_tickets(
         department_id=department_id,
         sla_state=sla_state,
         assignment_state=assignment_state,
+        worker_id=worker_id,
+        team_id=team_id,
+        workforce_unassigned=workforce_unassigned,
         q=q,
         open_only=open_only,
+        ticket_ids=ticket_ids,
+        content_safety_status=content_safety_status,
     )
     if errors:
         return build_error_response(
@@ -276,6 +604,8 @@ def map_tickets_viewport(
     urgency: str | None = Query(default=None),
     department_id: str | None = Query(default=None, alias="departmentId"),
     sla_state: str | None = Query(default=None, alias="slaState"),
+    open_only: bool = Query(default=False, alias="openOnly"),
+    ticket_ids: str | None = Query(default=None, alias="ticketIds"),
     limit: int = Query(default=STAFF_MAP_DEFAULT_LIMIT, ge=1, le=STAFF_MAP_MAX_LIMIT),
 ) -> TicketMapViewportResponse | JSONResponse:
     """Staff map viewport with markers or grid clusters (issue #267)."""
@@ -293,6 +623,8 @@ def map_tickets_viewport(
         urgency=urgency,
         department_id=department_id,
         sla_state=sla_state,
+        open_only=open_only,
+        ticket_ids=ticket_ids,
     )
     if errors:
         return build_error_response(
@@ -320,6 +652,22 @@ def ticket_aggregates(
 ) -> TicketAggregatesResponse:
     """Staff dashboard attention counts (issue #267)."""
     return ticket_service.ticket_aggregates(principal)
+
+
+@router.post("/tickets/bulk/workforce-assignment", response_model=BulkMutationResponse)
+def bulk_assign_ticket_workforce(
+    payload: BulkWorkforceAssignmentRequest,
+    principal: StaffActorDep,
+) -> BulkMutationResponse:
+    return ticket_service.bulk_assign_workforce(payload, staff_principal=principal)
+
+
+@router.post("/tickets/bulk/department", response_model=BulkMutationResponse)
+def bulk_assign_ticket_department(
+    payload: BulkDepartmentAssignmentRequest,
+    principal: StaffActorDep,
+) -> BulkMutationResponse:
+    return ticket_service.bulk_assign_department(payload, staff_principal=principal)
 
 
 @router.get("/tickets/track/{tracking_code}", response_model=CitizenTicketResponse)
@@ -369,6 +717,9 @@ def list_public_tickets(
     request: Request,
     limit: int = Query(default=20, ge=1, le=50),
     cursor: str | None = Query(default=None),
+    q: str | None = Query(default=None, min_length=1, max_length=80),
+    status: TicketStatus | None = None,
+    category: str | None = Query(default=None, min_length=1, max_length=80),
 ) -> PublicTicketListResponse | JSONResponse:
     """Unauthenticated citizen-safe public report feed for map/list browsing."""
     limited = enforce_rate_limit(
@@ -380,7 +731,13 @@ def list_public_tickets(
         return limited
 
     try:
-        return ticket_service.list_public_tickets(limit=limit, cursor=cursor)
+        return ticket_service.list_public_tickets(
+            limit=limit,
+            cursor=cursor,
+            q=q,
+            status=status,
+            category=category,
+        )
     except ValueError:
         return build_error_response(
             code="VALIDATION_ERROR",
@@ -389,6 +746,42 @@ def list_public_tickets(
             details=[ErrorDetail(field="cursor", message="cursor is invalid.")],
             status_code=400,
         )
+
+
+@router.get("/tickets/public/map", response_model=PublicTicketMapViewportResponse)
+def public_map_tickets_viewport(
+    request: Request,
+    north: float = Query(..., ge=-90, le=90),
+    south: float = Query(..., ge=-90, le=90),
+    east: float = Query(..., ge=-180, le=180),
+    west: float = Query(..., ge=-180, le=180),
+    zoom: float = Query(..., ge=0, le=22),
+    limit: int = Query(default=PUBLIC_MAP_DEFAULT_LIMIT, ge=1, le=PUBLIC_MAP_MAX_LIMIT),
+) -> PublicTicketMapViewportResponse | JSONResponse:
+    """Bounded public markers/clusters for only the requested map viewport."""
+    limited = enforce_rate_limit(
+        request,
+        "public-ticket-browsing",
+        message="Too many public ticket requests. Please wait before trying again.",
+    )
+    if limited is not None:
+        return limited
+    if south > north:
+        return build_error_response(
+            code="VALIDATION_ERROR",
+            message="The request contains invalid fields.",
+            request_id=get_request_id(request),
+            details=[ErrorDetail(field="south", message="south must be <= north.")],
+            status_code=400,
+        )
+    return ticket_service.public_map_viewport(
+        north=north,
+        south=south,
+        east=east,
+        west=west,
+        zoom=zoom,
+        limit=limit,
+    )
 
 
 @router.get("/tickets/public/{ticket_number}", response_model=PublicTicketResponse)
@@ -444,7 +837,7 @@ def list_duplicate_candidates(
     ticket_id: str,
     request: Request,
     principal: StaffDep,
-    q: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=80),
     limit: int = Query(
         default=DUPLICATE_CANDIDATE_DEFAULT_LIMIT,
         ge=1,
@@ -528,6 +921,13 @@ def update_ticket_status(
     except (InvalidStatusTransitionError, MissingDepartmentAssignmentError) as exc:
         return build_error_response(
             code="INVALID_STATUS_TRANSITION",
+            message=str(exc),
+            request_id=get_request_id(request),
+            status_code=400,
+        )
+    except OutcomeReasonError as exc:
+        return build_error_response(
+            code=exc.code,
             message=str(exc),
             request_id=get_request_id(request),
             status_code=400,
@@ -626,6 +1026,54 @@ def assign_ticket_department(
         )
 
 
+@router.post("/tickets/{ticket_id}/workforce-assignment", response_model=TicketResponse)
+def assign_ticket_workforce(
+    ticket_id: str,
+    payload: AssignWorkforceRequest,
+    request: Request,
+    principal: StaffActorDep,
+) -> TicketResponse | JSONResponse:
+    """Assign a municipality worker XOR team to a ticket (issue #245)."""
+    try:
+        return ticket_service.assign_ticket_workforce(
+            ticket_id,
+            payload,
+            staff_principal=principal,
+        )
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except WorkforceError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+
+
+@router.get("/tickets/{ticket_id}/assignment-history", response_model=AssignmentHistoryResponse)
+def get_assignment_history(
+    ticket_id: str,
+    request: Request,
+    principal: StaffDep,
+) -> AssignmentHistoryResponse | JSONResponse:
+    """Assignment lineage (department, workforce, work-order assign) for one ticket."""
+    try:
+        return ticket_service.list_assignment_history(ticket_id, staff_principal=principal)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+
+
 @router.post("/tickets/merge", response_model=TicketResponse)
 def merge_duplicate_tickets(
     payload: MergeDuplicateTicketsRequest,
@@ -652,3 +1100,65 @@ def merge_duplicate_tickets(
             request_id=get_request_id(request),
             status_code=400,
         )
+
+
+@router.post("/tickets/{ticket_id}/municipality/claim", response_model=TicketResponse)
+def claim_ticket_municipality(
+    ticket_id: str,
+    payload: MunicipalityClaimRequest,
+    request: Request,
+    principal: StaffDep,
+):
+    from app.services.municipalities.ticket_routing import (
+        MunicipalityRoutingError,
+        claim_ticket,
+    )
+
+    try:
+        updated = claim_ticket(ticket_id, principal, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except MunicipalityRoutingError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return ticket_service._map_ticket(updated)
+
+
+@router.post("/tickets/{ticket_id}/municipality/reject", response_model=TicketResponse)
+def reject_ticket_municipality(
+    ticket_id: str,
+    payload: MunicipalityRejectRequest,
+    request: Request,
+    principal: StaffDep,
+):
+    from app.services.municipalities.ticket_routing import (
+        MunicipalityRoutingError,
+        reject_ticket,
+    )
+
+    try:
+        updated = reject_ticket(ticket_id, principal, payload)
+    except TicketNotFoundError:
+        return build_error_response(
+            code="TICKET_NOT_FOUND",
+            message="Ticket was not found.",
+            request_id=get_request_id(request),
+            status_code=404,
+        )
+    except MunicipalityRoutingError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+    return ticket_service._map_ticket(updated)

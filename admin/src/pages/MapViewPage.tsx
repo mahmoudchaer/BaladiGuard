@@ -7,6 +7,8 @@ import { TicketMap } from '@/components/TicketMap';
 import { TicketFilters } from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useI18n } from '@/i18n/LocaleProvider';
+import { useDashboardLocationSync } from '@/hooks/useDashboardLocationSync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   getCategoryFilterOptions,
@@ -16,6 +18,11 @@ import {
   type UrgencyFilter,
 } from '@/utils/ticketStats';
 import { BEIRUT_CENTER } from '@/utils/ticketLocation';
+import {
+  hasMapBounds,
+  parseDashboardSearchParams,
+  type DashboardNavigationFilters,
+} from '@/utils/dashboardNavigation';
 import { formatCategory, formatPriority, formatStatus } from '@/utils/labels';
 import './MapViewPage.css';
 
@@ -41,18 +48,101 @@ const FILTER_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 300;
 const VIEWPORT_DEBOUNCE_MS = import.meta.env.MODE === 'test' ? 0 : 350;
 
 export function MapViewPage() {
+  const { t } = useI18n();
+  const initialFilters = parseDashboardSearchParams(new URLSearchParams(window.location.search));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [viewport, setViewport] = useState<TicketMapViewport | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryEpoch, setRetryEpoch] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
-  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
-  const [bounds, setBounds] = useState<MapBounds>(DEFAULT_BOUNDS);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    (initialFilters.status as StatusFilter) ?? 'ALL',
+  );
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(
+    initialFilters.category ?? 'ALL',
+  );
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>(
+    initialFilters.urgency && !initialFilters.urgency.includes(',')
+      ? (initialFilters.urgency as UrgencyFilter)
+      : 'ALL',
+  );
+  const [urgencyCsv, setUrgencyCsv] = useState<string | null>(
+    initialFilters.urgency?.includes(',') ? initialFilters.urgency : null,
+  );
+  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>(
+    initialFilters.departmentId ?? 'ALL',
+  );
+  const [openOnly, setOpenOnly] = useState(Boolean(initialFilters.openOnly));
+  const [ticketIds, setTicketIds] = useState<string[]>(initialFilters.ticketIds ?? []);
+  const [persistBounds, setPersistBounds] = useState(() => hasMapBounds(initialFilters));
+  const [bounds, setBounds] = useState<MapBounds>(() =>
+    hasMapBounds(initialFilters)
+      ? {
+          north: initialFilters.north as number,
+          south: initialFilters.south as number,
+          east: initialFilters.east as number,
+          west: initialFilters.west as number,
+          zoom: initialFilters.zoom ?? 15,
+        }
+      : DEFAULT_BOUNDS,
+  );
   const hasLoaded = useRef(false);
   const requestGeneration = useRef(0);
+
+  function applyNavigationFilters(filters: DashboardNavigationFilters) {
+    setStatusFilter((filters.status as StatusFilter) ?? 'ALL');
+    setCategoryFilter(filters.category ?? 'ALL');
+    setUrgencyFilter(
+      filters.urgency && !filters.urgency.includes(',')
+        ? (filters.urgency as UrgencyFilter)
+        : 'ALL',
+    );
+    setUrgencyCsv(filters.urgency?.includes(',') ? filters.urgency : null);
+    setDepartmentFilter(filters.departmentId ?? 'ALL');
+    setOpenOnly(Boolean(filters.openOnly));
+    setTicketIds(filters.ticketIds ?? []);
+    if (hasMapBounds(filters)) {
+      setPersistBounds(true);
+      setBounds({
+        north: filters.north as number,
+        south: filters.south as number,
+        east: filters.east as number,
+        west: filters.west as number,
+        zoom: filters.zoom ?? 15,
+      });
+    } else {
+      setPersistBounds(false);
+    }
+  }
+
+  const stateFilters = useMemo(
+    () => ({
+      status: statusFilter !== 'ALL' ? statusFilter : undefined,
+      category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
+      urgency: urgencyCsv || (urgencyFilter !== 'ALL' ? urgencyFilter : undefined),
+      departmentId: departmentFilter !== 'ALL' ? departmentFilter : undefined,
+      openOnly: openOnly || undefined,
+      ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
+      south: persistBounds ? bounds.south : undefined,
+      west: persistBounds ? bounds.west : undefined,
+      north: persistBounds ? bounds.north : undefined,
+      east: persistBounds ? bounds.east : undefined,
+      zoom: persistBounds ? bounds.zoom : undefined,
+    }),
+    [
+      bounds,
+      categoryFilter,
+      departmentFilter,
+      openOnly,
+      persistBounds,
+      statusFilter,
+      ticketIds,
+      urgencyCsv,
+      urgencyFilter,
+    ],
+  );
+  const { navigationFilters } = useDashboardLocationSync(stateFilters, applyNavigationFilters);
 
   const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
   const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
@@ -61,11 +151,14 @@ export function MapViewPage() {
   const debouncedSearch = useDebouncedValue(searchQuery, FILTER_DEBOUNCE_MS);
   const debouncedBounds = useDebouncedValue(bounds, VIEWPORT_DEBOUNCE_MS);
 
+  const mapUrgency = urgencyCsv || (debouncedUrgency !== 'ALL' ? debouncedUrgency : undefined);
   const hasActiveServerFilters =
     debouncedStatus !== 'ALL' ||
     debouncedCategory !== 'ALL' ||
-    debouncedUrgency !== 'ALL' ||
-    debouncedDepartment !== 'ALL';
+    Boolean(mapUrgency) ||
+    debouncedDepartment !== 'ALL' ||
+    openOnly ||
+    ticketIds.length > 0;
   const hasActiveFilters = hasActiveServerFilters || debouncedSearch.trim().length > 0;
 
   useEffect(() => {
@@ -87,8 +180,10 @@ export function MapViewPage() {
           filters: {
             status: debouncedStatus,
             category: debouncedCategory,
-            urgency: debouncedUrgency,
+            urgency: mapUrgency,
             departmentId: debouncedDepartment,
+            openOnly: openOnly || undefined,
+            ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
           },
           signal: controller.signal,
         });
@@ -106,7 +201,7 @@ export function MapViewPage() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
+        setErrorMessage(error instanceof Error ? error.message : t('errors.loadTickets'));
         if (isInitialLoad) {
           setLoadState('error');
         }
@@ -116,7 +211,17 @@ export function MapViewPage() {
 
     void loadViewport();
     return () => controller.abort();
-  }, [debouncedBounds, debouncedCategory, debouncedDepartment, debouncedStatus, debouncedUrgency]);
+  }, [
+    debouncedBounds,
+    debouncedCategory,
+    debouncedDepartment,
+    debouncedStatus,
+    mapUrgency,
+    openOnly,
+    t,
+    ticketIds,
+    retryEpoch,
+  ]);
 
   const handleViewportChange = useCallback((next: MapBounds) => {
     setBounds(next);
@@ -162,30 +267,30 @@ export function MapViewPage() {
           createdAt: new Date().toISOString(),
           updatedAt: null,
         })),
+        t,
       ),
-    [markers],
+    [markers, t],
   );
 
   const pinSummary = useMemo(() => {
     if (clusters.length > 0 && markers.length === 0) {
       const total = clusters.reduce((sum, cluster) => sum + cluster.count, 0);
-      return `${clusters.length} clusters · ~${total} reports`;
+      return t('map.clusters', { count: clusters.length, total });
     }
-    const truncatedNote = viewport?.truncated ? ' · truncated' : '';
-    return `${markers.length} pins${truncatedNote}`;
-  }, [clusters, markers.length, viewport?.truncated]);
+    return `${t('map.pins', { count: markers.length })}${viewport?.truncated ? t('map.truncated') : ''}`;
+  }, [clusters, markers.length, t, viewport?.truncated]);
 
   return (
-    <DashboardLayout
-      title="Map View"
-      subtitle="See where citizen infrastructure reports are located"
-    >
+    <DashboardLayout title={t('map.title')} subtitle={t('map.subtitle')}>
       {loadState === 'loading' && <LoadingState />}
 
       {loadState === 'error' && (
         <div className="map-view-page__error" role="alert">
-          <h3>Unable to load tickets</h3>
+          <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button type="button" onClick={() => setRetryEpoch((value) => value + 1)}>
+            {t('common.tryAgain')}
+          </button>
         </div>
       )}
 
@@ -211,28 +316,30 @@ export function MapViewPage() {
               setStatusFilter('ALL');
               setCategoryFilter('ALL');
               setUrgencyFilter('ALL');
+              setUrgencyCsv(null);
               setDepartmentFilter('ALL');
+              setOpenOnly(false);
+              setTicketIds([]);
             }}
           />
 
           {errorMessage && !isRefreshing && (
             <div className="map-view-page__error" role="alert">
-              <h3>Unable to update tickets</h3>
+              <h3>{t('tickets.unableUpdate')}</h3>
               <p>{errorMessage}</p>
             </div>
           )}
 
           {markers.length === 0 && clusters.length === 0 && !hasActiveFilters && (
-            <EmptyState
-              title="No reports in this area"
-              message="Pan or zoom the map, or clear filters, to find citizen reports."
-            />
+            <EmptyState title={t('map.emptyAreaTitle')} message={t('map.emptyAreaBody')} />
           )}
 
           {hasActiveFilters && markers.length === 0 && clusters.length === 0 && (
             <EmptyState
-              title="No matching tickets"
-              message="Try adjusting your search, status, category, urgency, or department filters to find tickets."
+              title={
+                ticketIds.length > 0 ? t('tickets.emptyGoneTitle') : t('tickets.emptyMatchTitle')
+              }
+              message={ticketIds.length > 0 ? t('map.emptyGoneBody') : t('tickets.emptyMatchBody')}
             />
           )}
 
@@ -244,17 +351,25 @@ export function MapViewPage() {
               markers={markers}
               clusters={clusters}
               truncated={viewport?.truncated}
+              initialBounds={
+                hasMapBounds(navigationFilters)
+                  ? {
+                      north: navigationFilters.north as number,
+                      south: navigationFilters.south as number,
+                      east: navigationFilters.east as number,
+                      west: navigationFilters.west as number,
+                    }
+                  : null
+              }
               onViewportChange={handleViewportChange}
             />
           </div>
 
-          <section className="map-view-page__list" aria-label="Accessible ticket list for map">
-            <h2 className="map-view-page__list-title">Tickets in view</h2>
+          <section className="map-view-page__list" aria-label={t('map.listA11y')}>
+            <h2 className="map-view-page__list-title">{t('map.listTitle')}</h2>
             {markers.length === 0 ? (
               <p className="map-view-page__list-empty">
-                {clusters.length > 0
-                  ? 'Zoom into a cluster to list individual tickets.'
-                  : 'No individual tickets in the current viewport.'}
+                {clusters.length > 0 ? t('map.zoomCluster') : t('map.noPins')}
               </p>
             ) : (
               <ul className="map-view-page__list-items">

@@ -2,6 +2,7 @@ import { render, type RenderOptions } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { StaffAuthProvider } from '@/auth/StaffAuthContext';
+import { LocaleProvider } from '@/i18n/LocaleProvider';
 
 type TestRenderOptions = RenderOptions & {
   route?: string;
@@ -13,9 +14,11 @@ export function renderWithProviders(ui: ReactElement, options: TestRenderOptions
 
   return render(ui, {
     wrapper: ({ children }) => (
-      <StaffAuthProvider>
-        <BrowserRouter>{children}</BrowserRouter>
-      </StaffAuthProvider>
+      <LocaleProvider>
+        <StaffAuthProvider>
+          <BrowserRouter>{children}</BrowserRouter>
+        </StaffAuthProvider>
+      </LocaleProvider>
     ),
     ...renderOptions,
   });

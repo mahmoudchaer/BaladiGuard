@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { confirmStaffPasswordReset } from '@/services/auth';
 import '@/components/BrandMark.css';
 import './LoginPage.css';
@@ -11,6 +12,7 @@ type ResetLocationState = {
 };
 
 export function ResetPasswordPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const incoming = (location.state as ResetLocationState | null) ?? null;
@@ -52,8 +54,8 @@ export function ResetPasswordPage() {
             <BrandMark size={24} />
           </span>
           <div>
-            <p className="login-panel__eyebrow">Municipal Staff Portal</p>
-            <h1 id="reset-title">Reset password</h1>
+            <p className="login-panel__eyebrow">{t('login.eyebrow')}</p>
+            <h1 id="reset-title">{t('login.resetTitle')}</h1>
           </div>
         </div>
 
@@ -63,13 +65,11 @@ export function ResetPasswordPage() {
           </p>
         )}
 
-        <p className="login-form__hint">
-          Enter the reset code you received, then choose a new password (at least 8 characters).
-        </p>
+        <p className="login-form__hint">{t('login.resetHint')}</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-form__field">
-            <span>Username</span>
+            <span>{t('login.username')}</span>
             <input
               autoComplete="username"
               name="username"
@@ -82,7 +82,7 @@ export function ResetPasswordPage() {
           </label>
 
           <label className="login-form__field">
-            <span>Reset code</span>
+            <span>{t('login.resetCode')}</span>
             <input
               autoComplete="one-time-code"
               name="code"
@@ -97,7 +97,7 @@ export function ResetPasswordPage() {
           </label>
 
           <label className="login-form__field">
-            <span>New password</span>
+            <span>{t('login.newPassword')}</span>
             <span className="login-form__password-wrap">
               <input
                 autoComplete="new-password"
@@ -117,7 +117,7 @@ export function ResetPasswordPage() {
                 onClick={() => setShowPassword((value) => !value)}
                 aria-pressed={showPassword}
               >
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? t('login.hide') : t('login.show')}
               </button>
             </span>
           </label>
@@ -129,14 +129,14 @@ export function ResetPasswordPage() {
           )}
 
           <button className="login-form__submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Updating…' : 'Update password'}
+            {isSubmitting ? t('login.updating') : t('login.updatePassword')}
           </button>
         </form>
 
         <p className="login-form__footer">
-          <Link to="/forgot-password">Request a new code</Link>
+          <Link to="/forgot-password">{t('login.requestNewCode')}</Link>
           {' · '}
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t('login.backToSignIn')}</Link>
         </p>
       </section>
     </main>

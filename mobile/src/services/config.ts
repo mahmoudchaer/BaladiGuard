@@ -1,176 +1,94 @@
 import Constants from 'expo-constants';
 
-export type MobileRuntimeConfig = {
-  apiBaseUrl: string;
-  enableMockApi: boolean;
-  appEnv: string;
-  appVersion: string;
-  privacyPolicyUrl: string;
-  isReleaseBinary: boolean;
-  /** Host claimed for HTTPS notification deep links (mirrors app.config.ts). */
-  citizenAppLinkHost: string;
-};
+export type MobileEnvironment = 'local' | 'development' | 'test' | 'staging' | 'production';
 
-const DEFAULT_PRIVACY_POLICY_URL =
-  'https://github.com/mahmoudchaer/BaladiGuard/blob/main/docs/privacy-lifecycle.md';
-const DEFAULT_CITIZEN_APP_LINK_HOST = 'app.baladiguard.example';
+type MobilePublicEnvironment = Record<string, string | undefined>;
 
-function resolveIsReleaseBinary(): boolean {
-  // Expo/Metro sets __DEV__=true for local bundling; release/EAS binaries set false.
-  if (typeof __DEV__ === 'boolean') {
-    return !__DEV__;
+function normalizeEnvironment(raw: string | undefined, releaseBuild: boolean): MobileEnvironment {
+  if (!raw?.trim() && releaseBuild) {
+    throw new Error('EXPO_PUBLIC_APP_ENV must be explicitly set for a release build.');
   }
-  return false;
+  const value = (raw ?? 'local').trim().toLowerCase();
+  if (value === 'prod' || value === 'prd') return 'production';
+  if (value === 'dev' || value === 'develop') return 'development';
+  if (['local', 'development', 'test', 'staging', 'production'].includes(value)) {
+    return value as MobileEnvironment;
+  }
+  throw new Error('EXPO_PUBLIC_APP_ENV must be local, development, test, staging, or production.');
 }
 
-function isProductionEnv(appEnv: string): boolean {
-  const normalized = appEnv.trim().toLowerCase();
-  return normalized === 'production' || normalized === 'prod';
-}
-
-function isLoopbackOrLocalHost(hostname: string): boolean {
-  const host = hostname.trim().toLowerCase();
+function isPlaceholderHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase();
   return (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '::1' ||
-    host === '0.0.0.0' ||
-    host.endsWith('.local')
+    normalized === 'example' ||
+    normalized.endsWith('.example') ||
+    normalized === 'example.com' ||
+    normalized.endsWith('.example.com') ||
+    normalized === 'example.test' ||
+    normalized.endsWith('.example.test')
   );
 }
 
-/**
- * Fail closed for production/release binaries so mock mode or a local API URL
- * cannot ship (issue #192). Local/dev Expo sessions remain unrestricted.
- */
-export function assertMobileRuntimeConfig(config: MobileRuntimeConfig): void {
-  const enforceHardening = isProductionEnv(config.appEnv) || config.isReleaseBinary;
-  if (!enforceHardening) {
-    return;
-  }
-
-  if (config.enableMockApi) {
-    throw new Error(
-      'BaladiGuard release/production builds cannot enable EXPO_PUBLIC_ENABLE_MOCK_API.',
-    );
-  }
-
-  const apiBaseUrl = config.apiBaseUrl.trim();
-  if (!apiBaseUrl) {
-    throw new Error('BaladiGuard release/production builds require EXPO_PUBLIC_API_BASE_URL.');
-  }
-
+function validateDeployedApiUrl(raw: string, appEnv: MobileEnvironment): string {
+  if (!raw) throw new Error(`EXPO_PUBLIC_API_BASE_URL is required in ${appEnv}.`);
   let parsed: URL;
   try {
-    parsed = new URL(apiBaseUrl);
+    parsed = new URL(raw);
   } catch {
-    throw new Error(
-      'EXPO_PUBLIC_API_BASE_URL must be an absolute URL (for example https://api.example.gov/v1).',
-    );
+    throw new Error('EXPO_PUBLIC_API_BASE_URL must be a valid absolute URL.');
   }
-
-  if (parsed.protocol !== 'https:') {
-    throw new Error(
-      'BaladiGuard release/production builds require an HTTPS EXPO_PUBLIC_API_BASE_URL.',
-    );
+  if (parsed.protocol !== 'https:')
+    throw new Error(`The mobile API URL must use HTTPS in ${appEnv}.`);
+  if (['localhost', '127.0.0.1', '::1', '[::1]'].includes(parsed.hostname.toLowerCase())) {
+    throw new Error(`The mobile API URL must not target localhost in ${appEnv}.`);
   }
-
-  if (isLoopbackOrLocalHost(parsed.hostname)) {
-    throw new Error(
-      'BaladiGuard release/production builds cannot use a localhost/loopback API base URL.',
-    );
+  if (parsed.username || parsed.password) {
+    throw new Error('EXPO_PUBLIC_API_BASE_URL must not contain embedded credentials.');
   }
+  return raw.replace(/\/+$/, '');
 }
 
-/**
- * Pure helper for tests / injected values. Prefer {@link readExpoPublicEnv} +
- * {@link buildMobileRuntimeConfig} at runtime so Metro can inline EXPO_PUBLIC_* vars.
- */
-export function buildMobileRuntimeConfigFromValues(input: {
-  apiBaseUrl?: string | null;
-  enableMockApi?: string | boolean | null;
-  appEnv?: string | null;
-  privacyPolicyUrl?: string | null;
-  isReleaseBinary?: boolean;
-  citizenAppLinkHost?: string | null;
-}): MobileRuntimeConfig {
-  const isReleaseBinary = input.isReleaseBinary ?? resolveIsReleaseBinary();
-  const extra = (Constants.expoConfig?.extra ?? {}) as {
-    privacyPolicyUrl?: string;
-    citizenAppLinkHost?: string;
-  };
-  const enableMockRaw = input.enableMockApi;
-  const enableMockApi =
-    typeof enableMockRaw === 'boolean' ? enableMockRaw : enableMockRaw === 'true';
+export function resolveMobileConfig(
+  env: MobilePublicEnvironment,
+  options: { appVersion?: string; citizenAppLinkHost?: string; releaseBuild?: boolean } = {},
+) {
+  // __DEV__ is false in a native release bundle. Require an explicit deployed
+  // configuration there so a missing label cannot select localhost/mock defaults.
+  const releaseBuild = options.releaseBuild ?? (typeof __DEV__ !== 'undefined' && !__DEV__);
+  const appEnv = normalizeEnvironment(env.EXPO_PUBLIC_APP_ENV, releaseBuild);
+  if (releaseBuild && appEnv !== 'staging' && appEnv !== 'production') {
+    throw new Error('EXPO_PUBLIC_APP_ENV must be staging or production for a release build.');
+  }
+  const deployed = releaseBuild || appEnv === 'staging' || appEnv === 'production';
+  const enableMockApi = env.EXPO_PUBLIC_ENABLE_MOCK_API === 'true';
+  const rawApiBase = (env.EXPO_PUBLIC_API_BASE_URL ?? '').trim();
+  const citizenAppLinkHost = (options.citizenAppLinkHost ?? '').trim();
 
-  const config: MobileRuntimeConfig = {
-    apiBaseUrl: (input.apiBaseUrl ?? '').trim(),
-    enableMockApi,
-    appEnv: (input.appEnv ?? 'local').trim() || 'local',
-    appVersion: Constants.expoConfig?.version ?? '0.1.0',
-    privacyPolicyUrl: (
-      input.privacyPolicyUrl ??
-      extra.privacyPolicyUrl ??
-      DEFAULT_PRIVACY_POLICY_URL
-    ).trim(),
-    isReleaseBinary,
-    citizenAppLinkHost: (
-      input.citizenAppLinkHost ??
-      extra.citizenAppLinkHost ??
-      DEFAULT_CITIZEN_APP_LINK_HOST
-    ).trim(),
-  };
+  if (deployed && enableMockApi) {
+    throw new Error(`EXPO_PUBLIC_ENABLE_MOCK_API cannot be true in ${appEnv}.`);
+  }
+  if (deployed && (!citizenAppLinkHost || isPlaceholderHost(citizenAppLinkHost))) {
+    throw new Error(`A real EXPO_PUBLIC_CITIZEN_APP_HOST is required in ${appEnv}.`);
+  }
 
-  assertMobileRuntimeConfig(config);
-  return config;
-}
-
-/**
- * Read public Expo env via direct ``process.env.EXPO_PUBLIC_*`` member access.
- * Metro only inlines these literal references — aliases like ``env.EXPO_PUBLIC_*``
- * leave unresolved keys in release bundles (issue #192 review).
- *
- * Intentionally no localhost default in this module — production export bundles
- * must not embed loopback URLs. Local/dev sets EXPO_PUBLIC_API_BASE_URL via .env
- * (see mobile/.env.example).
- */
-export function readExpoPublicEnv(): {
-  apiBaseUrl: string | undefined;
-  enableMockApi: string | undefined;
-  appEnv: string | undefined;
-  privacyPolicyUrl: string | undefined;
-} {
   return {
-    apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
-    enableMockApi: process.env.EXPO_PUBLIC_ENABLE_MOCK_API,
-    appEnv: process.env.EXPO_PUBLIC_APP_ENV,
-    privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
+    apiBaseUrl: deployed
+      ? validateDeployedApiUrl(rawApiBase, appEnv)
+      : (rawApiBase || 'http://localhost:8000/v1').replace(/\/+$/, ''),
+    enableMockApi: deployed ? false : enableMockApi,
+    appEnv,
+    appVersion: options.appVersion ?? '0.1.0',
+    citizenAppLinkHost: citizenAppLinkHost || 'app.baladiguard.example',
   };
 }
 
-export function buildMobileRuntimeConfig(options?: {
-  /** Test-only injection. Production/runtime must omit this so Metro inlines env. */
-  env?: NodeJS.ProcessEnv;
-  isReleaseBinary?: boolean;
-}): MobileRuntimeConfig {
-  if (options?.env) {
-    return buildMobileRuntimeConfigFromValues({
-      apiBaseUrl: options.env.EXPO_PUBLIC_API_BASE_URL,
-      enableMockApi: options.env.EXPO_PUBLIC_ENABLE_MOCK_API,
-      appEnv: options.env.EXPO_PUBLIC_APP_ENV,
-      privacyPolicyUrl: options.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
-      isReleaseBinary: options.isReleaseBinary,
-    });
-  }
-
-  const publicEnv = readExpoPublicEnv();
-  return buildMobileRuntimeConfigFromValues({
-    apiBaseUrl: publicEnv.apiBaseUrl,
-    enableMockApi: publicEnv.enableMockApi,
-    appEnv: publicEnv.appEnv,
-    privacyPolicyUrl: publicEnv.privacyPolicyUrl,
-    isReleaseBinary: options?.isReleaseBinary,
-  });
-}
-
-export const appConfig = buildMobileRuntimeConfig();
+// Keep direct EXPO_PUBLIC_* member reads so Metro can inline release values.
+export const appConfig = resolveMobileConfig({
+  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  EXPO_PUBLIC_ENABLE_MOCK_API: process.env.EXPO_PUBLIC_ENABLE_MOCK_API,
+  EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
+}, {
+  appVersion: Constants.expoConfig?.version,
+  citizenAppLinkHost: (Constants.expoConfig?.extra as { citizenAppLinkHost?: string } | undefined)
+    ?.citizenAppLinkHost,
+});

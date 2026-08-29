@@ -1,8 +1,10 @@
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import type { Control } from 'react-hook-form';
 import { useWatch } from 'react-hook-form';
 
+import { ReportPhoto } from '@/components/ReportPhoto';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { ReportFormValues } from '@/schemas/reportFormSchema';
 import type { ReportWizardStepKey } from '@/features/citizen-report/components/StepProgress';
@@ -10,10 +12,12 @@ import type { ReportWizardStepKey } from '@/features/citizen-report/components/S
 type ReviewSummaryProps = {
   control: Control<ReportFormValues>;
   onEditStep: (step: ReportWizardStepKey) => void;
+  hasUploadedPhoto?: boolean;
 };
 
 /** Review is deliberately plain (no Material cards) so it reads like a checklist, not a dashboard. */
-export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
+export function ReviewSummary({ control, onEditStep, hasUploadedPhoto }: ReviewSummaryProps) {
+  const { t } = useI18n();
   const description = useWatch({ control, name: 'description' });
   const photoUri = useWatch({ control, name: 'photoUri' });
   const addressText = useWatch({ control, name: 'addressText' });
@@ -21,16 +25,16 @@ export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
   return (
     <View style={styles.container}>
       <Text variant="titleMedium" style={styles.title}>
-        Review your report
+        {t('report.reviewTitle')}
       </Text>
       <Text variant="bodySmall" style={styles.helper}>
-        Check everything below before you submit. You can edit any section.
+        {t('report.reviewHelper')}
       </Text>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text variant="labelLarge" style={styles.sectionLabel}>
-            Description
+            {t('report.description')}
           </Text>
           <Button
             mode="text"
@@ -39,18 +43,18 @@ export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
             style={styles.editButton}
             onPress={() => onEditStep('details')}
           >
-            Edit
+            {t('common.edit')}
           </Button>
         </View>
         <Text variant="bodyMedium" style={styles.sectionText}>
-          {description || 'Not provided yet.'}
+          {description || t('report.notProvided')}
         </Text>
       </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text variant="labelLarge" style={styles.sectionLabel}>
-            Photo
+            {t('report.photo')}
           </Text>
           <Button
             mode="text"
@@ -59,14 +63,20 @@ export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
             style={styles.editButton}
             onPress={() => onEditStep('photo')}
           >
-            Edit
+            {t('common.edit')}
           </Button>
         </View>
         {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photo} />
+          <ReportPhoto uri={photoUri} accessibilityLabel={t('report.photo')} variant="hero" />
+        ) : hasUploadedPhoto ? (
+          <View style={styles.uploadedPhoto}>
+            <Text variant="bodyMedium" style={styles.uploadedPhotoText}>
+              {t('report.photoUploaded')}
+            </Text>
+          </View>
         ) : (
           <Text variant="bodyMedium" style={styles.sectionText}>
-            No photo attached yet.
+            {t('report.noPhotoYet')}
           </Text>
         )}
       </View>
@@ -74,7 +84,7 @@ export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text variant="labelLarge" style={styles.sectionLabel}>
-            Location
+            {t('report.location')}
           </Text>
           <Button
             mode="text"
@@ -83,11 +93,11 @@ export function ReviewSummary({ control, onEditStep }: ReviewSummaryProps) {
             style={styles.editButton}
             onPress={() => onEditStep('location')}
           >
-            Edit
+            {t('common.edit')}
           </Button>
         </View>
         <Text variant="bodyMedium" style={styles.sectionText}>
-          {addressText || 'Not set yet.'}
+          {addressText || t('report.notSetYet')}
         </Text>
       </View>
     </View>
@@ -130,10 +140,15 @@ const styles = StyleSheet.create({
   sectionText: {
     color: colors.text,
   },
-  photo: {
-    width: '100%',
-    height: 180,
+  uploadedPhoto: {
+    minHeight: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radii.lg,
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.brandSoft,
+  },
+  uploadedPhotoText: {
+    color: colors.brandDark,
+    fontWeight: '600',
   },
 });

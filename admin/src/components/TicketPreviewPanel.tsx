@@ -12,7 +12,8 @@ import { PriorityBadge } from '@/components/PriorityBadge';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { TicketPhoto } from '@/components/TicketPhoto';
 import { ImagePrivacyStatus } from '@/components/ImagePrivacyStatus';
-import { DEPARTMENT_OPTIONS, formatDepartment } from '@/utils/departments';
+import { useStaffAuth } from '@/auth/useStaffAuth';
+import { departmentOptionsForSession, formatDepartment } from '@/utils/departments';
 import {
   formatCategory,
   formatCreatedDate,
@@ -22,14 +23,37 @@ import {
 } from '@/utils/labels';
 import { getStaffNextAction } from '@/utils/reportGuidance';
 import { getSelectableTicketStatuses } from '@/utils/statusTransitions';
+import { reasonsForKind, requiredOutcomeKind } from '@/utils/outcomeReasons';
+import { useI18n } from '@/i18n/LocaleProvider';
 import './TicketPreviewPanel.css';
 
 type TicketPreviewPanelProps = {
   ticket: Ticket | null;
+  onClose?: () => void;
   onTicketUpdated?: (ticket: Ticket) => void;
+  loadError?: string | null;
+  onRetry?: () => void;
 };
 
-export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPanelProps) {
+type ActionNotice = { tone: 'error' | 'success'; key: string } | { tone: 'error'; text: string };
+
+function actionNoticeText(notice: ActionNotice, translate: (key: string) => string): string {
+  return 'key' in notice ? translate(notice.key) : notice.text;
+}
+
+export function TicketPreviewPanel({
+  ticket,
+  onClose,
+  onTicketUpdated,
+  loadError = null,
+  onRetry,
+}: TicketPreviewPanelProps) {
+  const { t } = useI18n();
+  const { session } = useStaffAuth();
+  const departmentOptions = departmentOptionsForSession(
+    session?.departmentIds,
+    session?.role === 'municipal_staff',
+  );
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | ''>('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
@@ -39,8 +63,23 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingDepartment, setIsSavingDepartment] = useState(false);
   const [isSavingPublic, setIsSavingPublic] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const [statusReasonCode, setStatusReasonCode] = useState('');
+  const [statusPrivateNote, setStatusPrivateNote] = useState('');
+
+  useEffect(() => {
+    if (!onClose) {
+      return;
+    }
+    const closePreview = onClose;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        closePreview();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   useEffect(() => {
     if (!ticket) {
@@ -51,19 +90,68 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     setSelectedDepartmentId(ticket.departmentId ?? '');
     setPublicDescription(ticket.public?.description ?? '');
     setPublicLocationLabel(ticket.public?.locationLabel ?? '');
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
+    setStatusReasonCode('');
+    setStatusPrivateNote('');
   }, [ticket]);
 
   if (!ticket) {
+    if (onClose && loadError) {
+      return (
+        <aside
+          className="ticket-preview ticket-preview--drawer"
+          aria-label={t('ticket.preview.a11y')}
+        >
+          <header className="ticket-preview__header">
+            <p className="ticket-preview__empty-title">{t('ticket.unableLoad')}</p>
+            <button
+              type="button"
+              className="ticket-preview__close"
+              onClick={onClose}
+              aria-label={t('ticket.preview.closePreview')}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+          <div className="ticket-preview__empty">
+            <p className="ticket-preview__error" role="alert">
+              {loadError}
+            </p>
+            {onRetry ? (
+              <button type="button" className="ticket-preview__btn" onClick={onRetry}>
+                {t('common.retry')}
+              </button>
+            ) : null}
+          </div>
+        </aside>
+      );
+    }
+    if (onClose) {
+      return (
+        <aside
+          className="ticket-preview ticket-preview--drawer"
+          aria-label={t('ticket.preview.a11y')}
+          aria-busy="true"
+        >
+          <header className="ticket-preview__header">
+            <p className="ticket-preview__empty-title">{t('common.loading')}</p>
+            <button
+              type="button"
+              className="ticket-preview__close"
+              onClick={onClose}
+              aria-label={t('ticket.preview.closePreview')}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+        </aside>
+      );
+    }
     return (
-      <aside className="ticket-preview" aria-label="Ticket preview">
+      <aside className="ticket-preview" aria-label={t('ticket.preview.a11y')}>
         <div className="ticket-preview__empty">
-          <p className="ticket-preview__empty-title">Select a report</p>
-          <p className="ticket-preview__empty-body">
-            Choose a ticket from the queue to review AI classification, update status, and assign a
-            department — or open the full ticket for history and duplicates.
-          </p>
+          <p className="ticket-preview__empty-title">{t('ticket.preview.selectReport')}</p>
+          <p className="ticket-preview__empty-body">{t('ticket.preview.selectReportHint')}</p>
         </div>
       </aside>
     );
@@ -77,18 +165,21 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingCategory(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await reviewTicketCategory(ticket.ticketId, { finalCategory: suggestion });
       if (!updated) {
-        setActionError('Unable to save AI category.');
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableSaveAi' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess('AI category accepted.');
+      setActionNotice({ tone: 'success', key: 'ticket.preview.aiAccepted' });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Unable to accept AI suggestion.');
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableAcceptAi' },
+      );
     } finally {
       setIsSavingCategory(false);
     }
@@ -99,20 +190,23 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingCategory(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await reviewTicketCategory(ticket.ticketId, {
         finalCategory: selectedCategory,
       });
       if (!updated) {
-        setActionError('Unable to save category.');
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableSaveCategory' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess('Final category saved.');
+      setActionNotice({ tone: 'success', key: 'ticket.preview.categorySaved' });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Unable to save category.');
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableSaveCategory' },
+      );
     } finally {
       setIsSavingCategory(false);
     }
@@ -122,19 +216,30 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     if (!ticket || !pendingStatus || pendingStatus === ticket.status) {
       return;
     }
+    const outcomeKind = requiredOutcomeKind(ticket.status, pendingStatus);
+    if (outcomeKind && !statusReasonCode) {
+      setActionNotice({ tone: 'error', key: 'ticket.review.selectReasonBeforeStatus' });
+      return;
+    }
     setIsUpdatingStatus(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
-      const updated = await updateTicketStatus(ticket.ticketId, pendingStatus);
+      const updated = await updateTicketStatus(ticket.ticketId, pendingStatus, {
+        reasonCode: outcomeKind ? statusReasonCode : undefined,
+        note: statusPrivateNote.trim() || undefined,
+      });
       if (!updated) {
-        setActionError('Unable to update status.');
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableUpdateStatus' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess('Status updated.');
+      setActionNotice({ tone: 'success', key: 'ticket.preview.statusUpdated' });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Unable to update status.');
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableUpdateStatus' },
+      );
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -145,20 +250,23 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
       return;
     }
     setIsSavingDepartment(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await assignTicketDepartment(ticket.ticketId, {
         departmentId: selectedDepartmentId,
       });
       if (!updated) {
-        setActionError('Unable to save department.');
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableSaveDepartment' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess('Department assigned.');
+      setActionNotice({ tone: 'success', key: 'ticket.preview.departmentAssigned' });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Unable to save department.');
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableSaveDepartment' },
+      );
     } finally {
       setIsSavingDepartment(false);
     }
@@ -168,9 +276,11 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
     if (!ticket) {
       return;
     }
+    if (publicStatus === 'UNPUBLISHED' && !window.confirm(t('ticket.preview.confirmUnpublish'))) {
+      return;
+    }
     setIsSavingPublic(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionNotice(null);
     try {
       const updated = await updateTicketPublicContent(ticket.ticketId, {
         publicStatus,
@@ -179,41 +289,71 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
         clearPublicPhoto: undefined,
       });
       if (!updated) {
-        setActionError('Unable to update public content.');
+        setActionNotice({ tone: 'error', key: 'ticket.preview.unableUpdatePublic' });
         return;
       }
       onTicketUpdated?.(updated);
-      setActionSuccess(
-        publicStatus === 'PUBLISHED'
-          ? 'Published to the public feed.'
-          : 'Removed from the public feed.',
-      );
+      setActionNotice({
+        tone: 'success',
+        key:
+          publicStatus === 'PUBLISHED' ? 'ticket.preview.published' : 'ticket.preview.unpublished',
+      });
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Unable to update public content.');
+      setActionNotice(
+        error instanceof Error
+          ? { tone: 'error', text: error.message }
+          : { tone: 'error', key: 'ticket.preview.unableUpdatePublic' },
+      );
     } finally {
       setIsSavingPublic(false);
     }
   }
 
   return (
-    <aside className="ticket-preview" aria-label="Ticket preview">
+    <aside
+      className={onClose ? 'ticket-preview ticket-preview--drawer' : 'ticket-preview'}
+      aria-label={t('ticket.preview.a11y')}
+    >
       <header className="ticket-preview__header">
         <div>
           <p className="ticket-preview__eyebrow">{ticket.trackingCode}</p>
           <h2 className="ticket-preview__title">{ticket.ticketNumber}</h2>
           <p className="ticket-preview__sub">
-            Reported {formatCreatedDate(ticket.createdAt)} · {formatTicketAge(ticket.createdAt)} old
+            {t('ticket.preview.reportedAge', {
+              date: formatCreatedDate(ticket.createdAt),
+              age: formatTicketAge(ticket.createdAt),
+            })}
           </p>
         </div>
-        <div className="ticket-preview__badges">
-          <StatusBadge status={ticket.status} />
-          <PriorityBadge priority={ticket.priority} />
+        <div className="ticket-preview__header-actions">
+          <div className="ticket-preview__header-tools">
+            <Link
+              to={`/tickets/${ticket.ticketId}`}
+              className="ticket-preview__open ticket-preview__open--header"
+            >
+              {t('ticket.preview.open')}
+            </Link>
+            {onClose ? (
+              <button
+                type="button"
+                className="ticket-preview__close"
+                onClick={onClose}
+                aria-label={t('ticket.preview.closePreview')}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            ) : null}
+          </div>
+          <div className="ticket-preview__badges">
+            <StatusBadge status={ticket.status} />
+            <PriorityBadge priority={ticket.priority} />
+          </div>
         </div>
       </header>
 
       <div className="ticket-preview__body">
         <section className="ticket-preview__section">
-          <h3 className="ticket-preview__section-title">Next action</h3>
+          <h3 className="ticket-preview__section-title">{t('ticket.nextAction')}</h3>
           <p className="ticket-preview__next">{getStaffNextAction(ticket.status)}</p>
         </section>
 
@@ -222,39 +362,39 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
           aria-labelledby="preview-ai-heading"
         >
           <h3 id="preview-ai-heading" className="ticket-preview__section-title">
-            AI classification
+            {t('ticket.preview.aiClassification')}
           </h3>
-          <p className="ticket-preview__ai-note">
-            AI-generated — verify before accepting. Same controls as the full ticket.
-          </p>
+          <p className="ticket-preview__ai-note">{t('ticket.preview.aiHint')}</p>
 
           {ticket.ai?.aiSuggestedCategory ? (
             <div className="ticket-preview__suggestion">
-              <span className="ticket-preview__suggestion-label">Suggestion</span>
+              <span className="ticket-preview__suggestion-label">
+                {t('ticket.preview.suggestion')}
+              </span>
               <CategoryBadge category={ticket.ai.aiSuggestedCategory} />
               {ticket.ai.aiCategoryExplanation ? (
                 <p className="ticket-preview__suggestion-text">{ticket.ai.aiCategoryExplanation}</p>
               ) : null}
             </div>
           ) : (
-            <p className="ticket-preview__muted">No AI category suggestion yet.</p>
+            <p className="ticket-preview__muted">{t('ticket.preview.noAiSuggestion')}</p>
           )}
 
           {ticket.ai?.finalCategory ? (
             <div className="ticket-preview__final">
-              <span>Final</span>
+              <span>{t('ticket.preview.final')}</span>
               <CategoryBadge category={ticket.ai.finalCategory} />
             </div>
           ) : null}
 
           <label className="ticket-preview__field">
-            <span>Final category</span>
+            <span>{t('ticket.review.finalCategory')}</span>
             <select
               value={selectedCategory}
               onChange={(event) => setSelectedCategory(event.target.value)}
-              disabled={isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending'}
+              disabled={isSavingCategory}
             >
-              <option value="">Select a category</option>
+              <option value="">{t('ticket.review.selectCategory')}</option>
               {SUPPORTED_CATEGORY_OPTIONS.map((category) => (
                 <option key={category} value={category}>
                   {formatCategory(category)}
@@ -275,27 +415,25 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
                   ticket.ai.finalCategory === ticket.ai.aiSuggestedCategory
                 }
               >
-                Accept AI suggestion
+                {t('ticket.review.acceptAi')}
               </button>
             ) : null}
             <button
               type="button"
               className="ticket-preview__btn"
               onClick={() => void handleSaveCategory()}
-              disabled={
-                isSavingCategory || ticket.ai?.aiProcessingStatus === 'pending' || !selectedCategory
-              }
+              disabled={isSavingCategory || !selectedCategory}
             >
-              {isSavingCategory ? 'Saving…' : 'Save final category'}
+              {isSavingCategory ? t('ticket.preview.saving') : t('ticket.review.saveFinalCategory')}
             </button>
           </div>
         </section>
 
         <section className="ticket-preview__section">
-          <h3 className="ticket-preview__section-title">Municipal actions</h3>
+          <h3 className="ticket-preview__section-title">{t('ticket.review.municipalTitle')}</h3>
 
           <label className="ticket-preview__field">
-            <span>Status</span>
+            <span>{t('ticket.status')}</span>
             <select
               value={pendingStatus || ticket.status}
               onChange={(event) => setPendingStatus(event.target.value as TicketStatus)}
@@ -308,24 +446,45 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               ))}
             </select>
           </label>
+          {pendingStatus &&
+            pendingStatus !== ticket.status &&
+            requiredOutcomeKind(ticket.status, pendingStatus) && (
+              <label className="ticket-preview__field">
+                <span>{t('ticket.review.requiredReason')}</span>
+                <select
+                  value={statusReasonCode}
+                  onChange={(event) => setStatusReasonCode(event.target.value)}
+                  disabled={isUpdatingStatus}
+                >
+                  <option value="">{t('ticket.review.selectReason')}</option>
+                  {reasonsForKind(requiredOutcomeKind(ticket.status, pendingStatus)!).map(
+                    (reason) => (
+                      <option key={reason.code} value={reason.code}>
+                        {reason.label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+            )}
           <button
             type="button"
             className="ticket-preview__btn"
             onClick={() => void handleApplyStatus()}
             disabled={isUpdatingStatus || !pendingStatus || pendingStatus === ticket.status}
           >
-            {isUpdatingStatus ? 'Applying…' : 'Apply status change'}
+            {isUpdatingStatus ? t('ticket.preview.applying') : t('ticket.review.applyStatus')}
           </button>
 
           <label className="ticket-preview__field">
-            <span>Department ({department})</span>
+            <span>{t('ticket.preview.departmentValue', { department })}</span>
             <select
               value={selectedDepartmentId}
               onChange={(event) => setSelectedDepartmentId(event.target.value)}
               disabled={isSavingDepartment}
             >
-              <option value="">Select a department</option>
-              {DEPARTMENT_OPTIONS.map((option) => (
+              <option value="">{t('ticket.review.selectDepartment')}</option>
+              {departmentOptions.map((option) => (
                 <option key={option.departmentId} value={option.departmentId}>
                   {option.name}
                 </option>
@@ -342,30 +501,27 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               selectedDepartmentId === (ticket.departmentId ?? '')
             }
           >
-            {isSavingDepartment ? 'Saving…' : 'Save department'}
+            {isSavingDepartment ? t('ticket.preview.saving') : t('ticket.review.saveDepartment')}
           </button>
         </section>
 
         <section className="ticket-preview__section">
-          <h3 className="ticket-preview__section-title">Evidence</h3>
+          <h3 className="ticket-preview__section-title">{t('ticket.preview.evidence')}</h3>
           <TicketPhoto
             imageObjectKey={ticket.imageObjectKey}
             imageUrl={ticket.imageUrl}
             category={ticket.category}
-            alt={`Report photo for ${ticket.ticketNumber}`}
+            alt={t('ticket.photoAlt', { ticketNumber: ticket.ticketNumber })}
           />
           <p className="ticket-preview__description">{ticket.description}</p>
           <p className="ticket-preview__location">{ticket.location.addressText}</p>
         </section>
 
         <section className="ticket-preview__section">
-          <h3 className="ticket-preview__section-title">Public feed</h3>
-          <p className="ticket-preview__hint">
-            Approve a coarse public summary before publishing. Photos stay private until explicitly
-            approved.
-          </p>
+          <h3 className="ticket-preview__section-title">{t('ticket.preview.publicFeed')}</h3>
+          <p className="ticket-preview__hint">{t('ticket.preview.publicHint')}</p>
           <label className="ticket-preview__field">
-            <span>Public description</span>
+            <span>{t('ticket.preview.publicDescription')}</span>
             <textarea
               value={publicDescription}
               onChange={(event) => setPublicDescription(event.target.value)}
@@ -374,19 +530,21 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
             />
           </label>
           <label className="ticket-preview__field">
-            <span>Public location label</span>
+            <span>{t('ticket.preview.publicLocation')}</span>
             <input
               type="text"
               value={publicLocationLabel}
               onChange={(event) => setPublicLocationLabel(event.target.value)}
-              placeholder="e.g. Hamra, Beirut"
+              placeholder={t('ticket.preview.publicLocationPlaceholder')}
               disabled={isSavingPublic}
             />
           </label>
           <ImagePrivacyStatus redaction={ticket.imageRedaction} />
           <p className="ticket-preview__meta">
-            Status: {ticket.public?.status ?? 'DRAFT'}
-            {ticket.public?.imageObjectKey ? ' · photo approved' : ' · no public photo'}
+            {t('ticket.preview.publicStatus', { status: ticket.public?.status ?? 'DRAFT' })}
+            {ticket.public?.imageObjectKey
+              ? t('ticket.preview.photoApproved')
+              : t('ticket.preview.noPublicPhoto')}
           </p>
           <div className="ticket-preview__row">
             <button
@@ -395,7 +553,7 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               onClick={() => void handleSavePublicContent('PUBLISHED')}
               disabled={isSavingPublic || !publicDescription.trim() || !publicLocationLabel.trim()}
             >
-              {isSavingPublic ? 'Saving…' : 'Publish'}
+              {isSavingPublic ? t('ticket.preview.saving') : t('ticket.preview.publish')}
             </button>
             <button
               type="button"
@@ -403,26 +561,26 @@ export function TicketPreviewPanel({ ticket, onTicketUpdated }: TicketPreviewPan
               onClick={() => void handleSavePublicContent('UNPUBLISHED')}
               disabled={isSavingPublic || (ticket.public?.status ?? 'DRAFT') === 'DRAFT'}
             >
-              Unpublish
+              {t('ticket.preview.unpublish')}
             </button>
           </div>
         </section>
 
-        {actionError ? (
+        {actionNotice?.tone === 'error' ? (
           <p className="ticket-preview__error" role="alert">
-            {actionError}
+            {actionNoticeText(actionNotice, t)}
           </p>
         ) : null}
-        {actionSuccess ? (
+        {actionNotice?.tone === 'success' ? (
           <p className="ticket-preview__success" role="status">
-            {actionSuccess}
+            {actionNoticeText(actionNotice, t)}
           </p>
         ) : null}
       </div>
 
       <footer className="ticket-preview__footer">
         <Link to={`/tickets/${ticket.ticketId}`} className="ticket-preview__open">
-          Open full ticket
+          {t('ticket.preview.open')}
         </Link>
       </footer>
     </aside>

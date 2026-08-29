@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.schemas.stored_ticket import StoredTicket
+from app.services.content_safety.policy import content_safety_allows_public_ticket
 
 OWNER_HISTORY_SORT_KEY = "ownerHistorySortKey"
 PUBLIC_SORT_KEY = "publicSortKey"
@@ -19,6 +20,24 @@ PUBLIC_INDEX_FIELDS = frozenset(
         "public_location_label",
         "public_published_at",
     }
+)
+# Enrollment is the presence of contentSafetyStatus. Model defaults must not
+# write these attributes for kill-switch or pre-#319 tickets.
+CONTENT_SAFETY_ITEM_KEYS = (
+    "contentSafetyStatus",
+    "contentSafetyGeneration",
+    "contentSafetyClaimToken",
+    "contentSafetyReasonCode",
+    "contentSafetySeverity",
+    "contentSafetyTextModel",
+    "contentSafetyImageLabels",
+    "authenticityScore",
+    "authenticityModel",
+    "authenticityModelVersion",
+    "authenticitySignals",
+    "contentSafetyCompletedAt",
+    "contentSafetyStaffNote",
+    "contentSafetyHistory",
 )
 
 
@@ -44,6 +63,7 @@ def is_public_ticket_publishable(ticket: StoredTicket) -> bool:
         and bool(ticket.public_description and ticket.public_description.strip())
         and bool(ticket.public_location_label and ticket.public_location_label.strip())
         and bool(ticket.public_published_at)
+        and content_safety_allows_public_ticket(ticket)
     )
 
 
@@ -68,7 +88,9 @@ def prepare_dynamodb_value(value: Any) -> Any:
     if isinstance(value, float):
         return Decimal(str(value))
     if isinstance(value, dict):
-        return {key: prepare_dynamodb_value(item) for key, item in value.items()}
+        return {
+            key: prepare_dynamodb_value(item) for key, item in value.items() if item is not None
+        }
     if isinstance(value, list):
         return [prepare_dynamodb_value(item) for item in value]
     return value
@@ -76,6 +98,9 @@ def prepare_dynamodb_value(value: Any) -> Any:
 
 def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
     item = ticket.model_dump(by_alias=True, mode="json")
+    if not ticket.content_safety_enrolled:
+        for key in CONTENT_SAFETY_ITEM_KEYS:
+            item.pop(key, None)
     if ticket.owner_user_id:
         item[OWNER_HISTORY_SORT_KEY] = build_owner_history_sort_key(ticket)
     if is_public_ticket_publishable(ticket):
@@ -88,4 +113,10 @@ def ticket_to_item(ticket: StoredTicket) -> dict[str, Any]:
 
 
 def item_to_ticket(item: dict[str, Any]) -> StoredTicket:
-    return StoredTicket.model_validate(convert_decimals(item))
+    ticket = StoredTicket.model_validate(convert_decimals(item))
+    return ticket.model_copy(
+        update={
+            "image_redaction_enrolled": "imageRedactionStatus" in item,
+            "content_safety_enrolled": "contentSafetyStatus" in item,
+        }
+    )

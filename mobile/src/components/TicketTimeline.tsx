@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, typography } from '@/theme';
 import { formatStatusLabel } from '@/theme/labels';
 import type { TicketStatusHistoryEntry } from '@/types/ticket';
@@ -18,8 +19,8 @@ export type TicketTimelineProps = {
   emptyMessage?: string;
 };
 
-function formatTimelineDate(isoDate: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+function formatTimelineDate(isoDate: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(isoDate));
@@ -28,21 +29,22 @@ function formatTimelineDate(isoDate: string): string {
 export function TicketTimeline({
   history,
   variant = 'citizen',
-  emptyMessage = 'No status history is available for this ticket yet.',
+  emptyMessage,
 }: TicketTimelineProps) {
+  const { t, locale } = useI18n();
   const events = normalizeTimelineEvents(history);
   const showStaffDetails = variant === 'staff';
 
   if (events.length === 0) {
     return (
       <Text variant="bodyMedium" style={styles.empty}>
-        {emptyMessage}
+        {emptyMessage ?? t('timeline.empty')}
       </Text>
     );
   }
 
   return (
-    <View accessibilityLabel="Ticket status timeline" style={styles.list}>
+    <View accessibilityLabel={t('timeline.a11y')} style={styles.list}>
       {events.map((event, index) => {
         const isLatest = index === events.length - 1;
         return (
@@ -56,11 +58,11 @@ export function TicketTimeline({
                 {formatStatusLabel(event.status)}
               </Text>
               <Text variant="bodySmall" style={styles.time}>
-                {formatTimelineDate(event.changedAt)}
+                {formatTimelineDate(event.changedAt, locale)}
               </Text>
               {showStaffDetails && event.changedBy ? (
                 <Text variant="bodySmall" style={styles.meta}>
-                  Updated by {event.changedBy}
+                  {t('timeline.updatedBy', { name: event.changedBy })}
                 </Text>
               ) : null}
               {showStaffDetails && event.note ? (

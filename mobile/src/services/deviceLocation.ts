@@ -8,7 +8,7 @@ export type DeviceCoordinates = {
 
 export type DeviceLocationResult =
   | { ok: true; coordinates: DeviceCoordinates }
-  | { ok: false; reason: 'permission_denied' | 'unavailable' | 'timeout'; message: string };
+  | { ok: false; reason: 'permission_denied' | 'unavailable' | 'timeout' };
 
 /**
  * Request foreground location permission and read the device's current GPS position.
@@ -20,8 +20,6 @@ export async function getCurrentDeviceLocation(): Promise<DeviceLocationResult> 
       return {
         ok: false,
         reason: 'permission_denied',
-        message:
-          'Location permission is required to use your current position. You can enable it in your device settings, or choose a place on the map instead.',
       };
     }
 
@@ -41,7 +39,6 @@ export async function getCurrentDeviceLocation(): Promise<DeviceLocationResult> 
     return {
       ok: false,
       reason: 'unavailable',
-      message: 'Unable to read your current location right now.',
     };
   }
 }

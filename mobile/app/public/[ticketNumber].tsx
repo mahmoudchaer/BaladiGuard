@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReportPhoto } from '@/components/ReportPhoto';
 import { StatusChip } from '@/components/StatusChip';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { getPublicTicketByNumber } from '@/services/api/tickets';
 import { colors, radii, spacing, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
@@ -15,48 +16,56 @@ import { openInMapsApp } from '@/utils/openMaps';
 import { isValidMapCoordinate } from '@/utils/publicMapClustering';
 
 export default function PublicReportDetailScreen() {
+  const { t } = useI18n();
   const { ticketNumber } = useLocalSearchParams<{ ticketNumber?: string | string[] }>();
   const selectedTicketNumber = Array.isArray(ticketNumber) ? ticketNumber[0] : ticketNumber;
   const [report, setReport] = useState<PublicTicketResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(selectedTicketNumber));
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [usedLoadFallback, setUsedLoadFallback] = useState(false);
+  const requestGeneration = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadReport() {
-      if (!selectedTicketNumber) {
-        setError('Unable to open that public report.');
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await getPublicTicketByNumber(selectedTicketNumber);
-        if (active) {
-          setReport(response);
-        }
-      } catch (loadError) {
-        if (active) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Unable to load that public report right now.',
-          );
-        }
-      } finally {
-        if (active) {
-          setIsLoading(false);
-        }
-      }
+  const loadReport = useCallback(() => {
+    if (!selectedTicketNumber) {
+      setIsLoading(false);
+      return;
     }
-
-    void loadReport();
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsLoading(true);
+    setErrorMessage(null);
+    setUsedLoadFallback(false);
+    setReport(null);
+    void getPublicTicketByNumber(selectedTicketNumber, { signal: controller.signal })
+      .then((response) => {
+        if (generation === requestGeneration.current) setReport(response);
+      })
+      .catch((loadError: unknown) => {
+        if (generation !== requestGeneration.current) return;
+        if (loadError instanceof Error && loadError.name === 'AbortError') return;
+        if (loadError instanceof Error) {
+          setErrorMessage(loadError.message);
+        } else {
+          setUsedLoadFallback(true);
+        }
+      })
+      .finally(() => {
+        if (generation === requestGeneration.current) setIsLoading(false);
+      });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [selectedTicketNumber]);
+
+  useEffect(() => loadReport(), [loadReport]);
+
+  const error = !selectedTicketNumber
+    ? t('public.unableOpen')
+    : (errorMessage ?? (usedLoadFallback ? t('public.unableLoad') : null));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
@@ -65,15 +74,30 @@ export default function PublicReportDetailScreen() {
           <View style={styles.loading} testID="public-report-detail-loading">
             <ActivityIndicator color={colors.brand} />
             <Text variant="bodyMedium" style={styles.loadingText}>
-              Loading public report...
+              {t('public.loading')}
             </Text>
           </View>
         ) : null}
 
         {error ? (
-          <Banner visible icon="alert-circle" style={styles.errorBanner}>
-            {error}
-          </Banner>
+          <>
+            <Banner
+              visible
+              icon="alert-circle"
+              style={styles.errorBanner}
+              testID="public-report-detail-error"
+            >
+              {error}
+            </Banner>
+            <Button
+              mode="outlined"
+              onPress={() => loadReport()}
+              textColor={colors.brandDark}
+              testID="public-report-detail-retry"
+            >
+              {t('common.tryAgain')}
+            </Button>
+          </>
         ) : null}
 
         {report ? (
@@ -87,7 +111,7 @@ export default function PublicReportDetailScreen() {
 
             <ReportPhoto
               uri={report.photoUrl}
-              accessibilityLabel={`Photo for report ${report.ticketNumber}`}
+              accessibilityLabel={t('public.photoAlt', { ticketNumber: report.ticketNumber })}
               testID="public-report-detail-photo"
               variant="hero"
             />
@@ -135,15 +159,15 @@ export default function PublicReportDetailScreen() {
                   });
                 }}
                 testID="public-report-detail-maps"
-                accessibilityLabel="Open this report location in maps"
+                accessibilityLabel={t('public.openMapsA11y')}
               >
-                Open in Maps
+                {t('public.openMaps')}
               </Button>
             </View>
 
             <View style={styles.card}>
               <Text variant="titleMedium" style={styles.cardTitle}>
-                Summary
+                {t('public.summary')}
               </Text>
               <Text variant="bodyMedium" style={styles.description}>
                 {report.description}
@@ -153,11 +177,11 @@ export default function PublicReportDetailScreen() {
               </Text>
               {report.department ? (
                 <Text variant="bodySmall" style={styles.metaText}>
-                  Assigned to {report.department.name}
+                  {t('public.assignedTo', { name: report.department.name })}
                 </Text>
               ) : null}
               <Text variant="bodySmall" style={styles.metaText}>
-                Reported by {report.attribution.displayName}
+                {t('public.reportedBy', { name: report.attribution.displayName })}
               </Text>
             </View>
           </View>
@@ -203,6 +227,7 @@ const styles = StyleSheet.create({
     color: colors.brandDark,
     fontWeight: '700',
     flexShrink: 1,
+    writingDirection: 'ltr',
   },
   mapWrap: {
     borderRadius: radii.lg,
@@ -212,6 +237,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     gap: spacing[3],
     paddingBottom: spacing[3],
+    direction: 'ltr',
   },
   map: {
     height: 220,

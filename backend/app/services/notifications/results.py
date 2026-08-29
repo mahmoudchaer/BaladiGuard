@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-DeliveryChannel = Literal["EMAIL", "SMS"]
+DeliveryChannel = Literal["EMAIL", "SMS", "WHATSAPP", "PUSH"]
 DeliveryAttemptStatus = Literal[
     "SUCCEEDED",
     "FAILED_TRANSIENT",

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.services.content_safety.model_assets import resolve_authenticity_model_path
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
 
@@ -39,6 +41,11 @@ class Settings:
         endpoint = os.getenv("DYNAMODB_ENDPOINT_URL", "").strip()
         self.dynamodb_endpoint_url = endpoint or None
         self.dynamodb_table_prefix = os.getenv("DYNAMODB_TABLE_PREFIX", "baladiguard-").strip()
+        # Sparse ticketTimeline-index reads hide rows that lack timelineKey.
+        # Keep the compatibility path until create GSI → backfill → verify → cutover.
+        self.activity_timeline_use_gsi = (
+            os.getenv("ACTIVITY_TIMELINE_USE_GSI", "false").strip().lower() == "true"
+        )
         self.seed_sample_tickets = (
             os.getenv("SEED_SAMPLE_TICKETS", "false").strip().lower() == "true"
         )
@@ -103,6 +110,73 @@ class Settings:
         self.image_redaction_job_backoff_max_seconds = self._int_setting(
             "IMAGE_REDACTION_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
         )
+        self.content_safety_enabled = (
+            os.getenv("CONTENT_SAFETY_ENABLED", "true").strip().lower() == "true"
+        )
+        fail_closed_raw = os.getenv("CONTENT_SAFETY_FAIL_CLOSED", "").strip().lower()
+        if fail_closed_raw in {"true", "false"}:
+            self.content_safety_fail_closed = fail_closed_raw == "true"
+        else:
+            self.content_safety_fail_closed = self.app_env not in {
+                "local",
+                "test",
+                "development",
+            }
+        self.content_safety_text_model_id = (
+            os.getenv("CONTENT_SAFETY_TEXT_MODEL_ID", "").strip()
+            or os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0").strip()
+            or "amazon.nova-lite-v1:0"
+        )
+        self.content_safety_image_reject_confidence = self._float_setting(
+            "CONTENT_SAFETY_IMAGE_REJECT_CONFIDENCE",
+            default=80.0,
+            minimum=50.0,
+            maximum=100.0,
+        )
+        self.content_safety_image_review_confidence = self._float_setting(
+            "CONTENT_SAFETY_IMAGE_REVIEW_CONFIDENCE",
+            default=50.0,
+            minimum=0.0,
+            maximum=100.0,
+        )
+        self.content_safety_authenticity_review_score = self._float_setting(
+            "CONTENT_SAFETY_AUTHENTICITY_REVIEW_SCORE",
+            default=0.85,
+            minimum=0.5,
+            maximum=1.0,
+        )
+        self.authenticity_detection_model = resolve_authenticity_model_path(
+            os.getenv("AUTHENTICITY_DETECTION_MODEL", "").strip() or None
+        )
+        self.content_safety_job_max_attempts = self._int_setting(
+            "CONTENT_SAFETY_JOB_MAX_ATTEMPTS", default=5, minimum=1
+        )
+        self.content_safety_job_timeout_seconds = self._int_setting(
+            "CONTENT_SAFETY_JOB_TIMEOUT_SECONDS", default=300, minimum=1
+        )
+        self.content_safety_job_backoff_base_seconds = self._int_setting(
+            "CONTENT_SAFETY_JOB_BACKOFF_BASE_SECONDS", default=5, minimum=1
+        )
+        self.content_safety_job_backoff_max_seconds = self._int_setting(
+            "CONTENT_SAFETY_JOB_BACKOFF_MAX_SECONDS", default=300, minimum=1
+        )
+        self.municipality_routing_enabled = (
+            os.getenv("MUNICIPALITY_ROUTING_ENABLED", "true").strip().lower() == "true"
+        )
+        self.municipality_routing_use_model = (
+            os.getenv("MUNICIPALITY_ROUTING_USE_MODEL", "false").strip().lower() == "true"
+        )
+        self.municipality_routing_model_id = (
+            os.getenv("MUNICIPALITY_ROUTING_MODEL_ID", "").strip()
+            or os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0").strip()
+            or "amazon.nova-lite-v1:0"
+        )
+        self.municipality_routing_high_confidence = self._float_setting(
+            "MUNICIPALITY_ROUTING_HIGH_CONFIDENCE",
+            default=0.85,
+            minimum=0.5,
+            maximum=1.0,
+        )
 
         self.duplicate_distance_threshold_m = self._float_setting(
             "DUPLICATE_DISTANCE_THRESHOLD_M",
@@ -160,6 +234,14 @@ class Settings:
         self.notification_destination_rate_window_seconds = self._int_setting(
             "NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS", default=60, minimum=1
         )
+        self.notification_whatsapp_template_name = (
+            os.getenv("NOTIFICATION_WHATSAPP_TEMPLATE_NAME", "ticket_update").strip()
+            or "ticket_update"
+        )
+        self.notification_whatsapp_template_language = (
+            os.getenv("NOTIFICATION_WHATSAPP_TEMPLATE_LANGUAGE", "en").strip() or "en"
+        )
+        self.expo_push_access_token = os.getenv("EXPO_PUSH_ACCESS_TOKEN", "").strip() or None
         self.trust_x_forwarded_for = (
             os.getenv("TRUST_X_FORWARDED_FOR", "false").strip().lower() == "true"
         )
@@ -195,6 +277,18 @@ class Settings:
         self.rate_limit_staff_login_window_seconds = self._int_setting(
             "RATE_LIMIT_STAFF_LOGIN_WINDOW_SECONDS", default=300, minimum=1
         )
+        self.rate_limit_staff_assistant_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_ASSISTANT_LIMIT", default=30, minimum=1
+        )
+        self.rate_limit_staff_assistant_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_ASSISTANT_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_staff_search_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_SEARCH_LIMIT", default=40, minimum=1
+        )
+        self.rate_limit_staff_search_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_SEARCH_WINDOW_SECONDS", default=60, minimum=1
+        )
         self.rate_limit_citizen_otp_request_limit = self._int_setting(
             "RATE_LIMIT_CITIZEN_OTP_REQUEST_LIMIT", default=5, minimum=1
         )
@@ -214,6 +308,45 @@ class Settings:
         self.rate_limit_smoke_limit = self._int_setting(
             "RATE_LIMIT_SMOKE_LIMIT", default=1000, minimum=1
         )
+        self.rate_limit_citizen_export_limit = self._int_setting(
+            "RATE_LIMIT_CITIZEN_EXPORT_LIMIT", default=5, minimum=1
+        )
+        self.rate_limit_citizen_export_window_seconds = self._int_setting(
+            "RATE_LIMIT_CITIZEN_EXPORT_WINDOW_SECONDS", default=300, minimum=1
+        )
+        self.rate_limit_citizen_delete_limit = self._int_setting(
+            "RATE_LIMIT_CITIZEN_DELETE_LIMIT", default=3, minimum=1
+        )
+        self.rate_limit_citizen_delete_window_seconds = self._int_setting(
+            "RATE_LIMIT_CITIZEN_DELETE_WINDOW_SECONDS", default=300, minimum=1
+        )
+        self.rate_limit_whatsapp_submit_limit = self._int_setting(
+            "RATE_LIMIT_WHATSAPP_SUBMIT_LIMIT", default=8, minimum=1
+        )
+        self.rate_limit_whatsapp_submit_window_seconds = self._int_setting(
+            "RATE_LIMIT_WHATSAPP_SUBMIT_WINDOW_SECONDS", default=3600, minimum=1
+        )
+        self.rate_limit_staff_mutation_limit = self._int_setting(
+            "RATE_LIMIT_STAFF_MUTATION_LIMIT", default=300, minimum=1
+        )
+        self.rate_limit_staff_mutation_window_seconds = self._int_setting(
+            "RATE_LIMIT_STAFF_MUTATION_WINDOW_SECONDS", default=60, minimum=1
+        )
+        self.rate_limit_ops_dashboard_limit = self._int_setting(
+            "RATE_LIMIT_OPS_DASHBOARD_LIMIT", default=120, minimum=1
+        )
+        self.rate_limit_ops_dashboard_window_seconds = self._int_setting(
+            "RATE_LIMIT_OPS_DASHBOARD_WINDOW_SECONDS", default=60, minimum=1
+        )
+        # Request-size and Host hardening (issue #316).
+        self.max_json_body_bytes = self._int_setting(
+            "MAX_JSON_BODY_BYTES", default=262_144, minimum=1024
+        )
+        self.max_header_bytes = self._int_setting("MAX_HEADER_BYTES", default=16_384, minimum=1024)
+        self.max_json_nesting_depth = self._int_setting(
+            "MAX_JSON_NESTING_DEPTH", default=20, minimum=4
+        )
+        self.allowed_hosts = os.getenv("ALLOWED_HOSTS", "").strip() or None
         self.log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
         # Unsafe local helper: print OTP codes to process stdout (never via logger).
         # Ignored outside local/development/test. Prefer peek_dev_otp_code in tests.
@@ -221,9 +354,75 @@ class Settings:
             os.getenv("OTP_DEV_PLAINTEXT_STDOUT", "false").strip().lower() == "true"
         )
 
+        # Citizen OTP delivery channel (issue #297). Separate from NOTIFICATION_ADAPTER
+        # and from WhatsApp report submission (#296). Empty = legacy auto (mock unless
+        # NOTIFICATION_ADAPTER=real → sns).
+        raw_otp_channel = os.getenv("CITIZEN_OTP_DELIVERY_CHANNEL", "").strip().lower()
+        self.citizen_otp_delivery_channel = raw_otp_channel or None
+        self.citizen_otp_whatsapp_phone_number_id = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "").strip() or None
+        )
+        self.citizen_otp_whatsapp_access_token = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "").strip() or None
+        )
+        self.citizen_otp_whatsapp_template_name = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_NAME", "").strip() or None
+        )
+        self.citizen_otp_whatsapp_template_language = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_LANGUAGE", "en").strip() or "en"
+        )
+        self.citizen_otp_whatsapp_graph_api_version = (
+            os.getenv("CITIZEN_OTP_WHATSAPP_GRAPH_API_VERSION", "v21.0").strip() or "v21.0"
+        )
+        button_raw = os.getenv("CITIZEN_OTP_WHATSAPP_TEMPLATE_BUTTON_INDEX", "").strip()
+        if button_raw == "":
+            self.citizen_otp_whatsapp_template_button_index: int | None = 0
+        elif button_raw.lower() in {"none", "off", "false"}:
+            self.citizen_otp_whatsapp_template_button_index = None
+        else:
+            try:
+                self.citizen_otp_whatsapp_template_button_index = max(0, int(button_raw))
+            except ValueError:
+                self.citizen_otp_whatsapp_template_button_index = 0
+        self.citizen_otp_whatsapp_timeout_seconds = self._float_setting(
+            "CITIZEN_OTP_WHATSAPP_TIMEOUT_SECONDS", default=15.0, minimum=1.0, maximum=60.0
+        )
+        # template = approved Meta auth template (issue #297 completion).
+        # session_text = sandbox-only free-form body inside the 24h customer window.
+        raw_wa_mode = os.getenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "template").strip().lower()
+        self.citizen_otp_whatsapp_message_mode = (
+            raw_wa_mode if raw_wa_mode in {"template", "session_text"} else "template"
+        )
+
         # Citizen-facing HTTPS base for notification deep links (issue #257).
         # Production must set an explicit non-localhost https URL.
         self.citizen_app_base_url = os.getenv("CITIZEN_APP_BASE_URL", "").strip() or None
+
+        # WhatsApp Cloud API report channel (issue #296). Disabled by default until
+        # production Meta credentials are configured. Use WHATSAPP_PROVIDER=mock for
+        # local/tests without a real Business number.
+        self.whatsapp_enabled = os.getenv("WHATSAPP_ENABLED", "false").strip().lower() == "true"
+        self.whatsapp_provider = os.getenv("WHATSAPP_PROVIDER", "mock").strip().lower() or "mock"
+        self.whatsapp_phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip() or None
+        self.whatsapp_business_account_id = (
+            os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID", "").strip() or None
+        )
+        self.whatsapp_app_id = os.getenv("WHATSAPP_APP_ID", "").strip() or None
+        self.whatsapp_app_secret = os.getenv("WHATSAPP_APP_SECRET", "").strip() or None
+        self.whatsapp_verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "").strip() or None
+        self.whatsapp_access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "").strip() or None
+        self.whatsapp_graph_api_version = (
+            os.getenv("WHATSAPP_GRAPH_API_VERSION", "v21.0").strip() or "v21.0"
+        )
+        self.whatsapp_conversation_ttl_hours = self._int_setting(
+            "WHATSAPP_CONVERSATION_TTL_HOURS", default=24, minimum=1
+        )
+        self.whatsapp_dedup_ttl_seconds = self._int_setting(
+            "WHATSAPP_DEDUP_TTL_SECONDS", default=86_400, minimum=60
+        )
+        self.whatsapp_max_webhook_bytes = self._int_setting(
+            "WHATSAPP_MAX_WEBHOOK_BYTES", default=1_048_576, minimum=1024
+        )
 
         # Browser CORS allowlist (issue #263). Comma-separated origins.
         # Staging/production require an explicit non-localhost list.

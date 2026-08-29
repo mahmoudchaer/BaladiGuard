@@ -59,6 +59,27 @@ def create_tables(prefix: str, settings: Settings | None = None) -> list[str]:
         wait_for_table(client, submission_claims_table)
     _ensure_ttl(client, submission_claims_table, attribute_name="ttl")
 
+    whatsapp_conversations = build_table_name(prefix, "whatsapp-conversations")
+    if whatsapp_conversations not in created_tables:
+        wait_for_table(client, whatsapp_conversations)
+    _ensure_ttl(client, whatsapp_conversations, attribute_name="ttl")
+
+    whatsapp_dedup = build_table_name(prefix, "whatsapp-inbound-dedup")
+    if whatsapp_dedup not in created_tables:
+        wait_for_table(client, whatsapp_dedup)
+    _ensure_ttl(client, whatsapp_dedup, attribute_name="ttl")
+
+    # Citizen auth ephemerals (#321): sessions (~30d) and OTP challenges (~5m).
+    citizen_sessions = build_table_name(prefix, "citizen-sessions")
+    if citizen_sessions not in created_tables:
+        wait_for_table(client, citizen_sessions)
+    _ensure_ttl(client, citizen_sessions, attribute_name="ttl")
+
+    citizen_otp = build_table_name(prefix, "citizen-otp-challenges")
+    if citizen_otp not in created_tables:
+        wait_for_table(client, citizen_otp)
+    _ensure_ttl(client, citizen_otp, attribute_name="ttl")
+
     return created_tables
 
 

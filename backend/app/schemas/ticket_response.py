@@ -3,10 +3,13 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.ai_processing import AiProcessingStatus
+from app.schemas.content_safety import TicketContentSafety
 from app.schemas.image_redaction import TicketImageRedaction
+from app.schemas.municipality import TicketMunicipalityRouting
 from app.schemas.stored_ticket import PublicTicketStatus
 from app.schemas.ticket import ReportContact, ReportLocation
 from app.schemas.ticket_status import TicketStatus
+from app.schemas.work_order import TicketOutcomeFields
 
 TicketPriority = Literal["low", "medium", "high", "critical"]
 
@@ -69,9 +72,30 @@ class TicketAuditHistoryEntry(BaseModel):
         "DUPLICATE_MERGE",
         "PUBLIC_CONTENT_UPDATE",
         "STAFF_COMMENT",
+        "IMAGE_REDACTION_APPROVE",
+        "IMAGE_REDACTION_REJECT",
+        "IMAGE_REDACTION_REPROCESS",
+        "IMAGE_REDACTION_MANUAL_BLUR",
+        "CONTENT_SAFETY_APPROVE",
+        "CONTENT_SAFETY_REJECT",
+        "CONTENT_SAFETY_PRIVATE_ONLY",
+        "CONTENT_SAFETY_REPROCESS",
+        "MUNICIPALITY_ASSIGN",
+        "MUNICIPALITY_CLAIM",
+        "MUNICIPALITY_REJECT",
+        "MUNICIPALITY_OVERRIDE",
+        "WORKFORCE_ASSIGN",
+        "WORK_ORDER_CREATE",
+        "WORK_ORDER_ASSIGN",
+        "WORK_ORDER_START",
+        "WORK_ORDER_COMPLETE",
+        "WORK_ORDER_CANCEL",
+        "WORK_ORDER_EVIDENCE_ADD",
+        "RESOLUTION_FEEDBACK_SUBMIT",
+        "RESOLUTION_FEEDBACK_REVIEW",
     ] = Field(alias="actionType")
     actor_id: str | None = Field(default=None, alias="actorId")
-    actor_role: Literal["municipal_staff", "administrator"] | None = Field(
+    actor_role: Literal["municipal_staff", "administrator", "developer_operator"] | None = Field(
         default=None,
         alias="actorRole",
     )
@@ -115,6 +139,7 @@ class CitizenTicketResponse(BaseModel):
     updated_at: str | None = Field(default=None, alias="updatedAt")
     last_updated_at: str = Field(alias="lastUpdatedAt")
     timeline: list[CitizenTicketTimelineEntry] = Field(default_factory=list)
+    outcome_message: str | None = Field(default=None, alias="outcomeMessage")
 
     model_config = {"populate_by_name": True}
 
@@ -162,6 +187,36 @@ class PublicTicketListResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class PublicTicketMapMarkerResponse(BaseModel):
+    """Minimal privacy-safe marker projection for public map browsing."""
+
+    ticket_number: str = Field(alias="ticketNumber")
+    status: TicketStatus
+    category: str | None = None
+    address_text: str = Field(alias="addressText")
+    latitude: float
+    longitude: float
+
+    model_config = {"populate_by_name": True}
+
+
+class PublicTicketMapClusterResponse(BaseModel):
+    id: str
+    latitude: float
+    longitude: float
+    count: int = Field(ge=1)
+
+
+class PublicTicketMapViewportResponse(BaseModel):
+    markers: list[PublicTicketMapMarkerResponse]
+    clusters: list[PublicTicketMapClusterResponse]
+    limit: int = Field(ge=1, le=500)
+    truncated: bool
+    zoom: float
+
+    model_config = {"populate_by_name": True}
+
+
 class TicketDuplicateReference(BaseModel):
     duplicate_group_id: str = Field(alias="duplicateGroupId")
     ticket_ids: list[str] | None = Field(default=None, alias="ticketIds")
@@ -186,6 +241,7 @@ class UpdateTicketStatusRequest(BaseModel):
     status: TicketStatus
     updated_by: str | None = Field(default=None, alias="updatedBy", max_length=120)
     note: str | None = Field(default=None, max_length=500)
+    reason_code: str | None = Field(default=None, alias="reasonCode", max_length=64)
 
     model_config = {"populate_by_name": True}
 
@@ -247,8 +303,15 @@ class TicketResponse(BaseModel):
     image_object_key: str | None = Field(default=None, alias="imageObjectKey")
     department: TicketDepartment | None
     department_id: str | None = Field(default=None, alias="departmentId")
+    assigned_worker_id: str | None = Field(default=None, alias="assignedWorkerId")
+    assigned_team_id: str | None = Field(default=None, alias="assignedTeamId")
+    active_work_order_id: str | None = Field(default=None, alias="activeWorkOrderId")
+    outcome: TicketOutcomeFields | None = None
     created_by: str | None = Field(default=None, alias="createdBy")
     municipality_id: str | None = Field(default=None, alias="municipalityId")
+    municipality_routing: TicketMunicipalityRouting | None = Field(
+        default=None, alias="municipalityRouting"
+    )
     duplicate_group_id: str | None = Field(default=None, alias="duplicateGroupId")
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
@@ -260,6 +323,7 @@ class TicketResponse(BaseModel):
         default_factory=lambda: TicketImageRedaction(status="pending", generation=1),
         alias="imageRedaction",
     )
+    content_safety: TicketContentSafety | None = Field(default=None, alias="contentSafety")
     status_history: list[TicketStatusHistoryEntry] | None = Field(
         default=None,
         alias="statusHistory",

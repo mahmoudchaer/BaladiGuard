@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View, Text as RNText } from '
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { Button, Text } from 'react-native-paper';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { StatusChip } from '@/components/StatusChip';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import { formatCategoryLabel } from '@/theme/labels';
@@ -22,6 +23,7 @@ type PublicReportsMapProps = {
 };
 
 export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProps) {
+  const { t } = useI18n();
   const mapRef = useRef<MapView | null>(null);
   const { plottable } = useMemo(() => partitionPlottableReports(reports), [reports]);
   const plottableKey = plottable.map((p) => p.ticketNumber).join('|');
@@ -90,7 +92,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
     return (
       <View style={styles.emptyMap} testID="public-map-empty">
         <Text variant="bodyMedium" style={styles.emptyMapText}>
-          No mappable locations in the current public results. Use the list below.
+          {t('explore.emptyMap')}
         </Text>
       </View>
     );
@@ -121,7 +123,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
                 pinColor={colors.status[feature.report.status]?.fg ?? colors.brand}
                 onPress={() => onOpenReport(feature.report.ticketNumber)}
                 testID={`public-map-marker-${feature.report.ticketNumber}`}
-                accessibilityLabel={`Public report ${feature.report.ticketNumber}`}
+                accessibilityLabel={t('explore.publicReportA11y', {
+                  ticketNumber: feature.report.ticketNumber,
+                })}
               />
             );
           }
@@ -139,8 +143,8 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
               testID={`public-map-cluster-${feature.id}`}
               accessibilityLabel={
                 mayExpand
-                  ? `Cluster of ${feature.count} public reports. Activate to zoom in.`
-                  : `Cluster of ${feature.count} public reports at the same location. Activate to choose a report.`
+                  ? t('explore.clusterZoomA11y', { count: feature.count })
+                  : t('explore.clusterPickA11y', { count: feature.count })
               }
               tracksViewChanges={false}
             >
@@ -155,8 +159,7 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
         })}
       </MapView>
       <Text variant="bodySmall" style={styles.mapHint} testID="public-map-list-hint">
-        Prefer the report list below if the map is hard to use. Clusters show only public reports.
-        Same-location clusters open a short list so you can still choose a report.
+        {t('explore.mapHint')}
       </Text>
 
       <Modal
@@ -169,10 +172,10 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
         <View style={styles.pickerBackdrop}>
           <View style={styles.pickerSheet} accessibilityViewIsModal>
             <Text variant="titleMedium" style={styles.pickerTitle}>
-              Reports at this location
+              {t('explore.clusterTitle')}
             </Text>
             <Text variant="bodySmall" style={styles.pickerSubtitle}>
-              These public reports share the same map pin. Choose one to open.
+              {t('explore.clusterSubtitle')}
             </Text>
             <ScrollView
               style={styles.pickerList}
@@ -186,7 +189,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
                   onPress={() => pickReport(report.ticketNumber)}
                   testID={`public-map-cluster-pick-${report.ticketNumber}`}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open public report ${report.ticketNumber}`}
+                  accessibilityLabel={t('explore.openReport', {
+                    ticketNumber: report.ticketNumber,
+                  })}
                 >
                   <View style={styles.pickerRowTop}>
                     <Text variant="titleSmall" style={styles.pickerTicket}>
@@ -196,7 +201,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
                   </View>
                   <Text variant="bodySmall" style={styles.pickerMeta} numberOfLines={2}>
                     {formatCategoryLabel(report.category)} ·{' '}
-                    {report.location.addressText || report.mapLocation?.addressText || 'Location'}
+                    {report.location.addressText ||
+                      report.mapLocation?.addressText ||
+                      t('report.location')}
                   </Text>
                 </Pressable>
               ))}
@@ -205,9 +212,9 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
               mode="outlined"
               onPress={closeClusterPicker}
               testID="public-map-cluster-picker-close"
-              accessibilityLabel="Close location report list"
+              accessibilityLabel={t('explore.closeLocationList')}
             >
-              Close
+              {t('common.close')}
             </Button>
           </View>
         </View>
@@ -218,20 +225,21 @@ export function PublicReportsMap({ reports, onOpenReport }: PublicReportsMapProp
 
 const styles = StyleSheet.create({
   mapWrap: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    // Keep geographic orientation LTR even when the app chrome is RTL (#259).
+    direction: 'ltr',
+    borderRadius: radii.lg,
     overflow: 'hidden',
     backgroundColor: colors.surface,
     gap: spacing[2],
   },
   map: {
-    height: 220,
+    height: 260,
   },
   mapHint: {
     color: colors.textMuted,
-    paddingHorizontal: spacing[3],
-    paddingBottom: spacing[2],
+    paddingHorizontal: spacing[4],
+    paddingBottom: spacing[3],
+    lineHeight: 17,
   },
   emptyMap: {
     padding: spacing[4],

@@ -7,11 +7,17 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "check:i18n": "node ../scripts/check-i18n.mjs src/i18n/locales && node ../scripts/check-hardcoded-ui.mjs src",
+    "test": "npm run check:i18n && vitest run",
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:integration": "vitest run src/e2e",
+    "test:contracts": "vitest run src/contracts",
+    "check:cloudfront": "node scripts/check-cloudfront-template.mjs",
+    "check:production-build": "node scripts/check-production-build.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
@@ -34,6 +40,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.9.0",
     "jsdom": "^29.1.1",
+    "@playwright/test": "^1.55.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.66.0",

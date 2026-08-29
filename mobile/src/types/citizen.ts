@@ -2,7 +2,25 @@ export type TicketUpdatesPreference = 'SMS' | 'EMAIL' | 'BOTH' | 'NONE';
 
 export type NotificationPreferences = {
   ticketUpdates: TicketUpdatesPreference;
+  preferenceVersion?: number;
+  pushEnabled?: boolean;
+  emailEnabled?: boolean;
+  whatsAppEnabled?: boolean;
+  reportCreated?: boolean;
+  statusChanges?: boolean;
+  workUpdates?: boolean;
+  resolutionUpdates?: boolean;
+  actionRequests?: boolean;
   announcements: boolean;
+};
+
+export type LegalAcceptance = {
+  termsVersion: string;
+  privacyVersion: string;
+  acceptableUseVersion: string;
+  acceptedAt: string;
+  locale?: string | null;
+  source: 'otp_verify' | 'profile' | 'reacceptance';
 };
 
 export type CitizenProfile = {
@@ -12,9 +30,13 @@ export type CitizenProfile = {
   fullName: string | null;
   email: string | null;
   notificationPreferences: NotificationPreferences;
+  pushAvailable?: boolean;
   publicNameVisible: boolean;
+  leaderboardOptIn: boolean;
   active: boolean;
   contributionReady: boolean;
+  legalAcceptance?: LegalAcceptance | null;
+  legalAcceptanceRequired?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -31,12 +53,16 @@ export type CitizenOtpRequestResponse = {
   challengeId: string;
   expiresIn: number;
   message: string;
+  /** Server-configured delivery hint for UI copy (`sms` | `whatsapp` | `dev`). */
+  deliveryChannel?: 'sms' | 'whatsapp' | 'dev';
 };
 
 export type CitizenOtpVerifyPayload = {
   challengeId: string;
   code: string;
   fullName?: string;
+  acceptLegal?: boolean;
+  legalLocale?: string;
 };
 
 export type CitizenOtpVerifyResponse = CitizenProfile & {
@@ -58,8 +84,20 @@ export type CitizenProfileUpdatePayload = {
   email?: string | null;
   notificationPreferences?: Partial<NotificationPreferences>;
   publicNameVisible?: boolean;
+  leaderboardOptIn?: boolean;
   phone?: string;
   region?: string;
   phoneChangeChallengeId?: string;
   phoneChangeCode?: string;
+};
+
+export type LegalAcceptanceRequest = {
+  acceptLegal: true;
+  locale?: string;
+};
+
+export type CitizenDeleteResponse = {
+  status: 'deleted';
+  userId: string;
+  deletedAt: string;
 };

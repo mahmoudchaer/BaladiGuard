@@ -8,13 +8,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.config  # noqa: F401 - load .env before other app modules
+from app.api.admin_staff_accounts import departments_router as staff_departments_router
 from app.api.admin_staff_accounts import router as admin_staff_accounts_router
 from app.api.citizen import router as citizen_router
 from app.api.health import router as health_router
+from app.api.legal import router as legal_router
 from app.api.locations import router as locations_router
+from app.api.ops import router as ops_router
+from app.api.resolution_feedback import router as resolution_feedback_router
+from app.api.rewards import router as rewards_router
 from app.api.staff_auth import router as staff_auth_router
 from app.api.tickets import router as tickets_router
 from app.api.uploads import router as uploads_router
+from app.api.whatsapp import router as whatsapp_router
+from app.api.work_orders import router as work_orders_router
+from app.api.workforce import router as workforce_router
+from app.core.body_limits import RequestBodyTooLarge, payload_too_large_response
+from app.core.citizen_auth import CITIZEN_WEB_SESSION_COOKIE
 from app.core.config_validation import validate_configuration
 from app.core.cors import resolve_cors_origins
 from app.core.errors import (
@@ -28,13 +38,18 @@ from app.core.errors import (
 from app.core.logging import configure_logging
 from app.core.metrics import emit_metric, normalize_path_group, timed_metric
 from app.core.request_context import reset_request_id, set_request_id
+from app.core.request_hardening import reject_hardened_json_body, reject_hardened_request
+from app.core.security_headers import apply_security_headers
 from app.core.upload_abuse import reject_upload_abuse_early
 
 logger = logging.getLogger(__name__)
 
 
 def _with_request_id_header(response: JSONResponse, request_id: str) -> JSONResponse:
+    from app.config import get_settings
+
     response.headers["X-Request-Id"] = request_id
+    apply_security_headers(response.headers, app_env=get_settings().app_env)
     return response
 
 
@@ -60,11 +75,15 @@ async def lifespan(_: FastAPI):
     # Memory/local bootstrap for demo staff accounts (issue #175). DynamoDB uses
     # `make db-seed` / run_seed instead.
     from app.config import get_settings
-    from app.services.staff.bootstrap import ensure_demo_staff_accounts
+    from app.services.staff.bootstrap import (
+        ensure_demo_staff_accounts,
+        ensure_developer_operator_bootstrap,
+    )
 
     settings = get_settings()
     if not settings.use_dynamodb:
         ensure_demo_staff_accounts(settings=settings)
+    ensure_developer_operator_bootstrap(settings=settings)
     # AI work is processed by ``python -m app.workers.ai_worker``. Keeping the
     # worker outside the web process prevents API restarts from losing accepted work.
     # Continuous ReadyProbeSuccess publisher for CloudWatch alarms (issue #185).
@@ -130,6 +149,23 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     if exc.headers:
         for header_name, header_value in exc.headers.items():
             response.headers[header_name] = header_value
+    error_message = (
+        exc.detail.get("error", {}).get("message") if isinstance(exc.detail, dict) else None
+    )
+    if (
+        exc.status_code == 401
+        and error_message == "Citizen authentication required."
+        and request.cookies.get(CITIZEN_WEB_SESSION_COOKIE)
+    ):
+        from app.config import get_settings
+
+        response.delete_cookie(
+            CITIZEN_WEB_SESSION_COOKIE,
+            path="/v1",
+            secure=get_settings().app_env in {"staging", "production"},
+            httponly=True,
+            samesite="lax",
+        )
     return _with_request_id_header(response, request_id)
 
 
@@ -221,8 +257,35 @@ def create_app() -> FastAPI:
                     started_at=started_at,
                 )
                 return _with_request_id_header(early_upload_rejection, request.state.request_id)
+            early_hardening = reject_hardened_request(request)
+            if early_hardening is not None:
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=early_hardening.status_code,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(early_hardening, request.state.request_id)
+            early_json = await reject_hardened_json_body(request)
+            if early_json is not None:
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=early_json.status_code,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(early_json, request.state.request_id)
             try:
                 response = await call_next(request)
+            except RequestBodyTooLarge:
+                oversized = payload_too_large_response(request)
+                _record_http_metrics(
+                    method=request.method,
+                    path_group=path_group,
+                    status_code=413,
+                    started_at=started_at,
+                )
+                return _with_request_id_header(oversized, request.state.request_id)
             except Exception:
                 # BaseHTTPMiddleware can re-raise past exception handlers; still return
                 # a correlated 500 so clients get X-Request-Id on both body and header.
@@ -246,6 +309,7 @@ def create_app() -> FastAPI:
                 )
                 return _with_request_id_header(response, request.state.request_id)
             response.headers["X-Request-Id"] = request.state.request_id
+            apply_security_headers(response.headers, app_env=settings.app_env)
             if response.status_code >= 500:
                 logger.error(
                     "Request failed method=%s path=%s status=%s request_id=%s",
@@ -274,10 +338,18 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(staff_auth_router)
     app.include_router(admin_staff_accounts_router)
+    app.include_router(staff_departments_router)
+    app.include_router(ops_router)
     app.include_router(citizen_router)
+    app.include_router(rewards_router)
+    app.include_router(legal_router)
     app.include_router(tickets_router)
+    app.include_router(workforce_router)
+    app.include_router(work_orders_router)
+    app.include_router(resolution_feedback_router)
     app.include_router(locations_router)
     app.include_router(uploads_router)
+    app.include_router(whatsapp_router)
 
     return app
 
@@ -299,6 +371,14 @@ def _record_http_metrics(
     timed_metric("HttpRequestDuration", dimensions=dims, started_at=started_at)
     if status_code >= 500:
         emit_metric("Http5xx", dimensions=dims)
+        from app.core.request_context import get_request_id
+        from app.services.observability.snapshot import record_http_error
+
+        record_http_error(
+            path_group=path_group,
+            status_code=status_code,
+            request_id=get_request_id(),
+        )
 
 
 app = create_app()

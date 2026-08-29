@@ -34,7 +34,7 @@ Prefer syncing those files from AWS Secrets Manager with
 - For AI classification: enable model access in the Bedrock console
   (default `amazon.nova-lite-v1:0`)
 - For live geocoding: create an Amazon Location place index and set
-  `LOCATION_PLACE_INDEX_NAME` (leave empty to use the curated local Beirut index)
+  `LOCATION_PLACE_INDEX_NAME` (leave empty to use the curated local Lebanon place index)
 
 ## 1. Configure environment
 
@@ -80,7 +80,7 @@ DYNAMODB_ENDPOINT_URL=
 AWS_S3_BUCKET=baladiguard-report-photos-dev
 
 # Optional for live Amazon Location geocoding (issue #24).
-# Leave empty to use the curated local Beirut place index.
+# Leave empty to use the curated local Lebanon place index.
 
 # Real ticket notifications (issue #183). Prefer mock locally; real needs SES/SNS ready.
 # NOTIFICATION_ADAPTER=real
@@ -117,9 +117,10 @@ python scripts/db/seed.py
 
 Expected tables (prefix `baladiguard-` by default):
 
-- `tickets`, `users`, `municipalities`, `departments`
+- `tickets`, `users`, `municipalities`, `departments`, `workforce-workers`, `workforce-teams`
 - `ticket-status-history`, `ai-outputs`, `duplicate-groups`
 - `categories`, `counters`
+- `content-safety-jobs` (issue #319 screening queue; created by the same migrate)
 
 Seed loads municipalities, departments, and categories. Sample tickets stay off unless
 `SEED_SAMPLE_TICKETS=true`.
@@ -207,7 +208,7 @@ python scripts/verify_location_validation.py
 ```
 
 Requires `LOCATION_PLACE_INDEX_NAME` plus AWS credentials with Location access.
-When the place index env var is unset, API tests use the local Beirut place index instead.
+When the place index env var is unset, API tests use the local Lebanon place index instead.
 
 ## 7. Manual end-to-end verification checklist
 

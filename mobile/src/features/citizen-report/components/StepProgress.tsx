@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, typography } from '@/theme';
 
 export type ReportWizardStepKey = 'details' | 'photo' | 'location' | 'review';
@@ -12,11 +13,11 @@ export const REPORT_WIZARD_STEP_ORDER: ReportWizardStepKey[] = [
   'review',
 ];
 
-const STEP_LABELS: Record<ReportWizardStepKey, string> = {
-  details: 'Details',
-  photo: 'Photo',
-  location: 'Location',
-  review: 'Review',
+const STEP_LABEL_KEYS: Record<ReportWizardStepKey, string> = {
+  details: 'report.stepNameDetails',
+  photo: 'report.stepNamePhoto',
+  location: 'report.stepNameLocation',
+  review: 'report.stepNameReview',
 };
 
 type StepProgressProps = {
@@ -25,14 +26,21 @@ type StepProgressProps = {
 
 /** Plain, dependency-free step indicator (no Material progress bar). */
 export function StepProgress({ currentStep }: StepProgressProps) {
+  const { t } = useI18n();
   const currentIndex = REPORT_WIZARD_STEP_ORDER.indexOf(currentStep);
   const total = REPORT_WIZARD_STEP_ORDER.length;
+  const stepLabel = t(STEP_LABEL_KEYS[currentStep]);
+  const progressLabel = t('report.stepProgress', {
+    current: currentIndex + 1,
+    total,
+    label: stepLabel,
+  });
 
   return (
     <View
       style={styles.container}
       accessibilityRole="progressbar"
-      accessibilityLabel={`Step ${currentIndex + 1} of ${total}: ${STEP_LABELS[currentStep]}`}
+      accessibilityLabel={progressLabel}
     >
       <View style={styles.track}>
         {REPORT_WIZARD_STEP_ORDER.map((step, index) => {
@@ -49,7 +57,7 @@ export function StepProgress({ currentStep }: StepProgressProps) {
         })}
       </View>
       <Text variant="labelLarge" style={styles.label}>
-        Step {currentIndex + 1} of {total} · {STEP_LABELS[currentStep]}
+        {progressLabel}
       </Text>
     </View>
   );

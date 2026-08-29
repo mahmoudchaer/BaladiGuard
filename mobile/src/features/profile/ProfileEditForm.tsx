@@ -5,14 +5,11 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
-  EMAIL_NOT_LOGIN_MESSAGE,
-  FULL_NAME_OPTIONAL_HELP,
-  PUBLIC_NAME_VISIBLE_HELP,
-  TICKET_UPDATES_OPTIONS,
   profileEditSchema,
   profileToEditValues,
   type ProfileEditValues,
 } from '@/schemas/citizenProfileSchema';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { CitizenAuthApiError, PROFILE_UPDATE_SUCCESS_MESSAGE } from '@/services/api/citizenAuth';
 import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { CitizenProfile, CitizenProfileUpdatePayload } from '@/types/citizen';
@@ -24,6 +21,7 @@ type ProfileEditFormProps = {
 };
 
 export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormProps) {
+  const { t } = useI18n();
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const requestInFlight = useRef(false);
@@ -59,9 +57,18 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         email: trimmedEmail ? trimmedEmail : null,
         notificationPreferences: {
           ticketUpdates: values.ticketUpdates,
+          pushEnabled: values.pushEnabled,
+          emailEnabled: values.emailEnabled,
+          whatsAppEnabled: values.whatsAppEnabled,
+          reportCreated: values.reportCreated,
+          statusChanges: values.statusChanges,
+          workUpdates: values.workUpdates,
+          resolutionUpdates: values.resolutionUpdates,
+          actionRequests: values.actionRequests,
           announcements: values.announcements,
         },
         publicNameVisible: trimmedName ? values.publicNameVisible : false,
+        leaderboardOptIn: trimmedName && values.publicNameVisible ? values.leaderboardOptIn : false,
       });
       setSuccessMessage(PROFILE_UPDATE_SUCCESS_MESSAGE);
     } catch (error) {
@@ -70,7 +77,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
       } else if (error instanceof Error) {
         setFormError(error.message);
       } else {
-        setFormError('Something went wrong. Please try again.');
+        setFormError(t('errors.generic'));
       }
     } finally {
       requestInFlight.current = false;
@@ -80,11 +87,10 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
   return (
     <View style={styles.container} testID="profile-edit-form">
       <Text variant="titleLarge" style={styles.title}>
-        Edit profile
+        {t('profile.edit')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        Update your optional name, optional email, notifications, and public-name visibility. A
-        verified phone is enough to submit reports.
+        {t('profile.editLede')}
       </Text>
 
       {successMessage ? (
@@ -105,7 +111,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
             mode="outlined"
-            label="Full name (optional)"
+            label={t('profile.fullName')}
             value={value}
             onChangeText={onChange}
             onBlur={onBlur}
@@ -122,7 +128,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         </HelperText>
       ) : (
         <HelperText type="info" visible testID="edit-full-name-help">
-          {FULL_NAME_OPTIONAL_HELP}
+          {t('profile.editNameHelp')}
         </HelperText>
       )}
 
@@ -132,7 +138,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
             mode="outlined"
-            label="Email (optional)"
+            label={t('profile.email')}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -152,47 +158,52 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         </HelperText>
       ) : (
         <HelperText type="info" visible testID="edit-email-help">
-          {EMAIL_NOT_LOGIN_MESSAGE}
+          {t('profile.editEmailHelp')}
         </HelperText>
       )}
 
       <Text variant="labelLarge" style={styles.sectionLabel}>
-        Ticket update notifications
+        {t('profile.ticketUpdatesLabel')}
       </Text>
-      <Controller
-        control={control}
-        name="ticketUpdates"
-        render={({ field: { value, onChange } }) => (
-          <View style={styles.optionRow}>
-            {TICKET_UPDATES_OPTIONS.map((option) => (
-              <Button
-                key={option.value}
-                mode={value === option.value ? 'contained' : 'outlined'}
-                compact
-                onPress={() => onChange(option.value)}
-                style={styles.optionButton}
-                buttonColor={value === option.value ? colors.brand : undefined}
-                textColor={value === option.value ? colors.textInverse : colors.brandDark}
-                testID={`ticket-updates-${option.value}`}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </View>
-        )}
-      />
-      {errors.ticketUpdates ? (
-        <HelperText type="error" visible testID="edit-ticket-updates-error">
-          {errors.ticketUpdates.message}
-        </HelperText>
-      ) : null}
+      <HelperText type="info" visible>
+        {t('profile.notificationSecurityNote')}
+      </HelperText>
+      {(
+        [
+          ['pushEnabled', 'profile.push'],
+          ['emailEnabled', 'profile.emailOption'],
+          ['whatsAppEnabled', 'profile.whatsApp'],
+          ['reportCreated', 'profile.reportCreated'],
+          ['statusChanges', 'profile.statusChanges'],
+          ['workUpdates', 'profile.workUpdates'],
+          ['resolutionUpdates', 'profile.resolutionUpdates'],
+          ['actionRequests', 'profile.actionRequests'],
+        ] as const
+      ).map(([name, label]) => (
+        <Controller
+          key={name}
+          control={control}
+          name={name}
+          render={({ field: { value, onChange } }) => (
+            <View style={styles.switchRow}>
+              <Text variant="bodyLarge">{t(label)}</Text>
+              <Switch
+                value={value}
+                onValueChange={onChange}
+                color={colors.brand}
+                testID={`edit-${name}-switch`}
+              />
+            </View>
+          )}
+        />
+      ))}
 
       <Controller
         control={control}
         name="announcements"
         render={({ field: { value, onChange } }) => (
           <View style={styles.switchRow}>
-            <Text variant="bodyLarge">Municipality announcements</Text>
+            <Text variant="bodyLarge">{t('profile.announcements')}</Text>
             <Switch
               value={value}
               onValueChange={onChange}
@@ -209,7 +220,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         render={({ field: { value, onChange } }) => (
           <View style={styles.switchBlock}>
             <View style={styles.switchRow}>
-              <Text variant="bodyLarge">Show my name on reports</Text>
+              <Text variant="bodyLarge">{t('profile.showName')}</Text>
               <Switch
                 value={value}
                 onValueChange={onChange}
@@ -223,9 +234,30 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
               </HelperText>
             ) : (
               <HelperText type="info" visible testID="edit-public-name-help">
-                {PUBLIC_NAME_VISIBLE_HELP}
+                {t('profile.publicNameHelp')}
               </HelperText>
             )}
+          </View>
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="leaderboardOptIn"
+        render={({ field: { value, onChange } }) => (
+          <View style={styles.switchBlock}>
+            <View style={styles.switchRow}>
+              <Text variant="bodyLarge">{t('profile.leaderboardOptIn')}</Text>
+              <Switch
+                value={value}
+                onValueChange={onChange}
+                color={colors.brand}
+                testID="edit-leaderboard-opt-in-switch"
+              />
+            </View>
+            <HelperText type="info" visible>
+              {t('profile.leaderboardOptInHelp')}
+            </HelperText>
           </View>
         )}
       />
@@ -241,7 +273,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         textColor={colors.textInverse}
         testID="save-profile-button"
       >
-        Save changes
+        {t('profile.saveChanges')}
       </Button>
       <Button
         mode="text"
@@ -252,7 +284,7 @@ export function ProfileEditForm({ profile, onSave, onCancel }: ProfileEditFormPr
         textColor={colors.textSecondary}
         testID="cancel-edit-button"
       >
-        Cancel
+        {t('common.cancel')}
       </Button>
     </View>
   );

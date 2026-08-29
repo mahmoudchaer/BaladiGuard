@@ -2,6 +2,8 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Text } from 'react-native-paper';
 import { Link, type Href } from 'expo-router';
 
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { CitizenProfile } from '@/types/citizen';
 
@@ -10,13 +12,22 @@ type ProfileSummaryProps = {
   onEdit: () => void;
   onChangePhone: () => void;
   onLogout: () => void;
+  onExportData?: () => void;
+  onDeleteAccount?: () => void;
+  onAcceptLegal?: () => void;
   isLoggingOut?: boolean;
+  isPrivacyBusy?: boolean;
 };
 
-function formatPreference(profile: CitizenProfile): string {
+function formatPreference(
+  profile: CitizenProfile,
+  translate: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const { ticketUpdates, announcements } = profile.notificationPreferences;
-  const parts = [`Ticket updates: ${ticketUpdates}`];
-  parts.push(announcements ? 'Announcements: on' : 'Announcements: off');
+  const parts = [translate('profile.ticketUpdates', { value: ticketUpdates })];
+  parts.push(
+    announcements ? translate('profile.announcementsOn') : translate('profile.announcementsOff'),
+  );
   return parts.join(' · ');
 }
 
@@ -50,49 +61,74 @@ export function ProfileSummary({
   onEdit,
   onChangePhone,
   onLogout,
+  onExportData,
+  onDeleteAccount,
+  onAcceptLegal,
   isLoggingOut = false,
+  isPrivacyBusy = false,
 }: ProfileSummaryProps) {
+  const { t, locale } = useI18n();
   const accountStatus = !profile.active
-    ? 'Inactive'
+    ? t('profile.inactive')
     : profile.contributionReady
-      ? 'Contribution-ready'
-      : 'Not contribution-ready';
+      ? t('profile.contributionReady')
+      : t('profile.notContributionReady');
 
   return (
     <View style={styles.container} testID="profile-summary">
+      {profile.legalAcceptanceRequired ? (
+        <View style={styles.legalBanner} testID="legal-required-banner">
+          <Text variant="bodyMedium" style={styles.legalBannerText}>
+            {t('profile.legalRequiredBanner')}
+          </Text>
+          <Button
+            mode="contained"
+            onPress={onAcceptLegal}
+            loading={isPrivacyBusy}
+            disabled={isPrivacyBusy || !onAcceptLegal}
+            buttonColor={colors.brand}
+            textColor={colors.textInverse}
+            testID="accept-legal-button"
+          >
+            {t('profile.acceptLegal')}
+          </Button>
+        </View>
+      ) : null}
+
       <View style={styles.header}>
         <Text variant="titleLarge" style={styles.title}>
-          Your profile
+          {t('profile.title')}
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Review your identity, communication preferences, and public attribution settings. Full
-          name is optional — a verified phone is enough to submit reports.
+          {t('profile.lede')}
         </Text>
       </View>
 
       <View style={styles.section}>
         <Text variant="labelLarge" style={styles.sectionTitle}>
-          Account
+          {t('profile.account')}
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Full name (optional)"
-            value={profile.fullName?.trim() || 'Not set'}
-            hint="Optional. Not used for sign-in, recovery, ownership, or reporting."
+            label={t('profile.fullName')}
+            value={profile.fullName?.trim() || t('common.notSet')}
+            hint={t('profile.fullNameHint')}
             valueTestID="profile-full-name"
           />
           <View style={styles.divider} />
           <SettingsRow
-            label="Verified phone"
+            label={t('profile.verifiedPhone')}
             value={profile.phone}
-            hint={`Verified ${new Date(profile.phoneVerifiedAt).toLocaleString()}`}
+            hint={t('profile.verifiedAt', {
+              date: new Date(profile.phoneVerifiedAt).toLocaleString(locale),
+            })}
             valueTestID="profile-phone"
           />
           <View style={styles.divider} />
           <SettingsRow
-            label="Email (optional)"
-            value={profile.email ?? 'Not set'}
-            hint="Optional for notifications only — not used to sign in or recover your phone."
+            label={t('profile.email')}
+            value={profile.email ?? t('common.notSet')}
+            hint={t('profile.emailHint')}
             valueTestID="profile-email"
           />
         </View>
@@ -100,19 +136,21 @@ export function ProfileSummary({
 
       <View style={styles.section}>
         <Text variant="labelLarge" style={styles.sectionTitle}>
-          Preferences
+          {t('profile.preferences')}
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Notification preferences"
-            value={formatPreference(profile)}
+            label={t('profile.notifications')}
+            value={formatPreference(profile, t)}
             valueTestID="profile-notifications"
           />
           <View style={styles.divider} />
           <SettingsRow
-            label="Public name visibility"
-            value={profile.publicNameVisible ? 'Visible on owned reports' : 'Hidden (Anonymous)'}
-            hint="Defaults off. Changes apply dynamically to existing and future owned reports."
+            label={t('profile.publicName')}
+            value={
+              profile.publicNameVisible ? t('profile.publicVisible') : t('profile.publicHidden')
+            }
+            hint={t('profile.publicNameHint')}
             valueTestID="profile-public-name"
           />
         </View>
@@ -120,16 +158,18 @@ export function ProfileSummary({
 
       <View style={styles.section}>
         <Text variant="labelLarge" style={styles.sectionTitle}>
-          Session
+          {t('profile.session')}
         </Text>
         <View style={styles.card}>
           <SettingsRow
-            label="Account / session status"
-            value={`${accountStatus}${profile.active ? ' · Signed in' : ''}`}
+            label={t('profile.accountStatus')}
+            value={`${accountStatus}${profile.active ? ` · ${t('profile.signedIn')}` : ''}`}
             valueTestID="profile-status"
           />
         </View>
       </View>
+
+      <LanguageSwitcher />
 
       <View style={styles.actions}>
         <Button
@@ -141,7 +181,7 @@ export function ProfileSummary({
           textColor={colors.textInverse}
           testID="edit-profile-button"
         >
-          Edit profile
+          {t('profile.edit')}
         </Button>
         <Button
           mode="outlined"
@@ -151,7 +191,7 @@ export function ProfileSummary({
           textColor={colors.brandDark}
           testID="change-phone-button"
         >
-          Change phone number
+          {t('profile.changePhone')}
         </Button>
         <Link href={'/privacy' as Href} asChild>
           <Button
@@ -161,9 +201,57 @@ export function ProfileSummary({
             textColor={colors.textSecondary}
             icon="shield-account-outline"
           >
-            Privacy notice
+            {t('profile.privacy')}
           </Button>
         </Link>
+        <Link href={'/terms' as Href} asChild>
+          <Button
+            mode="text"
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.textSecondary}
+          >
+            {t('legal.termsTitle')}
+          </Button>
+        </Link>
+        <Link href={'/acceptable-use' as Href} asChild>
+          <Button
+            mode="text"
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.textSecondary}
+          >
+            {t('legal.acceptableUseTitle')}
+          </Button>
+        </Link>
+        {onExportData ? (
+          <Button
+            mode="outlined"
+            onPress={onExportData}
+            loading={isPrivacyBusy}
+            disabled={isPrivacyBusy}
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.brandDark}
+            testID="export-data-button"
+          >
+            {t('profile.exportData')}
+          </Button>
+        ) : null}
+        {onDeleteAccount ? (
+          <Button
+            mode="outlined"
+            onPress={onDeleteAccount}
+            loading={isPrivacyBusy}
+            disabled={isPrivacyBusy}
+            style={styles.button}
+            contentStyle={styles.controlContent}
+            textColor={colors.danger}
+            testID="delete-account-button"
+          >
+            {t('profile.deleteAccount')}
+          </Button>
+        ) : null}
         <Button
           mode="text"
           onPress={onLogout}
@@ -174,7 +262,7 @@ export function ProfileSummary({
           textColor={colors.danger}
           testID="profile-logout-button"
         >
-          Sign out
+          {t('common.signOut')}
         </Button>
       </View>
     </View>
@@ -184,6 +272,16 @@ export function ProfileSummary({
 const styles = StyleSheet.create({
   container: {
     gap: spacing[5],
+  },
+  legalBanner: {
+    gap: spacing[3],
+    padding: spacing[4],
+    borderRadius: radii.md,
+    backgroundColor: colors.dangerSoft,
+  },
+  legalBannerText: {
+    color: colors.text,
+    lineHeight: 20,
   },
   header: {
     gap: spacing[1],

@@ -1,6 +1,6 @@
 /** Lightweight staff collection types aligned with backend staff_ticket_collection (#267). */
 
-import type { TicketPriority, TicketStatus } from '@/types/ticket';
+import type { ContentSafetyStatus, TicketPriority, TicketStatus } from '@/types/ticket';
 
 export type TicketListItem = {
   ticketId: string;
@@ -18,6 +18,9 @@ export type TicketListItem = {
   updatedAt: string | null;
   municipalityId: string | null;
   assignmentState: 'assigned' | 'unassigned';
+  assignedWorkerId?: string | null;
+  assignedTeamId?: string | null;
+  contentSafetyStatus?: ContentSafetyStatus;
   location: {
     latitude: number;
     longitude: number;
@@ -66,5 +69,12 @@ export type TicketAggregates = {
   highCount: number;
   unassignedCount: number;
   overdueCount: number;
+  queuedCount?: number;
+  assignedCount?: number;
+  inProgressCount?: number;
+  dueSoonCount?: number;
+  completedCount?: number;
+  cancelledCount?: number;
+  workforceUnassignedCount?: number;
   approximate: boolean;
 };

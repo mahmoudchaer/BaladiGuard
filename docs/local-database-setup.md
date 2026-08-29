@@ -78,6 +78,17 @@ python scripts/db/backfill_staff_ticket_keys.py
 
 See `docs/staff-ticket-collection.md` for deploy ordering and resume flags.
 
+Activity timeline GSIs are also created by `make db-migrate`. Existing status-history, audit, and
+staff-comment rows need `timelineKey` before `ACTIVITY_TIMELINE_USE_GSI=true`:
+
+```bash
+cd backend
+python scripts/db/backfill_activity_timeline_keys.py --dry-run
+python scripts/db/backfill_activity_timeline_keys.py --checkpoint-file /tmp/timeline-backfill.json
+```
+
+See `docs/staff-comments-and-activity.md` for the required create → backfill → verify → cutover order.
+
 ## Current tables (including Sprint 6 citizen persistence)
 
 All tables use the `DYNAMODB_TABLE_PREFIX` (default `baladiguard-`).
@@ -96,6 +107,8 @@ persistence foundation.
 | `baladiguard-staff-username-claims`  | `usernameKey`      | Transactional username uniqueness (`USERNAME#…`).                                           |
 | `baladiguard-municipalities`         | `municipalityId`   | —                                                                                           |
 | `baladiguard-departments`            | `departmentId`     | `municipalityId-index`                                                                      |
+| `baladiguard-workforce-workers`      | `workerId`         | `municipalityId-index` (field workers, #245; not staff logins)                              |
+| `baladiguard-workforce-teams`        | `teamId`           | `municipalityId-index` (field teams, #245)                                                  |
 | `baladiguard-ticket-status-history`  | `historyId`        | `ticketId-index`                                                                            |
 | `baladiguard-ticket-audit-history`   | `auditId`          | `ticketId-index` (ticket mutation audit, #143 / #181)                                       |
 | `baladiguard-account-audit`          | `auditId`          | `targetStaffId-index` (staff/admin account audit, #181)                                     |
@@ -105,6 +118,7 @@ persistence foundation.
 | `baladiguard-counters`               | `counterId`        | — (ticket number sequence)                                                                  |
 | `baladiguard-rate-limit-buckets`     | `bucketKey`        | Shared rate-limit counters (#186); TTL on `expiresAt`.                                      |
 | `baladiguard-ticket-submission-claims` | `idempotencyKey` | Ticket create Idempotency-Key claims + replay (#258); TTL on `ttl` (14-day completed retention). |
+| `baladiguard-content-safety-jobs`    | `jobId`            | Content-safety screening queue (#319). Isolated from classification and redaction.          |
 
 ### Legacy `users` table migration
 
@@ -129,8 +143,9 @@ Default seed loads:
 - **8 departments** — roads, waste, lighting, water, noise, traffic, drainage, public facilities
 - **10 categories** — including `PENDING_CLASSIFICATION`; see
   [Complaint Categories](complaint-categories.md) for stable keys, labels, examples, and department mappings
-- **Demo staff accounts** (when `SEED_DEMO_STAFF=true`): `admin` (administrator) and `staff`
-  (municipal_staff for Beirut roads + lighting), password from `DEMO_STAFF_PASSWORD`
+- **Demo staff accounts** (when `SEED_DEMO_STAFF=true`): `admin` (administrator), `staff`
+  (municipal_staff for Beirut roads + lighting), and `operator` (developer_operator for `/ops`),
+  password from `DEMO_STAFF_PASSWORD`
 
 ### Staff password reset (issue #178)
 
@@ -212,6 +227,21 @@ Replay one after fixing the cause with:
 cd backend
 python -m app.workers.ai_worker --replay ai:tkt_<ticket-id> --once
 ```
+
+## Durable content-safety worker
+
+Ticket submit enrolls `contentSafetyStatus=pending` when `CONTENT_SAFETY_ENABLED=true`
+and enqueues `safety:{ticketId}:g{generation}`. Screening does not run inside the
+API process. Start a separate worker:
+
+```bash
+make content-safety-worker
+```
+
+`make content-safety-worker-once` processes at most one available job and
+`make content-safety-worker-drain` processes all jobs whose backoff delay has
+elapsed. Staging and production run this same worker as the ECS
+`content-safety-worker` service. See [content-safety.md](./content-safety.md).
 
 ## Verify setup
 

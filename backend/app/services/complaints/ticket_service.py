@@ -3,7 +3,7 @@ import math
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from app.config import get_settings
@@ -21,8 +21,24 @@ from app.database.store_factory import (
     get_ticket_store,
 )
 from app.database.ticket_store import TicketStore
+from app.schemas.assignment_history import AssignmentHistoryItem, AssignmentHistoryResponse
+from app.schemas.bulk_ticket_ops import (
+    BulkDepartmentAssignmentRequest,
+    BulkItemResult,
+    BulkMutationResponse,
+    BulkWorkforceAssignmentRequest,
+)
 from app.schemas.classification import ClassificationResult
 from app.schemas.cleaning import CleaningResult
+from app.schemas.content_safety import (
+    ContentSafetyDecisionRequest,
+    ContentSafetyReviewResponse,
+)
+from app.schemas.image_redaction import (
+    ImageRedactionDecisionRequest,
+    ImageRedactionReviewResponse,
+    StoredRedactionRegion,
+)
 from app.schemas.staff_ticket_collection import (
     TicketAggregatesResponse,
     TicketListPageResponse,
@@ -51,6 +67,9 @@ from app.schemas.ticket_merge import MergeDuplicateTicketsRequest
 from app.schemas.ticket_response import (
     CitizenTicketResponse,
     PublicTicketListResponse,
+    PublicTicketMapClusterResponse,
+    PublicTicketMapMarkerResponse,
+    PublicTicketMapViewportResponse,
     PublicTicketResponse,
     TicketDuplicateReference,
     TicketDuplicateSuggestion,
@@ -59,9 +78,9 @@ from app.schemas.ticket_response import (
     UpdateTicketStatusRequest,
 )
 from app.schemas.ticket_status import TicketStatus
+from app.schemas.workforce import AssignWorkforceRequest
 from app.services.ai.classify import classify_complaint
 from app.services.ai.clean import clean_report_description
-from app.services.complaints.sla import derive_ticket_sla
 from app.services.complaints.status_workflow import (
     MissingDepartmentAssignmentError,
     validate_status_transition,
@@ -75,16 +94,26 @@ from app.services.complaints.ticket_read_mapper import (
     map_ticket_to_public_response,
     map_ticket_to_response,
 )
+from app.services.complaints.workload_buckets import count_operational_buckets
 from app.services.duplicates import (
-    OPEN_TICKET_STATUSES,
     find_nearby_duplicates,
     haversine_meters,
 )
 from app.services.notifications.adapters import NotificationRecipient
 from app.services.notifications.recipients import ticket_notification_recipient
+from app.services.redaction.review import (
+    ImageRedactionReviewConflictError,
+    ImageRedactionReviewError,
+)
 from app.services.routing import department_ids, suggest_department_id
+from app.services.routing.municipality_router import route_ticket_to_municipality
 from app.services.uploads.photo_upload_service import photo_upload_service
 from app.services.urgency import score_urgency
+from app.services.work_orders.reasons import (
+    normalize_private_note,
+    required_outcome_kind,
+    validate_outcome_reason,
+)
 from app.utils.ticket_ids import (
     generate_audit_history_id,
     generate_duplicate_group_id,
@@ -100,9 +129,13 @@ Classifier = Callable[..., ClassificationResult]
 DescriptionCleaner = Callable[..., CleaningResult]
 PUBLIC_TICKET_DEFAULT_LIMIT = 20
 PUBLIC_TICKET_MAX_LIMIT = 50
+PUBLIC_MAP_DEFAULT_LIMIT = 200
+PUBLIC_MAP_MAX_LIMIT = 500
+PUBLIC_MAP_MARKER_ZOOM = 14
 STAFF_TICKET_DEFAULT_LIMIT = 25
 STAFF_TICKET_MAX_LIMIT = 100
 STAFF_SLA_FILTER_MAX_ROUNDS = 20
+STAFF_WORKFORCE_FILTER_MAX_ROUNDS = 50
 # Effective-category matching is derived, so candidate pages continue across
 # source pages the same way derived SLA filters do.
 DUPLICATE_CANDIDATE_MAX_ROUNDS = 20
@@ -142,6 +175,47 @@ class PublicContentUpdateError(ValueError):
 
 class AiProcessingClaimLostError(RuntimeError):
     pass
+
+
+def _ownership_expected_values(ticket: StoredTicket) -> dict[str, object]:
+    return {
+        "municipality_id": ticket.municipality_id,
+        "municipality_routing_status": ticket.municipality_routing_status,
+    }
+
+
+def _ownership_changed(snapshot: StoredTicket, latest: StoredTicket) -> bool:
+    return (
+        latest.municipality_id != snapshot.municipality_id
+        or latest.municipality_routing_status != snapshot.municipality_routing_status
+    )
+
+
+def _can_preserve_ai_after_ownership_change(
+    *,
+    snapshot: StoredTicket,
+    latest: StoredTicket,
+    claim_token: str,
+) -> bool:
+    if latest.ai_processing_status != "processing":
+        return False
+    if latest.ai_processing_claim_token != claim_token:
+        return False
+    return _ownership_changed(snapshot, latest)
+
+
+def _department_fields_for_municipality(
+    ticket: StoredTicket,
+    *,
+    category: str | None,
+    municipality_id: str | None,
+) -> dict[str, object]:
+    suggested = suggest_department_id(category_id=category, municipality_id=municipality_id)
+    return _department_suggestion_fields(
+        ticket,
+        suggested_department_id=suggested,
+        previous_category_id=effective_ticket_category(ticket),
+    )
 
 
 def effective_ticket_category(ticket: StoredTicket) -> str | None:
@@ -288,6 +362,7 @@ class TicketService:
                     force_release(composite_key)
                 else:
                     idem_store.release(composite_key)
+            emit_metric("ReportsFailed", dimensions={"channel": "api"})
             raise
 
     def _recover_idempotent_submission(
@@ -362,6 +437,14 @@ class TicketService:
             createdAt=created_at_iso,
             updatedAt=created_at_iso,
         )
+        if get_settings().content_safety_enabled:
+            stored_ticket = stored_ticket.model_copy(
+                update={
+                    "content_safety_enrolled": True,
+                    "content_safety_status": "pending",
+                    "content_safety_generation": 1,
+                }
+            )
         response = SubmitTicketResponse(
             ticketId=ticket_id,
             ticketNumber=ticket_number,
@@ -401,6 +484,8 @@ class TicketService:
         if callable(on_ticket_persisted):
             on_ticket_persisted()
 
+        emit_metric("ReportsSubmitted", dimensions={"channel": "api"})
+
         # Complete immediately after durable ticket write — before side effects —
         # so retries always replay instead of re-creating.
         if composite_key and idem_store is not None:
@@ -423,9 +508,11 @@ class TicketService:
             status="SUBMITTED",
             tracking_code=tracking_code,
             ticket_number=ticket_number,
-            recipient=ticket_notification_recipient(stored_ticket),
+            recipient=ticket_notification_recipient(stored_ticket, event="ticket_created"),
         )
+        from app.services.rewards.observe import observe_ticket_rewards
 
+        observe_ticket_rewards(stored_ticket)
         return response
 
     def process_ticket_ai(self, ticket_id: str, *, claim_token: str | None = None) -> bool:
@@ -469,22 +556,49 @@ class TicketService:
                 category=classification.category if classification_ok else None,
                 description=cleaning.cleaned_description if cleaning_ok else None,
             )
-            self.save_ticket_ai_output(
-                ticket_id,
-                SaveTicketAiOutputRequest(
-                    cleanedDescription=cleaning.cleaned_description if cleaning_ok else None,
-                    aiSuggestedCategory=(classification.category if classification_ok else None),
-                    aiCategoryExplanation=(
-                        classification.explanation if classification_ok else None
-                    ),
-                    aiModelVersion=get_settings().bedrock_model_id,
-                    urgencyScore=urgency.urgency_score,
-                    urgencyReason=urgency.urgency_reason,
-                    priority=urgency.urgency_level,
-                    aiProcessingStatus="failed" if processing_failed else "completed",
-                ),
-                claim_token=active_claim_token,
+            routing_category = classification.category if classification_ok else None
+            routing = route_ticket_to_municipality(ticket, category=routing_category)
+            from app.services.municipalities.ticket_routing import apply_routing_decision
+
+            routing_fields = apply_routing_decision(ticket, routing, category=routing_category)
+            ai_payload = SaveTicketAiOutputRequest(
+                cleanedDescription=cleaning.cleaned_description if cleaning_ok else None,
+                aiSuggestedCategory=(classification.category if classification_ok else None),
+                aiCategoryExplanation=(classification.explanation if classification_ok else None),
+                aiModelVersion=get_settings().bedrock_model_id,
+                urgencyScore=urgency.urgency_score,
+                urgencyReason=urgency.urgency_reason,
+                priority=urgency.urgency_level,
+                aiProcessingStatus="failed" if processing_failed else "completed",
             )
+            try:
+                self.save_ticket_ai_output(
+                    ticket_id,
+                    ai_payload,
+                    claim_token=active_claim_token,
+                    extra_fields=routing_fields,
+                    expected_values=_ownership_expected_values(ticket),
+                )
+            except AiProcessingClaimLostError:
+                latest = self._store.get(ticket_id)
+                if latest is None or not _can_preserve_ai_after_ownership_change(
+                    snapshot=ticket,
+                    latest=latest,
+                    claim_token=active_claim_token,
+                ):
+                    raise
+                preserve_fields = _department_fields_for_municipality(
+                    latest,
+                    category=routing_category,
+                    municipality_id=latest.municipality_id,
+                )
+                self.save_ticket_ai_output(
+                    ticket_id,
+                    ai_payload,
+                    claim_token=active_claim_token,
+                    extra_fields=preserve_fields or None,
+                    expected_values=_ownership_expected_values(latest),
+                )
             if processing_failed:
                 logger.warning(
                     "AI processing produced no output for ticket %s.",
@@ -633,17 +747,39 @@ class TicketService:
         cursor: str | None = None,
     ) -> TicketListPageResponse:
         page_size = min(max(limit, 1), STAFF_TICKET_MAX_LIMIT)
+        if filters is not None and filters.ticket_ids:
+            return self._list_tickets_by_ids(
+                filters, staff_principal=staff_principal, page_size=page_size
+            )
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
         store_filters = filters
-        sla_state = None if store_filters is None else store_filters.sla_state
+        workforce_post_filter = bool(
+            store_filters is not None
+            and (
+                store_filters.worker_id
+                or store_filters.team_id
+                or store_filters.workforce_unassigned
+            )
+        )
+        needs_post_filter = bool(
+            store_filters is not None
+            and (
+                store_filters.sla_state
+                or workforce_post_filter
+                or store_filters.content_safety_status
+            )
+        )
 
         collected: list[StoredTicket] = []
         scanned_count = 0
         current_cursor = cursor
         next_cursor: str | None = None
-        # Derived SLA filters need continuation across source pages so a page of
-        # non-matching tickets cannot hide later overdue/on-track matches.
-        max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS if sla_state is not None else 1
+        if workforce_post_filter:
+            max_rounds = STAFF_WORKFORCE_FILTER_MAX_ROUNDS
+        elif needs_post_filter:
+            max_rounds = STAFF_SLA_FILTER_MAX_ROUNDS
+        else:
+            max_rounds = 1
 
         for _ in range(max_rounds):
             page = self._store.list_staff_page(
@@ -663,17 +799,15 @@ class TicketService:
             scanned_count += page.scanned_count
             page_items = page.items
 
-            if sla_state is None:
+            if not needs_post_filter:
                 collected.extend(page_items)
                 next_cursor = page.next_cursor
                 break
 
+            assert store_filters is not None
             page_filled = False
             for index, ticket in enumerate(page_items):
-                if not ticket_matches_filters(
-                    ticket,
-                    TicketListFilters(sla_state=sla_state),
-                ):
+                if not ticket_matches_filters(ticket, store_filters):
                     continue
                 collected.append(ticket)
                 if len(collected) < page_size:
@@ -714,6 +848,31 @@ class TicketService:
             freshnessHintSeconds=30,
         )
 
+    def _list_tickets_by_ids(
+        self,
+        filters: TicketListFilters,
+        *,
+        staff_principal: StaffPrincipal,
+        page_size: int,
+    ) -> TicketListPageResponse:
+        collected: list[StoredTicket] = []
+        for ticket_id in filters.ticket_ids or ():
+            ticket = self._store.get(ticket_id)
+            if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+                continue
+            if not ticket_matches_filters(ticket, filters):
+                continue
+            collected.append(ticket)
+        return TicketListPageResponse(
+            items=[map_ticket_to_list_item(ticket) for ticket in collected[:page_size]],
+            nextCursor=None,
+            previousCursor=None,
+            limit=page_size,
+            scannedCount=len(filters.ticket_ids or ()),
+            approximateTotal=len(collected),
+            freshnessHintSeconds=30,
+        )
+
     def list_tickets(
         self,
         filters: TicketListFilters | None = None,
@@ -744,13 +903,23 @@ class TicketService:
     ) -> TicketMapViewportResponse:
         result_limit = min(max(limit, 1), STAFF_MAP_MAX_LIMIT)
         browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
-        candidates = self._collect_staff_candidates(
-            browse_mode=browse_mode,
-            municipality_id=municipality_id,
-            department_ids=department_ids,
-            filters=filters,
-            budget=STAFF_MAP_CANDIDATE_BUDGET,
-        )
+        if filters is not None and filters.ticket_ids:
+            candidates = []
+            for ticket_id in filters.ticket_ids:
+                ticket = self._store.get(ticket_id)
+                if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+                    continue
+                if not ticket_matches_filters(ticket, filters):
+                    continue
+                candidates.append(ticket)
+        else:
+            candidates = self._collect_staff_candidates(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                filters=filters,
+                budget=STAFF_MAP_CANDIDATE_BUDGET,
+            )
         in_bounds = [
             ticket
             for ticket in candidates
@@ -796,38 +965,65 @@ class TicketService:
         )
 
     def ticket_aggregates(self, staff_principal: StaffPrincipal) -> TicketAggregatesResponse:
-        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
-        tickets, approximate = self._collect_staff_candidates_with_approx(
-            browse_mode=browse_mode,
-            municipality_id=municipality_id,
-            department_ids=department_ids,
-            filters=None,
-            budget=STAFF_AGGREGATE_SAMPLE_LIMIT,
-        )
-        open_count = 0
-        critical_count = 0
-        high_count = 0
-        unassigned_count = 0
-        overdue_count = 0
-        for ticket in tickets:
-            if ticket.status in OPEN_TICKET_STATUSES:
-                open_count += 1
-            if ticket.priority == "critical":
-                critical_count += 1
-            elif ticket.priority == "high":
-                high_count += 1
-            if ticket.department_id is None:
-                unassigned_count += 1
-            if derive_ticket_sla(ticket).state == "overdue":
-                overdue_count += 1
+        tickets = self.collect_all_staff_tickets(staff_principal)
+        buckets = count_operational_buckets(tickets)
         return TicketAggregatesResponse(
-            openCount=open_count,
-            criticalCount=critical_count,
-            highCount=high_count,
-            unassignedCount=unassigned_count,
-            overdueCount=overdue_count,
-            approximate=approximate,
+            openCount=buckets["open_count"],
+            criticalCount=buckets["critical"],
+            highCount=buckets["high"],
+            unassignedCount=buckets["department_unassigned"],
+            overdueCount=buckets["overdue"],
+            queuedCount=buckets["queued"],
+            assignedCount=buckets["assigned"],
+            inProgressCount=buckets["in_progress"],
+            dueSoonCount=buckets["due_soon"],
+            completedCount=buckets["completed"],
+            cancelledCount=buckets["cancelled"],
+            workforceUnassignedCount=buckets["workforce_unassigned"],
+            approximate=False,
         )
+
+    def collect_all_staff_tickets(self, staff_principal: StaffPrincipal) -> list[StoredTicket]:
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        collected: list[StoredTicket] = []
+        cursor: str | None = None
+        while True:
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=100,
+                cursor=cursor,
+            )
+            collected.extend(page.items)
+            if not page.next_cursor:
+                return collected
+            cursor = page.next_cursor
+
+    def collect_staff_tickets_bounded(
+        self, staff_principal: StaffPrincipal, *, budget: int
+    ) -> tuple[list[StoredTicket], bool]:
+        browse_mode, municipality_id, department_ids = _staff_browse_scope(staff_principal)
+        collected: list[StoredTicket] = []
+        cursor: str | None = None
+        truncated = False
+        page_size = min(100, max(budget, 1))
+        while len(collected) < budget:
+            page = self._store.list_staff_page(
+                browse_mode=browse_mode,
+                municipality_id=municipality_id,
+                department_ids=department_ids,
+                limit=min(page_size, budget - len(collected)),
+                cursor=cursor,
+            )
+            collected.extend(page.items)
+            if not page.next_cursor:
+                return collected[:budget], False
+            if len(collected) >= budget:
+                truncated = True
+                break
+            cursor = page.next_cursor
+        return collected[:budget], truncated or len(collected) >= budget
 
     def _collect_staff_candidates(
         self,
@@ -870,17 +1066,13 @@ class TicketService:
                 category=None if filters is None else filters.category,
                 urgency=None if filters is None else filters.urgency,
                 department_id=None if filters is None else filters.department_id,
+                open_only=False if filters is None else filters.open_only,
             )
             items = page.items
-            if filters is not None and filters.sla_state is not None:
-                items = [
-                    ticket
-                    for ticket in items
-                    if ticket_matches_filters(
-                        ticket,
-                        TicketListFilters(sla_state=filters.sla_state),
-                    )
-                ]
+            if filters is not None and (
+                filters.sla_state is not None or filters.ticket_ids is not None
+            ):
+                items = [ticket for ticket in items if ticket_matches_filters(ticket, filters)]
             collected.extend(items)
             if not page.next_cursor:
                 return collected, False
@@ -892,9 +1084,18 @@ class TicketService:
         *,
         limit: int = PUBLIC_TICKET_DEFAULT_LIMIT,
         cursor: str | None = None,
+        q: str | None = None,
+        status: TicketStatus | None = None,
+        category: str | None = None,
     ) -> PublicTicketListResponse:
         page_size = min(max(limit, 1), PUBLIC_TICKET_MAX_LIMIT)
-        page = self._store.list_public(limit=page_size, cursor=cursor)
+        page = self._store.list_public(
+            limit=page_size,
+            cursor=cursor,
+            q=q,
+            status=status,
+            category=category,
+        )
         owners = self._public_owner_cache(page.items)
         return PublicTicketListResponse(
             items=[
@@ -903,6 +1104,70 @@ class TicketService:
             ],
             nextCursor=page.next_cursor,
             limit=page_size,
+        )
+
+    def public_map_viewport(
+        self,
+        *,
+        north: float,
+        south: float,
+        east: float,
+        west: float,
+        zoom: float,
+        limit: int = PUBLIC_MAP_DEFAULT_LIMIT,
+    ) -> PublicTicketMapViewportResponse:
+        """Return a bounded, privacy-safe projection for the visible public map."""
+        result_limit = min(max(limit, 1), PUBLIC_MAP_MAX_LIMIT)
+        in_bounds: list[StoredTicket] = []
+        cursor: str | None = None
+        while True:
+            page = self._store.list_public(
+                limit=PUBLIC_TICKET_MAX_LIMIT,
+                cursor=cursor,
+                north=north,
+                south=south,
+                east=east,
+                west=west,
+            )
+            in_bounds.extend(page.items)
+            if not page.next_cursor:
+                break
+            cursor = page.next_cursor
+        use_clusters = zoom < PUBLIC_MAP_MARKER_ZOOM or len(in_bounds) > result_limit
+        if use_clusters:
+            staff_clusters = _grid_clusters(in_bounds, zoom=zoom, limit=result_limit)
+            return PublicTicketMapViewportResponse(
+                markers=[],
+                clusters=[
+                    PublicTicketMapClusterResponse(
+                        id=cluster.id,
+                        latitude=round(cluster.latitude, 3),
+                        longitude=round(cluster.longitude, 3),
+                        count=cluster.count,
+                    )
+                    for cluster in staff_clusters
+                ],
+                limit=result_limit,
+                truncated=len(in_bounds) > result_limit,
+                zoom=zoom,
+            )
+
+        return PublicTicketMapViewportResponse(
+            markers=[
+                PublicTicketMapMarkerResponse(
+                    ticketNumber=ticket.ticket_number,
+                    status=ticket.status,
+                    category=ticket.final_category or ticket.category,
+                    addressText=ticket.public_location_label or ticket.location.address_text,
+                    latitude=round(ticket.location.latitude, 3),
+                    longitude=round(ticket.location.longitude, 3),
+                )
+                for ticket in in_bounds[:result_limit]
+            ],
+            clusters=[],
+            limit=result_limit,
+            truncated=len(in_bounds) > result_limit,
+            zoom=zoom,
         )
 
     def get_public_ticket(self, ticket_number: str) -> PublicTicketResponse | None:
@@ -1087,20 +1352,86 @@ class TicketService:
         validate_status_transition(ticket.status, payload.status)
         if payload.status == "ASSIGNED" and ticket.department_id not in department_ids():
             raise MissingDepartmentAssignmentError()
+        if payload.status == "CLOSED":
+            from app.services.resolution_feedback.service import (
+                ResolutionFeedbackError,
+                assert_closure_allowed,
+            )
+            from app.services.work_orders.reasons import OutcomeReasonError
+
+            if ticket.active_work_order_id:
+                raise OutcomeReasonError(
+                    "Cancel or complete the active work order before closing the ticket.",
+                    code="ACTIVE_WORK_ORDER",
+                )
+            try:
+                assert_closure_allowed(ticket)
+            except ResolutionFeedbackError as exc:
+                raise OutcomeReasonError(exc.message, code=exc.code) from exc
+        reason_code = validate_outcome_reason(ticket.status, payload.status, payload.reason_code)
+        private_note = normalize_private_note(payload.note)
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        update_fields: dict[str, object] = {
+            "status": payload.status,
+            "updated_at": updated_at,
+            "updated_by": actor_id,
+        }
+        outcome_kind = required_outcome_kind(ticket.status, payload.status)
+        if outcome_kind == "resolution" and reason_code:
+            update_fields.update(
+                {
+                    "resolution_reason_code": reason_code,
+                    "resolution_note": private_note,
+                    "resolved_at": updated_at,
+                    "resolved_by": actor_id,
+                    "resolution_feedback_status": None,
+                    "resolution_feedback_note": None,
+                    "resolution_feedback_submitted_at": None,
+                    "resolution_feedback_review_status": None,
+                    "resolution_feedback_reviewed_at": None,
+                    "resolution_feedback_reviewed_by": None,
+                    "resolution_feedback_review_action": None,
+                }
+            )
+        elif outcome_kind in {"rejection", "closure"} and reason_code:
+            update_fields.update(
+                {
+                    "closure_reason_code": reason_code,
+                    "closure_note": private_note,
+                    "closed_at": updated_at,
+                    "closed_by": actor_id,
+                }
+            )
         # Partial update so concurrent merges/AI writes are not overwritten.
         updated_ticket = self._store.patch_fields(
             ticket_id,
-            {
-                "status": payload.status,
-                "updated_at": updated_at,
-                "updated_by": actor_id,
-            },
+            update_fields,
+            expected_updated_at=ticket.updated_at,
+            expected_values={"status": ticket.status},
+            forbid_pending_unresolved_feedback=payload.status == "CLOSED",
         )
         if updated_ticket is None:
-            raise TicketNotFoundError(ticket_id)
+            from app.services.work_orders.reasons import OutcomeReasonError
+
+            latest = self._store.get(ticket_id)
+            if latest is None:
+                raise TicketNotFoundError(ticket_id)
+            if payload.status == "CLOSED":
+                from app.services.resolution_feedback.service import (
+                    ResolutionFeedbackError,
+                    assert_closure_allowed,
+                )
+
+                try:
+                    assert_closure_allowed(latest)
+                except ResolutionFeedbackError as exc:
+                    raise OutcomeReasonError(exc.message, code=exc.code) from exc
+            raise OutcomeReasonError(
+                "Ticket was updated by another request. Retry the status change.",
+                code="TICKET_CONFLICT",
+            )
         self._record_status_history(
             ticket_id=ticket_id,
             previous_status=ticket.status,
@@ -1109,25 +1440,32 @@ class TicketService:
             note=payload.note,
             created_at=updated_at,
         )
+        reason_suffix = f" Reason {reason_code}." if reason_code else ""
         self._record_audit_history(
             ticket_id=ticket_id,
             action_type="STATUS_CHANGE",
             actor_id=actor_id,
             actor_role=actor_role,
-            summary=f"Status changed from {ticket.status} to {payload.status}.",
+            summary=f"Status changed from {ticket.status} to {payload.status}.{reason_suffix}",
             previous_value=ticket.status,
             new_value=payload.status,
             created_at=updated_at,
         )
         event = "ticket_resolved" if payload.status in {"RESOLVED", "CLOSED"} else "ticket_updated"
+        preference_event = (
+            "ticket_work_started" if payload.status in {"ASSIGNED", "IN_PROGRESS"} else event
+        )
         self._emit_notification_safe(
             event=event,
             ticket_id=updated_ticket.ticket_id,
             status=payload.status,
             tracking_code=updated_ticket.tracking_code,
             ticket_number=updated_ticket.ticket_number,
-            recipient=ticket_notification_recipient(updated_ticket),
+            recipient=ticket_notification_recipient(updated_ticket, event=preference_event),
         )
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        observe_ticket_rewards(updated_ticket)
         return self._map_ticket(updated_ticket)
 
     def save_ticket_ai_output(
@@ -1136,6 +1474,8 @@ class TicketService:
         payload: SaveTicketAiOutputRequest,
         *,
         claim_token: str | None = None,
+        extra_fields: dict[str, object] | None = None,
+        expected_values: dict[str, object] | None = None,
     ) -> TicketResponse:
         ticket = self._store.get(ticket_id)
         if ticket is None:
@@ -1155,22 +1495,35 @@ class TicketService:
         }
         if payload.ai_confidence is not None:
             update_fields["ai_confidence"] = payload.ai_confidence
-        suggested_department_id = suggest_department_id(
-            category_id=payload.ai_suggested_category,
-            urgency_level=payload.priority,
-            urgency_score=payload.urgency_score,
-        )
-        update_fields.update(
-            _department_suggestion_fields(
-                ticket,
-                suggested_department_id=suggested_department_id,
-                previous_category_id=ticket.ai_suggested_category,
+        routed_municipality_id = None
+        if extra_fields:
+            routed_municipality_id = extra_fields.get("municipality_id")
+        if extra_fields is None or "department_id" not in extra_fields:
+            suggested_department_id = suggest_department_id(
+                category_id=payload.ai_suggested_category,
+                urgency_level=payload.priority,
+                urgency_score=payload.urgency_score,
+                municipality_id=routed_municipality_id or ticket.municipality_id,
             )
-        )
+            update_fields.update(
+                _department_suggestion_fields(
+                    ticket,
+                    suggested_department_id=suggested_department_id,
+                    previous_category_id=ticket.ai_suggested_category,
+                )
+            )
+        if extra_fields:
+            update_fields.update(extra_fields)
+            update_fields["updated_at"] = updated_at
 
         # Partial update so concurrent staff merges keep duplicateGroupId.
         if claim_token is not None:
-            updated_ticket = self._store.patch_ai_fields(ticket_id, claim_token, update_fields)
+            updated_ticket = self._store.patch_ai_fields(
+                ticket_id,
+                claim_token,
+                update_fields,
+                expected_values=expected_values,
+            )
             if updated_ticket is None:
                 raise AiProcessingClaimLostError(ticket_id)
         else:
@@ -1194,35 +1547,26 @@ class TicketService:
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.category_reviewed_by)
         reviewed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        update_fields: dict[str, object] = {
-            "final_category": payload.final_category,
-            "category": payload.final_category,
-            "category_reviewed_by": actor_id,
-            "category_reviewed_at": reviewed_at,
-            "updated_at": reviewed_at,
-            "updated_by": actor_id,
-        }
-        suggested_department_id = suggest_department_id(category_id=payload.final_category)
-        previous_category_id = effective_ticket_category(ticket)
-        department_update_fields = _department_suggestion_fields(
+        updated_ticket = self._apply_category_review(
             ticket,
-            suggested_department_id=suggested_department_id,
-            previous_category_id=previous_category_id,
+            payload=payload,
+            actor_id=actor_id,
+            reviewed_at=reviewed_at,
+            staff_principal=staff_principal,
         )
-        department_id = department_update_fields.get("department_id")
-        if (
-            staff_principal is not None
-            and isinstance(department_id, str)
-            and not staff_can_assign_department(staff_principal, department_id)
-        ):
-            raise StaffScopeForbiddenError(department_id)
-        update_fields.update(department_update_fields)
-
-        # Partial update so concurrent merges/AI writes are not overwritten.
-        updated_ticket = self._store.patch_fields(
-            ticket_id,
-            update_fields,
-        )
+        if updated_ticket is None:
+            latest = self._store.get(ticket_id)
+            if latest is None:
+                raise TicketNotFoundError(ticket_id)
+            if staff_principal is not None and not staff_can_access_ticket(staff_principal, latest):
+                raise TicketNotFoundError(ticket_id)
+            updated_ticket = self._apply_category_review(
+                latest,
+                payload=payload,
+                actor_id=actor_id,
+                reviewed_at=reviewed_at,
+                staff_principal=staff_principal,
+            )
         if updated_ticket is None:
             raise TicketNotFoundError(ticket_id)
         previous_category = ticket.final_category or ticket.category
@@ -1237,6 +1581,56 @@ class TicketService:
             created_at=reviewed_at,
         )
         return self._map_ticket(updated_ticket)
+
+    def _apply_category_review(
+        self,
+        ticket: StoredTicket,
+        *,
+        payload: ReviewTicketCategoryRequest,
+        actor_id: str,
+        reviewed_at: str,
+        staff_principal: StaffPrincipal | None,
+    ) -> StoredTicket | None:
+        from app.services.municipalities.ticket_routing import apply_routing_decision
+
+        probe = ticket.model_copy(
+            update={
+                "final_category": payload.final_category,
+                "category": payload.final_category,
+            }
+        )
+        decision = route_ticket_to_municipality(probe, category=payload.final_category)
+        routing_fields = apply_routing_decision(
+            ticket,
+            decision,
+            actor=staff_principal,
+            category=payload.final_category,
+            stamped=reviewed_at,
+        )
+        resulting_municipality_id = routing_fields.get("municipality_id")
+        department_id = routing_fields.get("department_id")
+        if (
+            staff_principal is not None
+            and isinstance(department_id, str)
+            and resulting_municipality_id == staff_principal.municipality_id
+            and not staff_can_assign_department(staff_principal, department_id)
+        ):
+            raise StaffScopeForbiddenError(department_id)
+
+        update_fields: dict[str, object] = {
+            "final_category": payload.final_category,
+            "category": payload.final_category,
+            "category_reviewed_by": actor_id,
+            "category_reviewed_at": reviewed_at,
+            "updated_by": actor_id,
+            **routing_fields,
+            "updated_at": reviewed_at,
+        }
+        return self._store.patch_fields(
+            ticket.ticket_id,
+            update_fields,
+            expected_values=_ownership_expected_values(ticket),
+        )
 
     def update_ticket_public_content(
         self,
@@ -1262,6 +1656,12 @@ class TicketService:
             if not description or not location_label:
                 raise PublicContentUpdateError(
                     "Published tickets require a public description and coarse location label."
+                )
+            from app.services.content_safety.policy import content_safety_allows_public_ticket
+
+            if not content_safety_allows_public_ticket(ticket):
+                raise PublicContentUpdateError(
+                    "Content-safety screening must pass before a ticket can be published."
                 )
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
@@ -1317,11 +1717,542 @@ class TicketService:
             staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket)
         ):
             raise TicketNotFoundError(ticket_id)
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        updated = self._store.start_image_reprocessing(ticket_id, updated_at)
-        if updated is None:
-            raise TicketNotFoundError(ticket_id)
+        updated = self._committed_review_ticket(
+            ticket_id,
+            self._store.start_image_reprocessing(
+                ticket_id,
+                updated_at,
+                expected_municipality_id=ticket.municipality_id,
+                expected_department_id=ticket.department_id,
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="IMAGE_REDACTION_REPROCESS",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary="Requested automatic image reprocessing.",
+            previous_value=_redaction_audit_value(ticket.image_redaction_status, ticket),
+            new_value=_redaction_audit_value(updated.image_redaction_status, updated),
+            created_at=updated_at,
+        )
         return updated.image_redaction_generation
+
+    def get_image_redaction_review(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ImageRedactionReviewResponse:
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        from app.services.complaints.ticket_read_mapper import build_image_url
+
+        status = ticket.image_redaction_status
+        candidate_key = ticket.image_redaction_candidate_object_key
+        reviewable = status == "review_required" and bool(candidate_key)
+        return ImageRedactionReviewResponse(
+            ticketId=ticket.ticket_id,
+            generation=ticket.image_redaction_generation,
+            candidateRevision=ticket.image_redaction_candidate_revision,
+            status=status,
+            originalImageUrl=build_image_url(ticket.image_object_key),
+            candidateImageUrl=build_image_url(candidate_key) if candidate_key else None,
+            publicImageReady=bool(ticket.public_image_object_key),
+            detector=ticket.image_redaction_detector,
+            detectorVersion=ticket.image_redaction_detector_version,
+            faceCount=ticket.image_redaction_face_count,
+            plateCount=ticket.image_redaction_plate_count,
+            completedAt=ticket.image_redaction_completed_at,
+            reasonCode=ticket.image_redaction_reason_code,
+            regions=list(ticket.image_redaction_regions),
+            canApprove=reviewable,
+            canReject=reviewable,
+            canReprocess=status not in {"pending", "processing"},
+            canAddManualRegions=reviewable,
+        )
+
+    def approve_image_redaction(
+        self,
+        ticket_id: str,
+        payload: ImageRedactionDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ImageRedactionReviewResponse:
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        if ticket.image_redaction_status in {"completed", "private_only"}:
+            raise ImageRedactionReviewConflictError()
+        if ticket.image_redaction_status != "review_required":
+            raise ImageRedactionReviewError(
+                "REDACTION_NOT_READY",
+                "Only a review-required candidate can be approved.",
+            )
+        if not ticket.image_redaction_candidate_object_key:
+            raise ImageRedactionReviewError(
+                "REDACTION_NOT_READY",
+                "No redacted candidate is available to approve.",
+            )
+        from app.services.content_safety.policy import content_safety_allows_public_image
+
+        self._require_matching_review_snapshot(ticket, payload)
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated = self._committed_review_ticket(
+            ticket_id,
+            self._apply_authorized_review(
+                ticket,
+                payload,
+                copy_candidate_to_public=content_safety_allows_public_image(ticket),
+                fields={
+                    "image_redaction_status": "completed",
+                    "image_redaction_reason_code": None,
+                    "image_redaction_candidate_revision": payload.expected_candidate_revision,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                },
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="IMAGE_REDACTION_APPROVE",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary="Approved redacted public image derivative.",
+            previous_value="review_required",
+            new_value=_redaction_audit_value("completed", updated),
+            created_at=updated_at,
+        )
+        return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
+
+    def reject_image_redaction(
+        self,
+        ticket_id: str,
+        payload: ImageRedactionDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ImageRedactionReviewResponse:
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        if ticket.image_redaction_status in {"completed", "private_only"}:
+            raise ImageRedactionReviewConflictError()
+        if ticket.image_redaction_status != "review_required":
+            raise ImageRedactionReviewError(
+                "REDACTION_NOT_READY",
+                "Only a review-required candidate can be rejected as private-only.",
+            )
+        self._require_matching_review_snapshot(ticket, payload)
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        updated = self._committed_review_ticket(
+            ticket_id,
+            self._apply_authorized_review(
+                ticket,
+                payload,
+                fields={
+                    "image_redaction_status": "private_only",
+                    "image_redaction_reason_code": "STAFF_PRIVATE_ONLY",
+                    "image_redaction_candidate_revision": payload.expected_candidate_revision,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                },
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="IMAGE_REDACTION_REJECT",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary="Rejected redacted candidate as private-only.",
+            previous_value="review_required",
+            new_value=_redaction_audit_value("private_only", updated),
+            created_at=updated_at,
+        )
+        return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
+
+    def apply_manual_image_redaction(
+        self,
+        ticket_id: str,
+        payload: ImageRedactionDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ImageRedactionReviewResponse:
+        from app.services.redaction.queue import image_redaction_queue
+        from app.services.redaction.review import detections_from_stored, parse_manual_regions
+
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        if ticket.image_redaction_status in {"completed", "private_only"}:
+            raise ImageRedactionReviewConflictError()
+        if ticket.image_redaction_status != "review_required":
+            raise ImageRedactionReviewError(
+                "REDACTION_NOT_READY",
+                "Manual blur regions can only be added while a candidate is in review.",
+            )
+        self._require_matching_review_snapshot(ticket, payload)
+        manual = parse_manual_regions(payload.regions)
+        combined = [*detections_from_stored(ticket.image_redaction_regions), *manual]
+        try:
+            result = image_redaction_queue.processor.apply_manual_regions(
+                ticket_id=ticket.ticket_id,
+                source_key=ticket.image_object_key,
+                generation=ticket.image_redaction_generation,
+                regions=combined,
+            )
+        except Exception as exc:
+            raise ImageRedactionReviewError(
+                "REDACTION_PROCESSING_FAILED",
+                "Manual correction could not produce a new derivative.",
+            ) from exc
+        if not result.derivative_key:
+            raise ImageRedactionReviewError(
+                "REDACTION_PROCESSING_FAILED",
+                "Manual correction could not produce a new derivative.",
+            )
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        regions = [StoredRedactionRegion.model_validate(item) for item in result.regions]
+        updated = self._committed_review_ticket(
+            ticket_id,
+            self._apply_authorized_review(
+                ticket,
+                payload,
+                fields={
+                    "image_redaction_candidate_object_key": result.derivative_key,
+                    "image_redaction_candidate_revision": payload.expected_candidate_revision + 1,
+                    "image_redaction_detector": result.detector,
+                    "image_redaction_detector_version": result.detector_version,
+                    "image_redaction_regions": [
+                        region.model_dump(by_alias=True, mode="json") for region in regions
+                    ],
+                    "image_redaction_reason_code": result.reason_code,
+                    "image_redaction_completed_at": updated_at,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                },
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="IMAGE_REDACTION_MANUAL_BLUR",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=f"Added {len(manual)} manual blur region(s) and generated a new derivative.",
+            previous_value=_redaction_audit_value("review_required", ticket),
+            new_value=_redaction_audit_value("review_required", updated, extra="manual"),
+            created_at=updated_at,
+        )
+        return self.get_image_redaction_review(ticket_id, staff_principal=staff_principal)
+
+    def request_content_safety_reprocessing(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+    ) -> int:
+        from app.services.content_safety.review import ContentSafetyReviewError
+
+        ticket = self._store.get(ticket_id)
+        if ticket is None or (
+            staff_principal is not None and not staff_can_access_ticket(staff_principal, ticket)
+        ):
+            raise TicketNotFoundError(ticket_id)
+        if not ticket.content_safety_enrolled:
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "This ticket is not enrolled in content-safety screening.",
+            )
+        if ticket.content_safety_status in {"pending", "processing"}:
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "Content safety is already queued or running.",
+            )
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        from app.services.content_safety.policy import (
+            public_unpublish_fields,
+            superseded_content_safety_history,
+        )
+
+        extra_fields = {
+            "content_safety_generation": ticket.content_safety_generation + 1,
+            "content_safety_history": superseded_content_safety_history(ticket),
+            **public_unpublish_fields(ticket),
+        }
+        updated = self._committed_safety_ticket(
+            ticket_id,
+            self._store.start_content_safety_reprocessing(
+                ticket_id,
+                updated_at,
+                expected_municipality_id=ticket.municipality_id,
+                expected_department_id=ticket.department_id,
+                fields=extra_fields,
+            ),
+            staff_principal=staff_principal,
+        )
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type="CONTENT_SAFETY_REPROCESS",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary="Requested automatic content-safety reprocessing.",
+            previous_value=ticket.content_safety_status,
+            new_value=updated.content_safety_status,
+            created_at=updated_at,
+        )
+        return updated.content_safety_generation
+
+    def get_content_safety_review(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        from app.services.complaints.ticket_read_mapper import build_image_url
+        from app.services.content_safety.policy import content_safety_allows_public_image
+
+        status = ticket.content_safety_status if ticket.content_safety_enrolled else "pending"
+        reviewable = ticket.content_safety_enrolled and status == "review_required"
+        original_image_url = None
+        if reviewable:
+            original_image_url = build_image_url(ticket.image_object_key)
+        return ContentSafetyReviewResponse(
+            ticketId=ticket.ticket_id,
+            generation=ticket.content_safety_generation,
+            status=status,
+            reasonCode=ticket.content_safety_reason_code,
+            severity=ticket.content_safety_severity,
+            textModel=ticket.content_safety_text_model,
+            imageLabels=list(ticket.content_safety_image_labels),
+            authenticityScore=ticket.authenticity_score,
+            authenticityModel=ticket.authenticity_model,
+            authenticityModelVersion=ticket.authenticity_model_version,
+            authenticitySignals=list(ticket.authenticity_signals),
+            completedAt=ticket.content_safety_completed_at,
+            originalImageUrl=original_image_url,
+            staffNote=ticket.content_safety_staff_note,
+            publicImageReady=bool(
+                ticket.public_image_object_key and content_safety_allows_public_image(ticket)
+            ),
+            canApprove=reviewable,
+            canReject=reviewable,
+            canMarkPrivate=reviewable,
+            canReprocess=ticket.content_safety_enrolled and status not in {"pending", "processing"},
+        )
+
+    def approve_content_safety(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        return self._decide_content_safety(
+            ticket_id,
+            payload,
+            staff_principal=staff_principal,
+            status="passed",
+            reason_code="STAFF_APPROVED",
+            action_type="CONTENT_SAFETY_APPROVE",
+            summary="Approved ticket content for public eligibility.",
+            copy_candidate_to_public=True,
+        )
+
+    def reject_content_safety(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        return self._decide_content_safety(
+            ticket_id,
+            payload,
+            staff_principal=staff_principal,
+            status="rejected",
+            reason_code=payload.reason_code or "STAFF_REJECTED",
+            action_type="CONTENT_SAFETY_REJECT",
+            summary="Rejected ticket content as unsafe to publish.",
+        )
+
+    def mark_content_safety_private(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> ContentSafetyReviewResponse:
+        return self._decide_content_safety(
+            ticket_id,
+            payload,
+            staff_principal=staff_principal,
+            status="private_only",
+            reason_code=payload.reason_code or "STAFF_PRIVATE_ONLY",
+            action_type="CONTENT_SAFETY_PRIVATE_ONLY",
+            summary="Kept ticket evidence private-only after content-safety review.",
+        )
+
+    def _decide_content_safety(
+        self,
+        ticket_id: str,
+        payload: ContentSafetyDecisionRequest,
+        *,
+        staff_principal: StaffPrincipal,
+        status: str,
+        reason_code: str,
+        action_type: AuditActionType,
+        summary: str,
+        copy_candidate_to_public: bool = False,
+    ) -> ContentSafetyReviewResponse:
+        from app.services.content_safety.policy import (
+            append_content_safety_history,
+            public_unpublish_fields,
+            should_promote_public_image,
+        )
+        from app.services.content_safety.review import (
+            ContentSafetyReviewConflictError,
+            ContentSafetyReviewError,
+        )
+
+        ticket = self._require_accessible_ticket(ticket_id, staff_principal)
+        if not ticket.content_safety_enrolled:
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "This ticket is not enrolled in content-safety screening.",
+            )
+        if ticket.content_safety_status in {"passed", "rejected", "private_only"}:
+            raise ContentSafetyReviewConflictError()
+        if ticket.content_safety_status != "review_required":
+            raise ContentSafetyReviewError(
+                "SAFETY_NOT_READY",
+                "Only a review-required ticket can receive a staff content-safety decision.",
+            )
+        if payload.expected_generation != ticket.content_safety_generation:
+            raise ContentSafetyReviewConflictError()
+        actor_id, actor_role = self._verified_actor(staff_principal, None)
+        updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        staff_note = (payload.note or "").strip()[:500] or None
+        fields: dict[str, Any] = {
+            "content_safety_status": status,
+            "content_safety_reason_code": reason_code[:64],
+            "content_safety_completed_at": updated_at,
+            "content_safety_staff_note": staff_note,
+            "updated_at": updated_at,
+            "updated_by": actor_id,
+        }
+        promote = copy_candidate_to_public and should_promote_public_image(ticket, status)  # type: ignore[arg-type]
+        if status != "passed":
+            fields["public_image_object_key"] = None
+            fields.update(public_unpublish_fields(ticket))
+        snapshot = ticket.model_copy(update=fields)
+        fields["content_safety_history"] = append_content_safety_history(
+            snapshot,
+            status=status,  # type: ignore[arg-type]
+        )
+        self._committed_safety_ticket(
+            ticket_id,
+            self._store.apply_content_safety_review(
+                ticket.ticket_id,
+                expected_generation=payload.expected_generation,
+                expected_status="review_required",
+                expected_municipality_id=ticket.municipality_id,
+                expected_department_id=ticket.department_id,
+                copy_candidate_to_public=promote,
+                fields=fields,
+            ),
+            staff_principal=staff_principal,
+        )
+        audit_summary = summary
+        if staff_note:
+            audit_summary = f"{summary} Note: {staff_note}"
+        self._record_audit_history(
+            ticket_id=ticket_id,
+            action_type=action_type,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=audit_summary,
+            previous_value="review_required",
+            new_value=status,
+            created_at=updated_at,
+        )
+        emit_metric("ContentSafetyReviewOverride", dimensions={"status": status})
+        return self.get_content_safety_review(ticket_id, staff_principal=staff_principal)
+
+    def _committed_safety_ticket(
+        self,
+        ticket_id: str,
+        updated: StoredTicket | None,
+        *,
+        staff_principal: StaffPrincipal | None,
+    ) -> StoredTicket:
+        from app.services.content_safety.review import ContentSafetyReviewConflictError
+
+        if updated is not None:
+            from app.services.rewards.observe import observe_ticket_rewards
+
+            observe_ticket_rewards(updated)
+            return updated
+        if staff_principal is None:
+            raise TicketNotFoundError(ticket_id)
+        current = self._store.get(ticket_id)
+        if current is None or not staff_can_access_ticket(staff_principal, current):
+            raise TicketNotFoundError(ticket_id)
+        raise ContentSafetyReviewConflictError()
+
+    def _require_accessible_ticket(
+        self, ticket_id: str, staff_principal: StaffPrincipal
+    ) -> StoredTicket:
+        ticket = self._store.get(ticket_id)
+        if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+            raise TicketNotFoundError(ticket_id)
+        return ticket
+
+    def _require_matching_review_snapshot(
+        self, ticket: StoredTicket, payload: ImageRedactionDecisionRequest
+    ) -> None:
+        if (
+            payload.expected_generation != ticket.image_redaction_generation
+            or payload.expected_candidate_revision != ticket.image_redaction_candidate_revision
+        ):
+            raise ImageRedactionReviewConflictError()
+
+    def _apply_authorized_review(
+        self,
+        ticket: StoredTicket,
+        payload: ImageRedactionDecisionRequest,
+        *,
+        fields: dict[str, Any],
+        copy_candidate_to_public: bool = False,
+    ) -> StoredTicket | None:
+        return self._store.apply_image_redaction_review(
+            ticket.ticket_id,
+            expected_generation=payload.expected_generation,
+            expected_status="review_required",
+            expected_candidate_revision=payload.expected_candidate_revision,
+            expected_municipality_id=ticket.municipality_id,
+            expected_department_id=ticket.department_id,
+            copy_candidate_to_public=copy_candidate_to_public,
+            fields=fields,
+        )
+
+    def _committed_review_ticket(
+        self,
+        ticket_id: str,
+        updated: StoredTicket | None,
+        *,
+        staff_principal: StaffPrincipal | None,
+    ) -> StoredTicket:
+        if updated is not None:
+            return updated
+        if staff_principal is None:
+            raise TicketNotFoundError(ticket_id)
+        current = self._store.get(ticket_id)
+        if current is None or not staff_can_access_ticket(staff_principal, current):
+            raise TicketNotFoundError(ticket_id)
+        raise ImageRedactionReviewConflictError()
 
     def assign_ticket_department(
         self,
@@ -1329,6 +2260,7 @@ class TicketService:
         payload: AssignTicketDepartmentRequest,
         *,
         staff_principal: StaffPrincipal | None = None,
+        dry_run: bool = False,
     ) -> TicketResponse:
         """Persist a staff department assignment without clearing the AI suggestion."""
         ticket = self._store.get(ticket_id)
@@ -1339,6 +2271,8 @@ class TicketService:
                 raise TicketNotFoundError(ticket_id)
             if not staff_can_assign_department(staff_principal, payload.department_id):
                 raise StaffScopeForbiddenError(payload.department_id)
+        if dry_run:
+            return self._map_ticket(ticket)
 
         actor_id, actor_role = self._verified_actor(staff_principal, payload.updated_by)
         updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -1363,6 +2297,149 @@ class TicketService:
             ),
             previous_value=ticket.department_id,
             new_value=payload.department_id,
+            created_at=updated_at,
+        )
+        return self._map_ticket(updated_ticket)
+
+    def assign_ticket_workforce(
+        self,
+        ticket_id: str,
+        payload: AssignWorkforceRequest,
+        *,
+        staff_principal: StaffPrincipal | None = None,
+        dry_run: bool = False,
+    ) -> TicketResponse:
+        """Persist a worker XOR team assignment without rewriting history on deactivate."""
+        from app.services.workforce.service import WorkforceError, workforce_service
+
+        if staff_principal is None:
+            raise WorkforceError(
+                "Authenticated staff are required to assign workforce.",
+                status_code=401,
+                code="UNAUTHORIZED",
+            )
+
+        def _authorized_ticket() -> StoredTicket:
+            loaded = self._store.get(ticket_id)
+            if loaded is None:
+                raise TicketNotFoundError(ticket_id)
+            if not staff_can_access_ticket(staff_principal, loaded):
+                raise TicketNotFoundError(ticket_id)
+            return loaded
+
+        def _assign() -> TicketResponse:
+            current = _authorized_ticket()
+            store = workforce_service.store()
+            for _ in range(5):
+                worker_id, team_id = workforce_service.resolve_ticket_assignment(
+                    staff_principal, current, payload
+                )
+                expected_updated_at = ""
+                if worker_id:
+                    worker = store.get_worker(worker_id)
+                    if worker is None:
+                        raise WorkforceError(
+                            "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
+                        )
+                    expected_updated_at = worker.updated_at
+                elif team_id:
+                    team = store.get_team(team_id)
+                    if team is None:
+                        raise WorkforceError(
+                            "Team was not found.", status_code=404, code="TEAM_NOT_FOUND"
+                        )
+                    expected_updated_at = team.updated_at
+                actor_id, actor_role = self._verified_actor(
+                    staff_principal, staff_principal.staff_id
+                )
+                updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+                ticket_fields = {
+                    "assigned_worker_id": worker_id,
+                    "assigned_team_id": team_id,
+                    "updated_at": updated_at,
+                    "updated_by": actor_id,
+                }
+                snapshot = current
+                updated_ticket = store.commit_ticket_assignment(
+                    ticket_id=ticket_id,
+                    ticket_fields=ticket_fields,
+                    worker_id=worker_id,
+                    team_id=team_id,
+                    department_id=current.department_id,
+                    expected_updated_at=expected_updated_at,
+                    expected_ticket_updated_at=current.updated_at,
+                    expected_ticket_municipality_id=current.municipality_id,
+                    expected_ticket_department_id=current.department_id,
+                    apply_ticket_patch=lambda fields=ticket_fields, ticket=snapshot: (
+                        self._store.patch_fields(
+                            ticket_id,
+                            fields,
+                            expected_updated_at=ticket.updated_at,
+                            expected_municipality_id=ticket.municipality_id,
+                            expected_department_id=ticket.department_id,
+                            require_assignment_scope=True,
+                        )
+                    ),
+                )
+                if updated_ticket is not None:
+                    return self._complete_workforce_assignment(
+                        current,
+                        updated_ticket,
+                        worker_id=worker_id,
+                        team_id=team_id,
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        updated_at=updated_at,
+                    )
+                current = _authorized_ticket()
+            raise WorkforceError(
+                "Assignment could not be completed because the ticket or assignee changed. Retry.",
+                status_code=409,
+                code="CONFLICT",
+            )
+
+        if dry_run:
+            current = _authorized_ticket()
+            worker_id, team_id = workforce_service.resolve_ticket_assignment(
+                staff_principal, current, payload
+            )
+            store = workforce_service.store()
+            if worker_id:
+                worker = store.get_worker(worker_id)
+                if worker is None:
+                    raise WorkforceError(
+                        "Worker was not found.", status_code=404, code="WORKER_NOT_FOUND"
+                    )
+            elif team_id:
+                team = store.get_team(team_id)
+                if team is None:
+                    raise WorkforceError(
+                        "Team was not found.", status_code=404, code="TEAM_NOT_FOUND"
+                    )
+            return self._map_ticket(current)
+        return workforce_service.store().run_exclusive(_assign)
+
+    def _complete_workforce_assignment(
+        self,
+        previous: StoredTicket,
+        updated_ticket: StoredTicket,
+        *,
+        worker_id: str | None,
+        team_id: str | None,
+        actor_id: str,
+        actor_role: StaffRole | None,
+        updated_at: str,
+    ) -> TicketResponse:
+        previous_value = _workforce_label(previous.assigned_worker_id, previous.assigned_team_id)
+        new_value = _workforce_label(worker_id, team_id)
+        self._record_audit_history(
+            ticket_id=previous.ticket_id,
+            action_type="WORKFORCE_ASSIGN",
+            actor_id=actor_id,
+            actor_role=actor_role,
+            summary=f"Workforce assignment changed from {previous_value} to {new_value}.",
+            previous_value=previous_value,
+            new_value=new_value,
             created_at=updated_at,
         )
         return self._map_ticket(updated_ticket)
@@ -1509,6 +2586,10 @@ class TicketService:
         updated_canonical = self._store.get(canonical_id)
         if updated_canonical is None:
             raise TicketNotFoundError(canonical_id)
+        from app.services.rewards.observe import observe_ticket_rewards
+
+        for member_id in group.ticket_ids:
+            observe_ticket_rewards(self._store.get(member_id))
         return self._map_ticket(updated_canonical)
 
     def _map_ticket(
@@ -1737,6 +2818,143 @@ class TicketService:
                 action_type,
             )
 
+    def list_assignment_history(
+        self,
+        ticket_id: str,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> AssignmentHistoryResponse:
+        ticket = self._store.get(ticket_id)
+        if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+            raise TicketNotFoundError(ticket_id)
+        allowed = {"WORKFORCE_ASSIGN", "WORK_ORDER_ASSIGN", "DEPARTMENT_ASSIGN"}
+        items = [
+            AssignmentHistoryItem(
+                eventId=row.audit_id,
+                actionType=row.action_type,
+                actorId=row.actor_id,
+                actorRole=row.actor_role,
+                previousValue=row.previous_value,
+                newValue=row.new_value,
+                summary=row.summary,
+                occurredAt=row.created_at,
+            )
+            for row in self._list_audit_history_safe(ticket_id)
+            if row.action_type in allowed
+        ]
+        items.sort(key=lambda item: (item.occurred_at, item.event_id))
+        return AssignmentHistoryResponse(ticketId=ticket_id, items=items)
+
+    def bulk_assign_workforce(
+        self,
+        payload: BulkWorkforceAssignmentRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> BulkMutationResponse:
+        return self._bulk_mutate(
+            payload.ticket_ids,
+            staff_principal=staff_principal,
+            dry_run=payload.dry_run,
+            mutate=lambda ticket_id: self.assign_ticket_workforce(
+                ticket_id,
+                payload,
+                staff_principal=staff_principal,
+                dry_run=payload.dry_run,
+            ),
+        )
+
+    def bulk_assign_department(
+        self,
+        payload: BulkDepartmentAssignmentRequest,
+        *,
+        staff_principal: StaffPrincipal,
+    ) -> BulkMutationResponse:
+        verified = payload.model_copy(update={"updated_by": staff_principal.staff_id})
+        return self._bulk_mutate(
+            payload.ticket_ids,
+            staff_principal=staff_principal,
+            dry_run=payload.dry_run,
+            mutate=lambda ticket_id: self.assign_ticket_department(
+                ticket_id,
+                verified,
+                staff_principal=staff_principal,
+                dry_run=payload.dry_run,
+            ),
+        )
+
+    def _bulk_mutate(
+        self,
+        ticket_ids: list[str],
+        *,
+        staff_principal: StaffPrincipal,
+        dry_run: bool,
+        mutate,
+    ) -> BulkMutationResponse:
+        from app.services.workforce.service import WorkforceError
+
+        items: list[BulkItemResult] = []
+        for raw_id in ticket_ids:
+            ticket_id = raw_id.strip()
+            if not ticket_id:
+                items.append(
+                    BulkItemResult(
+                        ticketId=raw_id,
+                        ok=False,
+                        code="VALIDATION_ERROR",
+                        message="Ticket id is required.",
+                    )
+                )
+                continue
+            try:
+                ticket = self._store.get(ticket_id)
+                if ticket is None or not staff_can_access_ticket(staff_principal, ticket):
+                    raise TicketNotFoundError(ticket_id)
+                mutate(ticket_id)
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=True,
+                        code="PREVIEW" if dry_run else None,
+                    )
+                )
+            except TicketNotFoundError:
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=False,
+                        code="TICKET_NOT_FOUND",
+                        message="Ticket was not found.",
+                    )
+                )
+            except WorkforceError as exc:
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=False,
+                        code=exc.code,
+                        message=exc.message,
+                    )
+                )
+            except Exception as exc:
+                code = getattr(exc, "code", "VALIDATION_ERROR")
+                message = getattr(exc, "message", str(exc)) or "Request failed."
+                items.append(
+                    BulkItemResult(
+                        ticketId=ticket_id,
+                        ok=False,
+                        code=str(code),
+                        message=str(message),
+                    )
+                )
+        succeeded = sum(1 for item in items if item.ok)
+        return BulkMutationResponse(
+            dryRun=dry_run,
+            attempted=len(items),
+            succeeded=succeeded,
+            failed=len(items) - succeeded,
+            items=items,
+        )
+
     def _list_audit_history_safe(self, ticket_id: str) -> list[StoredAuditHistory]:
         """Load audit rows for staff responses without failing the primary read/mutation."""
         try:
@@ -1753,7 +2971,7 @@ def _staff_browse_scope(
     principal: StaffPrincipal,
 ) -> tuple[Literal["admin", "municipality"], str | None, list[str] | None]:
     if principal.role == "administrator":
-        return "admin", None, None
+        return "admin", principal.municipality_id, None
     return (
         "municipality",
         principal.municipality_id,
@@ -1839,6 +3057,23 @@ def _grid_clusters(
             )
         )
     return clusters
+
+
+def _redaction_audit_value(status: str, ticket: StoredTicket, extra: str | None = None) -> str:
+    detector = ticket.image_redaction_detector or "unknown"
+    version = ticket.image_redaction_detector_version or "unknown"
+    parts = [status, f"g{ticket.image_redaction_generation}", detector, version]
+    if extra:
+        parts.append(extra)
+    return ":".join(parts)
+
+
+def _workforce_label(worker_id: str | None, team_id: str | None) -> str:
+    if worker_id:
+        return f"worker:{worker_id}"
+    if team_id:
+        return f"team:{team_id}"
+    return "unassigned"
 
 
 ticket_service = TicketService(get_ticket_store(), get_status_history_store())

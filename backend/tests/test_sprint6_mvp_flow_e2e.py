@@ -43,7 +43,7 @@ def _otp_login(
     challenge_id = requested.json()["challengeId"]
     code = citizen_service.peek_dev_otp_code(challenge_id)
     assert code is not None
-    body: dict = {"challengeId": challenge_id, "code": code}
+    body: dict = {"challengeId": challenge_id, "code": code, "acceptLegal": True}
     if full_name is not None:
         body["fullName"] = full_name
     verified = client.post("/v1/citizen/auth/otp/verify", json=body)
@@ -191,6 +191,8 @@ def test_sprint6_full_mvp_flow_acceptance(anonymous_client: TestClient, monkeypa
             "category",
             "locationAddress",
             "submittedAt",
+            "canSubmitResolutionFeedback",
+            "resolutionFeedbackStatus",
         }
         assert "ownerUserId" not in item
         assert "contact" not in item

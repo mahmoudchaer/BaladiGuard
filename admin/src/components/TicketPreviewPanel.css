@@ -3,8 +3,38 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--lb-white);
-  border-left: 1px solid var(--color-border);
+  border-inline-start: 1px solid var(--color-border);
+}
+
+.ticket-preview--drawer {
+  animation: ticket-preview-slide-in 220ms ease;
+  box-shadow: -12px 0 28px rgb(15 23 42 / 8%);
+}
+
+[dir='rtl'] .ticket-preview--drawer {
+  animation-name: ticket-preview-slide-in-rtl;
+  box-shadow: 12px 0 28px rgb(15 23 42 / 8%);
+}
+
+@keyframes ticket-preview-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes ticket-preview-slide-in-rtl {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 .ticket-preview__empty {
@@ -17,6 +47,10 @@
   padding: 2rem 1.5rem;
   background:
     radial-gradient(500px 220px at 100% 0%, rgb(0 122 61 / 8%), transparent 60%), var(--lb-white);
+}
+
+.ticket-preview__empty .ticket-preview__btn {
+  margin-top: 0.5rem;
 }
 
 .ticket-preview__empty-title {
@@ -64,6 +98,40 @@
   margin: 0.25rem 0 0;
   font-size: 0.78rem;
   color: var(--color-text-muted);
+}
+
+.ticket-preview__header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.ticket-preview__header-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ticket-preview__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ticket-preview__close:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
 }
 
 .ticket-preview__badges {
@@ -145,6 +213,14 @@
 
 .ticket-preview__open:hover {
   background: var(--color-brand-dark);
+}
+
+.ticket-preview__open--header {
+  width: auto;
+  min-width: 4.5rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8rem;
 }
 
 .ticket-preview__section--ai {
@@ -288,7 +364,8 @@
 }
 
 .ticket-preview .ticket-photo__image {
-  max-height: 11rem;
+  max-height: min(50vh, 28rem);
+  object-fit: contain;
 }
 
 .ticket-preview .ticket-photo__mock {
@@ -298,8 +375,13 @@
 
 @media (max-width: 1100px) {
   .ticket-preview {
-    border-left: 0;
+    border-inline-start: 0;
     border-top: 1px solid var(--color-border);
     min-height: 22rem;
+  }
+
+  .ticket-preview--drawer {
+    animation: none;
+    box-shadow: none;
   }
 }

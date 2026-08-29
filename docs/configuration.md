@@ -181,15 +181,16 @@ Before deploy (#74):
 9. `SEED_SAMPLE_TICKETS=false`
 10. `CITIZEN_APP_BASE_URL=https://…` (non-localhost; path for SMS/email `#257` deep links). Staging uses the same rule with `APP_ENV=staging`.
 11. `CORS_ALLOWED_ORIGINS=https://admin…,https://citizen…` (explicit https non-localhost browser origins for admin + citizen-web, `#263`)
-12. Admin production build: set unique `VITE_STAFF_*` (not the demo password)
-13. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
-14. Confirm process starts (validation aborts on failure) and `/health` is `ok`
-15. Mobile production EAS profile: `EXPO_PUBLIC_APP_ENV=production`,
+12. `ALLOWED_HOSTS=api.…` (explicit API hostnames, no localhost / wildcard; `#316`)
+13. Admin production build: omit `VITE_STAFF_*`; browser-bundled credentials are mock-only
+14. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
+15. Confirm process starts (validation aborts on failure) and `/health` is `ok`
+16. Mobile production EAS profile: `EXPO_PUBLIC_APP_ENV=production`,
     `EXPO_PUBLIC_ENABLE_MOCK_API=false`, HTTPS `EXPO_PUBLIC_API_BASE_URL`,
     signing credentials only in Expo/secret manager (see [mobile-release.md](mobile-release.md)).
     Run `cd mobile && npm run check:release` before cutting a mobile release tag.
     Set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host as `CITIZEN_APP_BASE_URL`, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
-16. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
+17. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
 
 ## Health payload
 

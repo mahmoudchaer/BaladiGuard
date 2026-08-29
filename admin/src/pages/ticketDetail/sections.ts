@@ -1,3 +1,5 @@
+import { t } from '@/i18n';
+
 /**
  * Ticket detail workspace sections.
  *
@@ -20,6 +22,12 @@ export const TICKET_DETAIL_SECTION_LABELS: Record<TicketDetailSection, string> =
   duplicates: 'Duplicates',
   activity: 'Activity',
 };
+
+export function ticketDetailSectionLabel(section: TicketDetailSection): string {
+  const key = `ticket.section.${section}`;
+  const translated = t(key);
+  return translated !== key ? translated : TICKET_DETAIL_SECTION_LABELS[section];
+}
 
 /** Unknown or missing values fall back to Overview instead of erroring. */
 export function parseTicketDetailSection(value: string | null | undefined): TicketDetailSection {

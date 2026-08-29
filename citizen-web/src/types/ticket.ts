@@ -37,6 +37,57 @@ export type PublicTicketListResponse = {
   limit: number;
 };
 
+export type PublicTicketMapMarker = {
+  ticketNumber: string;
+  status: TicketStatus;
+  category: string | null;
+  addressText: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type PublicTicketMapCluster = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+};
+
+export type PublicTicketMapViewportResponse = {
+  markers: PublicTicketMapMarker[];
+  clusters: PublicTicketMapCluster[];
+  limit: number;
+  truncated: boolean;
+  zoom: number;
+};
+
+export type ResolutionFeedbackStatus = 'CONFIRMED_FIXED' | 'STILL_UNRESOLVED';
+
+export type CitizenTicketHistoryItem = {
+  trackingCode: string;
+  status: TicketStatus;
+  category: string | null;
+  locationAddress: string;
+  submittedAt: string;
+  canSubmitResolutionFeedback?: boolean;
+  resolutionFeedbackStatus?: ResolutionFeedbackStatus | null;
+};
+
+export type CitizenTicketHistoryResponse = {
+  items: CitizenTicketHistoryItem[];
+  nextCursor: string | null;
+  limit: number;
+};
+
+export type SubmitTicketResponse = {
+  ticketId: string;
+  ticketNumber: string;
+  trackingCode: string;
+  status: 'SUBMITTED';
+  message: string;
+  createdAt: string;
+};
+
 export type CitizenTicketTimelineEntry = {
   status: TicketStatus;
   changedAt: string;
@@ -54,4 +105,6 @@ export type CitizenTicketResponse = {
   updatedAt: string | null;
   lastUpdatedAt: string;
   timeline: CitizenTicketTimelineEntry[];
+  /** Citizen-safe resolution/closure wording. Never a reason code or private note. */
+  outcomeMessage?: string | null;
 };

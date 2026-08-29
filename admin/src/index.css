@@ -149,7 +149,7 @@
 
   /* Layout */
   --sidebar-width: 15.5rem;
-  --rail-width: 4.5rem;
+  --rail-width: 6.5rem;
   --views-width: 14.5rem;
   --header-height: 3.9rem;
 }
@@ -178,6 +178,16 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+html[dir='rtl'] body {
+  text-align: start;
+}
+
+.ltr-isolate,
+.leaflet-container {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 h1,

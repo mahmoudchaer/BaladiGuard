@@ -1,0 +1,11 @@
+environment       = "staging"
+aws_region        = "us-east-1"
+owner             = "Mahmoud"
+route53_zone_id   = "Z0123456789EXAMPLE"
+api_domain_name   = "api.staging.example.com"
+admin_domain_name = "admin.staging.example.com"
+runtime_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:baladiguard/staging/runtime-EXAMPLE"
+backend_image     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/baladiguard-staging-backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+app_version       = "bootstrap"
+api_desired_count = 1
+log_retention_days = 14

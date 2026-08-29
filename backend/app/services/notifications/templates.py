@@ -12,7 +12,12 @@ from typing import Literal
 from app.schemas.ticket_status import STATUS_LABELS, TicketStatus, is_known_ticket_status
 from app.services.notifications.deep_links import build_ticket_notification_deep_link
 
-NotificationEvent = Literal["ticket_created", "ticket_updated", "ticket_resolved"]
+NotificationEvent = Literal[
+    "ticket_created",
+    "ticket_updated",
+    "ticket_resolved",
+    "resolution_feedback_received",
+]
 
 TEMPLATE_VERSION = "v2"
 
@@ -182,6 +187,32 @@ def render_ticket_resolved(
     )
 
 
+def render_resolution_feedback_received(
+    *,
+    ticket_id: str,
+    status: TicketStatus | str = "RESOLVED",
+    ticket_number: str | None = None,
+    tracking_code: str | None = None,
+) -> NotificationMessage:
+    """Receipt that feedback was recorded. Never includes the private note or identity."""
+    ticket_id_value = _require_ticket_id(ticket_id)
+    reference = _ticket_reference(ticket_id=ticket_id_value, ticket_number=ticket_number)
+    link_suffix, deep_link = _deep_link_suffix(tracking_code)
+    body = (
+        f"We received your update about BaladiGuard report {reference}."
+        f"{_tracking_suffix(tracking_code)}{link_suffix}"
+    )
+    return NotificationMessage(
+        event="resolution_feedback_received",
+        subject=f"BaladiGuard: we received your update about {reference}",
+        body=body,
+        ticket_id=ticket_id_value,
+        status="RESOLVED",
+        status_text="Resolved",
+        deep_link=deep_link,
+    )
+
+
 def render_notification(
     event: NotificationEvent,
     *,
@@ -200,6 +231,13 @@ def render_notification(
         )
     if event == "ticket_resolved":
         return render_ticket_resolved(
+            ticket_id=ticket_id,
+            status=status,
+            ticket_number=ticket_number,
+            tracking_code=tracking_code,
+        )
+    if event == "resolution_feedback_received":
+        return render_resolution_feedback_received(
             ticket_id=ticket_id,
             status=status,
             ticket_number=ticket_number,

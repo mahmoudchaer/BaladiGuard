@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal, cast, get_args
 
+from app.schemas.content_safety import ContentSafetyStatus
 from app.schemas.stored_ticket import ReportPriority, StoredTicket
 from app.schemas.ticket_status import TICKET_STATUSES, TicketStatus, is_known_ticket_status
 from app.services.ai.categories import allowed_category_ids
@@ -14,7 +15,10 @@ from app.services.routing import department_ids
 URGENCY_LEVELS: tuple[ReportPriority, ...] = ("low", "medium", "high", "critical")
 SLA_STATES = frozenset({"on_track", "due_soon", "overdue", "completed", "unavailable"})
 ASSIGNMENT_STATES = frozenset({"assigned", "unassigned"})
+CONTENT_SAFETY_STATUSES = frozenset(get_args(ContentSafetyStatus))
 MAX_SEARCH_QUERY_LENGTH = 80
+MAX_TICKET_IDS = 20
+MAX_TICKET_ID_LENGTH = 80
 OPEN_TICKET_STATUSES: frozenset[TicketStatus] = frozenset(
     {"SUBMITTED", "UNDER_REVIEW", "ASSIGNED", "IN_PROGRESS"}
 )
@@ -26,12 +30,17 @@ class TicketListFilters:
 
     status: TicketStatus | None = None
     category: str | None = None
-    urgency: ReportPriority | None = None
+    urgency: tuple[ReportPriority, ...] | None = None
     department_id: str | None = None
     sla_state: str | None = None
     assignment_state: Literal["assigned", "unassigned"] | None = None
+    worker_id: str | None = None
+    team_id: str | None = None
+    workforce_unassigned: bool = False
     q: str | None = None
     open_only: bool = False
+    ticket_ids: tuple[str, ...] | None = None
+    content_safety_status: ContentSafetyStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,8 +57,13 @@ def parse_ticket_list_filters(
     department_id: str | None = None,
     sla_state: str | None = None,
     assignment_state: str | None = None,
+    worker_id: str | None = None,
+    team_id: str | None = None,
+    workforce_unassigned: bool = False,
     q: str | None = None,
     open_only: bool = False,
+    ticket_ids: str | None = None,
+    content_safety_status: str | None = None,
 ) -> tuple[TicketListFilters | None, list[TicketListFilterValidationError]]:
     """Validate raw query values and build filters.
 
@@ -60,11 +74,15 @@ def parse_ticket_list_filters(
     errors: list[TicketListFilterValidationError] = []
     parsed_status: TicketStatus | None = None
     parsed_category: str | None = None
-    parsed_urgency: ReportPriority | None = None
+    parsed_urgency: tuple[ReportPriority, ...] | None = None
     parsed_department_id: str | None = None
     parsed_sla_state: str | None = None
     parsed_assignment_state: Literal["assigned", "unassigned"] | None = None
+    parsed_worker_id: str | None = None
+    parsed_team_id: str | None = None
     parsed_q: str | None = None
+    parsed_ticket_ids: tuple[str, ...] | None = None
+    parsed_content_safety_status: ContentSafetyStatus | None = None
 
     if status is not None:
         normalized_status = status.strip()
@@ -107,24 +125,36 @@ def parse_ticket_list_filters(
             parsed_category = normalized_category
 
     if urgency is not None:
-        normalized_urgency = urgency.strip().lower()
-        if not normalized_urgency:
+        parts = [part.strip().lower() for part in urgency.split(",")]
+        if not urgency.strip() or any(not part for part in parts):
             errors.append(
                 TicketListFilterValidationError(
                     field="urgency",
                     message="Urgency filter must not be empty.",
                 )
             )
-        elif normalized_urgency not in URGENCY_LEVELS:
-            supported = ", ".join(URGENCY_LEVELS)
-            errors.append(
-                TicketListFilterValidationError(
-                    field="urgency",
-                    message=f"Urgency must be one of: {supported}.",
-                )
-            )
         else:
-            parsed_urgency = cast(ReportPriority, normalized_urgency)
+            unique: list[ReportPriority] = []
+            unknown = False
+            for part in parts:
+                if part not in URGENCY_LEVELS:
+                    unknown = True
+                    continue
+                level = cast(ReportPriority, part)
+                if level not in unique:
+                    unique.append(level)
+            if unknown:
+                supported = ", ".join(URGENCY_LEVELS)
+                errors.append(
+                    TicketListFilterValidationError(
+                        field="urgency",
+                        message=(
+                            f"Urgency must be one of: {supported}, or a comma-separated subset."
+                        ),
+                    )
+                )
+            else:
+                parsed_urgency = tuple(sorted(unique, key=URGENCY_LEVELS.index))
 
     if department_id is not None:
         normalized_department_id = department_id.strip()
@@ -170,6 +200,39 @@ def parse_ticket_list_filters(
         else:
             parsed_assignment_state = cast(Literal["assigned", "unassigned"], normalized_assignment)
 
+    if worker_id is not None:
+        parsed_worker_id = worker_id.strip()
+        if not parsed_worker_id:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="workerId",
+                    message="Worker filter must not be empty.",
+                )
+            )
+    if team_id is not None:
+        parsed_team_id = team_id.strip()
+        if not parsed_team_id:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="teamId",
+                    message="Team filter must not be empty.",
+                )
+            )
+    if parsed_worker_id and parsed_team_id:
+        errors.append(
+            TicketListFilterValidationError(
+                field="workerId",
+                message="Filter by workerId or teamId, not both.",
+            )
+        )
+    if workforce_unassigned and (parsed_worker_id or parsed_team_id):
+        errors.append(
+            TicketListFilterValidationError(
+                field="workforceUnassigned",
+                message="workforceUnassigned cannot be combined with workerId or teamId.",
+            )
+        )
+
     if q is not None:
         normalized_q = q.strip()
         if not normalized_q:
@@ -189,6 +252,56 @@ def parse_ticket_list_filters(
         else:
             parsed_q = normalized_q
 
+    if ticket_ids is not None:
+        parts = [part.strip() for part in ticket_ids.split(",")]
+        if not ticket_ids.strip() or any(not part for part in parts):
+            errors.append(
+                TicketListFilterValidationError(
+                    field="ticketIds",
+                    message="ticketIds must be a comma-separated list of ticket ids.",
+                )
+            )
+        elif len(parts) > MAX_TICKET_IDS:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="ticketIds",
+                    message=f"ticketIds accepts at most {MAX_TICKET_IDS} ids.",
+                )
+            )
+        elif any(len(part) > MAX_TICKET_ID_LENGTH for part in parts):
+            errors.append(
+                TicketListFilterValidationError(
+                    field="ticketIds",
+                    message=f"Each ticket id must be at most {MAX_TICKET_ID_LENGTH} characters.",
+                )
+            )
+        else:
+            unique: list[str] = []
+            for part in parts:
+                if part not in unique:
+                    unique.append(part)
+            parsed_ticket_ids = tuple(unique)
+
+    if content_safety_status is not None:
+        normalized_safety = content_safety_status.strip()
+        if not normalized_safety:
+            errors.append(
+                TicketListFilterValidationError(
+                    field="contentSafetyStatus",
+                    message="Content safety status filter must not be empty.",
+                )
+            )
+        elif normalized_safety not in CONTENT_SAFETY_STATUSES:
+            supported = ", ".join(sorted(CONTENT_SAFETY_STATUSES))
+            errors.append(
+                TicketListFilterValidationError(
+                    field="contentSafetyStatus",
+                    message=f"Content safety status must be one of: {supported}.",
+                )
+            )
+        else:
+            parsed_content_safety_status = cast(ContentSafetyStatus, normalized_safety)
+
     if errors:
         return None, errors
 
@@ -200,8 +313,13 @@ def parse_ticket_list_filters(
             department_id=parsed_department_id,
             sla_state=parsed_sla_state,
             assignment_state=parsed_assignment_state,
+            worker_id=parsed_worker_id,
+            team_id=parsed_team_id,
+            workforce_unassigned=workforce_unassigned,
             q=parsed_q,
             open_only=open_only,
+            ticket_ids=parsed_ticket_ids,
+            content_safety_status=parsed_content_safety_status,
         ),
         [],
     )
@@ -216,7 +334,7 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
         return False
     if filters.category is not None and ticket.category != filters.category:
         return False
-    if filters.urgency is not None and ticket.priority != filters.urgency:
+    if filters.urgency is not None and ticket.priority not in filters.urgency:
         return False
     if filters.department_id is not None and ticket.department_id != filters.department_id:
         return False
@@ -226,6 +344,19 @@ def ticket_matches_filters(ticket: StoredTicket, filters: TicketListFilters) -> 
         return False
     if filters.assignment_state == "assigned" and ticket.department_id is None:
         return False
+    if filters.worker_id is not None and ticket.assigned_worker_id != filters.worker_id:
+        return False
+    if filters.team_id is not None and ticket.assigned_team_id != filters.team_id:
+        return False
+    if filters.workforce_unassigned and (ticket.assigned_worker_id or ticket.assigned_team_id):
+        return False
+    if filters.ticket_ids is not None and ticket.ticket_id not in filters.ticket_ids:
+        return False
+    if filters.content_safety_status is not None:
+        if not ticket.content_safety_enrolled:
+            return False
+        if ticket.content_safety_status != filters.content_safety_status:
+            return False
     if filters.q is not None:
         needle = filters.q.casefold()
         haystack = " ".join(
@@ -259,6 +390,7 @@ __all__ = [
     "SLA_STATES",
     "ASSIGNMENT_STATES",
     "MAX_SEARCH_QUERY_LENGTH",
+    "MAX_TICKET_IDS",
     "filter_stored_tickets",
     "parse_ticket_list_filters",
     "ticket_matches_filters",

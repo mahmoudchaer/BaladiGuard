@@ -1,10 +1,12 @@
 import type {
+  CitizenDeleteResponse,
   CitizenOtpRequestPayload,
   CitizenOtpRequestResponse,
   CitizenOtpVerifyPayload,
   CitizenOtpVerifyResponse,
   CitizenProfile,
   CitizenProfileUpdatePayload,
+  LegalAcceptanceRequest,
 } from '@/types/citizen';
 import { appConfig } from '@/services/config';
 import { getAuthHeaders, parseApiError, parseApiErrorCode } from '@/services/api/http';
@@ -112,6 +114,14 @@ async function throwMappedAuthError(response: Response, fallbackMessage: string)
     });
   }
 
+  if (code === 'LEGAL_ACCEPTANCE_REQUIRED') {
+    throw new CitizenAuthApiError(message || 'Legal acceptance is required.', {
+      code: 'LEGAL_ACCEPTANCE_REQUIRED',
+      status: response.status || 400,
+      retryAfterSeconds,
+    });
+  }
+
   throw new CitizenAuthApiError(message || OTP_GENERIC_ERROR_MESSAGE, {
     code,
     status: response.status,
@@ -166,12 +176,18 @@ export async function requestCitizenOtp(
 export async function verifyCitizenOtp(
   payload: CitizenOtpVerifyPayload,
 ): Promise<CitizenOtpVerifyResponse> {
-  const body: Record<string, string> = {
+  const body: Record<string, unknown> = {
     challengeId: payload.challengeId,
     code: payload.code,
   };
   if (payload.fullName?.trim()) {
     body.fullName = payload.fullName.trim();
+  }
+  if (payload.acceptLegal !== undefined) {
+    body.acceptLegal = payload.acceptLegal;
+  }
+  if (payload.legalLocale) {
+    body.legalLocale = payload.legalLocale;
   }
 
   const response = await citizenFetch('/citizen/auth/otp/verify', {
@@ -233,6 +249,9 @@ function buildProfilePatchBody(patch: CitizenProfileUpdatePayload): Record<strin
   if (patch.publicNameVisible !== undefined) {
     body.publicNameVisible = patch.publicNameVisible;
   }
+  if (patch.leaderboardOptIn !== undefined) {
+    body.leaderboardOptIn = patch.leaderboardOptIn;
+  }
   if (patch.phone !== undefined) {
     body.phone = patch.phone;
   }
@@ -278,9 +297,62 @@ export function profileFromVerifyResponse(response: CitizenOtpVerifyResponse): C
     email: response.email,
     notificationPreferences: response.notificationPreferences,
     publicNameVisible: response.publicNameVisible,
+    leaderboardOptIn: response.leaderboardOptIn,
     active: response.active,
     contributionReady: response.contributionReady,
+    legalAcceptance: response.legalAcceptance ?? null,
+    legalAcceptanceRequired: response.legalAcceptanceRequired ?? false,
     createdAt: response.createdAt,
     updatedAt: response.updatedAt,
   };
+}
+
+export async function acceptCitizenLegal(
+  accessToken: string,
+  payload: LegalAcceptanceRequest,
+): Promise<CitizenProfile> {
+  const response = await citizenFetch('/citizen/me/legal-acceptance', {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(accessToken),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    await throwMappedAuthError(response, OTP_GENERIC_ERROR_MESSAGE);
+  }
+
+  return response.json() as Promise<CitizenProfile>;
+}
+
+export async function exportCitizenMe(accessToken: string): Promise<unknown> {
+  const response = await citizenFetch('/citizen/me/export', {
+    method: 'GET',
+    headers: getAuthHeaders(accessToken),
+  });
+
+  if (!response.ok) {
+    await throwMappedAuthError(response, OTP_GENERIC_ERROR_MESSAGE);
+  }
+
+  return response.json();
+}
+
+export async function deleteCitizenMe(accessToken: string): Promise<CitizenDeleteResponse> {
+  const response = await citizenFetch('/citizen/me/delete', {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(accessToken),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+
+  if (!response.ok) {
+    await throwMappedAuthError(response, OTP_GENERIC_ERROR_MESSAGE);
+  }
+
+  return response.json() as Promise<CitizenDeleteResponse>;
 }

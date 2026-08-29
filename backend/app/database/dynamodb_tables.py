@@ -172,6 +172,51 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        "suffix": "workforce-workers",
+        "key_schema": [{"AttributeName": "workerId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "workerId", "AttributeType": "S"},
+            {"AttributeName": "municipalityId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "municipalityId-index",
+                "KeySchema": [{"AttributeName": "municipalityId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
+        "suffix": "work-orders",
+        "key_schema": [{"AttributeName": "workOrderId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "workOrderId", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
+        "suffix": "workforce-teams",
+        "key_schema": [{"AttributeName": "teamId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "teamId", "AttributeType": "S"},
+            {"AttributeName": "municipalityId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "municipalityId-index",
+                "KeySchema": [{"AttributeName": "municipalityId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
         "suffix": "departments",
         "key_schema": [{"AttributeName": "departmentId", "KeyType": "HASH"}],
         "attribute_definitions": [
@@ -192,11 +237,20 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "historyId", "AttributeType": "S"},
             {"AttributeName": "ticketId", "AttributeType": "S"},
+            {"AttributeName": "timelineKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
                 "IndexName": "ticketId-index",
                 "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketTimeline-index",
+                "KeySchema": [
+                    {"AttributeName": "ticketId", "KeyType": "HASH"},
+                    {"AttributeName": "timelineKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
@@ -207,11 +261,20 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "auditId", "AttributeType": "S"},
             {"AttributeName": "ticketId", "AttributeType": "S"},
+            {"AttributeName": "timelineKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
                 "IndexName": "ticketId-index",
                 "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketTimeline-index",
+                "KeySchema": [
+                    {"AttributeName": "ticketId", "KeyType": "HASH"},
+                    {"AttributeName": "timelineKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
@@ -222,11 +285,20 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "attribute_definitions": [
             {"AttributeName": "commentId", "AttributeType": "S"},
             {"AttributeName": "ticketId", "AttributeType": "S"},
+            {"AttributeName": "timelineKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [
             {
                 "IndexName": "ticketId-index",
                 "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketTimeline-index",
+                "KeySchema": [
+                    {"AttributeName": "ticketId", "KeyType": "HASH"},
+                    {"AttributeName": "timelineKey", "KeyType": "RANGE"},
+                ],
                 "Projection": {"ProjectionType": "ALL"},
             },
         ],
@@ -311,6 +383,13 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
         "global_secondary_indexes": [],
     },
     {
+        # Content-safety screening is isolated from classification and redaction.
+        "suffix": "content-safety-jobs",
+        "key_schema": [{"AttributeName": "jobId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "jobId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
         "suffix": "duplicate-groups",
         "key_schema": [{"AttributeName": "duplicateGroupId", "KeyType": "HASH"}],
         "attribute_definitions": [
@@ -342,6 +421,101 @@ TABLE_DEFINITIONS: list[TableDefinition] = [
             {"AttributeName": "bucketKey", "AttributeType": "S"},
         ],
         "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "ops-alert-acks",
+        "key_schema": [{"AttributeName": "alarmName", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "alarmName", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "ops-error-groups",
+        "key_schema": [{"AttributeName": "errorKey", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "errorKey", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "ops-audit",
+        "key_schema": [{"AttributeName": "auditId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "auditId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "privacy-request-audit",
+        "key_schema": [{"AttributeName": "requestId", "KeyType": "HASH"}],
+        "attribute_definitions": [{"AttributeName": "requestId", "AttributeType": "S"}],
+        "global_secondary_indexes": [],
+    },
+    {
+        # Deterministic WhatsApp conversation state (issue #296). TTL on ttl.
+        "suffix": "whatsapp-conversations",
+        "key_schema": [{"AttributeName": "conversationKey", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "conversationKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
+        # Inbound WhatsApp message-id deduplication ledger (issue #296). TTL on ttl.
+        "suffix": "whatsapp-inbound-dedup",
+        "key_schema": [{"AttributeName": "messageId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "messageId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [],
+    },
+    {
+        "suffix": "rewards-ledger",
+        "key_schema": [
+            {"AttributeName": "citizenUserId", "KeyType": "HASH"},
+            {"AttributeName": "eventKey", "KeyType": "RANGE"},
+        ],
+        "attribute_definitions": [
+            {"AttributeName": "citizenUserId", "AttributeType": "S"},
+            {"AttributeName": "eventKey", "AttributeType": "S"},
+            {"AttributeName": "ticketId", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "eventKey-index",
+                "KeySchema": [{"AttributeName": "eventKey", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "ticketId-index",
+                "KeySchema": [{"AttributeName": "ticketId", "KeyType": "HASH"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    },
+    {
+        "suffix": "rewards-projection",
+        "key_schema": [{"AttributeName": "citizenUserId", "KeyType": "HASH"}],
+        "attribute_definitions": [
+            {"AttributeName": "citizenUserId", "AttributeType": "S"},
+            {"AttributeName": "publicBoardKey", "AttributeType": "S"},
+            {"AttributeName": "allTimeSortKey", "AttributeType": "S"},
+            {"AttributeName": "monthlyBoardKey", "AttributeType": "S"},
+            {"AttributeName": "monthlySortKey", "AttributeType": "S"},
+        ],
+        "global_secondary_indexes": [
+            {
+                "IndexName": "publicAllTime-index",
+                "KeySchema": [
+                    {"AttributeName": "publicBoardKey", "KeyType": "HASH"},
+                    {"AttributeName": "allTimeSortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "publicMonthly-index",
+                "KeySchema": [
+                    {"AttributeName": "monthlyBoardKey", "KeyType": "HASH"},
+                    {"AttributeName": "monthlySortKey", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
     },
 ]
 

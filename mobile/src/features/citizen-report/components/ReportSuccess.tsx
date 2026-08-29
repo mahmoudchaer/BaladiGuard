@@ -4,6 +4,7 @@ import { Button, Text } from 'react-native-paper';
 import { Link, type Href } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin, typography } from '@/theme';
 import type { SubmitTicketResponse } from '@/types/ticket';
 
@@ -17,22 +18,23 @@ type ReportSuccessProps = {
  * only the ticket number and tracking code are ever shown to citizens.
  */
 export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
-  const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const handleCopyTrackingCode = async () => {
     try {
       await Clipboard.setStringAsync(result.trackingCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 2500);
     } catch {
-      // Clipboard is a convenience only — never block the confirmation on it.
+      setCopyStatus('failed');
     }
   };
 
   return (
     <View style={styles.container}>
       <Text variant="headlineSmall" style={styles.title}>
-        Report submitted
+        {t('report.submitted')}
       </Text>
       <Text variant="bodyMedium" style={styles.message}>
         {result.message}
@@ -40,14 +42,14 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
 
       <View style={styles.referenceBlock}>
         <Text variant="labelLarge" style={styles.referenceLabel}>
-          Ticket number
+          {t('report.ticketNumber')}
         </Text>
         <Text variant="headlineMedium" style={styles.ticketNumber}>
           {result.ticketNumber}
         </Text>
 
         <Text variant="labelLarge" style={styles.referenceLabel}>
-          Tracking code
+          {t('report.trackingCode')}
         </Text>
         <View style={styles.trackingRow}>
           <Text variant="titleLarge" style={styles.trackingCode}>
@@ -62,13 +64,17 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
               void handleCopyTrackingCode();
             }}
           >
-            {copied ? 'Copied' : 'Copy'}
+            {copyStatus === 'copied' ? t('report.copied') : t('report.copy')}
           </Button>
         </View>
+        {copyStatus === 'failed' ? (
+          <Text variant="bodySmall" style={styles.copyError} accessibilityRole="alert">
+            {t('report.copyFailed')}
+          </Text>
+        ) : null}
 
         <Text variant="bodySmall" style={styles.trackingHint}>
-          Save this number and tracking code — you&apos;ll need them to follow your report&apos;s
-          progress.
+          {t('report.saveCodes')}
         </Text>
       </View>
 
@@ -87,7 +93,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
             buttonColor={colors.brand}
             textColor={colors.textInverse}
           >
-            Track this report
+            {t('report.trackThis')}
           </Button>
         </Link>
         <Link href={'/' as Href} asChild>
@@ -98,7 +104,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
             contentStyle={styles.actionButtonContent}
             textColor={colors.brandDark}
           >
-            Back to home
+            {t('report.backHome')}
           </Button>
         </Link>
       </View>
@@ -109,7 +115,7 @@ export function ReportSuccess({ result, onReportAnother }: ReportSuccessProps) {
         textColor={colors.textSecondary}
         style={styles.anotherButton}
       >
-        Report another issue
+        {t('report.reportAnother')}
       </Button>
     </View>
   );
@@ -146,6 +152,7 @@ const styles = StyleSheet.create({
   ticketNumber: {
     color: colors.brandDark,
     fontWeight: '700',
+    writingDirection: 'ltr',
   },
   trackingRow: {
     flexDirection: 'row',
@@ -155,6 +162,10 @@ const styles = StyleSheet.create({
   trackingCode: {
     color: colors.text,
     fontWeight: '700',
+    writingDirection: 'ltr',
+  },
+  copyError: {
+    color: colors.danger,
   },
   copyButton: {
     minHeight: touchTargetMin,

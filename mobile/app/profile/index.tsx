@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Banner, Button, Text } from 'react-native-paper';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,21 +8,30 @@ import { useCitizenAuth } from '@/auth';
 import { buildLoginHref } from '@/auth/returnTo';
 import { ChangePhoneFlow } from '@/features/profile/ChangePhoneFlow';
 import { ProfileEditForm } from '@/features/profile/ProfileEditForm';
+import { registerPushDevice, unregisterPushDevice } from '@/services/pushNotifications';
 import { ProfileSummary } from '@/features/profile/ProfileSummary';
+import { useI18n } from '@/i18n/LocaleProvider';
 import {
+  acceptCitizenLegal,
   CitizenAuthApiError,
+  deleteCitizenMe,
+  exportCitizenMe,
   OTP_NETWORK_MESSAGE,
   PROFILE_UPDATE_SUCCESS_MESSAGE,
 } from '@/services/api/citizenAuth';
+import { draftHasRestorableContent, loadReportDraft } from '@/services/reportDraft';
 import { colors, radii, spacing } from '@/theme';
 import type { CitizenOtpVerifyResponse, CitizenProfileUpdatePayload } from '@/types/citizen';
 
 type ProfileMode = 'view' | 'edit' | 'changePhone';
 
 export default function ProfileScreen() {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const {
+    accessToken,
     applyVerifyResponse,
+    clearSessionLocally,
     isAuthenticated,
     isLoading,
     logout,
@@ -34,28 +43,31 @@ export default function ProfileScreen() {
   const [mode, setMode] = useState<ProfileMode>('view');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPrivacyBusy, setIsPrivacyBusy] = useState(false);
+  const [loadErrorKey, setLoadErrorKey] = useState<'unableLoad' | 'unableRefresh' | null>(null);
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [isOfflineCached, setIsOfflineCached] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const didInitialRefresh = useRef(false);
 
   const reload = useCallback(async () => {
     setIsRefreshing(true);
-    setLoadError(null);
+    setLoadErrorKey(null);
+    setLoadErrorMessage(null);
     setIsOfflineCached(false);
     try {
       const next = await refreshProfile();
       if (!next) {
-        setLoadError('Unable to load your profile. Please sign in again.');
+        setLoadErrorKey('unableLoad');
       }
     } catch (error) {
       if (error instanceof CitizenAuthApiError && error.code === 'NETWORK_ERROR') {
         setIsOfflineCached(true);
-        setLoadError(OTP_NETWORK_MESSAGE);
+        setLoadErrorMessage(OTP_NETWORK_MESSAGE);
       } else if (error instanceof CitizenAuthApiError) {
-        setLoadError(error.message);
+        setLoadErrorMessage(error.message);
       } else {
-        setLoadError('Unable to refresh your profile right now.');
+        setLoadErrorKey('unableRefresh');
       }
     } finally {
       setIsRefreshing(false);
@@ -70,46 +82,49 @@ export default function ProfileScreen() {
     void reload();
   }, [isAuthenticated, isLoading, reload]);
 
+  const finishLogout = async (retainReportDraft: boolean) => {
+    setIsLoggingOut(true);
+    try {
+      if (accessToken) await unregisterPushDevice(accessToken);
+      await logout({ retainReportDraft });
+      router.replace('/' as Href);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert(
-      'Sign out?',
-      'Clear your in-progress report draft on this device, or keep it for the next time you sign in with this account.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    void (async () => {
+      const draft = profile?.userId ? await loadReportDraft(profile.userId) : null;
+      if (!draft || !draftHasRestorableContent(draft)) {
+        await finishLogout(false);
+        return;
+      }
+      Alert.alert(t('more.signOutTitle'), t('more.signOutBody'), [
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Keep draft & sign out',
+          text: t('more.keepDraft'),
           onPress: () => {
-            void (async () => {
-              setIsLoggingOut(true);
-              try {
-                await logout({ retainReportDraft: true });
-                router.replace('/' as Href);
-              } finally {
-                setIsLoggingOut(false);
-              }
-            })();
+            void finishLogout(true);
           },
         },
         {
-          text: 'Clear draft & sign out',
+          text: t('more.clearDraft'),
           style: 'destructive',
           onPress: () => {
-            void (async () => {
-              setIsLoggingOut(true);
-              try {
-                await logout({ retainReportDraft: false });
-                router.replace('/' as Href);
-              } finally {
-                setIsLoggingOut(false);
-              }
-            })();
+            void finishLogout(false);
           },
         },
-      ],
-    );
+      ]);
+    })();
   };
 
   const handleSave = async (patch: CitizenProfileUpdatePayload) => {
+    if (accessToken && patch.notificationPreferences?.pushEnabled === true) {
+      await registerPushDevice(accessToken, t('profile.ticketUpdatesLabel'));
+    } else if (accessToken && patch.notificationPreferences?.pushEnabled === false) {
+      await unregisterPushDevice(accessToken);
+    }
     const next = await updateProfile(patch);
     setSuccessMessage(PROFILE_UPDATE_SUCCESS_MESSAGE);
     setMode('view');
@@ -118,9 +133,86 @@ export default function ProfileScreen() {
 
   const handlePhoneVerified = async (response: CitizenOtpVerifyResponse) => {
     await applyVerifyResponse(response);
-    setSuccessMessage(`Phone updated to ${response.phone}.`);
+    setSuccessMessage(t('profile.phoneUpdated', { phone: response.phone }));
     setMode('view');
   };
+
+  const handleExportData = () => {
+    void (async () => {
+      if (!accessToken) return;
+      setIsPrivacyBusy(true);
+      setSuccessMessage(null);
+      try {
+        const data = await exportCitizenMe(accessToken);
+        await Share.share({
+          message: JSON.stringify(data, null, 2),
+          title: t('profile.exportData'),
+        });
+        setSuccessMessage(t('profile.exportReady'));
+      } catch (error) {
+        Alert.alert(
+          t('profile.exportFailed'),
+          error instanceof Error ? error.message : t('errors.generic'),
+        );
+      } finally {
+        setIsPrivacyBusy(false);
+      }
+    })();
+  };
+
+  const handleAcceptLegal = () => {
+    void (async () => {
+      if (!accessToken) return;
+      setIsPrivacyBusy(true);
+      try {
+        await acceptCitizenLegal(accessToken, { acceptLegal: true, locale });
+        await refreshProfile();
+        setSuccessMessage(t('profile.legalAccepted'));
+      } catch (error) {
+        Alert.alert(
+          t('profile.legalAcceptFailed'),
+          error instanceof Error ? error.message : t('errors.generic'),
+        );
+      } finally {
+        setIsPrivacyBusy(false);
+      }
+    })();
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(t('profile.deleteAccount'), t('profile.deleteConfirmPrompt'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.deleteAccount'),
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            if (!accessToken) return;
+            setIsPrivacyBusy(true);
+            try {
+              await deleteCitizenMe(accessToken);
+              await clearSessionLocally({ retainReportDraft: false });
+              router.replace('/' as Href);
+            } catch (error) {
+              Alert.alert(
+                t('profile.deleteFailed'),
+                error instanceof Error ? error.message : t('errors.generic'),
+              );
+              setIsPrivacyBusy(false);
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const loadError =
+    loadErrorMessage ??
+    (loadErrorKey === 'unableLoad'
+      ? t('profile.unableLoad')
+      : loadErrorKey === 'unableRefresh'
+        ? t('profile.unableRefresh')
+        : null);
 
   if (isLoading) {
     return (
@@ -128,7 +220,7 @@ export default function ProfileScreen() {
         <View style={styles.centered} testID="profile-loading">
           <ActivityIndicator color={colors.brand} />
           <Text variant="bodyMedium" style={styles.muted}>
-            Loading profile…
+            {t('profile.loading')}
           </Text>
         </View>
       </SafeAreaView>
@@ -144,7 +236,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <View style={styles.container} testID="profile-empty">
           <Banner visible icon="account-alert" style={styles.banner}>
-            No profile is available for this session.
+            {t('profile.empty')}
           </Banner>
           <Button
             mode="contained"
@@ -153,7 +245,7 @@ export default function ProfileScreen() {
             textColor={colors.textInverse}
             testID="retry-profile-button"
           >
-            Retry
+            {t('common.retry')}
           </Button>
           <Button
             mode="text"
@@ -161,7 +253,7 @@ export default function ProfileScreen() {
             textColor={colors.textSecondary}
             testID="profile-logout-button"
           >
-            Sign out
+            {t('common.signOut')}
           </Button>
         </View>
       </SafeAreaView>
@@ -185,9 +277,7 @@ export default function ProfileScreen() {
 
           {loadError ? (
             <Banner visible icon="alert-circle" style={styles.banner} testID="profile-load-error">
-              {isOfflineCached
-                ? `${loadError} Showing the last saved profile on this device.`
-                : loadError}
+              {isOfflineCached ? `${loadError} ${t('profile.offlineSuffix')}` : loadError}
             </Banner>
           ) : null}
 
@@ -195,7 +285,7 @@ export default function ProfileScreen() {
             <View style={styles.refreshRow} testID="profile-refreshing">
               <ActivityIndicator color={colors.brand} />
               <Text variant="bodySmall" style={styles.muted}>
-                Refreshing…
+                {t('profile.refreshing')}
               </Text>
             </View>
           ) : null}
@@ -224,7 +314,11 @@ export default function ProfileScreen() {
                 setMode('changePhone');
               }}
               onLogout={() => void handleLogout()}
+              onExportData={handleExportData}
+              onDeleteAccount={handleDeleteAccount}
+              onAcceptLegal={handleAcceptLegal}
               isLoggingOut={isLoggingOut}
+              isPrivacyBusy={isPrivacyBusy}
             />
           )}
 
@@ -236,7 +330,7 @@ export default function ProfileScreen() {
               textColor={colors.brandDark}
               testID="refresh-profile-button"
             >
-              Refresh profile
+              {t('profile.refresh')}
             </Button>
           ) : null}
         </View>

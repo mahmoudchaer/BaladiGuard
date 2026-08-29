@@ -11,12 +11,30 @@ import {
 } from '@/services/tickets';
 import type { Ticket } from '@/types/ticket';
 import type { TicketMapMarker } from '@/types/ticketCollection';
+import { listStaffAccounts } from '@/services/staffAccounts';
 
 vi.mock('@/services/tickets', () => ({
   fetchTickets: vi.fn(),
   fetchTicketsPage: vi.fn(),
   fetchTicketAggregates: vi.fn(),
   fetchTicketMapViewport: vi.fn(),
+}));
+
+vi.mock('@/services/staffAccounts', () => ({
+  listStaffAccounts: vi.fn(),
+  listStaffDepartments: vi.fn(async () => []),
+  createStaffAccount: vi.fn(),
+  updateStaffAccount: vi.fn(),
+  setStaffAccountActive: vi.fn(),
+}));
+
+vi.mock('@/services/municipalities', () => ({
+  listMunicipalities: vi.fn(async () => []),
+  createMunicipality: vi.fn(),
+  updateMunicipality: vi.fn(),
+  provisionMunicipalityAdmin: vi.fn(),
+  previewMunicipalityRouting: vi.fn(),
+  overrideTicketMunicipality: vi.fn(),
 }));
 
 vi.mock('@/components/TicketMap', () => ({
@@ -85,6 +103,38 @@ function signInSession() {
       departmentIds: ['d1111111-1111-1111-1111-111111111111'],
       signedInAt: '2026-07-27T08:00:00Z',
       accessToken: 'test-staff-token',
+    }),
+  );
+}
+
+function signInAdministratorSession() {
+  window.localStorage.setItem(
+    'baladiguard.staffSession',
+    JSON.stringify({
+      username: 'admin',
+      name: 'Demo Administrator',
+      staffId: 'staff_admin_001',
+      role: 'administrator',
+      municipalityId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      departmentIds: null,
+      signedInAt: '2026-07-27T08:00:00Z',
+      accessToken: 'test-admin-token',
+    }),
+  );
+}
+
+function signInOperatorSession() {
+  window.localStorage.setItem(
+    'baladiguard.staffSession',
+    JSON.stringify({
+      username: 'operator',
+      name: 'Demo Developer Operator',
+      staffId: 'staff_ops_001',
+      role: 'developer_operator',
+      municipalityId: null,
+      departmentIds: null,
+      signedInAt: '2026-08-19T08:00:00Z',
+      accessToken: 'test-ops-token',
     }),
   );
 }
@@ -187,6 +237,7 @@ describe('App staff authentication', () => {
       truncated: false,
       zoom: 12,
     });
+    vi.mocked(listStaffAccounts).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -345,6 +396,39 @@ describe('App staff authentication', () => {
     expect(
       screen.queryByRole('heading', { name: 'BaladiGuard staff login' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows administrator navigation and renders the staff-account route', async () => {
+    signInAdministratorSession();
+    renderApp('/staff-accounts');
+    expect(
+      await screen.findByRole('heading', { name: 'Staff accounts', level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Staff accounts' })).toBeInTheDocument();
+  });
+
+  it('shows operator navigation and renders the municipalities route', async () => {
+    signInOperatorSession();
+    renderApp('/ops/municipalities');
+    expect(
+      await screen.findByRole('heading', { name: 'Municipalities', level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Municipalities' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Operations' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('denies municipal staff who enter the staff-account URL directly', async () => {
+    signInSession();
+    renderApp('/staff-accounts');
+    expect(await screen.findByText('BG-2026-0001')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Staff accounts' })).not.toBeInTheDocument();
+    expect(listStaffAccounts).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'You do not have access to that module. You were returned to your home page.',
+    );
   });
 
   it('clears corrupt stored sessions with non-string fields', () => {

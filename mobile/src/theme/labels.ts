@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import type { TicketStatus } from '@/types/ticket';
 
 export const categoryLabels: Record<string, string> = {
@@ -32,35 +33,40 @@ function titleCaseFallback(normalized: string): string {
 
 export function formatCategoryLabel(category: string | null | undefined): string {
   if (!category) {
-    return 'Category pending';
+    return t('status.pendingCategory');
   }
   const normalized = category.toLowerCase();
   if (normalized === 'pending_classification') {
-    return 'Category pending';
+    return t('status.pendingCategory');
+  }
+  const translated = t(`category.${normalized}`);
+  if (translated !== `category.${normalized}`) {
+    return translated;
   }
   return categoryLabels[normalized] ?? titleCaseFallback(normalized);
 }
 
 export function formatStatusLabel(status: TicketStatus): string {
-  return statusLabels[status] ?? status;
+  const translated = t(`status.${status}`);
+  return translated !== `status.${status}` ? translated : (statusLabels[status] ?? status);
 }
 
 /** Short, plain-language description of what a status means for a citizen. */
 export function describeStatusMeaning(status: TicketStatus): string {
   switch (status) {
     case 'SUBMITTED':
-      return 'Your report was received and is in the queue for review.';
+      return t('statusMeaning.SUBMITTED');
     case 'UNDER_REVIEW':
-      return 'A staff member is reviewing the report before it is routed.';
+      return t('statusMeaning.UNDER_REVIEW');
     case 'ASSIGNED':
-      return 'A department has taken ownership of this report.';
+      return t('statusMeaning.ASSIGNED');
     case 'IN_PROGRESS':
-      return 'The assigned team is actively working on the issue.';
+      return t('statusMeaning.IN_PROGRESS');
     case 'RESOLVED':
-      return 'The issue has been marked resolved.';
+      return t('statusMeaning.RESOLVED');
     case 'CLOSED':
-      return 'This report has been closed.';
+      return t('statusMeaning.CLOSED');
     default:
-      return 'Status details are not available right now.';
+      return t('statusMeaning.unknown');
   }
 }

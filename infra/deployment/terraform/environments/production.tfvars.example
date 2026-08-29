@@ -1,0 +1,11 @@
+environment       = "production"
+aws_region        = "us-east-1"
+owner             = "Mahmoud"
+route53_zone_id   = "Z0123456789EXAMPLE"
+api_domain_name   = "api.example.com"
+admin_domain_name = "admin.example.com"
+runtime_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:baladiguard/production/runtime-EXAMPLE"
+backend_image     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/baladiguard-production-backend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+app_version       = "bootstrap"
+api_desired_count = 2
+log_retention_days = 90

@@ -10,3 +10,6 @@ dist-ssr
 .env
 .DS_Store
 coverage
+playwright-report
+test-results
+blob-report

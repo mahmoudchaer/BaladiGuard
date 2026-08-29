@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import type { Ticket, TicketPriority, TicketStatus } from '@/types/ticket';
 import { SUPPORTED_CATEGORY_OPTIONS } from '@/utils/labels';
 
@@ -61,13 +62,16 @@ export type CategoryFilterOption = {
   label: string;
 };
 
-export function getCategoryFilterOptions(tickets: Ticket[]): CategoryFilterOption[] {
+export function getCategoryFilterOptions(
+  tickets: Ticket[],
+  translate: (key: string, vars?: Record<string, string | number>) => string = t,
+): CategoryFilterOption[] {
   const categories = Array.from(
     new Set([...SUPPORTED_CATEGORY_OPTIONS, ...tickets.map((ticket) => ticket.category)]),
   ).sort((a, b) => a.localeCompare(b));
 
   return [
-    { value: 'ALL', label: 'All categories' },
+    { value: 'ALL', label: translate('filters.allCategories') },
     ...categories.map((category) => ({
       value: category,
       label: category,

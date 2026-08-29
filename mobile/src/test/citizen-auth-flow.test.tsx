@@ -3,7 +3,7 @@ import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LoginScreen from '../../app/login/index';
-import HomeScreen from '../../app/index';
+import HomeScreen from '../../app/(tabs)';
 import TrackScreen from '../../app/track/index';
 import ReportScreen from '../../app/report/index';
 import { renderWithProviders, renderWithProvidersAsync } from '@/test/render';
@@ -44,6 +44,7 @@ vi.mock('@/services/api/tickets', () => ({
     nextCursor: null,
     limit: 20,
   })),
+  getCitizenTicketHistory: vi.fn(),
 }));
 
 vi.mock('react-native-maps', () => ({
@@ -60,6 +61,7 @@ import {
   updateCitizenProfile,
   verifyCitizenOtp,
 } from '@/services/api/citizenAuth';
+import { getCitizenTicketHistory } from '@/services/api/tickets';
 
 const readyProfile: CitizenProfile = {
   userId: 'usr_1',
@@ -69,6 +71,7 @@ const readyProfile: CitizenProfile = {
   email: null,
   notificationPreferences: { ticketUpdates: 'NONE', announcements: false },
   publicNameVisible: false,
+  leaderboardOptIn: false,
   active: true,
   contributionReady: true,
   createdAt: '2026-08-01T12:00:00Z',
@@ -105,6 +108,7 @@ describe('citizen auth flows', () => {
     vi.mocked(requestCitizenOtp).mockReset();
     vi.mocked(updateCitizenProfile).mockReset();
     vi.mocked(logoutCitizen).mockReset();
+    vi.mocked(getCitizenTicketHistory).mockReset();
   });
 
   it('keeps public track browsing available without auth', async () => {
@@ -127,41 +131,31 @@ describe('citizen auth flows', () => {
     expect(__getRouterMockState().replaceCalls).toHaveLength(0);
   });
 
-  it('migrates pre-#270 phone-only cached readiness when profile refresh fails', async () => {
-    // Simulate a session persisted before #270: verified phone, no name, stale false flag.
-    const legacyPhoneOnlySession = {
-      accessToken: 'tok_legacy',
-      expiresAt: Date.now() + 3_600_000,
-      profile: {
-        ...readyProfile,
-        fullName: null,
-        contributionReady: false,
-      },
-    };
-    const { CITIZEN_SESSION_STORAGE_KEY } = await import('@/services/citizenSession');
-    const { __getSecureStoreMock } = await import('@/test/mocks/expo-secure-store');
-    __getSecureStoreMock().set(CITIZEN_SESSION_STORAGE_KEY, JSON.stringify(legacyPhoneOnlySession));
-    vi.mocked(getCitizenMe).mockRejectedValue(new Error('Network unavailable'));
-
-    const screen = await renderWithProvidersAsync(<ReportScreen />);
-    expect(findByTestId(screen, 'report-form')).toBeTruthy();
-    expect(__getRouterMockState().replaceCalls).toHaveLength(0);
-    expect(getCitizenMe).toHaveBeenCalled();
-  });
-
-  it('restores a session on home and supports logout', async () => {
+  it('restores a session directly into the signed-in home', async () => {
     await saveCitizenSession(buildCitizenSession('tok_1', 3600, readyProfile));
     vi.mocked(getCitizenMe).mockResolvedValue(readyProfile);
     vi.mocked(logoutCitizen).mockResolvedValue(undefined);
+    vi.mocked(getCitizenTicketHistory).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+      limit: 3,
+    });
 
     const screen = await renderWithProvidersAsync(<HomeScreen />);
-    expect(screen.root.findByProps({ children: 'Signed in as Ada Citizen' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Track a report' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'signed-in-home' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Hello, Ada' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
+    expect(screen.root.findByProps({ testID: 'home-summary-empty' })).toBeTruthy();
+  });
 
-    await act(async () => {
-      findByTestId(screen, 'logout-button').props.onPress();
-    });
-    expect(logoutCitizen).toHaveBeenCalledWith('tok_1');
+  it('keeps the signed-in home usable when report updates are offline', async () => {
+    await saveCitizenSession(buildCitizenSession('tok_1', 3600, readyProfile));
+    vi.mocked(getCitizenMe).mockResolvedValue(readyProfile);
+    vi.mocked(getCitizenTicketHistory).mockRejectedValue(new Error('Network unavailable'));
+
+    const screen = await renderWithProvidersAsync(<HomeScreen />);
+    expect(screen.root.findByProps({ testID: 'home-summary-error' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
   });
 
   it('returns to the intended screen after successful verification', async () => {
@@ -190,13 +184,16 @@ describe('citizen auth flows', () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('123456');
     });
     await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
+    });
+    await act(async () => {
       findButton(screen, 'Verify code').props.onPress();
     });
 
     expect(__getRouterMockState().replaceCalls).toContain('/report');
   });
 
-  it('returns to the intended route after phone-only OTP without collecting a name', async () => {
+  it('returns after phone-only OTP without collecting a name', async () => {
     __setSearchParams({ returnTo: '/report' });
     vi.mocked(requestCitizenOtp).mockResolvedValue({
       challengeId: 'ch_1',
@@ -222,6 +219,9 @@ describe('citizen auth flows', () => {
       findByTestId(screen, 'otp-code-input').props.onChangeText('123456');
     });
     await act(async () => {
+      findByTestId(screen, 'accept-legal-checkbox').props.onPress();
+    });
+    await act(async () => {
       findButton(screen, 'Verify code').props.onPress();
     });
 
@@ -230,10 +230,26 @@ describe('citizen auth flows', () => {
     expect(__getRouterMockState().replaceCalls).toContain('/report');
   });
 
+  it('migrates a cached pre-#270 phone-only session when profile refresh is offline', async () => {
+    const legacySession = {
+      accessToken: 'tok_legacy',
+      expiresAt: Date.now() + 3_600_000,
+      profile: { ...phoneOnlyProfile, contributionReady: false },
+    };
+    const { CITIZEN_SESSION_STORAGE_KEY } = await import('@/services/citizenSession');
+    const { __getSecureStoreMock } = await import('@/test/mocks/expo-secure-store');
+    __getSecureStoreMock().set(CITIZEN_SESSION_STORAGE_KEY, JSON.stringify(legacySession));
+    vi.mocked(getCitizenMe).mockRejectedValue(new Error('Network unavailable'));
+
+    const screen = await renderWithProvidersAsync(<ReportScreen />);
+    expect(findByTestId(screen, 'report-form')).toBeTruthy();
+    expect(__getRouterMockState().replaceCalls).toHaveLength(0);
+  });
+
   it('shows a sign-in path on home for guests', async () => {
     const screen = await renderWithProvidersAsync(<HomeScreen />);
-    expect(screen.root.findByProps({ children: 'Sign in with phone' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Report an issue' })).toBeTruthy();
-    expect(screen.root.findByProps({ children: 'Track a report' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Sign in or create an account' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Continue as guest' })).toBeTruthy();
+    expect(screen.root.findByProps({ children: 'Track with a code' })).toBeTruthy();
   });
 });

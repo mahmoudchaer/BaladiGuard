@@ -113,10 +113,19 @@ def test_staging_requires_https_non_localhost_citizen_app_base_url():
 
     environ_ok = {
         **environ,
+        "DATABASE_BACKEND": "dynamodb",
+        "NOTIFICATION_ADAPTER": "real",
+        "SES_FROM_EMAIL": "staging@baladiguard.example",
+        "SECRET_KEY": "staging-secret-not-a-placeholder",
+        "AWS_S3_BUCKET": "baladiguard-staging-uploads",
+        "LOCATION_PLACE_INDEX_NAME": "baladiguard-staging-places",
+        "SEED_SAMPLE_TICKETS": "false",
+        "SEED_DEMO_STAFF": "false",
         "CITIZEN_APP_BASE_URL": "https://staging.baladiguard.example",
         "CORS_ALLOWED_ORIGINS": (
             "https://admin.staging.baladiguard.example,https://citizen.staging.baladiguard.example"
         ),
+        "ALLOWED_HOSTS": "api.staging.baladiguard.example",
     }
     try:
         os.environ.clear()
@@ -131,6 +140,50 @@ def test_staging_requires_https_non_localhost_citizen_app_base_url():
     assert result_ok.ok is True
     assert result_ok.should_abort_startup is False
     assert not any("CITIZEN_APP_BASE_URL" in issue.code for issue in result_ok.issues)
+
+
+def test_staging_rejects_development_integrations():
+    environ = {
+        "APP_ENV": "staging",
+        "DATABASE_BACKEND": "memory",
+        "NOTIFICATION_ADAPTER": "mock",
+        "SECRET_KEY": "changeme",
+        "AWS_REGION": "us-east-1",
+        "AWS_S3_BUCKET": "",
+        "LOCATION_PLACE_INDEX_NAME": "",
+        "SEED_SAMPLE_TICKETS": "true",
+        "SEED_DEMO_STAFF": "true",
+        "OTP_DEV_PLAINTEXT_STDOUT": "true",
+        "DYNAMODB_ENDPOINT_URL": "http://localhost:8001",
+        "IMAGE_REDACTION_ENABLED": "false",
+        "IMAGE_REDACTION_DETECTOR": "disabled",
+        "CITIZEN_APP_BASE_URL": "https://citizen.staging.example",
+        "CORS_ALLOWED_ORIGINS": "https://admin.staging.example",
+    }
+    original = dict(os.environ)
+    try:
+        os.environ.clear()
+        os.environ.update(environ)
+        result = validate_configuration(_settings_from_env(), environ=environ)
+    finally:
+        os.environ.clear()
+        os.environ.update(original)
+        get_settings.cache_clear()
+
+    codes = {issue.code for issue in result.issues}
+    assert {
+        "UNSAFE_DATABASE_BACKEND",
+        "UNSAFE_NOTIFICATION_ADAPTER",
+        "UNSAFE_SECRET_KEY",
+        "UNSAFE_STAFF_PASSWORD",
+        "MISSING_LOCATION_PLACE_INDEX_NAME",
+        "MISSING_AWS_S3_BUCKET",
+        "UNSAFE_DYNAMODB_ENDPOINT_URL",
+        "UNSAFE_SEED_SAMPLE_TICKETS",
+        "UNSAFE_OTP_DEV_PLAINTEXT_STDOUT",
+        "UNSAFE_IMAGE_REDACTION_DISABLED",
+        "UNSAFE_IMAGE_REDACTION_DETECTOR",
+    } <= codes
 
 
 def test_prod_alias_normalizes_to_production_and_applies_rules():
@@ -154,11 +207,13 @@ def test_invalid_numeric_settings_are_reported():
         "AWS_REGION": "us-east-1",
         "DUPLICATE_MIN_SCORE": "not-a-number",
         "AI_PROCESSING_CLAIM_TIMEOUT_SECONDS": "0",
+        "MUNICIPALITY_ROUTING_HIGH_CONFIDENCE": "2",
     }
     result = validate_configuration(_settings_from_env(), environ=environ)
     codes = {issue.code for issue in result.issues}
     assert "INVALID_DUPLICATE_MIN_SCORE" in codes
     assert "INVALID_AI_PROCESSING_CLAIM_TIMEOUT_SECONDS" in codes
+    assert "INVALID_MUNICIPALITY_ROUTING_HIGH_CONFIDENCE" in codes
 
 
 def test_production_rejects_development_defaults():
@@ -198,6 +253,7 @@ def test_production_rejects_development_defaults():
     assert "UNSAFE_SEED_SAMPLE_TICKETS" in codes
     assert "MISSING_CITIZEN_APP_BASE_URL" in codes
     assert "MISSING_CORS_ALLOWED_ORIGINS" in codes
+    assert "MISSING_ALLOWED_HOSTS" in codes
     # Secret values must never appear in issue messages.
     serialized = " ".join(issue.message for issue in result.issues).lower()
     assert "changeme" not in serialized
@@ -252,6 +308,7 @@ def test_production_valid_configuration_passes():
         "CORS_ALLOWED_ORIGINS": (
             "https://admin.baladiguard.example,https://citizen.baladiguard.example"
         ),
+        "ALLOWED_HOSTS": "api.baladiguard.example",
     }
     original = dict(os.environ)
     try:
@@ -349,3 +406,19 @@ def test_staging_startup_aborts_without_citizen_app_base_url(monkeypatch):
 
     monkeypatch.setenv("APP_ENV", "test")
     get_settings.cache_clear()
+
+
+def test_sandbox_whatsapp_otp_requires_allowlisted_phone(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "whatsapp")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "session_text")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "pnid_1")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "meta-token")
+    monkeypatch.setenv("NOTIFICATION_SANDBOX", "true")
+    monkeypatch.delenv("NOTIFICATION_ALLOWLIST_PHONES", raising=False)
+    settings = _settings_from_env()
+    result = validate_configuration(settings, environ=dict(os.environ))
+    assert any(
+        issue.code == "MISSING_CITIZEN_OTP_WHATSAPP_SANDBOX_ALLOWLIST" for issue in result.issues
+    )

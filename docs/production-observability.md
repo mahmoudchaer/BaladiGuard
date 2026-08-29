@@ -71,6 +71,16 @@ Format) is emitted for the `BaladiGuard` namespace.
 | `AiQueuePending` / `AiProcessingSucceeded` / `AiProcessingFailed` | AI queue health and terminal failures |
 | `NotificationSucceeded` / `NotificationFailed` | Citizen notification outcomes |
 | `ReadyProbeSuccess` | `1` ready / `0` not ready (from `/health/ready`) |
+| `AiJobOldestAgeSeconds` | Age of the oldest queued/running AI job |
+| `ImageRedactionJobsDeadLettered` | Terminal image-redaction failures |
+| `ReportsSubmitted` / `ReportsFailed` | Privacy-safe ticket intake counts |
+| `CitizensRegistered` | New citizen accounts (count only, no identifiers) |
+| `BackupControlSuccess` | `1` when PITR/backup controls look healthy |
+
+The private developer-operator UI is the admin `/ops` route, backed by `/v1/ops/*`.
+Access requires `role=developer_operator`. Municipality administrators cannot
+create that role or open the dashboard. See
+[developer-ops-dashboard.md](developer-ops-dashboard.md).
 
 ## Apply dashboard and alarms
 
@@ -192,6 +202,40 @@ sustained datapoints.
 1. Distinguish staff login spikes from citizen 401s via `kind` dimension.
 2. Confirm rate limits (`staff-login`, OTP policies) are engaging.
 3. Single wrong passwords are expected; only sustained spikes page.
+
+### High latency
+
+1. Open `/ops` → Overview and compare `HttpRequestDuration` with storage errors.
+2. Check AI/redaction oldest-age; a stuck worker can stall writes.
+3. Confirm the current `APP_VERSION` before rolling back.
+
+### Throttling
+
+1. Confirm `RateLimitExceeded` vs `AuthFailures`.
+2. Do not disable rate limits to silence the alarm.
+3. Raise a documented policy only after reviewing abuse vs legitimate load.
+
+### Stuck AI jobs
+
+1. Confirm the AI worker process is running and claiming jobs.
+2. Check `AI_JOB_TIMEOUT_SECONDS` and stale-claim recovery.
+3. Replay only dead-lettered `ai:` jobs from `/ops` Workers.
+
+### Redaction failures
+
+1. Keep public images fail-closed; never publish private originals.
+2. Check Rekognition IAM and detector configuration.
+3. Replay a single dead-lettered `redaction:` job after confirming the source object exists.
+
+### WhatsApp
+
+WhatsApp delivery is not deployed yet. The operator dashboard lists the worker as
+`deployed: false`. Do not page on missing WhatsApp metrics.
+
+### Moderation
+
+Content-safety screening is owned by a later issue. The operator dashboard lists
+the worker as `deployed: false`.
 
 ## Retention and access controls
 

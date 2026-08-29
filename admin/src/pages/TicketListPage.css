@@ -1,10 +1,16 @@
 .helpdesk-desk {
   display: grid;
-  grid-template-columns: var(--views-width) minmax(22rem, 28rem) minmax(0, 1fr);
+  grid-template-columns: var(--views-width) minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   height: calc(100vh - var(--header-height));
   background: var(--color-desk);
+  overflow: hidden;
+  transition: grid-template-columns 220ms ease;
+}
+
+.helpdesk-desk--preview-open {
+  grid-template-columns: var(--views-width) minmax(18rem, 24rem) minmax(22rem, 1fr);
 }
 
 .helpdesk-desk__list {
@@ -19,6 +25,43 @@
 
 .ticket-list-page__loading {
   padding: 2rem;
+}
+
+.ticket-list-page__ops-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+
+.ticket-list-page__ops-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.45rem 0.3rem 0.7rem;
+  border: 1px solid var(--color-border-light);
+  border-radius: 999px;
+  background: var(--lb-white);
+  color: var(--color-text-secondary);
+  font-size: var(--text-helper);
+  font-weight: 600;
+}
+
+.ticket-list-page__ops-count strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-size: var(--text-label);
 }
 
 .ticket-list-page__error {

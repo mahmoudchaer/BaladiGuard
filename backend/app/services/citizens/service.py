@@ -28,14 +28,20 @@ from app.schemas.citizen import (
     CitizenExportTicketSummary,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
+    CitizenPushDevice,
+    CitizenPushDeviceRequest,
     CitizenTicketHistoryItem,
     CitizenTicketHistoryResponse,
+    LegalAcceptance,
+    LegalAcceptanceRequest,
+    LegalAcceptanceSource,
     NotificationPreferences,
     StoredCitizenUser,
 )
 from app.schemas.citizen_auth import CitizenOtpVerifyResponse
 from app.schemas.citizen_session import OtpPurpose, StoredCitizenOtpChallenge
 from app.schemas.ticket import PreferredChannel, ReportContact
+from app.services.legal.documents import CURRENT_LEGAL_VERSION, normalize_lang
 from app.utils.phone import PhoneNormalizationError, normalize_phone
 
 logger = logging.getLogger(__name__)
@@ -170,6 +176,36 @@ def is_contribution_ready(user: StoredCitizenUser) -> bool:
     return bool(user.active and user.phone_verified_at)
 
 
+def legal_acceptance_required(user: StoredCitizenUser) -> bool:
+    """True when acceptance is missing or does not match the current package."""
+    acceptance = user.legal_acceptance
+    if acceptance is None:
+        return True
+    version = CURRENT_LEGAL_VERSION
+    return (
+        acceptance.terms_version != version
+        or acceptance.privacy_version != version
+        or acceptance.acceptable_use_version != version
+    )
+
+
+def build_legal_acceptance(
+    *,
+    accepted_at: str,
+    locale: str | None = None,
+    source: LegalAcceptanceSource = "otp_verify",
+) -> LegalAcceptance:
+    version = CURRENT_LEGAL_VERSION
+    return LegalAcceptance(
+        termsVersion=version,
+        privacyVersion=version,
+        acceptableUseVersion=version,
+        acceptedAt=accepted_at,
+        locale=normalize_lang(locale) if locale else None,
+        source=source,
+    )
+
+
 def anonymized_phone_for(user_id: str) -> str:
     return f"{ANONYMIZED_PHONE_PREFIX}{user_id}"
 
@@ -204,16 +240,28 @@ def snapshot_contact_for_ticket(user: StoredCitizenUser) -> ReportContact:
 
 
 def to_profile_response(user: StoredCitizenUser) -> CitizenProfileResponse:
+    preferences = user.notification_preferences
+    if preferences.preference_version == 1:
+        preferences = preferences.model_copy(
+            update={
+                "email_enabled": preferences.ticket_updates in {"EMAIL", "BOTH"},
+                "whatsapp_enabled": preferences.ticket_updates in {"SMS", "BOTH"},
+            }
+        )
     return CitizenProfileResponse(
         userId=user.user_id,
         phone=user.phone,
         phoneVerifiedAt=user.phone_verified_at,
         fullName=user.full_name,
         email=user.email,
-        notificationPreferences=user.notification_preferences,
+        notificationPreferences=preferences,
+        pushAvailable=any(device.active for device in user.push_devices),
         publicNameVisible=user.public_name_visible,
+        leaderboardOptIn=user.leaderboard_opt_in,
         active=user.active,
         contributionReady=is_contribution_ready(user),
+        legalAcceptance=user.legal_acceptance,
+        legalAcceptanceRequired=legal_acceptance_required(user),
         createdAt=user.created_at,
         updatedAt=user.updated_at,
     )
@@ -296,18 +344,23 @@ class CitizenService:
             email=email,
             notificationPreferences=NotificationPreferences(),
             publicNameVisible=False,
+            leaderboardOptIn=False,
             active=True,
             createdAt=stamped,
             updatedAt=stamped,
         )
         try:
-            return self._resolved_store().create(user)
+            created = self._resolved_store().create(user)
         except PhoneClaimConflictError as exc:
             raise CitizenServiceError(
                 "PHONE_UNAVAILABLE",
                 "Unable to create citizen account for this phone number.",
                 status_code=409,
             ) from exc
+        from app.core.metrics import emit_metric
+
+        emit_metric("CitizensRegistered")
+        return created
 
     def get_by_id(self, user_id: str) -> StoredCitizenUser | None:
         return self._resolved_store().get(user_id)
@@ -462,6 +515,8 @@ class CitizenService:
         challenge_id: str,
         code: str,
         full_name: str | None = None,
+        accept_legal: bool | None = None,
+        legal_locale: str | None = None,
         authenticated_user_id: str | None = None,
         now: datetime | None = None,
     ) -> CitizenOtpVerifyResponse:
@@ -474,6 +529,12 @@ class CitizenService:
             )
 
         if challenge.purpose == LOGIN_OR_SIGNUP_PURPOSE:
+            if accept_legal is not True:
+                raise CitizenServiceError(
+                    "LEGAL_ACCEPTANCE_REQUIRED",
+                    "You must accept the current Terms, Privacy Policy, and "
+                    "Acceptable Use Policy to continue.",
+                )
             self._consume_otp_challenge(
                 challenge=challenge,
                 expected_purpose=LOGIN_OR_SIGNUP_PURPOSE,
@@ -485,6 +546,7 @@ class CitizenService:
             return self._complete_login_or_signup(
                 phone=challenge.phone,
                 full_name=full_name,
+                legal_locale=legal_locale,
                 now=moment,
             )
 
@@ -533,6 +595,7 @@ class CitizenService:
         *,
         phone: str,
         full_name: str | None,
+        legal_locale: str | None,
         now: datetime,
     ) -> CitizenOtpVerifyResponse:
         store = self._resolved_store()
@@ -555,17 +618,26 @@ class CitizenService:
                 status_code=403,
             )
 
+        stamped = _iso(now)
+        updates: dict[str, Any] = {
+            "legal_acceptance": build_legal_acceptance(
+                accepted_at=stamped,
+                locale=legal_locale,
+                source="otp_verify",
+            ),
+            "updated_at": stamped,
+        }
         # First-time name may be supplied on verify; ignore if the account already has one.
         if full_name and not _valid_full_name(user.full_name):
-            updated = user.model_copy(
-                update={"full_name": full_name.strip(), "updated_at": _iso(now)}
-            )
-            try:
-                user = store.update(updated)
-            except CitizenNotFoundError as exc:
-                raise CitizenServiceError(
-                    "UNAUTHORIZED", "Citizen authentication required.", 401
-                ) from exc
+            updates["full_name"] = full_name.strip()
+
+        updated = user.model_copy(update=updates)
+        try:
+            user = store.update(updated)
+        except CitizenNotFoundError as exc:
+            raise CitizenServiceError(
+                "UNAUTHORIZED", "Citizen authentication required.", 401
+            ) from exc
 
         token = self.issue_session(user.user_id, now=now)
         profile = to_profile_response(user)
@@ -714,6 +786,79 @@ class CitizenService:
             raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
         return to_profile_response(user)
 
+    def register_push_device(
+        self, user_id: str, payload: CitizenPushDeviceRequest, *, now: datetime | None = None
+    ) -> CitizenProfileResponse:
+        """Upsert one app-scoped device without disturbing a citizen's other devices."""
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+        stamped = _iso(now or datetime.now(UTC))
+        device = CitizenPushDevice(**payload.model_dump(by_alias=True), lastSeenAt=stamped)
+        devices = [item for item in user.push_devices if item.device_id != device.device_id]
+        devices.append(device)
+        stored = store.update(
+            user.model_copy(update={"push_devices": devices, "updated_at": stamped})
+        )
+        return to_profile_response(stored)
+
+    def unregister_push_device(
+        self, user_id: str, device_id: str, *, now: datetime | None = None
+    ) -> CitizenProfileResponse:
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active:
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+        stamped = _iso(now or datetime.now(UTC))
+        devices = [item for item in user.push_devices if item.device_id != device_id]
+        stored = store.update(
+            user.model_copy(update={"push_devices": devices, "updated_at": stamped})
+        )
+        return to_profile_response(stored)
+
+    def record_legal_acceptance(
+        self,
+        user_id: str,
+        payload: LegalAcceptanceRequest,
+        *,
+        now: datetime | None = None,
+    ) -> CitizenProfileResponse:
+        """Record or renew acceptance of the current legal package (#321)."""
+        if payload.accept_legal is not True:
+            raise CitizenServiceError(
+                "LEGAL_ACCEPTANCE_REQUIRED",
+                "You must accept the current Terms, Privacy Policy, and "
+                "Acceptable Use Policy to continue.",
+            )
+        store = self._resolved_store()
+        user = store.get(user_id)
+        if user is None or not user.active or is_anonymized_citizen(user):
+            raise CitizenServiceError("UNAUTHORIZED", "Citizen authentication required.", 401)
+
+        moment = now or _utcnow()
+        stamped = _iso(moment)
+        source: LegalAcceptanceSource = (
+            "reacceptance" if user.legal_acceptance is not None else "profile"
+        )
+        updated = user.model_copy(
+            update={
+                "legal_acceptance": build_legal_acceptance(
+                    accepted_at=stamped,
+                    locale=payload.locale,
+                    source=source,
+                ),
+                "updated_at": stamped,
+            }
+        )
+        try:
+            stored = store.update(updated)
+        except CitizenNotFoundError as exc:
+            raise CitizenServiceError(
+                "UNAUTHORIZED", "Citizen authentication required.", 401
+            ) from exc
+        return to_profile_response(stored)
+
     def export_account(
         self,
         user_id: str,
@@ -746,10 +891,21 @@ class CitizenService:
             )
             for ticket in owned
         ]
+        from app.services.privacy_request_audit import record_privacy_request
+
+        record_privacy_request(
+            action="citizen_export",
+            subject_user_id=user_id,
+            summary="Citizen self-service data export.",
+            created_at=_iso(moment),
+        )
+        from app.services.rewards.service import rewards_service
+
         return CitizenDataExportResponse(
             exportedAt=_iso(moment),
             profile=to_profile_response(user),
             tickets=ticket_summaries,
+            rewards=rewards_service.export_rewards(user_id),
         )
 
     def list_ticket_history(
@@ -784,6 +940,12 @@ class CitizenService:
                     category=self._citizen_history_category(ticket),
                     locationAddress=ticket.location.address_text,
                     submittedAt=ticket.created_at,
+                    canSubmitResolutionFeedback=(
+                        ticket.status == "RESOLVED"
+                        and ticket.owner_user_id == user_id
+                        and ticket.resolution_feedback_status is None
+                    ),
+                    resolutionFeedbackStatus=ticket.resolution_feedback_status,
                 )
                 for ticket in page.items
             ],
@@ -823,7 +985,10 @@ class CitizenService:
                 "full_name": None,
                 "email": None,
                 "notification_preferences": NotificationPreferences(),
+                "push_devices": [],
                 "public_name_visible": False,
+                "leaderboard_opt_in": False,
+                "legal_acceptance": None,
                 "active": False,
                 "session_epoch": user.session_epoch + 1,
                 "updated_at": stamped,
@@ -851,6 +1016,17 @@ class CitizenService:
             revoked_at=stamped,
             reason="account_deletion",
         )
+        from app.services.privacy_request_audit import record_privacy_request
+
+        record_privacy_request(
+            action="citizen_delete",
+            subject_user_id=user_id,
+            summary="Citizen self-service account anonymization.",
+            created_at=stamped,
+        )
+        from app.services.rewards.service import rewards_service
+
+        rewards_service.withdraw_public(user_id, now=moment)
         logger.info("Citizen account anonymized user_id=%s", user_id)
         return CitizenDeleteResponse(status="deleted", userId=user_id, deletedAt=stamped)
 
@@ -896,6 +1072,9 @@ class CitizenService:
                 status_code=409,
             ) from exc
 
+        from app.services.rewards.service import rewards_service
+
+        rewards_service.refresh_public_eligibility(stored.user_id)
         return to_profile_response(stored)
 
     def _project_profile_update(
@@ -918,6 +1097,9 @@ class CitizenService:
         if "public_name_visible" in fields_set and payload.public_name_visible is not None:
             updates["public_name_visible"] = payload.public_name_visible
 
+        if "leaderboard_opt_in" in fields_set and payload.leaderboard_opt_in is not None:
+            updates["leaderboard_opt_in"] = payload.leaderboard_opt_in
+
         # Empty/missing names cannot be published (#270).
         next_full_name = updates["full_name"] if "full_name" in updates else user.full_name
         if not _valid_full_name(next_full_name):
@@ -939,6 +1121,38 @@ class CitizenService:
                 and pref_update.announcements is not None
             ):
                 prefs.announcements = pref_update.announcements
+            for field in (
+                "push_enabled",
+                "email_enabled",
+                "whatsapp_enabled",
+                "report_created",
+                "status_changes",
+                "work_updates",
+                "resolution_updates",
+                "action_requests",
+            ):
+                value = getattr(pref_update, field)
+                if field in pref_update.model_fields_set and value is not None:
+                    setattr(prefs, field, value)
+
+            # Keep the legacy aggregate readable by older clients during rollout.
+            # SMS is deliberately not selected: ordinary phone updates now use WhatsApp.
+            if prefs.email_enabled and prefs.whatsapp_enabled:
+                prefs.ticket_updates = "BOTH"
+            elif prefs.email_enabled:
+                prefs.ticket_updates = "EMAIL"
+            elif prefs.whatsapp_enabled:
+                prefs.ticket_updates = "SMS"
+            elif any(
+                field in pref_update.model_fields_set
+                for field in ("email_enabled", "whatsapp_enabled")
+            ):
+                prefs.ticket_updates = "NONE"
+            if any(
+                field in pref_update.model_fields_set
+                for field in ("push_enabled", "email_enabled", "whatsapp_enabled")
+            ):
+                prefs.preference_version = 2
             updates["notification_preferences"] = prefs
 
         return user.model_copy(update=updates)
@@ -974,6 +1188,7 @@ class CitizenService:
                 "phone_verified_at": stamped,
                 "updated_at": stamped,
                 "session_epoch": user.session_epoch + 1,
+                "push_devices": [],
             }
         )
         self._validate_notification_email_rules(projected)
@@ -1097,6 +1312,7 @@ __all__ = [
     "hash_citizen_token",
     "is_anonymized_citizen",
     "is_contribution_ready",
+    "legal_acceptance_required",
     "preferred_channel_from_ticket_updates",
     "snapshot_contact_for_ticket",
     "to_profile_response",

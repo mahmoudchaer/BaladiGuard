@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppRoutes } from '@/App';
-import type { PublicTicketResponse } from '@/types/ticket';
+import type { PublicTicketMapViewportResponse, PublicTicketResponse } from '@/types/ticket';
 
 const sample: PublicTicketResponse = {
   ticketNumber: 'BG-100001',
@@ -23,35 +23,43 @@ const sample: PublicTicketResponse = {
   updatedAt: '2026-08-02T12:00:00Z',
 };
 
-const samplePageTwo: PublicTicketResponse = {
-  ...sample,
-  ticketNumber: 'BG-100002',
-  description: 'Street light out on residential block.',
-  mapLocation: {
-    addressText: 'Hamra side street',
-    latitude: 33.897,
-    longitude: 35.48,
-  },
-};
-
 vi.mock('@/services/tickets', async () => {
   const actual = await vi.importActual<typeof import('@/services/tickets')>('@/services/tickets');
   return {
     ...actual,
     getPublicTickets: vi.fn(),
+    getPublicMapViewport: vi.fn(),
     getPublicTicketByNumber: vi.fn(),
     getTicketByTrackingCode: vi.fn(),
   };
 });
 
 vi.mock('@/components/PublicReportsMap', () => ({
-  PublicReportsMap: ({ reports }: { reports: PublicTicketResponse[] }) => (
-    <div data-testid="public-map">Map with {reports.length} reports</div>
+  PublicReportsMap: ({
+    data,
+    onViewportChange,
+  }: {
+    data: PublicTicketMapViewportResponse | null;
+    onViewportChange: (viewport: {
+      north: number;
+      south: number;
+      east: number;
+      west: number;
+      zoom: number;
+    }) => void;
+  }) => (
+    <button
+      data-testid="public-map"
+      onClick={() => onViewportChange({ north: 34, south: 33, east: 36, west: 35, zoom: 15 })}
+    >
+      Map with {data?.markers.length ?? 0} reports
+    </button>
   ),
 }));
 
 import {
   getPublicTicketByNumber,
+  getPublicMapViewport,
   getPublicTickets,
   getTicketByTrackingCode,
 } from '@/services/tickets';
@@ -72,6 +80,22 @@ describe('citizen web public browsing', () => {
       limit: 20,
     });
     vi.mocked(getPublicTicketByNumber).mockResolvedValue(sample);
+    vi.mocked(getPublicMapViewport).mockResolvedValue({
+      markers: [
+        {
+          ticketNumber: sample.ticketNumber,
+          status: sample.status,
+          category: sample.category,
+          addressText: sample.mapLocation.addressText,
+          latitude: sample.mapLocation.latitude,
+          longitude: sample.mapLocation.longitude,
+        },
+      ],
+      clusters: [],
+      limit: 200,
+      truncated: false,
+      zoom: 15,
+    });
     vi.mocked(getTicketByTrackingCode).mockResolvedValue({
       ticketNumber: 'BG-100001',
       trackingCode: 'ABC234',
@@ -86,46 +110,83 @@ describe('citizen web public browsing', () => {
     });
   });
 
+  it('keeps the landing page separate and does not fetch the report directory', async () => {
+    renderApp('/');
+    expect(screen.getByRole('heading', { name: /Your city,.*within reach\./ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Browse public reports →' })).toHaveAttribute(
+      'href',
+      '/reports',
+    );
+    expect(getPublicTickets).not.toHaveBeenCalled();
+  });
+
   it('renders responsive navigation and public list with pagination', async () => {
     const user = userEvent.setup();
-    renderApp('/');
+    renderApp('/reports');
 
     expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
     expect(await screen.findByTestId('public-report-list')).toBeInTheDocument();
     expect(screen.getByText('BG-100001')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    await user.click(screen.getByRole('button', { name: 'Next →' }));
     await waitFor(() => {
       expect(getPublicTickets).toHaveBeenCalledWith(expect.objectContaining({ cursor: 'next-1' }));
     });
+
+    await user.type(screen.getByLabelText('Search public reports'), 'pothole');
+    await user.selectOptions(screen.getByLabelText('Filter by status'), 'IN_PROGRESS');
+    await waitFor(() => {
+      expect(getPublicTickets).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'pothole', status: 'IN_PROGRESS', cursor: null }),
+      );
+    });
+  });
+
+  it('keeps compact navigation hidden until the menu is opened', async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const user = userEvent.setup();
+
+    try {
+      renderApp('/reports');
+      const links = document.getElementById('shell-nav-links');
+
+      expect(links).toHaveAttribute('hidden');
+      expect(screen.getByRole('button', { name: 'Open menu' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+
+      expect(links).not.toHaveAttribute('hidden');
+      expect(screen.getByRole('button', { name: 'Close menu' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+    }
   });
 
   it('opens public detail from the list', async () => {
     const user = userEvent.setup();
-    renderApp('/');
+    renderApp('/reports');
     await user.click(await screen.findByRole('link', { name: /BG-100001/i }));
     expect(await screen.findByTestId('public-detail')).toBeInTheDocument();
-    expect(getPublicTicketByNumber).toHaveBeenCalledWith('BG-100001');
+    expect(getPublicTicketByNumber).toHaveBeenCalledWith(
+      'BG-100001',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
-  it('auto-loads map pages beyond the first API page', async () => {
-    vi.mocked(getPublicTickets)
-      .mockResolvedValueOnce({
-        items: [sample],
-        nextCursor: 'next-1',
-        limit: 20,
-      })
-      .mockResolvedValueOnce({
-        items: [samplePageTwo],
-        nextCursor: null,
-        limit: 20,
-      });
-
+  it('loads only the visible map viewport', async () => {
+    const user = userEvent.setup();
     renderApp('/map');
-    expect(await screen.findByTestId('public-map')).toHaveTextContent('Map with 2 reports');
-    expect(getPublicTickets).toHaveBeenCalledWith(expect.objectContaining({ cursor: null }));
-    expect(getPublicTickets).toHaveBeenCalledWith(expect.objectContaining({ cursor: 'next-1' }));
-    expect(screen.getByRole('link', { name: 'View as list' })).toHaveAttribute('href', '/');
+    await user.click(await screen.findByTestId('public-map'));
+    await waitFor(() => expect(getPublicMapViewport).toHaveBeenCalledTimes(1));
+    expect(getPublicTickets).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'View as list' })).toHaveAttribute('href', '/reports');
   });
 
   it('renders a not-found page for unknown routes', async () => {
@@ -134,7 +195,7 @@ describe('citizen web public browsing', () => {
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Browse public reports' })).toHaveAttribute(
       'href',
-      '/',
+      '/reports',
     );
   });
 
@@ -147,8 +208,31 @@ describe('citizen web public browsing', () => {
     expect(screen.getByText(/Tracking code: ABC234/)).toBeInTheDocument();
   });
 
+  it('lets a guest prepare a report before phone verification', async () => {
+    renderApp('/report');
+    expect(
+      await screen.findByRole('heading', { name: 'What needs attention?' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('You can complete the report now. Sign-in is required before sending.'),
+    ).toBeInTheDocument();
+  });
+
   it('exposes privacy copy and stub protected routes', async () => {
     const { cleanup } = await import('@testing-library/react');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'privacy',
+          title: 'Privacy Policy',
+          version: '2026-08-22',
+          updatedAt: '2026-08-22T00:00:00Z',
+          lang: 'en',
+          markdown: '# Privacy Policy\n\nCitizen data handling details.',
+        }),
+        { status: 200 },
+      ),
+    );
     renderApp('/privacy');
     expect(await screen.findByRole('heading', { name: 'Privacy' })).toBeInTheDocument();
     expect(screen.getByText(/citizen-safe projection/i)).toBeInTheDocument();

@@ -19,28 +19,36 @@ from app.core.citizen_auth import (
 )
 from app.core.staff_auth import (
     AdminStaffDep,
+    DeveloperOperatorDep,
+    MunicipalStaffDep,
     StaffDep,
     StaffPrincipal,
     forbidden,
     require_admin,
+    require_developer_operator,
+    require_municipal_actor,
     require_staff,
     staff_can_access_ticket,
     staff_can_assign_department,
 )
 
 # Alias kept for #141 and any other routes that imported StaffActorDep.
-StaffActorDep = StaffDep
+StaffActorDep = MunicipalStaffDep
 
 __all__ = [
     "CitizenDep",
     "CitizenPrincipal",
     "ContributionReadyCitizenDep",
+    "DeveloperOperatorDep",
+    "MunicipalStaffDep",
     "StaffActorDep",
     "AdminStaffDep",
     "StaffDep",
     "StaffPrincipal",
     "forbidden",
     "require_admin",
+    "require_developer_operator",
+    "require_municipal_actor",
     "require_citizen",
     "require_contribution_ready",
     "require_staff",

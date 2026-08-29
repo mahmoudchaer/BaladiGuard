@@ -4,6 +4,7 @@ import { Banner, Button, Text } from 'react-native-paper';
 
 import { OtpVerifyForm } from '@/features/citizen-auth/OtpVerifyForm';
 import { PhoneEntryForm, type PhoneEntrySuccess } from '@/features/citizen-auth/PhoneEntryForm';
+import { useI18n } from '@/i18n/LocaleProvider';
 import { colors, radii, spacing, touchTargetMin } from '@/theme';
 import type { CitizenOtpVerifyResponse } from '@/types/citizen';
 
@@ -14,15 +15,16 @@ type ChangePhoneFlowProps = {
 };
 
 export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePhoneFlowProps) {
+  const { t } = useI18n();
   const [challenge, setChallenge] = useState<PhoneEntrySuccess | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [updatedPhone, setUpdatedPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const handleVerified = async (response: CitizenOtpVerifyResponse) => {
     setBusy(true);
     try {
       await onVerified(response);
-      setSuccessMessage(`Phone updated to ${response.phone}. Your session was refreshed.`);
+      setUpdatedPhone(response.phone);
       setChallenge(null);
     } finally {
       setBusy(false);
@@ -31,18 +33,16 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
 
   return (
     <View style={styles.container} testID="change-phone-flow">
-      <Text variant="titleLarge" style={styles.title}>
-        Change phone number
+      <Text variant="titleLarge" style={styles.title} accessibilityLabel={t('profile.changePhone')}>
+        {t('profile.changePhone')}
       </Text>
       <Text variant="bodyMedium" style={styles.subtitle}>
-        Your current verified phone is {currentPhone}. Enter a new number and verify it with a
-        one-time code. If that number already belongs to another citizen, the change will be
-        rejected.
+        {t('profile.changePhoneBody', { phone: currentPhone })}
       </Text>
 
-      {successMessage ? (
+      {updatedPhone ? (
         <Banner visible icon="check-circle" style={styles.banner} testID="phone-change-success">
-          {successMessage}
+          {t('profile.phoneChangeSuccess', { phone: updatedPhone })}
         </Banner>
       ) : null}
 
@@ -53,6 +53,7 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
           phone={challenge.phone}
           region={challenge.region}
           purpose="CHANGE_PHONE"
+          deliveryChannel={challenge.deliveryChannel}
           onChallengeReplaced={(next) =>
             setChallenge((prev) =>
               prev
@@ -60,6 +61,7 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
                     ...prev,
                     challengeId: next.challengeId,
                     expiresIn: next.expiresIn,
+                    deliveryChannel: next.deliveryChannel ?? prev.deliveryChannel,
                   }
                 : prev,
             )
@@ -71,9 +73,9 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
       ) : (
         <PhoneEntryForm
           purpose="CHANGE_PHONE"
-          title="New phone number"
-          subtitle="We will send a verification code to the new number. Codes and session tokens are never shown here."
-          submitLabel="Send verification code"
+          title={t('profile.newPhone')}
+          subtitle={t('profile.newPhoneHint')}
+          submitLabel={t('profile.sendVerification')}
           onSuccess={setChallenge}
         />
       )}
@@ -87,7 +89,7 @@ export function ChangePhoneFlow({ currentPhone, onVerified, onCancel }: ChangePh
         textColor={colors.textSecondary}
         testID="cancel-phone-change-button"
       >
-        {successMessage ? 'Back to profile' : 'Cancel'}
+        {updatedPhone ? t('profile.backToProfile') : t('common.cancel')}
       </Button>
     </View>
   );

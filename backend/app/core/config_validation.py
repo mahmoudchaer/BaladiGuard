@@ -22,6 +22,9 @@ ALLOWED_ENVIRONMENTS = frozenset({"local", "development", "staging", "production
 _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE = frozenset({"staging", "production"})
 ALLOWED_DATABASE_BACKENDS = frozenset({"memory", "dynamodb"})
 ALLOWED_NOTIFICATION_ADAPTERS = frozenset({"mock", "real"})
+ALLOWED_WHATSAPP_PROVIDERS = frozenset({"mock", "cloud"})
+ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS = frozenset({"mock", "sns", "whatsapp"})
+ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES = frozenset({"template", "session_text"})
 ALLOWED_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"})
 
 # Common typos / short forms normalize before validation and production checks.
@@ -186,6 +189,7 @@ def validate_configuration(
         ("DUPLICATE_MIN_SCORE", 0.0, 1.0),
         ("DUPLICATE_SAME_CATEGORY_WEIGHT", 0.0, 1.0),
         ("DUPLICATE_SIMILAR_CATEGORY_WEIGHT", 0.0, 1.0),
+        ("MUNICIPALITY_ROUTING_HIGH_CONFIDENCE", 0.5, 1.0),
     ):
         raw = _raw(env_map, name)
         if raw is None or not raw.strip():
@@ -240,6 +244,10 @@ def validate_configuration(
         "RATE_LIMIT_LOCATION_VALIDATE_WINDOW_SECONDS",
         "RATE_LIMIT_STAFF_LOGIN_LIMIT",
         "RATE_LIMIT_STAFF_LOGIN_WINDOW_SECONDS",
+        "RATE_LIMIT_STAFF_ASSISTANT_LIMIT",
+        "RATE_LIMIT_STAFF_ASSISTANT_WINDOW_SECONDS",
+        "RATE_LIMIT_STAFF_SEARCH_LIMIT",
+        "RATE_LIMIT_STAFF_SEARCH_WINDOW_SECONDS",
         "RATE_LIMIT_CITIZEN_OTP_REQUEST_LIMIT",
         "RATE_LIMIT_CITIZEN_OTP_REQUEST_WINDOW_SECONDS",
         "RATE_LIMIT_CITIZEN_OTP_VERIFY_LIMIT",
@@ -269,15 +277,179 @@ def validate_configuration(
             )
         )
 
-    # Production: no silent development defaults for secrets / persistence / auth.
-    if app_env == "production":
+    raw_wa_provider = _raw(env_map, "WHATSAPP_PROVIDER")
+    if raw_wa_provider is not None and raw_wa_provider.strip():
+        if raw_wa_provider.strip().lower() not in ALLOWED_WHATSAPP_PROVIDERS:
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_WHATSAPP_PROVIDER",
+                    message="WHATSAPP_PROVIDER must be 'mock' or 'cloud'.",
+                )
+            )
+
+    whatsapp_enabled = bool(cfg.whatsapp_enabled)
+    raw_wa_enabled = _raw(env_map, "WHATSAPP_ENABLED")
+    if raw_wa_enabled is not None and raw_wa_enabled.strip():
+        whatsapp_enabled = raw_wa_enabled.strip().lower() == "true"
+
+    if whatsapp_enabled:
+        provider = (raw_wa_provider or cfg.whatsapp_provider or "mock").strip().lower() or "mock"
+        missing_required = []
+        if not (cfg.whatsapp_verify_token or "").strip():
+            missing_required.append("WHATSAPP_VERIFY_TOKEN")
+        if not (cfg.whatsapp_app_secret or "").strip():
+            missing_required.append("WHATSAPP_APP_SECRET")
+        if not (cfg.whatsapp_phone_number_id or "").strip():
+            missing_required.append("WHATSAPP_PHONE_NUMBER_ID")
+        if provider == "cloud" and not (cfg.whatsapp_access_token or "").strip():
+            missing_required.append("WHATSAPP_ACCESS_TOKEN")
+        if missing_required:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_WHATSAPP_CONFIG",
+                    message=(
+                        "WHATSAPP_ENABLED=true requires: " + ", ".join(missing_required) + "."
+                    ),
+                )
+            )
+        if app_env in {"staging", "production"} and provider != "cloud":
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_WHATSAPP_PROVIDER",
+                    message=(
+                        "Staging/production WhatsApp requires WHATSAPP_PROVIDER=cloud "
+                        "(mock is local/test only)."
+                    ),
+                )
+            )
+
+    raw_otp_channel = _raw(env_map, "CITIZEN_OTP_DELIVERY_CHANNEL")
+    if raw_otp_channel is not None and raw_otp_channel.strip():
+        if raw_otp_channel.strip().lower() not in ALLOWED_CITIZEN_OTP_DELIVERY_CHANNELS:
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_CITIZEN_OTP_DELIVERY_CHANNEL",
+                    message="CITIZEN_OTP_DELIVERY_CHANNEL must be 'mock', 'sns', or 'whatsapp'.",
+                )
+            )
+
+    # Resolve effective OTP channel (explicit or legacy auto).
+    from app.services.citizens.otp_delivery import resolve_citizen_otp_delivery_channel
+
+    effective_otp_channel = resolve_citizen_otp_delivery_channel(cfg)
+    raw_wa_mode = _raw(env_map, "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE")
+    if raw_wa_mode is not None and raw_wa_mode.strip():
+        if raw_wa_mode.strip().lower() not in ALLOWED_CITIZEN_OTP_WHATSAPP_MESSAGE_MODES:
+            result.issues.append(
+                ConfigIssue(
+                    code="INVALID_CITIZEN_OTP_WHATSAPP_MESSAGE_MODE",
+                    message=(
+                        "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE must be 'template' or 'session_text'."
+                    ),
+                )
+            )
+    wa_mode = (cfg.citizen_otp_whatsapp_message_mode or "template").strip().lower()
+    if effective_otp_channel == "whatsapp":
+        missing_otp_wa = []
+        if not (cfg.citizen_otp_whatsapp_phone_number_id or "").strip():
+            missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID")
+        if not (cfg.citizen_otp_whatsapp_access_token or "").strip():
+            missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN")
+        if wa_mode != "session_text" and not (cfg.citizen_otp_whatsapp_template_name or "").strip():
+            missing_otp_wa.append("CITIZEN_OTP_WHATSAPP_TEMPLATE_NAME")
+        if missing_otp_wa:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CITIZEN_OTP_WHATSAPP_CONFIG",
+                    message=(
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=whatsapp requires: "
+                        + ", ".join(missing_otp_wa)
+                        + "."
+                    ),
+                )
+            )
+        if wa_mode == "session_text":
+            if app_env == "production":
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT",
+                        message=(
+                            "Production WhatsApp OTP must use an approved authentication "
+                            "template, not session_text."
+                        ),
+                    )
+                )
+            elif not cfg.notification_sandbox:
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT",
+                        message=(
+                            "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text requires "
+                            "NOTIFICATION_SANDBOX=true and an allowlisted tester phone."
+                        ),
+                    )
+                )
+        if cfg.notification_sandbox and not cfg.notification_allowlist_phones:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_CITIZEN_OTP_WHATSAPP_SANDBOX_ALLOWLIST",
+                    message=(
+                        "Sandbox WhatsApp OTP requires at least one phone on "
+                        "NOTIFICATION_ALLOWLIST_PHONES."
+                    ),
+                )
+            )
+        if app_env in {"staging", "production"}:
+            token = (cfg.citizen_otp_whatsapp_access_token or "").strip().lower()
+            if token and any(
+                marker in token for marker in ("changeme", "placeholder", "example", "test")
+            ):
+                result.issues.append(
+                    ConfigIssue(
+                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_TOKEN",
+                        message=(
+                            "Staging/production WhatsApp OTP access token looks like a "
+                            "placeholder; set a real Meta system-user token."
+                        ),
+                    )
+                )
+    if app_env in {"staging", "production"}:
+        explicit = (raw_otp_channel or "").strip().lower()
+        if explicit == "mock":
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_CITIZEN_OTP_DELIVERY_CHANNEL",
+                    message=(
+                        "Staging/production must not set CITIZEN_OTP_DELIVERY_CHANNEL=mock. "
+                        "Use 'sns' or 'whatsapp'."
+                    ),
+                )
+            )
+        elif effective_otp_channel == "mock":
+            result.issues.append(
+                ConfigIssue(
+                    code="LEGACY_CITIZEN_OTP_DELIVERY_MOCK",
+                    message=(
+                        "Citizen OTP delivery resolved to mock via legacy "
+                        "NOTIFICATION_ADAPTER defaults. Set "
+                        "CITIZEN_OTP_DELIVERY_CHANNEL=sns or whatsapp for real OTP."
+                    ),
+                    severity="warning",
+                )
+            )
+
+    # Deployed environments share the real integration boundary. Staging is a
+    # production rehearsal, not a demo mode: it must never silently select
+    # memory persistence, mock providers, sample seeds, or local service endpoints.
+    if app_env in _DEPLOYED_ENVIRONMENTS_REQUIRING_CITIZEN_APP_BASE:
+        env_label = "Production" if app_env == "production" else "Staging"
         backend = (raw_backend or cfg.database_backend).strip().lower()
         if backend != "dynamodb":
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_DATABASE_BACKEND",
                     message=(
-                        "Production requires DATABASE_BACKEND=dynamodb "
+                        f"{env_label} requires DATABASE_BACKEND=dynamodb "
                         "(memory is development-only)."
                     ),
                 )
@@ -289,7 +461,8 @@ def validate_configuration(
                 ConfigIssue(
                     code="UNSAFE_NOTIFICATION_ADAPTER",
                     message=(
-                        "Production requires NOTIFICATION_ADAPTER=real (mock is development-only)."
+                        f"{env_label} requires NOTIFICATION_ADAPTER=real "
+                        "(mock is development-only)."
                     ),
                 )
             )
@@ -299,12 +472,12 @@ def validate_configuration(
                 ConfigIssue(
                     code="MISSING_SES_FROM_EMAIL",
                     message=(
-                        "Production NOTIFICATION_ADAPTER=real requires SES_FROM_EMAIL "
+                        f"{env_label} NOTIFICATION_ADAPTER=real requires SES_FROM_EMAIL "
                         "(verified SES identity)."
                     ),
                 )
             )
-        if cfg.notification_sandbox:
+        if app_env == "production" and cfg.notification_sandbox:
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_NOTIFICATION_SANDBOX",
@@ -322,7 +495,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="UNSAFE_SECRET_KEY",
                     message=(
-                        "Production requires a non-placeholder SECRET_KEY "
+                        f"{env_label} requires a non-placeholder SECRET_KEY "
                         "(do not use empty or development defaults)."
                     ),
                 )
@@ -345,7 +518,7 @@ def validate_configuration(
                     ConfigIssue(
                         code="UNSAFE_STAFF_PASSWORD",
                         message=(
-                            "Production must not seed demo staff with the default "
+                            f"{env_label} must not seed demo staff with the default "
                             "password. Set SEED_DEMO_STAFF=false or provide a strong "
                             "DEMO_STAFF_PASSWORD."
                         ),
@@ -371,7 +544,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="MISSING_LOCATION_PLACE_INDEX_NAME",
                     message=(
-                        "Production requires LOCATION_PLACE_INDEX_NAME "
+                        f"{env_label} requires LOCATION_PLACE_INDEX_NAME "
                         "(empty falls back to the local Beirut index)."
                     ),
                 )
@@ -382,7 +555,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="TRUST_X_FORWARDED_FOR_DISABLED",
                     message=(
-                        "Production is typically behind a trusted proxy/API Gateway. "
+                        f"{env_label} is typically behind a trusted proxy/API Gateway. "
                         "Set TRUST_X_FORWARDED_FOR=true only when that edge overwrites "
                         "client-supplied X-Forwarded-For; leave false for direct ingress."
                     ),
@@ -394,7 +567,7 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="MISSING_AWS_S3_BUCKET",
-                    message="Production requires AWS_S3_BUCKET for photo uploads.",
+                    message=f"{env_label} requires AWS_S3_BUCKET for photo uploads.",
                 )
             )
 
@@ -404,7 +577,7 @@ def validate_configuration(
                 ConfigIssue(
                     code="UNSAFE_DYNAMODB_ENDPOINT_URL",
                     message=(
-                        "Production must not use a localhost DynamoDB endpoint "
+                        f"{env_label} must not use a localhost DynamoDB endpoint "
                         "(leave DYNAMODB_ENDPOINT_URL empty for AWS)."
                     ),
                 )
@@ -414,7 +587,36 @@ def validate_configuration(
             result.issues.append(
                 ConfigIssue(
                     code="UNSAFE_SEED_SAMPLE_TICKETS",
-                    message="Production must set SEED_SAMPLE_TICKETS=false.",
+                    message=f"{env_label} must set SEED_SAMPLE_TICKETS=false.",
+                )
+            )
+
+        if cfg.otp_dev_plaintext_stdout:
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_OTP_DEV_PLAINTEXT_STDOUT",
+                    message=(
+                        f"{env_label} must set OTP_DEV_PLAINTEXT_STDOUT=false; "
+                        "printing OTP codes is development-only."
+                    ),
+                )
+            )
+
+        if not cfg.image_redaction_enabled:
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_IMAGE_REDACTION_DISABLED",
+                    message=f"{env_label} requires IMAGE_REDACTION_ENABLED=true.",
+                )
+            )
+        if cfg.image_redaction_detector != "aws_rekognition":
+            result.issues.append(
+                ConfigIssue(
+                    code="UNSAFE_IMAGE_REDACTION_DETECTOR",
+                    message=(
+                        f"{env_label} requires IMAGE_REDACTION_DETECTOR=aws_rekognition; "
+                        "local/disabled detectors are development-only."
+                    ),
                 )
             )
 
@@ -497,6 +699,32 @@ def validate_configuration(
                             message=(
                                 "CORS_ALLOWED_ORIGINS entries must use https "
                                 f"in {app_env} (e.g. https://citizen.example.com)."
+                            ),
+                        )
+                    )
+                    break
+
+        from app.core.trusted_hosts import is_localhost_host, parse_allowed_hosts
+
+        hosts = parse_allowed_hosts(cfg.allowed_hosts)
+        if not hosts:
+            result.issues.append(
+                ConfigIssue(
+                    code="MISSING_ALLOWED_HOSTS",
+                    message=(
+                        f"{env_label} requires ALLOWED_HOSTS "
+                        "(comma-separated API hostnames, no localhost)."
+                    ),
+                )
+            )
+        else:
+            for host in hosts:
+                if host == "*" or is_localhost_host(host):
+                    result.issues.append(
+                        ConfigIssue(
+                            code="UNSAFE_ALLOWED_HOSTS",
+                            message=(
+                                f"{env_label} must not use localhost or wildcard ALLOWED_HOSTS."
                             ),
                         )
                     )

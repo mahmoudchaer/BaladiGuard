@@ -3,60 +3,83 @@ import { AppShell } from '@/components/AppShell';
 import { HomePage } from '@/pages/HomePage';
 import { MapPage } from '@/pages/MapPage';
 import { PublicDetailPage } from '@/pages/PublicDetailPage';
+import { PublicReportsPage } from '@/pages/PublicReportsPage';
 import { TrackPage } from '@/pages/TrackPage';
-import { PrivacyPage } from '@/pages/PrivacyPage';
+import { AcceptableUsePage, PrivacyPage, TermsPage } from '@/pages/PrivacyPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
-import { StubPage } from '@/pages/StubPage';
+import { LoginPage } from '@/pages/LoginPage';
+import { ProfilePage } from '@/pages/ProfilePage';
+import { RewardsPage } from '@/pages/RewardsPage';
+import { LeaderboardPage } from '@/pages/LeaderboardPage';
+import { ReportPage } from '@/pages/ReportPage';
+import { HistoryPage } from '@/pages/HistoryPage';
+import { ProtectedRoute } from '@/auth/ProtectedRoute';
+import { CitizenAuthProvider } from '@/auth/CitizenAuthContext';
+import { LocaleProvider } from '@/i18n/LocaleProvider';
+import { NotificationLinkPage } from '@/pages/NotificationLinkPage';
+import { useI18n } from '@/i18n/LocaleProvider';
 import '@/components/AppShell.css';
+import '@/a11y.css';
+
+function RouteTree() {
+  const { t } = useI18n();
+  return (
+    <>
+      <a className="skip-link" href="#main-content">
+        {t('a11y.skipToContent')}
+      </a>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<HomePage />} />
+          <Route path="reports" element={<PublicReportsPage />} />
+          <Route path="map" element={<MapPage />} />
+          <Route path="public/:ticketNumber" element={<PublicDetailPage />} />
+          <Route path="t/:code" element={<NotificationLinkPage />} />
+          <Route path="track" element={<TrackPage />} />
+          <Route path="leaderboard" element={<LeaderboardPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
+          <Route path="acceptable-use" element={<AcceptableUsePage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="report" element={<ReportPage />} />
+          <Route
+            path="history"
+            element={
+              <ProtectedRoute>
+                <HistoryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="rewards"
+            element={
+              <ProtectedRoute>
+                <RewardsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </>
+  );
+}
 
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<HomePage />} />
-        <Route path="map" element={<MapPage />} />
-        <Route path="public/:ticketNumber" element={<PublicDetailPage />} />
-        <Route path="track" element={<TrackPage />} />
-        <Route path="privacy" element={<PrivacyPage />} />
-        <Route
-          path="login"
-          element={
-            <StubPage
-              title="Sign in"
-              message="Citizen phone OTP sign-in arrives in the follow-up Sprint 7 issue (#264). A verified phone alone will be enough to contribute — full name stays optional (#270). Guests can still browse public reports and track by code."
-            />
-          }
-        />
-        <Route
-          path="report"
-          element={
-            <StubPage
-              title="Submit a report"
-              message="Web report creation follows citizen phone OTP accounts (#264/#270): verified phone only, no mandatory full name. Use the mobile app to submit today."
-            />
-          }
-        />
-        <Route
-          path="history"
-          element={
-            <StubPage
-              title="My history"
-              message="Signed-in report history will ship with citizen accounts. Track an existing submission with your 6-character code."
-            />
-          }
-        />
-        <Route
-          path="profile"
-          element={
-            <StubPage
-              title="Profile"
-              message="Citizen profile settings are part of the authenticated web follow-up."
-            />
-          }
-        />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <LocaleProvider>
+      <CitizenAuthProvider>
+        <RouteTree />
+      </CitizenAuthProvider>
+    </LocaleProvider>
   );
 }
 

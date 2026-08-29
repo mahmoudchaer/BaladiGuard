@@ -31,6 +31,8 @@ class NotificationRecipient:
     phone: str | None = None
     email: str | None = None
     preferred_channel: str | None = None
+    channels: tuple[str, ...] = ()
+    push_tokens: tuple[str, ...] = ()
 
     @classmethod
     def from_contact(cls, contact: ReportContact | None) -> NotificationRecipient | None:
@@ -107,6 +109,32 @@ class MockNotificationAdapter:
             message.subject,
         )
         results: list[ChannelDeliveryResult] = []
+        if recipient and recipient.channels:
+            for channel in recipient.channels:
+                if channel == "EMAIL" and recipient.email:
+                    results.append(
+                        ChannelDeliveryResult(
+                            channel="EMAIL", status="SUCCEEDED", provider_message_id="mock-email"
+                        )
+                    )
+                elif channel == "WHATSAPP" and recipient.phone:
+                    results.append(
+                        ChannelDeliveryResult(
+                            channel="WHATSAPP",
+                            status="SUCCEEDED",
+                            provider_message_id="mock-whatsapp",
+                        )
+                    )
+                elif channel == "PUSH":
+                    for index, _token in enumerate(recipient.push_tokens):
+                        results.append(
+                            ChannelDeliveryResult(
+                                channel="PUSH",
+                                status="SUCCEEDED",
+                                provider_message_id=f"mock-push-{index}",
+                            )
+                        )
+            return results
         preference = (recipient.preferred_channel if recipient else None) or ""
         preference = preference.upper()
         if preference == "EMAIL" and recipient and recipient.email:
@@ -201,6 +229,16 @@ def build_notification_adapter(mode: str | None = None) -> NotificationAdapter:
         # Email is the primary “at least one channel” path: require verified SES identity.
         # SNS SMS works without SES_FROM when preference is SMS-only.
         if settings.ses_from_email or settings.notification_allow_sms_only_real:
+            if (
+                (settings.whatsapp_phone_number_id and settings.whatsapp_access_token)
+                or settings.expo_push_access_token
+                or settings.app_env in {"staging", "production"}
+            ):
+                from app.services.notifications.production_adapter import (
+                    ProductionNotificationAdapter,
+                )
+
+                return ProductionNotificationAdapter(settings=settings)
             from app.services.notifications.aws_adapter import AwsSesSnsNotificationAdapter
 
             return AwsSesSnsNotificationAdapter(settings=settings)

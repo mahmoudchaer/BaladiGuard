@@ -4,13 +4,16 @@ import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CitizenAuthProvider } from '@/auth';
+import { LocaleProvider } from '@/i18n/LocaleProvider';
 import { theme } from '@/theme';
 
 function TestProviders({ children }: { children: ReactNode }) {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
-        <CitizenAuthProvider>{children}</CitizenAuthProvider>
+        <LocaleProvider>
+          <CitizenAuthProvider>{children}</CitizenAuthProvider>
+        </LocaleProvider>
       </PaperProvider>
     </SafeAreaProvider>
   );

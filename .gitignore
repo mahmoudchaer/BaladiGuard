@@ -25,3 +25,8 @@ venv/
 credentials.json
 google-services.json
 GoogleService-Info.plist
+
+# Terraform/OpenTofu local state and provider cache can contain deployment metadata.
+**/.terraform/
+*.tfstate
+*.tfstate.*

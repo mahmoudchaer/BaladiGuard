@@ -6,7 +6,12 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.core.citizen_auth import CitizenDep, OptionalCitizenDep
+from app.core.citizen_auth import (
+    CITIZEN_SESSION_TTL_SECONDS,
+    CITIZEN_WEB_SESSION_COOKIE,
+    CitizenDep,
+    OptionalCitizenDep,
+)
 from app.core.errors import build_error_response, get_request_id
 from app.core.metrics import emit_metric
 from app.core.rate_limit import enforce_rate_limit
@@ -15,7 +20,9 @@ from app.schemas.citizen import (
     CitizenDeleteResponse,
     CitizenProfileResponse,
     CitizenProfileUpdateRequest,
+    CitizenPushDeviceRequest,
     CitizenTicketHistoryResponse,
+    LegalAcceptanceRequest,
 )
 from app.schemas.citizen_auth import (
     CitizenOtpRequest,
@@ -23,7 +30,11 @@ from app.schemas.citizen_auth import (
     CitizenOtpVerifyRequest,
     CitizenOtpVerifyResponse,
 )
-from app.services.citizens.otp_delivery import deliver_citizen_otp
+from app.schemas.resolution_feedback import (
+    CitizenResolutionFeedbackResponse,
+    SubmitResolutionFeedbackRequest,
+)
+from app.services.citizens.otp_delivery import OtpDeliveryError, deliver_citizen_otp
 from app.services.citizens.service import (
     CHANGE_PHONE_PURPOSE,
     CITIZEN_TICKET_HISTORY_DEFAULT_LIMIT,
@@ -126,11 +137,19 @@ def request_citizen_otp(
     # HTTP response stays code-free; delivery is side-effect only.
     # If real delivery raises, invalidate the unused challenge so it cannot linger.
     try:
-        deliver_citizen_otp(
+        delivery_channel = deliver_citizen_otp(
             phone=payload.phone,
             region=payload.region,
             code=code,
             settings=settings,
+        )
+    except OtpDeliveryError:
+        citizen_service.invalidate_otp_challenge(challenge_id)
+        return build_error_response(
+            code="OTP_DELIVERY_FAILED",
+            message="Could not send the verification code. Try again in a moment.",
+            request_id=get_request_id(request),
+            status_code=503,
         )
     except Exception:
         citizen_service.invalidate_otp_challenge(challenge_id)
@@ -140,10 +159,21 @@ def request_citizen_otp(
         challengeId=challenge_id,
         expiresIn=expires_in,
         message=GENERIC_OTP_MESSAGE,
+        deliveryChannel=delivery_channel,
     )
 
 
-@router.post("/auth/otp/verify", response_model=CitizenOtpVerifyResponse)
+WEB_SESSION_HEADER = "X-Citizen-Session-Mode"
+
+
+def _use_secure_cookie() -> bool:
+    return get_settings().app_env in {"staging", "production"}
+
+
+@router.post(
+    "/auth/otp/verify",
+    response_model=CitizenOtpVerifyResponse,
+)
 def verify_citizen_otp(
     payload: CitizenOtpVerifyRequest,
     request: Request,
@@ -172,12 +202,35 @@ def verify_citizen_otp(
             return limited
 
     try:
-        return citizen_service.verify_otp(
+        verified = citizen_service.verify_otp(
             challenge_id=payload.challenge_id,
             code=payload.code,
             full_name=payload.full_name,
+            accept_legal=payload.accept_legal,
+            legal_locale=payload.legal_locale,
             authenticated_user_id=principal.user_id if principal is not None else None,
         )
+        if request.headers.get(WEB_SESSION_HEADER, "").strip().lower() == "cookie":
+            if verified.access_token is None:
+                return verified
+            browser_response = JSONResponse(
+                content=verified.model_dump(
+                    by_alias=True,
+                    mode="json",
+                    exclude={"access_token"},
+                )
+            )
+            browser_response.set_cookie(
+                key=CITIZEN_WEB_SESSION_COOKIE,
+                value=verified.access_token,
+                max_age=CITIZEN_SESSION_TTL_SECONDS,
+                httponly=True,
+                secure=_use_secure_cookie(),
+                samesite="lax",
+                path="/v1",
+            )
+            return browser_response
+        return verified
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 
@@ -190,7 +243,15 @@ def logout_citizen(principal: CitizenDep) -> Response:
     except CitizenServiceError:
         # Session disappeared between auth and revoke — treat as logged out.
         pass
-    return Response(status_code=204)
+    response = Response(status_code=204)
+    response.delete_cookie(
+        CITIZEN_WEB_SESSION_COOKIE,
+        path="/v1",
+        secure=_use_secure_cookie(),
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @router.get("/me", response_model=CitizenProfileResponse)
@@ -211,7 +272,55 @@ def patch_citizen_me(
     principal: CitizenDep,
 ) -> CitizenProfileResponse | JSONResponse:
     try:
-        return citizen_service.update_profile(principal.user_id, payload)
+        updated = citizen_service.update_profile(principal.user_id, payload)
+        if payload.phone is None:
+            return updated
+
+        # A verified phone change revokes every existing session. Expire the
+        # browser cookie in the same response so it cannot block the next login
+        # request as a stale credential.
+        response = JSONResponse(content=updated.model_dump(by_alias=True, mode="json"))
+        response.delete_cookie(
+            CITIZEN_WEB_SESSION_COOKIE,
+            path="/v1",
+            secure=_use_secure_cookie(),
+            httponly=True,
+            samesite="lax",
+        )
+        return response
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.put("/me/push-devices", response_model=CitizenProfileResponse)
+def put_citizen_push_device(
+    payload: CitizenPushDeviceRequest, request: Request, principal: CitizenDep
+) -> CitizenProfileResponse | JSONResponse:
+    try:
+        return citizen_service.register_push_device(principal.user_id, payload)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.delete("/me/push-devices/{device_id}", response_model=CitizenProfileResponse)
+def delete_citizen_push_device(
+    device_id: str, request: Request, principal: CitizenDep
+) -> CitizenProfileResponse | JSONResponse:
+    try:
+        return citizen_service.unregister_push_device(principal.user_id, device_id)
+    except CitizenServiceError as exc:
+        return _service_error_response(request, exc)
+
+
+@router.post("/me/legal-acceptance", response_model=CitizenProfileResponse)
+def post_citizen_legal_acceptance(
+    payload: LegalAcceptanceRequest,
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenProfileResponse | JSONResponse:
+    """Record or renew acceptance of the current legal package (issue #321)."""
+    try:
+        return citizen_service.record_legal_acceptance(principal.user_id, payload)
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
 
@@ -248,6 +357,61 @@ def list_citizen_ticket_history(
         )
     except CitizenServiceError as exc:
         return _service_error_response(request, exc)
+
+
+@router.get(
+    "/me/tickets/{tracking_code}/resolution-feedback",
+    response_model=CitizenResolutionFeedbackResponse,
+)
+def get_citizen_resolution_feedback(
+    tracking_code: str,
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenResolutionFeedbackResponse | JSONResponse:
+    from app.services.resolution_feedback.service import (
+        ResolutionFeedbackError,
+        resolution_feedback_service,
+    )
+
+    try:
+        return resolution_feedback_service.citizen_view(
+            tracking_code, owner_user_id=principal.user_id
+        )
+    except ResolutionFeedbackError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
+
+
+@router.post(
+    "/me/tickets/{tracking_code}/resolution-feedback",
+    response_model=CitizenResolutionFeedbackResponse,
+)
+def submit_citizen_resolution_feedback(
+    tracking_code: str,
+    payload: SubmitResolutionFeedbackRequest,
+    request: Request,
+    principal: CitizenDep,
+) -> CitizenResolutionFeedbackResponse | JSONResponse:
+    from app.services.resolution_feedback.service import (
+        ResolutionFeedbackError,
+        resolution_feedback_service,
+    )
+
+    try:
+        return resolution_feedback_service.submit_citizen_feedback(
+            tracking_code, payload, owner_user_id=principal.user_id
+        )
+    except ResolutionFeedbackError as exc:
+        return build_error_response(
+            code=exc.code,
+            message=exc.message,
+            request_id=get_request_id(request),
+            status_code=exc.status_code,
+        )
 
 
 @router.post("/me/delete", response_model=CitizenDeleteResponse)

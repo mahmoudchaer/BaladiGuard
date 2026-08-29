@@ -16,6 +16,8 @@ os.environ["READINESS_PROBE_PUBLISHER"] = "false"
 # Tests must use the curated local place index even when the shared team .env
 # configures a live Amazon Location index.
 os.environ["LOCATION_PLACE_INDEX_NAME"] = ""
+# Keep citizen OTP on the mock channel even when local .env selects WhatsApp/SNS.
+os.environ["CITIZEN_OTP_DELIVERY_CHANNEL"] = "mock"
 # Deterministic staff credentials for issue #72 authorization tests.
 os.environ["SECRET_KEY"] = "test-secret-key-for-ci"
 os.environ["STAFF_USERNAME"] = "staff"
@@ -38,11 +40,21 @@ from app.database.memory_citizen_otp import citizen_otp_store  # noqa: E402
 from app.database.memory_citizen_session import citizen_session_store  # noqa: E402
 from app.database.memory_duplicate_group import duplicate_group_store  # noqa: E402
 from app.database.memory_notification_delivery import notification_delivery_store  # noqa: E402
+from app.database.memory_ops import (  # noqa: E402
+    ops_alert_ack_store,
+    ops_audit_store,
+    ops_error_store,
+)
 from app.database.memory_photo_claim import photo_claim_store  # noqa: E402
+from app.database.memory_privacy_request import privacy_request_audit_store  # noqa: E402
+from app.database.memory_resolution_review import resolution_review_store  # noqa: E402
 from app.database.memory_staff import staff_store  # noqa: E402
 from app.database.memory_staff_comments import staff_comment_store  # noqa: E402
 from app.database.memory_staff_password_reset import staff_password_reset_store  # noqa: E402
 from app.database.memory_status_history import status_history_store  # noqa: E402
+from app.database.memory_work_order import work_order_store  # noqa: E402
+from app.database.memory_work_order_evidence import work_order_evidence_store  # noqa: E402
+from app.database.memory_workforce import workforce_store  # noqa: E402
 from app.database.migrations import create_tables  # noqa: E402
 from app.main import app  # noqa: E402
 from app.schemas.citizen import CitizenProfileUpdateRequest, StoredCitizenUser  # noqa: E402
@@ -131,6 +143,7 @@ def authenticated_test_client() -> TestClient:
 def force_mock_notification_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep HTTP workflow tests on the mock adapter even if local `.env` sets real SES/SNS."""
     monkeypatch.setenv("NOTIFICATION_ADAPTER", "mock")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "mock")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -144,6 +157,15 @@ def reset_ticket_store() -> None:
     staff_comment_store.clear()
     account_audit_store.clear()
     ai_job_store.clear()
+    from app.database.memory_content_safety_job import content_safety_job_store
+    from app.database.memory_department import department_store
+    from app.database.memory_municipality import municipality_store
+    from app.database.memory_redaction_job import redaction_job_store
+
+    content_safety_job_store.clear()
+    redaction_job_store.clear()
+    municipality_store.clear()
+    department_store.clear()
     duplicate_group_store.clear()
     notification_delivery_store.clear()
     photo_claim_store.clear()
@@ -152,10 +174,27 @@ def reset_ticket_store() -> None:
     citizen_otp_store.clear()
     staff_store.clear()
     staff_password_reset_store.clear()
+    workforce_store.clear()
+    work_order_store.clear()
+    work_order_evidence_store.clear()
+    resolution_review_store.clear()
     staff_password_reset_service.clear_dev_reset_codes()
     from app.services.citizens.service import citizen_service
 
     citizen_service.clear_dev_otp_codes()
+    from app.core.metrics import clear_metric_samples
+    from app.database.memory_redaction_job import redaction_job_store
+
+    redaction_job_store.clear()
+    ops_alert_ack_store.clear()
+    ops_error_store.clear()
+    ops_audit_store.clear()
+    privacy_request_audit_store.clear()
+    from app.database.memory_rewards import rewards_ledger_store, rewards_projection_store
+
+    rewards_ledger_store.clear()
+    rewards_projection_store.clear()
+    clear_metric_samples()
     ensure_demo_staff_accounts()
     clear_rate_limiter_cache()
     public_ticket_rate_limiter.reset()
@@ -218,6 +257,12 @@ def client(anonymous_client: TestClient) -> TestClient:
 @pytest.fixture
 def staff_auth_headers(anonymous_client: TestClient) -> dict[str, str]:
     token = issue_test_staff_token(anonymous_client, username="staff")
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def operator_auth_headers(anonymous_client: TestClient) -> dict[str, str]:
+    token = issue_test_staff_token(anonymous_client, username="operator")
     return {"Authorization": f"Bearer {token}"}
 
 

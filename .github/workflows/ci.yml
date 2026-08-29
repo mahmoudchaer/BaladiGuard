@@ -101,6 +101,15 @@ jobs:
         working-directory: mobile
         run: npm test
 
+      - name: Validate deployed mobile configuration
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_APP_ENV: production
+          EXPO_PUBLIC_API_BASE_URL: https://api.baladiguard.gov.lb/v1
+          EXPO_PUBLIC_ENABLE_MOCK_API: "false"
+          EXPO_PUBLIC_CITIZEN_APP_HOST: citizen.baladiguard.gov.lb
+        run: npm run check:config -- --release
+
   admin:
     name: Admin dashboard checks
     runs-on: ubuntu-latest
@@ -140,6 +149,16 @@ jobs:
         working-directory: admin
         run: npm run build
 
+      - name: Verify production admin bundle
+        working-directory: admin
+        env:
+          VITE_APP_ENV: production
+          VITE_API_BASE_URL: https://api.baladiguard.gov.lb
+          VITE_USE_MOCK_DATA: "false"
+        run: |
+          npm run build
+          npm run check:production-build
+
   citizen-web:
     name: Citizen web checks
     runs-on: ubuntu-latest
@@ -178,3 +197,33 @@ jobs:
       - name: Build citizen-web
         working-directory: citizen-web
         run: npm run build
+
+      - name: Validate citizen-web CloudFront template
+        working-directory: citizen-web
+        run: npm run check:cloudfront
+
+      - name: Run citizen-web contract tests
+        working-directory: citizen-web
+        run: npm run test:contracts
+
+      - name: Run citizen-web integration flows
+        working-directory: citizen-web
+        run: npm run test:integration
+
+      - name: Install Playwright Chromium
+        working-directory: citizen-web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run citizen-web browser E2E subset
+        working-directory: citizen-web
+        run: npm run test:e2e
+
+      - name: Verify production citizen-web bundle
+        working-directory: citizen-web
+        env:
+          VITE_APP_ENV: production
+          VITE_API_BASE_URL: https://api.example.test
+          VITE_USE_MOCK_DATA: "false"
+        run: |
+          npm run build
+          npm run check:production-build

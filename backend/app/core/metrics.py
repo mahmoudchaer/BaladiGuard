@@ -12,8 +12,12 @@ import logging
 import os
 import re
 import time
+from collections import deque
+from dataclasses import dataclass
+from threading import Lock
 from typing import Any
 
+from app.core.job_context import get_job_id
 from app.core.request_context import get_request_id
 
 logger = logging.getLogger("app.metrics")
@@ -29,6 +33,45 @@ _TICKET_ID_RE = re.compile(r"\btkt_[0-9a-fA-F]+\b")
 _CHALLENGE_ID_RE = re.compile(r"\bchl_[0-9a-fA-F]+\b")
 _TICKET_NUMBER_RE = re.compile(r"\bBG-\d{4}-\d+\b")
 _HEX_ID_RE = re.compile(r"\b[0-9a-fA-F]{16,}\b")
+
+_METRIC_BUFFER_MAX = 2000
+_metric_lock = Lock()
+_metric_buffer: deque[MetricSample] = deque(maxlen=_METRIC_BUFFER_MAX)
+
+
+@dataclass(frozen=True, slots=True)
+class MetricSample:
+    name: str
+    value: float
+    unit: str
+    dimensions: dict[str, str]
+    timestamp: float
+    request_id: str | None
+    job_id: str | None
+
+
+def record_metric_sample(sample: MetricSample) -> None:
+    with _metric_lock:
+        _metric_buffer.append(sample)
+
+
+def recent_metric_samples(
+    *,
+    since: float | None = None,
+    name: str | None = None,
+) -> list[MetricSample]:
+    with _metric_lock:
+        items = list(_metric_buffer)
+    if since is not None:
+        items = [item for item in items if item.timestamp >= since]
+    if name is not None:
+        items = [item for item in items if item.name == name]
+    return items
+
+
+def clear_metric_samples() -> None:
+    with _metric_lock:
+        _metric_buffer.clear()
 
 
 def _app_version() -> str:
@@ -108,8 +151,24 @@ def emit_metric(
     # identity so alarms do not need per-deploy selector updates.
     dims.setdefault("version", _app_version())
     request_id = get_request_id()
+    job_id = get_job_id()
     dim_text = " ".join(f"{key}={dim_value}" for key, dim_value in sorted(dims.items()))
-    suffix = f" request_id={request_id}" if request_id else ""
+    suffix = ""
+    if request_id:
+        suffix += f" request_id={request_id}"
+    if job_id:
+        suffix += f" job_id={job_id}"
+    record_metric_sample(
+        MetricSample(
+            name=name,
+            value=float(value),
+            unit=unit,
+            dimensions=dims,
+            timestamp=time.time(),
+            request_id=request_id,
+            job_id=job_id,
+        )
+    )
     logger.info(
         "metric_event name=%s value=%s unit=%s %s%s",
         name,

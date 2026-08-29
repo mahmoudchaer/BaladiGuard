@@ -7,7 +7,9 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import get_settings
 from app.database.store_factory import get_citizen_store
 from app.schemas.citizen import StoredCitizenUser
+from app.schemas.content_safety import TicketContentSafety
 from app.schemas.image_redaction import TicketImageRedaction
+from app.schemas.municipality import TicketMunicipalityRouting
 from app.schemas.staff_ticket_collection import (
     TicketListDepartment,
     TicketListItemResponse,
@@ -39,10 +41,12 @@ from app.schemas.ticket_response import (
     TicketSlaFields,
     TicketStatusHistoryEntry,
 )
+from app.schemas.work_order import TicketOutcomeFields
 from app.services.complaints.sla import derive_ticket_sla
 from app.services.duplicates import effective_ticket_category
 from app.services.routing import department_name
 from app.services.uploads.photo_upload_service import PhotoUploadService
+from app.services.work_orders.reasons import citizen_safe_message
 
 CITIZEN_DEPARTMENT_VISIBLE_STATUSES = frozenset({"ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"})
 LIST_SUMMARY_MAX_CHARS = 240
@@ -116,6 +120,11 @@ def map_ticket_to_list_item(ticket: StoredTicket) -> TicketListItemResponse:
         updatedAt=ticket.updated_at,
         municipalityId=ticket.municipality_id,
         assignmentState="assigned" if ticket.department_id else "unassigned",
+        assignedWorkerId=ticket.assigned_worker_id,
+        assignedTeamId=ticket.assigned_team_id,
+        contentSafetyStatus=(
+            ticket.content_safety_status if ticket.content_safety_enrolled else None
+        ),
         location=TicketListLocation(
             latitude=ticket.location.latitude,
             longitude=ticket.location.longitude,
@@ -226,6 +235,44 @@ def map_ticket_to_citizen_response(
         updatedAt=ticket.updated_at,
         lastUpdatedAt=last_updated_at,
         timeline=timeline,
+        outcomeMessage=_citizen_outcome_message(ticket),
+    )
+
+
+def _citizen_outcome_message(ticket: StoredTicket) -> str | None:
+    """Citizen-safe wording only. Internal notes and reason codes stay private."""
+    if ticket.status == "RESOLVED":
+        return citizen_safe_message(ticket.resolution_reason_code)
+    if ticket.status == "CLOSED":
+        return citizen_safe_message(ticket.resolution_reason_code) or citizen_safe_message(
+            ticket.closure_reason_code
+        )
+    return None
+
+
+def _staff_outcome_fields(ticket: StoredTicket) -> TicketOutcomeFields | None:
+    if not any(
+        (
+            ticket.resolution_reason_code,
+            ticket.resolution_note,
+            ticket.resolved_at,
+            ticket.closure_reason_code,
+            ticket.closure_note,
+            ticket.closed_at,
+        )
+    ):
+        return None
+    return TicketOutcomeFields(
+        resolutionReasonCode=ticket.resolution_reason_code,
+        resolutionCitizenMessage=citizen_safe_message(ticket.resolution_reason_code),
+        resolutionNote=ticket.resolution_note,
+        resolvedAt=ticket.resolved_at,
+        resolvedBy=ticket.resolved_by,
+        closureReasonCode=ticket.closure_reason_code,
+        closureCitizenMessage=citizen_safe_message(ticket.closure_reason_code),
+        closureNote=ticket.closure_note,
+        closedAt=ticket.closed_at,
+        closedBy=ticket.closed_by,
     )
 
 
@@ -273,9 +320,15 @@ def map_ticket_to_public_response(
 
 
 def _approved_redacted_key(ticket: StoredTicket) -> str:
+    from app.services.content_safety.policy import content_safety_allows_public_image
+
     key = (ticket.public_image_object_key or "").strip()
     expected = f"reports/redacted/v1/{PhotoUploadService.ticket_scope(ticket.ticket_id)}/"
-    return key if key.startswith(expected) and key != ticket.image_object_key else ""
+    if not key.startswith(expected) or key == ticket.image_object_key:
+        return ""
+    if not content_safety_allows_public_image(ticket):
+        return ""
+    return key
 
 
 def _citizen_visible_category(ticket: StoredTicket) -> str | None:
@@ -322,13 +375,14 @@ def map_ticket_to_response(
         else None
     )
 
+    hide_unassigned_contact = ticket.municipality_routing_status == "unassigned"
     return TicketResponse(
         ticketId=ticket.ticket_id,
         ticketNumber=ticket.ticket_number,
         trackingCode=ticket.tracking_code,
         description=ticket.description,
-        contact=ticket.contact,
-        ownerUserId=ticket.owner_user_id,
+        contact=None if hide_unassigned_contact else ticket.contact,
+        ownerUserId=None if hide_unassigned_contact else ticket.owner_user_id,
         category=ticket.category,
         priority=ticket.priority,
         status=ticket.status,
@@ -337,8 +391,13 @@ def map_ticket_to_response(
         imageObjectKey=ticket.image_object_key,
         department=department,
         departmentId=ticket.department_id,
+        assignedWorkerId=ticket.assigned_worker_id,
+        assignedTeamId=ticket.assigned_team_id,
+        activeWorkOrderId=ticket.active_work_order_id,
+        outcome=_staff_outcome_fields(ticket),
         createdBy=ticket.created_by,
         municipalityId=ticket.municipality_id,
+        municipalityRouting=_ticket_municipality_routing(ticket),
         duplicateGroupId=ticket.duplicate_group_id,
         createdAt=ticket.created_at,
         updatedAt=ticket.updated_at,
@@ -361,6 +420,23 @@ def map_ticket_to_response(
             plateCount=ticket.image_redaction_plate_count,
             completedAt=ticket.image_redaction_completed_at,
             reasonCode=ticket.image_redaction_reason_code,
+        ),
+        contentSafety=(
+            TicketContentSafety(
+                status=ticket.content_safety_status,
+                generation=ticket.content_safety_generation,
+                reasonCode=ticket.content_safety_reason_code,
+                severity=ticket.content_safety_severity,
+                textModel=ticket.content_safety_text_model,
+                imageLabels=list(ticket.content_safety_image_labels),
+                authenticityScore=ticket.authenticity_score,
+                authenticityModel=ticket.authenticity_model,
+                authenticityModelVersion=ticket.authenticity_model_version,
+                authenticitySignals=list(ticket.authenticity_signals),
+                completedAt=ticket.content_safety_completed_at,
+            )
+            if ticket.content_safety_enrolled
+            else None
         ),
         statusHistory=[
             TicketStatusHistoryEntry(
@@ -385,4 +461,32 @@ def map_ticket_to_response(
         ],
         duplicateGroup=duplicate_group,
         duplicateSuggestions=duplicate_suggestions or [],
+    )
+
+
+def _ticket_municipality_routing(ticket: StoredTicket) -> TicketMunicipalityRouting:
+    from app.schemas.stored_municipality import (
+        MunicipalityRoutingDecision,
+        MunicipalityRoutingProvenance,
+    )
+    from app.services.municipalities.ticket_routing import _is_unassigned
+
+    decision = ticket.municipality_routing
+    if isinstance(decision, dict):
+        decision = MunicipalityRoutingDecision.model_validate(decision)
+    history = [
+        item
+        if isinstance(item, MunicipalityRoutingProvenance)
+        else MunicipalityRoutingProvenance.model_validate(item)
+        for item in ticket.municipality_routing_history
+    ]
+    unassigned = _is_unassigned(ticket)
+    assigned = ticket.municipality_id is not None
+    return TicketMunicipalityRouting(
+        status=ticket.municipality_routing_status,
+        decision=decision,
+        history=history,
+        canClaim=unassigned,
+        canReject=assigned,
+        canOverride=True,
     )

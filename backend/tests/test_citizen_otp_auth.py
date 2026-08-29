@@ -7,7 +7,11 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
-from app.core.citizen_auth import CITIZEN_SESSION_TTL_SECONDS, issue_citizen_session
+from app.core.citizen_auth import (
+    CITIZEN_SESSION_TTL_SECONDS,
+    CITIZEN_WEB_SESSION_COOKIE,
+    issue_citizen_session,
+)
 from app.core.rate_limit import get_rate_limiter
 from app.database.memory_citizen_otp import citizen_otp_store
 from app.database.memory_citizen_session import citizen_session_store
@@ -42,11 +46,17 @@ def _verify_otp(
     challenge_id: str,
     code: str,
     full_name: str | None = None,
+    accept_legal: bool | None = True,
+    legal_locale: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> tuple[int, dict]:
     body: dict = {"challengeId": challenge_id, "code": code}
     if full_name is not None:
         body["fullName"] = full_name
+    if accept_legal is not None:
+        body["acceptLegal"] = accept_legal
+    if legal_locale is not None:
+        body["legalLocale"] = legal_locale
     response = client.post("/v1/citizen/auth/otp/verify", json=body, headers=headers or {})
     return response.status_code, response.json()
 
@@ -98,6 +108,62 @@ def test_otp_verify_creates_new_citizen_and_session(anonymous_client: TestClient
     )
     assert me.status_code == 200
     assert me.json()["userId"] == body["userId"]
+
+
+def test_web_otp_uses_httponly_cookie_without_exposing_token(
+    anonymous_client: TestClient,
+) -> None:
+    status, request_body = _request_otp(anonymous_client, phone="+96170123456")
+    assert status == 202
+    code = citizen_service.peek_dev_otp_code(request_body["challengeId"])
+    assert code is not None
+
+    verify = anonymous_client.post(
+        "/v1/citizen/auth/otp/verify",
+        json={"challengeId": request_body["challengeId"], "code": code, "acceptLegal": True},
+        headers={"X-Citizen-Session-Mode": "cookie"},
+    )
+    assert verify.status_code == 200, verify.text
+    assert "accessToken" not in verify.json()
+    cookie = verify.headers["set-cookie"]
+    assert "baladiguard_citizen_session=" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=lax" in cookie
+    assert "Path=/v1" in cookie
+
+    restored = anonymous_client.get("/v1/citizen/me")
+    assert restored.status_code == 200
+    assert restored.json()["phone"] == "+96170123456"
+
+
+def test_web_cookie_mutations_require_an_allowed_origin(anonymous_client: TestClient) -> None:
+    _status, request_body = _request_otp(anonymous_client, phone="+96170123456")
+    code = citizen_service.peek_dev_otp_code(request_body["challengeId"])
+    assert code is not None
+    verify = anonymous_client.post(
+        "/v1/citizen/auth/otp/verify",
+        json={"challengeId": request_body["challengeId"], "code": code, "acceptLegal": True},
+        headers={"X-Citizen-Session-Mode": "cookie"},
+    )
+    assert verify.status_code == 200
+
+    blocked = anonymous_client.patch("/v1/citizen/me", json={"fullName": "Blocked"})
+    assert blocked.status_code == 401
+
+    allowed = anonymous_client.patch(
+        "/v1/citizen/me",
+        json={"fullName": "Allowed"},
+        headers={"Origin": "http://localhost:5174"},
+    )
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["fullName"] == "Allowed"
+
+    logout = anonymous_client.post(
+        "/v1/citizen/auth/logout",
+        headers={"Origin": "http://localhost:5174"},
+    )
+    assert logout.status_code == 204
+    assert 'baladiguard_citizen_session=""' in logout.headers["set-cookie"]
 
 
 def test_otp_verify_logs_into_existing_account(anonymous_client: TestClient) -> None:
@@ -401,6 +467,20 @@ def test_guest_change_phone_request_returns_401(anonymous_client: TestClient) ->
     )
     assert status == 401
     assert body["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_invalid_citizen_cookie_is_expired_on_unauthorized_response(
+    anonymous_client: TestClient,
+) -> None:
+    anonymous_client.cookies.set(CITIZEN_WEB_SESSION_COOKIE, "stale.cookie", path="/v1")
+
+    response = anonymous_client.get("/v1/citizen/me")
+
+    assert response.status_code == 401
+    cookie = response.headers.get("set-cookie", "")
+    assert f"{CITIZEN_WEB_SESSION_COOKIE}=" in cookie
+    assert "Max-Age=0" in cookie
+    assert "Path=/v1" in cookie
 
 
 def test_change_phone_via_otp_verify(anonymous_client: TestClient) -> None:

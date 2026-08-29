@@ -23,6 +23,12 @@ def main() -> None:
     args = parser.parse_args()
     run_migrations(reset=args.reset)
     print("Migration complete.")
+    print(
+        "If status/audit/comment rows already exist, finish "
+        "`python scripts/db/backfill_activity_timeline_keys.py` "
+        "(or `make db-backfill-activity-timeline`) before setting "
+        "ACTIVITY_TIMELINE_USE_GSI=true."
+    )
 
 
 if __name__ == "__main__":

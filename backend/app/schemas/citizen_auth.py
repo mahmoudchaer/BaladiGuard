@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.schemas.citizen import CitizenProfileResponse, NotificationPreferences
+from app.schemas.citizen import CitizenProfileResponse, LegalAcceptance, NotificationPreferences
 
 OtpPurpose = Literal["LOGIN_OR_SIGNUP", "CHANGE_PHONE"]
 
@@ -41,6 +41,11 @@ class CitizenOtpRequestResponse(BaseModel):
     challenge_id: str = Field(alias="challengeId")
     expires_in: int = Field(alias="expiresIn")
     message: str
+    # Adaptable UI hint only — never proves delivery success or account existence (#297).
+    delivery_channel: Literal["sms", "whatsapp", "dev"] = Field(
+        default="sms",
+        alias="deliveryChannel",
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -49,6 +54,8 @@ class CitizenOtpVerifyRequest(BaseModel):
     challenge_id: str = Field(alias="challengeId", min_length=1, max_length=80)
     code: str = Field(min_length=4, max_length=12)
     full_name: str | None = Field(default=None, alias="fullName")
+    accept_legal: bool | None = Field(default=None, alias="acceptLegal")
+    legal_locale: str | None = Field(default=None, alias="legalLocale", max_length=16)
 
     model_config = {"populate_by_name": True}
 
@@ -88,7 +95,9 @@ class CitizenOtpVerifyRequest(BaseModel):
 
 
 class CitizenOtpVerifyResponse(BaseModel):
-    access_token: str = Field(alias="accessToken")
+    # Browser cookie sessions intentionally omit the raw opaque token. Mobile
+    # keeps receiving it for platform-secure storage.
+    access_token: str | None = Field(default=None, alias="accessToken")
     token_type: str = Field(default="Bearer", alias="tokenType")
     expires_in: int = Field(alias="expiresIn")
     user_id: str = Field(alias="userId")
@@ -98,8 +107,11 @@ class CitizenOtpVerifyResponse(BaseModel):
     email: str | None = None
     notification_preferences: NotificationPreferences = Field(alias="notificationPreferences")
     public_name_visible: bool = Field(alias="publicNameVisible")
+    leaderboard_opt_in: bool = Field(alias="leaderboardOptIn")
     active: bool
     contribution_ready: bool = Field(alias="contributionReady")
+    legal_acceptance: LegalAcceptance | None = Field(default=None, alias="legalAcceptance")
+    legal_acceptance_required: bool = Field(default=True, alias="legalAcceptanceRequired")
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
 
@@ -124,8 +136,11 @@ class CitizenOtpVerifyResponse(BaseModel):
             email=profile.email,
             notificationPreferences=profile.notification_preferences,
             publicNameVisible=profile.public_name_visible,
+            leaderboardOptIn=profile.leaderboard_opt_in,
             active=profile.active,
             contributionReady=profile.contribution_ready,
+            legalAcceptance=profile.legal_acceptance,
+            legalAcceptanceRequired=profile.legal_acceptance_required,
             createdAt=profile.created_at,
             updatedAt=profile.updated_at,
         )

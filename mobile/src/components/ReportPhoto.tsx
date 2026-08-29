@@ -30,10 +30,12 @@ export function ReportPhoto({
   variant = 'compact',
 }: ReportPhotoProps) {
   const [failed, setFailed] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
   const isHero = variant === 'hero';
 
   useEffect(() => {
     setFailed(false);
+    setAspectRatio(undefined);
   }, [uri]);
 
   if (!uri || failed) {
@@ -51,11 +53,22 @@ export function ReportPhoto({
   return (
     <Image
       source={{ uri }}
-      style={[isHero ? styles.hero : styles.thumb, imageStyle, style as ImageStyle]}
-      resizeMode="cover"
+      style={[
+        isHero ? styles.hero : styles.thumb,
+        isHero && aspectRatio ? { height: undefined, aspectRatio } : null,
+        imageStyle,
+        style as ImageStyle,
+      ]}
+      resizeMode="contain"
       accessibilityLabel={accessibilityLabel}
       testID={testID}
       onError={() => setFailed(true)}
+      onLoad={(event) => {
+        const { width, height } = event.nativeEvent.source;
+        if (width > 0 && height > 0) {
+          setAspectRatio(width / height);
+        }
+      }}
     />
   );
 }
@@ -69,7 +82,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: '100%',
-    height: 220,
+    height: 240,
     borderRadius: radii.lg,
     backgroundColor: colors.surfaceSubtle,
   },

@@ -26,6 +26,8 @@ from app.database.memory_citizen_session import citizen_session_store
 from app.schemas.citizen_session import StoredCitizenSession
 
 CITIZEN_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+CITIZEN_WEB_SESSION_COOKIE = "baladiguard_citizen_session"
+_SAFE_COOKIE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -215,14 +217,38 @@ def require_citizen(
         Depends(_bearer_scheme),
     ],
 ) -> CitizenPrincipal:
-    if credentials is None or credentials.scheme.lower() != "bearer" or not credentials.credentials:
+    token: str | None = None
+    using_cookie = False
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    elif credentials is None:
+        token = request.cookies.get(CITIZEN_WEB_SESSION_COOKIE)
+        using_cookie = bool(token)
+
+    if not token:
         raise unauthorized(request)
+
+    if using_cookie and request.method.upper() not in _SAFE_COOKIE_METHODS:
+        # CORS is not a CSRF defense by itself. Cookie-authenticated mutations
+        # must originate from an explicitly approved citizen/admin web origin.
+        from app.core.cors import resolve_cors_origins
+
+        settings = get_settings()
+        allowed = set(
+            resolve_cors_origins(
+                app_env=settings.app_env,
+                cors_allowed_origins=settings.cors_allowed_origins,
+            )
+        )
+        origin = (request.headers.get("Origin") or "").rstrip("/")
+        if not origin or origin not in {value.rstrip("/") for value in allowed}:
+            raise unauthorized(request, "This browser session cannot be used from that origin.")
 
     try:
         from app.database.store_factory import get_citizen_session_store, get_citizen_store
 
         return verify_citizen_access_token(
-            credentials.credentials,
+            token,
             session_store=get_citizen_session_store(),
             citizen_store=get_citizen_store(),
         )
@@ -267,7 +293,11 @@ def optional_citizen(
     Malformed/expired/wrong-audience credentials still raise ``401`` so clients
     cannot silently fall back to guest behavior with a bad token.
     """
-    if credentials is None or not credentials.credentials:
+    if credentials is None and not request.cookies.get(CITIZEN_WEB_SESSION_COOKIE):
+        return None
+    if credentials is None:
+        return require_citizen(request, credentials)
+    if not credentials.credentials:
         return None
     if credentials.scheme.lower() != "bearer":
         raise unauthorized(request)

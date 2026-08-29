@@ -17,6 +17,7 @@ const baseProfile: CitizenProfile = {
   email: null,
   notificationPreferences: { ticketUpdates: 'NONE', announcements: false },
   publicNameVisible: false,
+  leaderboardOptIn: false,
   active: true,
   contributionReady: true,
   createdAt: '2026-08-01T12:00:00Z',
@@ -26,11 +27,13 @@ const baseProfile: CitizenProfile = {
 describe('citizenProfileSchema', () => {
   it('accepts a valid profile edit payload', () => {
     const parsed = profileEditSchema.parse({
+      ...profileToEditValues(baseProfile),
       fullName: '  Ada Updated  ',
       email: 'ada@example.com',
       ticketUpdates: 'EMAIL',
       announcements: true,
       publicNameVisible: true,
+      leaderboardOptIn: false,
     });
     expect(parsed.fullName).toBe('Ada Updated');
     expect(parsed.email).toBe('ada@example.com');

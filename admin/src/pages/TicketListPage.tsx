@@ -3,19 +3,31 @@ import type { Ticket } from '@/types/ticket';
 import type { TicketAggregates } from '@/types/ticketCollection';
 import {
   fetchTicketAggregates,
+  fetchTicketById,
   fetchTicketsPage,
   type FetchTicketsFilters,
 } from '@/services/tickets';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { TicketTable } from '@/components/TicketTable';
+import { BulkTicketAssignmentBar } from '@/components/BulkTicketAssignmentBar';
 import { QueueViewsSidebar, type QueueViewId } from '@/components/QueueViewsSidebar';
 import { TicketPreviewPanel } from '@/components/TicketPreviewPanel';
 import { CategoryDistributionChart } from '@/components/CategoryDistributionChart';
 import { DepartmentSummary } from '@/components/DepartmentSummary';
-import { TicketFilters, type SlaFilter } from '@/components/TicketFilters';
+import {
+  TicketFilters,
+  type ContentSafetyFilter,
+  type SlaFilter,
+} from '@/components/TicketFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingState } from '@/components/LoadingState';
+import { useI18n } from '@/i18n/LocaleProvider';
+import { useDashboardLocationSync } from '@/hooks/useDashboardLocationSync';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import {
+  parseDashboardSearchParams,
+  type DashboardNavigationFilters,
+} from '@/utils/dashboardNavigation';
 import {
   getCategoryFilterOptions,
   type CategoryFilter,
@@ -46,14 +58,28 @@ function buildServerFilters(input: {
   sla: SlaFilter;
   queueView: QueueViewId;
   search: string;
+  urgencyCsv?: string | null;
+  openOnly?: boolean;
+  ticketIds?: string[];
+  workerId?: string;
+  teamId?: string;
+  contentSafetyStatus?: ContentSafetyFilter;
 }): FetchTicketsFilters {
   const filters: FetchTicketsFilters = {
     status: input.status,
     category: input.category,
-    urgency: input.urgency,
+    urgency: input.urgencyCsv || input.urgency,
     departmentId: input.department,
     slaState: input.sla,
     q: input.search.trim() || undefined,
+    openOnly: input.openOnly || undefined,
+    ticketIds: input.ticketIds?.length ? input.ticketIds : undefined,
+    workerId: input.workerId,
+    teamId: input.teamId,
+    contentSafetyStatus:
+      input.contentSafetyStatus && input.contentSafetyStatus !== 'ALL'
+        ? input.contentSafetyStatus
+        : undefined,
   };
 
   if (input.queueView === 'unassigned') {
@@ -76,7 +102,25 @@ function buildServerFilters(input: {
   return filters;
 }
 
+function queueViewFromNavigation(filters: DashboardNavigationFilters): QueueViewId {
+  if (filters.assignmentState === 'unassigned') {
+    return 'unassigned';
+  }
+  if (filters.slaState === 'overdue') {
+    return 'aging';
+  }
+  if (filters.urgency === 'critical') {
+    return 'critical';
+  }
+  if (filters.urgency === 'high') {
+    return 'high';
+  }
+  return 'all';
+}
+
 export function TicketListPage() {
+  const { t } = useI18n();
+  const initialFilters = parseDashboardSearchParams(new URLSearchParams(window.location.search));
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [pageTickets, setPageTickets] = useState<Ticket[]>([]);
   const [baselineTickets, setBaselineTickets] = useState<Ticket[]>([]);
@@ -84,13 +128,43 @@ export function TicketListPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
-  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('ALL');
-  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>('ALL');
-  const [slaFilter, setSlaFilter] = useState<SlaFilter>('ALL');
-  const [queueView, setQueueView] = useState<QueueViewId>('all');
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    (initialFilters.status as StatusFilter) ?? 'ALL',
+  );
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(
+    initialFilters.category ?? 'ALL',
+  );
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>(
+    initialFilters.urgency && !initialFilters.urgency.includes(',')
+      ? (initialFilters.urgency as UrgencyFilter)
+      : 'ALL',
+  );
+  const [urgencyCsv, setUrgencyCsv] = useState<string | null>(
+    initialFilters.urgency?.includes(',') ? initialFilters.urgency : null,
+  );
+  const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>(
+    initialFilters.departmentId ?? 'ALL',
+  );
+  const [slaFilter, setSlaFilter] = useState<SlaFilter>(
+    (initialFilters.slaState as SlaFilter) ?? 'ALL',
+  );
+  const [contentSafetyFilter, setContentSafetyFilter] = useState<ContentSafetyFilter>(
+    (initialFilters.contentSafetyStatus as ContentSafetyFilter) ?? 'ALL',
+  );
+  const [openOnly, setOpenOnly] = useState(Boolean(initialFilters.openOnly));
+  const [ticketIds, setTicketIds] = useState<string[]>(initialFilters.ticketIds ?? []);
+  const [workerId, setWorkerId] = useState(initialFilters.workerId);
+  const [teamId, setTeamId] = useState(initialFilters.teamId);
+  const [queueView, setQueueView] = useState<QueueViewId>(queueViewFromNavigation(initialFilters));
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
+    initialFilters.focusTicket ?? null,
+  );
+  const [checkedTicketIds, setCheckedTicketIds] = useState<string[]>([]);
+  const [queueEpoch, setQueueEpoch] = useState(0);
+  const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
+  const [previewForId, setPreviewForId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewRetry, setPreviewRetry] = useState(0);
   const [cursor, setCursor] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [canGoPrevious, setCanGoPrevious] = useState(false);
@@ -99,11 +173,68 @@ export function TicketListPage() {
   const requestGeneration = useRef(0);
   const cursorHistoryRef = useRef<(string | null)[]>([]);
 
+  function applyNavigationFilters(filters: DashboardNavigationFilters) {
+    setStatusFilter((filters.status as StatusFilter) ?? 'ALL');
+    setCategoryFilter(filters.category ?? 'ALL');
+    setUrgencyFilter(
+      filters.urgency && !filters.urgency.includes(',')
+        ? (filters.urgency as UrgencyFilter)
+        : 'ALL',
+    );
+    setUrgencyCsv(filters.urgency?.includes(',') ? filters.urgency : null);
+    setDepartmentFilter(filters.departmentId ?? 'ALL');
+    setSlaFilter((filters.slaState as SlaFilter) ?? 'ALL');
+    setContentSafetyFilter((filters.contentSafetyStatus as ContentSafetyFilter) ?? 'ALL');
+    setOpenOnly(Boolean(filters.openOnly));
+    setTicketIds(filters.ticketIds ?? []);
+    setWorkerId(filters.workerId);
+    setTeamId(filters.teamId);
+    setQueueView(queueViewFromNavigation(filters));
+    setSelectedTicketId(filters.focusTicket ?? null);
+    setCursor(null);
+    cursorHistoryRef.current = [];
+    setCanGoPrevious(false);
+  }
+
+  const stateFilters = useMemo(
+    () => ({
+      status: statusFilter !== 'ALL' ? statusFilter : undefined,
+      category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
+      urgency: urgencyCsv || (urgencyFilter !== 'ALL' ? urgencyFilter : undefined),
+      departmentId: departmentFilter !== 'ALL' ? departmentFilter : undefined,
+      slaState: slaFilter !== 'ALL' ? slaFilter : undefined,
+      contentSafetyStatus: contentSafetyFilter !== 'ALL' ? contentSafetyFilter : undefined,
+      assignmentState: queueView === 'unassigned' ? 'unassigned' : undefined,
+      openOnly: openOnly || undefined,
+      ticketIds: ticketIds.length > 0 ? ticketIds : undefined,
+      workerId,
+      teamId,
+      focusTicket: selectedTicketId ?? undefined,
+    }),
+    [
+      categoryFilter,
+      departmentFilter,
+      openOnly,
+      queueView,
+      selectedTicketId,
+      slaFilter,
+      contentSafetyFilter,
+      statusFilter,
+      teamId,
+      ticketIds,
+      urgencyCsv,
+      urgencyFilter,
+      workerId,
+    ],
+  );
+  useDashboardLocationSync(stateFilters, applyNavigationFilters);
+
   const debouncedStatus = useDebouncedValue(statusFilter, FILTER_DEBOUNCE_MS);
   const debouncedCategory = useDebouncedValue(categoryFilter, FILTER_DEBOUNCE_MS);
   const debouncedUrgency = useDebouncedValue(urgencyFilter, FILTER_DEBOUNCE_MS);
   const debouncedDepartment = useDebouncedValue(departmentFilter, FILTER_DEBOUNCE_MS);
   const debouncedSla = useDebouncedValue(slaFilter, FILTER_DEBOUNCE_MS);
+  const debouncedContentSafety = useDebouncedValue(contentSafetyFilter, FILTER_DEBOUNCE_MS);
   const debouncedSearch = useDebouncedValue(searchQuery, FILTER_DEBOUNCE_MS);
   const debouncedQueueView = useDebouncedValue(queueView, FILTER_DEBOUNCE_MS);
 
@@ -115,8 +246,14 @@ export function TicketListPage() {
         urgency: debouncedUrgency,
         department: debouncedDepartment,
         sla: debouncedSla,
+        contentSafetyStatus: debouncedContentSafety,
         queueView: debouncedQueueView,
         search: debouncedSearch,
+        urgencyCsv,
+        openOnly,
+        ticketIds,
+        workerId,
+        teamId,
       }),
     [
       debouncedCategory,
@@ -124,8 +261,14 @@ export function TicketListPage() {
       debouncedQueueView,
       debouncedSearch,
       debouncedSla,
+      debouncedContentSafety,
       debouncedStatus,
       debouncedUrgency,
+      openOnly,
+      teamId,
+      ticketIds,
+      urgencyCsv,
+      workerId,
     ],
   );
 
@@ -135,9 +278,13 @@ export function TicketListPage() {
     (serverFilters.urgency && serverFilters.urgency !== 'ALL') ||
     (serverFilters.departmentId && serverFilters.departmentId !== 'ALL') ||
     (serverFilters.slaState && serverFilters.slaState !== 'ALL') ||
+    (serverFilters.contentSafetyStatus && serverFilters.contentSafetyStatus !== 'ALL') ||
     (serverFilters.assignmentState && serverFilters.assignmentState !== 'ALL') ||
     Boolean(serverFilters.q) ||
-    Boolean(serverFilters.openOnly);
+    Boolean(serverFilters.openOnly) ||
+    Boolean(serverFilters.ticketIds?.length) ||
+    Boolean(serverFilters.workerId) ||
+    Boolean(serverFilters.teamId);
 
   const hasActiveFilters =
     hasActiveServerFilters ||
@@ -146,8 +293,14 @@ export function TicketListPage() {
     urgencyFilter !== 'ALL' ||
     departmentFilter !== 'ALL' ||
     slaFilter !== 'ALL' ||
+    contentSafetyFilter !== 'ALL' ||
     searchQuery.trim().length > 0 ||
-    queueView !== 'all';
+    queueView !== 'all' ||
+    openOnly ||
+    ticketIds.length > 0 ||
+    Boolean(workerId) ||
+    Boolean(teamId) ||
+    Boolean(urgencyCsv);
 
   // Reset to the first page whenever server filters change.
   useEffect(() => {
@@ -217,7 +370,7 @@ export function TicketListPage() {
         if (error instanceof DOMException && error.name === 'AbortError') {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to load tickets.');
+        setErrorMessage(error instanceof Error ? error.message : t('errors.loadTickets'));
         if (isInitialLoad) {
           setLoadState('error');
         }
@@ -230,7 +383,7 @@ export function TicketListPage() {
     return () => {
       controller.abort();
     };
-  }, [cursor, hasActiveServerFilters, serverFilters]);
+  }, [cursor, hasActiveServerFilters, queueEpoch, serverFilters, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -248,35 +401,70 @@ export function TicketListPage() {
 
     void loadAggregates();
     return () => controller.abort();
-  }, [pageTickets]);
+  }, [pageTickets, queueEpoch]);
 
   const attentionStats = useMemo(() => aggregatesToAttentionStats(aggregates), [aggregates]);
   const categoryOptions = useMemo(
-    () => getCategoryFilterOptions(baselineTickets.length > 0 ? baselineTickets : pageTickets),
-    [baselineTickets, pageTickets],
+    () => getCategoryFilterOptions(baselineTickets.length > 0 ? baselineTickets : pageTickets, t),
+    [baselineTickets, pageTickets, t],
   );
   const highCount = aggregates?.highCount ?? 0;
   const totalCount =
-    aggregates?.openCount ??
     approximateTotal ??
+    aggregates?.openCount ??
     (baselineTickets.length > 0 ? baselineTickets.length : pageTickets.length);
 
-  const selectedTicket = useMemo(() => {
-    if (!selectedTicketId) {
-      return null;
-    }
-    return (
-      pageTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      baselineTickets.find((ticket) => ticket.ticketId === selectedTicketId) ??
-      null
-    );
-  }, [baselineTickets, selectedTicketId, pageTickets]);
+  const previewMatchesSelection = previewForId === selectedTicketId;
+  const displayedPreview = previewMatchesSelection ? previewTicket : null;
+  const displayedPreviewError = previewMatchesSelection ? previewError : null;
 
   useEffect(() => {
     if (selectedTicketId && !pageTickets.some((ticket) => ticket.ticketId === selectedTicketId)) {
       setSelectedTicketId(null);
     }
   }, [pageTickets, selectedTicketId]);
+
+  useEffect(() => {
+    if (!selectedTicketId) {
+      setPreviewTicket(null);
+      setPreviewForId(null);
+      setPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewForId(null);
+    setPreviewTicket(null);
+    setPreviewError(null);
+
+    void fetchTicketById(selectedTicketId)
+      .then((ticket) => {
+        if (cancelled) {
+          return;
+        }
+        if (!ticket) {
+          setPreviewTicket(null);
+          setPreviewError(t('ticket.unableLoad'));
+          setPreviewForId(selectedTicketId);
+          return;
+        }
+        setPreviewTicket(ticket);
+        setPreviewError(null);
+        setPreviewForId(selectedTicketId);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setPreviewTicket(null);
+        setPreviewError(error instanceof Error ? error.message : t('ticket.unableLoad'));
+        setPreviewForId(selectedTicketId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewRetry, selectedTicketId, t]);
 
   function ticketMatchesActiveServerFilters(ticket: Ticket): boolean {
     if (
@@ -324,6 +512,8 @@ export function TicketListPage() {
   }
 
   function handleTicketUpdated(updated: Ticket) {
+    setPreviewTicket((current) => (current?.ticketId === updated.ticketId ? updated : current));
+
     setBaselineTickets((current) => {
       const exists = current.some((ticket) => ticket.ticketId === updated.ticketId);
       if (!exists) {
@@ -345,15 +535,21 @@ export function TicketListPage() {
     });
   }
 
-  const queueTitle = hasActiveFilters ? 'Matching reports' : 'Citizen reports';
+  const queueTitle = hasActiveFilters ? t('tickets.matchingReports') : t('tickets.citizenReports');
 
   function clearFilters() {
     setSearchQuery('');
     setStatusFilter('ALL');
     setCategoryFilter('ALL');
     setUrgencyFilter('ALL');
+    setUrgencyCsv(null);
     setDepartmentFilter('ALL');
     setSlaFilter('ALL');
+    setContentSafetyFilter('ALL');
+    setOpenOnly(false);
+    setTicketIds([]);
+    setWorkerId(undefined);
+    setTeamId(undefined);
     setQueueView('all');
     setCursor(null);
     cursorHistoryRef.current = [];
@@ -411,17 +607,7 @@ export function TicketListPage() {
   }
 
   return (
-    <DashboardLayout
-      title="Work queue"
-      subtitle="Triage citizen infrastructure reports by urgency, ownership, and age"
-      flush
-      search={{
-        value: searchQuery,
-        onChange: setSearchQuery,
-        label: 'Search tickets',
-        placeholder: 'Search ticket #, location, or description…',
-      }}
-    >
+    <DashboardLayout title={t('tickets.queueTitle')} subtitle={t('tickets.queueSubtitle')} flush>
       {loadState === 'loading' && (
         <div className="ticket-list-page__loading">
           <LoadingState />
@@ -430,13 +616,43 @@ export function TicketListPage() {
 
       {loadState === 'error' && (
         <div className="ticket-list-page__error ticket-list-page__error--padded" role="alert">
-          <h3>Unable to load tickets</h3>
+          <h3>{t('tickets.unableLoad')}</h3>
           <p>{errorMessage}</p>
+          <button
+            type="button"
+            className="ticket-list-page__retry"
+            onClick={() => setQueueEpoch((value) => value + 1)}
+          >
+            {t('common.tryAgain')}
+          </button>
+        </div>
+      )}
+
+      {loadState === 'success' && aggregates && (
+        <div className="ticket-list-page__ops-counts" role="status">
+          {[
+            ['queued', aggregates.queuedCount ?? 0],
+            ['assigned', aggregates.assignedCount ?? 0],
+            ['inProgress', aggregates.inProgressCount ?? 0],
+            ['dueSoon', aggregates.dueSoonCount ?? 0],
+            ['workforceUnassigned', aggregates.workforceUnassignedCount ?? 0],
+            ['completed', aggregates.completedCount ?? 0],
+            ['cancelled', aggregates.cancelledCount ?? 0],
+          ].map(([label, count]) => (
+            <span className="ticket-list-page__ops-count" key={label}>
+              <span>{t(`tickets.opsLabels.${label}`)}</span>
+              <strong>{count}</strong>
+            </span>
+          ))}
         </div>
       )}
 
       {loadState === 'success' && (
-        <div className="helpdesk-desk">
+        <div
+          className={
+            selectedTicketId ? 'helpdesk-desk helpdesk-desk--preview-open' : 'helpdesk-desk'
+          }
+        >
           <QueueViewsSidebar
             activeView={queueView}
             stats={attentionStats}
@@ -446,7 +662,7 @@ export function TicketListPage() {
             onViewChange={handleViewChange}
           />
 
-          <section className="helpdesk-desk__list" aria-label="Work queue list">
+          <section className="helpdesk-desk__list" aria-label={t('tickets.queueList')}>
             <TicketFilters
               searchQuery={searchQuery}
               statusFilter={statusFilter}
@@ -454,11 +670,11 @@ export function TicketListPage() {
               urgencyFilter={urgencyFilter}
               departmentFilter={departmentFilter}
               slaFilter={slaFilter}
+              contentSafetyFilter={contentSafetyFilter}
               categoryOptions={categoryOptions}
               resultCount={pageTickets.length}
               totalCount={totalCount}
               isRefreshing={isRefreshing}
-              hideSearch
               onSearchChange={setSearchQuery}
               onStatusChange={setStatusFilter}
               onCategoryChange={setCategoryFilter}
@@ -481,12 +697,13 @@ export function TicketListPage() {
                   setQueueView('all');
                 }
               }}
+              onContentSafetyChange={setContentSafetyFilter}
               onClearFilters={clearFilters}
             />
 
             {errorMessage && !isRefreshing && (
               <div className="ticket-list-page__error" role="alert">
-                <h3>Unable to update tickets</h3>
+                <h3>{t('tickets.unableUpdate')}</h3>
                 <p>{errorMessage}</p>
               </div>
             )}
@@ -495,29 +712,66 @@ export function TicketListPage() {
 
             {hasActiveFilters && pageTickets.length === 0 && (
               <EmptyState
-                title="No matching tickets"
-                message="Try adjusting your search, status, category, urgency, or department filters to find tickets."
+                title={
+                  ticketIds.length > 0 ? t('tickets.emptyGoneTitle') : t('tickets.emptyMatchTitle')
+                }
+                message={
+                  ticketIds.length > 0 ? t('tickets.emptyGoneBody') : t('tickets.emptyMatchBody')
+                }
               />
             )}
 
             {pageTickets.length > 0 && (
-              <TicketTable
-                tickets={pageTickets}
-                title={queueTitle}
-                selectedTicketId={selectedTicket?.ticketId ?? null}
-                onSelectTicket={setSelectedTicketId}
-              />
+              <>
+                <BulkTicketAssignmentBar
+                  selectedTicketIds={checkedTicketIds}
+                  ticketNumbers={Object.fromEntries(
+                    pageTickets.map((ticket) => [ticket.ticketId, ticket.ticketNumber]),
+                  )}
+                  onClear={() => setCheckedTicketIds([])}
+                  onCommitted={(committed) => {
+                    const succeeded = new Set(
+                      committed.items.filter((item) => item.ok).map((item) => item.ticketId),
+                    );
+                    setCheckedTicketIds((current) => current.filter((id) => !succeeded.has(id)));
+                    setQueueEpoch((current) => current + 1);
+                  }}
+                />
+                <TicketTable
+                  tickets={pageTickets}
+                  title={queueTitle}
+                  selectedTicketId={selectedTicketId}
+                  onSelectTicket={setSelectedTicketId}
+                  checkedTicketIds={checkedTicketIds}
+                  onToggleChecked={(ticketId) => {
+                    setCheckedTicketIds((current) =>
+                      current.includes(ticketId)
+                        ? current.filter((id) => id !== ticketId)
+                        : [...current, ticketId],
+                    );
+                  }}
+                  onToggleAllChecked={() => {
+                    const pageIds = pageTickets.map((ticket) => ticket.ticketId);
+                    const allChecked = pageIds.every((id) => checkedTicketIds.includes(id));
+                    setCheckedTicketIds(
+                      allChecked
+                        ? checkedTicketIds.filter((id) => !pageIds.includes(id))
+                        : [...new Set([...checkedTicketIds, ...pageIds])],
+                    );
+                  }}
+                />
+              </>
             )}
 
             {(nextCursor || canGoPrevious) && (
-              <nav className="ticket-list-page__pagination" aria-label="Ticket pages">
+              <nav className="ticket-list-page__pagination" aria-label={t('tickets.pages')}>
                 <button
                   type="button"
                   className="ticket-list-page__page-btn"
                   disabled={!canGoPrevious || isRefreshing}
                   onClick={goToPreviousPage}
                 >
-                  Previous
+                  {t('tickets.previous')}
                 </button>
                 <button
                   type="button"
@@ -525,17 +779,15 @@ export function TicketListPage() {
                   disabled={!nextCursor || isRefreshing}
                   onClick={goToNextPage}
                 >
-                  Next
+                  {t('tickets.next')}
                 </button>
               </nav>
             )}
 
             <details className="ticket-list-page__insights">
               <summary className="ticket-list-page__insights-summary">
-                Operational insights
-                <span className="ticket-list-page__insights-note">
-                  Secondary — category & workload
-                </span>
+                {t('tickets.insights')}
+                <span className="ticket-list-page__insights-note">{t('tickets.insightsNote')}</span>
               </summary>
               <div className="ticket-list-page__insights-body">
                 <CategoryDistributionChart
@@ -548,7 +800,19 @@ export function TicketListPage() {
             </details>
           </section>
 
-          <TicketPreviewPanel ticket={selectedTicket} onTicketUpdated={handleTicketUpdated} />
+          {selectedTicketId ? (
+            <TicketPreviewPanel
+              ticket={displayedPreview}
+              loadError={displayedPreviewError}
+              onRetry={() => {
+                setPreviewForId(null);
+                setPreviewError(null);
+                setPreviewRetry((current) => current + 1);
+              }}
+              onClose={() => setSelectedTicketId(null)}
+              onTicketUpdated={handleTicketUpdated}
+            />
+          ) : null}
         </div>
       )}
     </DashboardLayout>
