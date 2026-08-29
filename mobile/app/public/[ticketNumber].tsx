@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { ActivityIndicator, Banner, Button, Text } from 'react-native-paper';
@@ -23,43 +23,45 @@ export default function PublicReportDetailScreen() {
   const [isLoading, setIsLoading] = useState(Boolean(selectedTicketNumber));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [usedLoadFallback, setUsedLoadFallback] = useState(false);
+  const requestGeneration = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadReport() {
-      if (!selectedTicketNumber) {
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      setErrorMessage(null);
-      setUsedLoadFallback(false);
-      try {
-        const response = await getPublicTicketByNumber(selectedTicketNumber);
-        if (active) {
-          setReport(response);
-        }
-      } catch (loadError) {
-        if (active) {
-          if (loadError instanceof Error) {
-            setErrorMessage(loadError.message);
-          } else {
-            setUsedLoadFallback(true);
-          }
-        }
-      } finally {
-        if (active) {
-          setIsLoading(false);
-        }
-      }
+  const loadReport = useCallback(() => {
+    if (!selectedTicketNumber) {
+      setIsLoading(false);
+      return;
     }
-
-    void loadReport();
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsLoading(true);
+    setErrorMessage(null);
+    setUsedLoadFallback(false);
+    setReport(null);
+    void getPublicTicketByNumber(selectedTicketNumber, { signal: controller.signal })
+      .then((response) => {
+        if (generation === requestGeneration.current) setReport(response);
+      })
+      .catch((loadError: unknown) => {
+        if (generation !== requestGeneration.current) return;
+        if (loadError instanceof Error && loadError.name === 'AbortError') return;
+        if (loadError instanceof Error) {
+          setErrorMessage(loadError.message);
+        } else {
+          setUsedLoadFallback(true);
+        }
+      })
+      .finally(() => {
+        if (generation === requestGeneration.current) setIsLoading(false);
+      });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [selectedTicketNumber]);
+
+  useEffect(() => loadReport(), [loadReport]);
 
   const error = !selectedTicketNumber
     ? t('public.unableOpen')
@@ -78,9 +80,24 @@ export default function PublicReportDetailScreen() {
         ) : null}
 
         {error ? (
-          <Banner visible icon="alert-circle" style={styles.errorBanner}>
-            {error}
-          </Banner>
+          <>
+            <Banner
+              visible
+              icon="alert-circle"
+              style={styles.errorBanner}
+              testID="public-report-detail-error"
+            >
+              {error}
+            </Banner>
+            <Button
+              mode="outlined"
+              onPress={() => loadReport()}
+              textColor={colors.brandDark}
+              testID="public-report-detail-retry"
+            >
+              {t('common.tryAgain')}
+            </Button>
+          </>
         ) : null}
 
         {report ? (
@@ -210,6 +227,7 @@ const styles = StyleSheet.create({
     color: colors.brandDark,
     fontWeight: '700',
     flexShrink: 1,
+    writingDirection: 'ltr',
   },
   mapWrap: {
     borderRadius: radii.lg,
@@ -219,6 +237,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     gap: spacing[3],
     paddingBottom: spacing[3],
+    direction: 'ltr',
   },
   map: {
     height: 220,

@@ -392,8 +392,15 @@ export async function getPublicTickets({
   return response.json() as Promise<PublicTicketListResponse>;
 }
 
-export async function getPublicTicketByNumber(ticketNumber: string): Promise<PublicTicketResponse> {
+export async function getPublicTicketByNumber(
+  ticketNumber: string,
+  options?: { signal?: AbortSignal },
+): Promise<PublicTicketResponse> {
   const normalized = ticketNumber.trim().toUpperCase();
+
+  if (options?.signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
 
   if (appConfig.enableMockApi) {
     return getPublicTicketByNumberMock(normalized);
@@ -404,6 +411,7 @@ export async function getPublicTicketByNumber(ticketNumber: string): Promise<Pub
     {
       method: 'GET',
       headers: getAuthHeaders(),
+      signal: options?.signal,
     },
   );
 
