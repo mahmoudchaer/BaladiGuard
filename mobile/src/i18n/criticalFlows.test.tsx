@@ -55,7 +55,6 @@ vi.mock('@/services/deviceLocation', () => ({
   getCurrentDeviceLocation: vi.fn(async () => ({
     ok: false,
     reason: 'unavailable',
-    message: 'Unable to read your current location right now.',
   })),
 }));
 

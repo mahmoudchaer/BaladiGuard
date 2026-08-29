@@ -42,37 +42,39 @@ export function ResolutionFeedbackCard({
       ) : (
         <Text style={styles.body}>{t('feedback.prompt')}</Text>
       )}
-      {feedback.canSubmit || feedback.status ? (
-        <TextInput
-          mode="outlined"
-          label={t('feedback.note')}
-          value={note}
-          onChangeText={setNote}
-          maxLength={500}
-          multiline
-          disabled={submitting}
-          testID={`resolution-feedback-note-${trackingCode}`}
-        />
+      {feedback.canSubmit ? (
+        <>
+          <TextInput
+            mode="outlined"
+            label={t('feedback.note')}
+            value={note}
+            onChangeText={setNote}
+            maxLength={500}
+            multiline
+            disabled={submitting}
+            testID={`resolution-feedback-note-${trackingCode}`}
+          />
+          <View style={styles.actions}>
+            <Button
+              mode="contained"
+              onPress={() => onSubmit('CONFIRMED_FIXED', note.trim() || undefined)}
+              loading={submitting}
+              disabled={submitting}
+              testID={`resolution-feedback-fixed-${trackingCode}`}
+            >
+              {t('feedback.confirmedFixed')}
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => onSubmit('STILL_UNRESOLVED', note.trim() || undefined)}
+              disabled={submitting}
+              testID={`resolution-feedback-unresolved-${trackingCode}`}
+            >
+              {t('feedback.stillUnresolved')}
+            </Button>
+          </View>
+        </>
       ) : null}
-      <View style={styles.actions}>
-        <Button
-          mode="contained"
-          onPress={() => onSubmit('CONFIRMED_FIXED', note.trim() || undefined)}
-          loading={submitting}
-          disabled={submitting}
-          testID={`resolution-feedback-fixed-${trackingCode}`}
-        >
-          {t('feedback.confirmedFixed')}
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() => onSubmit('STILL_UNRESOLVED', note.trim() || undefined)}
-          disabled={submitting}
-          testID={`resolution-feedback-unresolved-${trackingCode}`}
-        >
-          {t('feedback.stillUnresolved')}
-        </Button>
-      </View>
       {errorMessage ? (
         <HelperText type="error" visible testID={`resolution-feedback-error-${trackingCode}`}>
           {errorMessage}

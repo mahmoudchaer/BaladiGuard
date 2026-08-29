@@ -44,15 +44,19 @@ export default function CitizenTicketHistoryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const [submittingFeedbackFor, setSubmittingFeedbackFor] = useState<string | null>(null);
+  const [feedbackErrors, setFeedbackErrors] = useState<Map<string, string>>(new Map());
+  const [submittingFeedbackFor, setSubmittingFeedbackFor] = useState<Set<string>>(new Set());
   const didInitialLoad = useRef(false);
+  const requestGeneration = useRef(0);
+  const feedbackRequestsInFlight = useRef<Set<string>>(new Set());
 
   const loadHistory = useCallback(
     async (cursor: string | null, mode: 'initial' | 'refresh' | 'more') => {
       if (!accessToken) {
         return;
       }
+      const generation = requestGeneration.current + 1;
+      requestGeneration.current = generation;
       if (mode === 'initial') {
         setIsInitialLoading(true);
       } else if (mode === 'refresh') {
@@ -68,15 +72,18 @@ export default function CitizenTicketHistoryScreen() {
           limit: PAGE_SIZE,
           cursor,
         });
+        if (generation !== requestGeneration.current) return;
         setItems((current) => (mode === 'more' ? [...current, ...page.items] : page.items));
         setNextCursor(page.nextCursor);
       } catch (error) {
+        if (generation !== requestGeneration.current) return;
         const message = error instanceof Error ? error.message : t('history.loadError');
         setErrorMessage(message);
         if (message === TICKET_HISTORY_UNAUTHORIZED_MESSAGE) {
           await clearSessionLocally();
         }
       } finally {
+        if (generation !== requestGeneration.current) return;
         setIsInitialLoading(false);
         setIsRefreshing(false);
         setIsLoadingMore(false);
@@ -90,11 +97,16 @@ export default function CitizenTicketHistoryScreen() {
     status: ResolutionFeedbackStatus,
     note?: string,
   ) => {
-    if (!accessToken) {
+    if (!accessToken || feedbackRequestsInFlight.current.has(trackingCode)) {
       return;
     }
-    setSubmittingFeedbackFor(trackingCode);
-    setFeedbackError(null);
+    feedbackRequestsInFlight.current.add(trackingCode);
+    setSubmittingFeedbackFor((current) => new Set(current).add(trackingCode));
+    setFeedbackErrors((current) => {
+      const next = new Map(current);
+      next.delete(trackingCode);
+      return next;
+    });
     try {
       const result = await submitCitizenResolutionFeedback({
         accessToken,
@@ -114,9 +126,18 @@ export default function CitizenTicketHistoryScreen() {
         ),
       );
     } catch (error) {
-      setFeedbackError(error instanceof Error ? error.message : t('history.feedbackError'));
+      setFeedbackErrors((current) => {
+        const next = new Map(current);
+        next.set(trackingCode, error instanceof Error ? error.message : t('history.feedbackError'));
+        return next;
+      });
     } finally {
-      setSubmittingFeedbackFor(null);
+      feedbackRequestsInFlight.current.delete(trackingCode);
+      setSubmittingFeedbackFor((current) => {
+        const next = new Set(current);
+        next.delete(trackingCode);
+        return next;
+      });
     }
   };
 
@@ -262,12 +283,8 @@ export default function CitizenTicketHistoryScreen() {
                       status: item.resolutionFeedbackStatus ?? null,
                       submittedAt: null,
                     }}
-                    submitting={submittingFeedbackFor === item.trackingCode}
-                    errorMessage={
-                      submittingFeedbackFor === item.trackingCode || feedbackError
-                        ? feedbackError
-                        : null
-                    }
+                    submitting={submittingFeedbackFor.has(item.trackingCode)}
+                    errorMessage={feedbackErrors.get(item.trackingCode) ?? null}
                     onSubmit={(status, note) =>
                       void handleFeedback(item.trackingCode, status, note)
                     }
@@ -380,6 +397,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '700',
     flexShrink: 1,
+    writingDirection: 'ltr',
   },
   location: {
     color: colors.text,

@@ -46,7 +46,10 @@ describe('PublicReportDetailScreen', () => {
   it('loads a citizen-safe public detail view by ticket number', async () => {
     const screen = await renderWithProvidersAsync(<PublicReportDetailScreen />);
 
-    expect(getPublicTicketByNumber).toHaveBeenCalledWith('BG-2026-0001');
+    expect(getPublicTicketByNumber).toHaveBeenCalledWith(
+      'BG-2026-0001',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(screen.root.findByProps({ testID: 'public-report-detail' })).toBeTruthy();
     expect(screen.root.findByProps({ children: 'BG-2026-0001' })).toBeTruthy();
     expect(

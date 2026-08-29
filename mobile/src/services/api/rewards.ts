@@ -42,7 +42,7 @@ export type PublicLeaderboard = {
 
 async function rewardsFetch(path: string, init: RequestInit = {}): Promise<Response> {
   try {
-    return await fetch(`${appConfig.apiBaseUrl}/v1${path}`, {
+    return await fetch(`${appConfig.apiBaseUrl}${path}`, {
       ...init,
       headers: {
         ...getAuthHeaders(),

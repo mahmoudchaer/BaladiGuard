@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { Icon, Text } from 'react-native-paper';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -55,7 +55,16 @@ export default function MoreScreen() {
   const router = useRouter();
   const { t, isRtl } = useI18n();
   const { isAuthenticated, isLoading, logout, profile } = useCitizenAuth();
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.loading} testID="more-auth-loading">
+          <ActivityIndicator color={colors.brand} />
+          <Text style={styles.detail}>{t('auth.checkingSession')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!isAuthenticated) return <Redirect href={buildLoginHref('/more') as Href} />;
 
   const initials =
@@ -201,6 +210,13 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[3],
+    padding: spacing[5],
+  },
   scroll: {
     paddingHorizontal: spacing[5],
     paddingTop: spacing[3],
@@ -237,7 +253,7 @@ const styles = StyleSheet.create({
   phone: { fontSize: 13, color: colors.textMuted },
   section: { gap: spacing[2] },
   sectionLabel: {
-    marginLeft: spacing[4],
+    marginStart: spacing[4],
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.75,

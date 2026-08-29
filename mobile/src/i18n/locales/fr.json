@@ -21,7 +21,7 @@
     "ar": "Arabe",
     "fr": "Français",
     "chooser": "Choisir la langue",
-    "hint": "Cela change la langue de l’application sur cet appareil. Le texte de signalement que vous écrivez n’est pas traduit."
+    "hint": "Cela change la langue de l’application sur cet appareil. Passer à l’arabe ou en sortir peut exiger un redémarrage pour mettre à jour le sens de lecture. Le texte de signalement que vous écrivez n’est pas traduit."
   },
   "tabs": {
     "home": "Accueil",
@@ -81,7 +81,10 @@
     "legalAgreeJoin2": " et la ",
     "legalAgreeSuffix": ".",
     "legalRequired": "Vous devez accepter les Conditions, la Politique de confidentialité et la Politique d’usage acceptable pour continuer.",
-    "legalCheckboxA11y": "Accepter les Conditions, la confidentialité et l’usage acceptable"
+    "legalCheckboxA11y": "Accepter les Conditions, la confidentialité et l’usage acceptable",
+    "checkingSession": "Vérification de votre session…",
+    "accountBlockedTitle": "Ce compte ne peut pas envoyer de signalements",
+    "accountBlockedBody": "Vous êtes connecté, mais ce compte est inactif ou pas encore prêt à contribuer. Déconnectez-vous, ou contactez votre municipalité si vous pensez qu’il s’agit d’une erreur."
   },
   "legal": {
     "termsTitle": "Conditions d’utilisation",
@@ -394,6 +397,9 @@
     "trackingCode": "Code de suivi",
     "copy": "Copier",
     "copied": "Copié",
+    "copyFailed": "Impossible de copier. Sélectionnez le code et copiez-le manuellement.",
+    "gpsPermissionDenied": "L’autorisation de localisation est requise pour utiliser votre position actuelle.",
+    "gpsUnavailable": "Impossible de lire votre position actuelle pour le moment.",
     "saveCodes": "Conservez ce numéro et ce code de suivi — vous en aurez besoin pour suivre l’avancement.",
     "trackThis": "Suivre ce signalement",
     "backHome": "Retour à l’accueil",
@@ -420,6 +426,7 @@
     "lookUpAnother": "Rechercher un autre code",
     "emptyTimeline": "Aucune mise à jour de statut n’est encore disponible pour ce signalement.",
     "feedbackFailed": "Impossible d’envoyer le retour de résolution.",
+    "feedbackLoadFailed": "Impossible de charger le retour de résolution pour ce signalement.",
     "openingA11y": "Ouverture du signalement",
     "opening": "Ouverture de l’état du signalement…",
     "invalidTitle": "Lien inutilisable",

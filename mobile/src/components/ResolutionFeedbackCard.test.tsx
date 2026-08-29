@@ -28,7 +28,7 @@ describe('ResolutionFeedbackCard', () => {
     expect(onSubmit).toHaveBeenCalledWith('CONFIRMED_FIXED', undefined);
   });
 
-  it('shows the submitted state so the owner can retry', () => {
+  it('shows the submitted state without another submit control', () => {
     const screen = renderWithProviders(
       <ResolutionFeedbackCard
         trackingCode="AB23CD"
@@ -39,5 +39,9 @@ describe('ResolutionFeedbackCard', () => {
     expect(
       screen.root.findByProps({ testID: 'resolution-feedback-submitted-AB23CD' }).props.children,
     ).toMatch(/still unresolved/i);
+    expect(() => screen.root.findByProps({ testID: 'resolution-feedback-fixed-AB23CD' })).toThrow();
+    expect(() =>
+      screen.root.findByProps({ testID: 'resolution-feedback-unresolved-AB23CD' }),
+    ).toThrow();
   });
 });
