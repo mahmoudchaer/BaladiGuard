@@ -369,17 +369,17 @@ def validate_configuration(
                 )
             )
         if wa_mode == "session_text":
-            if app_env == "production":
+            if not cfg.notification_allowlist_phones:
                 result.issues.append(
                     ConfigIssue(
-                        code="UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT",
+                        code="MISSING_CITIZEN_OTP_WHATSAPP_SANDBOX_ALLOWLIST",
                         message=(
-                            "Production WhatsApp OTP must use an approved authentication "
-                            "template, not session_text."
+                            "CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text requires "
+                            "at least one phone on NOTIFICATION_ALLOWLIST_PHONES."
                         ),
                     )
                 )
-            elif not cfg.notification_sandbox:
+            elif app_env != "production" and not cfg.notification_sandbox:
                 result.issues.append(
                     ConfigIssue(
                         code="UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT",

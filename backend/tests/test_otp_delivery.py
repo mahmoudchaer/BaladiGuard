@@ -385,12 +385,51 @@ def test_whatsapp_session_text_forbidden_without_sandbox():
         citizen_otp_whatsapp_access_token="meta-token",
         citizen_otp_whatsapp_phone_number_id="pnid_1",
         notification_sandbox=False,
+        notification_allowlist_phones=frozenset({"+9613408680"}),
         app_env="local",
         otp_dev_plaintext_stdout=False,
     )
     with pytest.raises(OtpDeliveryError) as exc_info:
         deliver_citizen_otp(phone="+9613408680", region="LB", code="151617", settings=settings)
     assert exc_info.value.category == "whatsapp_session_text_forbidden"
+
+
+def test_whatsapp_session_text_allowed_in_production_with_allowlist(monkeypatch, caplog):
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def read(self, _n: int = -1) -> bytes:
+            return b'{"messages":[{"id":"wamid.prod"}]}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(request, timeout=0):  # noqa: ARG001
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.citizens.otp_delivery.urlopen", fake_urlopen)
+    settings = _settings(
+        citizen_otp_delivery_channel="whatsapp",
+        citizen_otp_whatsapp_message_mode="session_text",
+        citizen_otp_whatsapp_access_token="meta-token",
+        citizen_otp_whatsapp_phone_number_id="pnid_1",
+        citizen_otp_whatsapp_template_name=None,
+        notification_sandbox=False,
+        notification_allowlist_phones=frozenset({"+9613408680"}),
+        app_env="production",
+        otp_dev_plaintext_stdout=False,
+    )
+
+    assert (
+        deliver_citizen_otp(phone="+9613408680", region="LB", code="121314", settings=settings)
+        == "whatsapp"
+    )
+    assert captured["body"]["type"] == "text"
+    assert "121314" not in caplog.text
 
 
 def test_whatsapp_session_window_closed_is_classified(monkeypatch):
