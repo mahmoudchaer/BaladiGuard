@@ -83,12 +83,15 @@ export function resolveMobileConfig(
 }
 
 // Keep direct EXPO_PUBLIC_* member reads so Metro can inline release values.
-export const appConfig = resolveMobileConfig({
-  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
-  EXPO_PUBLIC_ENABLE_MOCK_API: process.env.EXPO_PUBLIC_ENABLE_MOCK_API,
-  EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
-}, {
-  appVersion: Constants.expoConfig?.version,
-  citizenAppLinkHost: (Constants.expoConfig?.extra as { citizenAppLinkHost?: string } | undefined)
-    ?.citizenAppLinkHost,
-});
+export const appConfig = resolveMobileConfig(
+  {
+    EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+    EXPO_PUBLIC_ENABLE_MOCK_API: process.env.EXPO_PUBLIC_ENABLE_MOCK_API,
+    EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
+  },
+  {
+    appVersion: Constants.expoConfig?.version,
+    citizenAppLinkHost: (Constants.expoConfig?.extra as { citizenAppLinkHost?: string } | undefined)
+      ?.citizenAppLinkHost,
+  },
+);
