@@ -53,6 +53,13 @@ class TerraformAllowedHostsTests(unittest.TestCase):
         ):
             self.assertIn(required, secrets_block.group(1))
 
+    def test_api_task_role_can_read_ops_cloudwatch(self) -> None:
+        text = TF_MAIN.read_text(encoding="utf-8")
+        self.assertIn('"cloudwatch:GetMetricData"', text)
+        self.assertIn('"cloudwatch:DescribeAlarms"', text)
+        self.assertIn('"dynamodb:DescribeContinuousBackups"', text)
+        self.assertIn("alarm:BaladiGuard-*", text)
+
     def test_content_safety_worker_is_wired_like_other_workers(self) -> None:
         text = TF_MAIN.read_text(encoding="utf-8")
         self.assertIn('{ name = "CONTENT_SAFETY_ENABLED", value = "true" }', text)

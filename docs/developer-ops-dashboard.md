@@ -69,6 +69,9 @@ Least privilege, server-side only:
 - `cloudwatch:DescribeAlarms`
 - `dynamodb:DescribeContinuousBackups` (backup status)
 
+Terraform attaches those actions to the API task role only. `GetMetricData` is
+account-scoped (`*`); alarm reads are limited to `BaladiGuard-*`.
+
 If those calls fail, the dashboard keeps working on application telemetry and
 shows a fallback warning.
 
