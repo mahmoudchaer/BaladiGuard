@@ -195,6 +195,25 @@
   gap: 0.65rem;
 }
 
+.dashboard-topbar__actions .language-switcher__trigger {
+  border-color: rgb(255 255 255 / 18%);
+  background: transparent;
+  color: rgb(255 255 255 / 86%);
+}
+
+.dashboard-topbar__actions .language-switcher--open .language-switcher__trigger,
+.dashboard-topbar__actions .language-switcher__trigger:hover,
+.dashboard-topbar__actions .language-switcher__trigger:focus-visible {
+  border-color: rgb(255 255 255 / 32%);
+  background: rgb(255 255 255 / 10%);
+  color: #fff;
+}
+
+.dashboard-topbar__actions .language-switcher__menu {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
 .dashboard-topbar__badge {
   padding: 0.25rem 0.55rem;
   border-radius: var(--radius-sm);
