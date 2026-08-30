@@ -257,11 +257,28 @@ resource "aws_iam_role_policy" "runtime_services" {
         Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:GetObjectTagging", "s3:PutObjectTagging"]
         Resource = "${aws_s3_bucket.photos.arn}/*"
       }],
-      each.key == "api" ? [{
-        Effect   = "Allow"
-        Action   = ["geo:SearchPlaceIndexForPosition", "geo:SearchPlaceIndexForText", "ses:SendEmail", "sns:Publish"]
-        Resource = "*"
-      }] : [],
+      each.key == "api" ? [
+        {
+          Effect   = "Allow"
+          Action   = ["geo:SearchPlaceIndexForPosition", "geo:SearchPlaceIndexForText", "ses:SendEmail", "sns:Publish"]
+          Resource = "*"
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["cloudwatch:GetMetricData"]
+          Resource = "*"
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["cloudwatch:DescribeAlarms"]
+          Resource = "arn:aws:cloudwatch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alarm:BaladiGuard-*"
+        },
+        {
+          Effect   = "Allow"
+          Action   = ["dynamodb:DescribeContinuousBackups"]
+          Resource = local.table_arn
+        }
+      ] : [],
       each.key == "ai-worker" ? [{
         Effect   = "Allow"
         Action   = ["bedrock:InvokeModel"]
