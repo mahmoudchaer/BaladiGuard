@@ -17,7 +17,7 @@ vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => (
     <div data-testid="map-container">{children}</div>
   ),
-  TileLayer: () => null,
+  TileLayer: ({ url }: { url?: string }) => <div data-testid="tile-layer" data-url={url} />,
   Marker: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   CircleMarker: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Popup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -72,5 +72,10 @@ describe('TicketMap localization', () => {
       expect(screen.getByText(t('map.clusterReports', { count: 4 }))).toBeInTheDocument();
       expect(screen.getByText(t('map.zoomTickets'))).toBeInTheDocument();
     }
+
+    expect(screen.getByTestId('tile-layer')).toHaveAttribute(
+      'data-url',
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    );
   });
 });
