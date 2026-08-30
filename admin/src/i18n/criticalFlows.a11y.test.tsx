@@ -144,7 +144,7 @@ describe('critical flow accessibility', () => {
     resetLocaleForTests();
   });
 
-  it('exposes a language radiogroup and labeled ticket-list controls in en, ar, and fr', async () => {
+  it('exposes a language dropdown and labeled ticket-list controls in en, ar, and fr', async () => {
     renderWithProviders(<TicketListPage />);
     expect(
       await screen.findByRole('heading', { level: 1, name: t('tickets.queueTitle') }),
@@ -155,7 +155,7 @@ describe('critical flow accessibility', () => {
         setLocale(locale);
       });
 
-      expect(screen.getByRole('radiogroup', { name: t('a11y.languageGroup') })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: t(`language.${locale}`) })).toBeInTheDocument();
       expect(
         screen.getByRole('heading', { level: 1, name: t('tickets.queueTitle') }),
       ).toBeInTheDocument();
@@ -213,7 +213,7 @@ describe('critical flow accessibility', () => {
       await act(async () => {
         setLocale(locale);
       });
-      expect(screen.getByRole('radiogroup', { name: t('a11y.languageGroup') })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: t(`language.${locale}`) })).toBeInTheDocument();
       expect(screen.getByLabelText(t('login.username'))).toBeInTheDocument();
       expect(screen.getByLabelText(t('login.password'))).toBeInTheDocument();
       expect(screen.getByRole('button', { name: t('login.submit') })).toBeInTheDocument();
@@ -241,7 +241,7 @@ describe('critical flow accessibility', () => {
       await act(async () => {
         setLocale(locale);
       });
-      expect(screen.getByRole('radiogroup', { name: t('a11y.languageGroup') })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: t(`language.${locale}`) })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: t('workforce.title') })).toBeInTheDocument();
       expect(screen.getByRole('tablist', { name: t('workforce.viewsA11y') })).toBeInTheDocument();
     }

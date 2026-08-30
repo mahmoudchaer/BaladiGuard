@@ -408,6 +408,22 @@ def test_staging_startup_aborts_without_citizen_app_base_url(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_production_whatsapp_session_text_allows_allowlisted_testers(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("CITIZEN_OTP_DELIVERY_CHANNEL", "whatsapp")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_MESSAGE_MODE", "session_text")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_PHONE_NUMBER_ID", "pnid_1")
+    monkeypatch.setenv("CITIZEN_OTP_WHATSAPP_ACCESS_TOKEN", "meta-token")
+    monkeypatch.setenv("NOTIFICATION_SANDBOX", "false")
+    monkeypatch.setenv("NOTIFICATION_ALLOWLIST_PHONES", "+9613408680")
+    settings = _settings_from_env()
+    result = validate_configuration(settings, environ=dict(os.environ))
+    assert not any(
+        issue.code == "UNSAFE_CITIZEN_OTP_WHATSAPP_SESSION_TEXT" for issue in result.issues
+    )
+
+
 def test_sandbox_whatsapp_otp_requires_allowlisted_phone(monkeypatch):
     monkeypatch.setenv("APP_ENV", "local")
     monkeypatch.setenv("AWS_REGION", "us-east-1")
