@@ -83,10 +83,10 @@ const STATUS_LEGEND_ORDER: TicketStatus[] = [
 
 const URGENCY_LEGEND_ORDER: TicketPriority[] = ['critical', 'high', 'medium', 'low'];
 
-const MODERN_BASEMAP_URL =
-  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const MODERN_BASEMAP_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+// Carto public Voyager tiles now watermark "API KEY REQUIRED". Use the same
+// key-free OSM raster as citizen-web.
+const BASEMAP_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const BASEMAP_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
 function getMarkerColor(
   status: TicketStatus,
@@ -257,12 +257,7 @@ function DetailTicketMap({ tickets }: { tickets: Ticket[] }) {
         zoomControl={false}
         className="ticket-map__canvas"
       >
-        <TileLayer
-          attribution={MODERN_BASEMAP_ATTR}
-          url={MODERN_BASEMAP_URL}
-          maxZoom={20}
-          subdomains="abcd"
-        />
+        <TileLayer attribution={BASEMAP_ATTR} url={BASEMAP_URL} maxZoom={19} subdomains="abc" />
         <ZoomControl position="bottomright" />
         <FitTicketBounds tickets={tickets} singleZoom={singleZoom} />
         {tickets.map((ticket) => {
@@ -389,12 +384,7 @@ function OverviewTicketMap({
         zoomControl={false}
         className="ticket-map__canvas"
       >
-        <TileLayer
-          attribution={MODERN_BASEMAP_ATTR}
-          url={MODERN_BASEMAP_URL}
-          maxZoom={20}
-          subdomains="abcd"
-        />
+        <TileLayer attribution={BASEMAP_ATTR} url={BASEMAP_URL} maxZoom={19} subdomains="abc" />
         <ZoomControl position="bottomright" />
         <FitInitialBounds bounds={initialBounds} />
         <ViewportReporter onViewportChange={onViewportChange} />
