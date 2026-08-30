@@ -35,9 +35,12 @@ RUN apt-get update \
         "liblastlog2-2=${UTIL_LINUX_VERSION}" \
         "libmount1=${UTIL_LINUX_VERSION}" \
         "libsmartcols1=${UTIL_LINUX_VERSION}" \
+        "libssl3t64=${OPENSSL_VERSION}" \
         "libuuid1=${UTIL_LINUX_VERSION}" \
         "login=${LOGIN_VERSION}" \
         "mount=${UTIL_LINUX_VERSION}" \
+        "openssl=${OPENSSL_VERSION}" \
+        "openssl-provider-legacy=${OPENSSL_VERSION}" \
         "util-linux=${UTIL_LINUX_VERSION}" \
         "libssl3t64=${OPENSSL_VERSION}" \
         "openssl=${OPENSSL_VERSION}" \
