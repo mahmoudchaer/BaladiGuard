@@ -70,11 +70,16 @@ export function resolveMobileConfig(
   if (deployed && (!citizenAppLinkHost || isPlaceholderHost(citizenAppLinkHost))) {
     throw new Error(`A real EXPO_PUBLIC_CITIZEN_APP_HOST is required in ${appEnv}.`);
   }
+  if (!deployed && !enableMockApi && !rawApiBase) {
+    throw new Error(
+      'EXPO_PUBLIC_API_BASE_URL is required when the local mock API is disabled. Copy mobile/.env.example to mobile/.env and set it for your device.',
+    );
+  }
 
   return {
     apiBaseUrl: deployed
       ? validateDeployedApiUrl(rawApiBase, appEnv)
-      : (rawApiBase || 'http://localhost:8000/v1').replace(/\/+$/, ''),
+      : (rawApiBase || 'https://mock.invalid/v1').replace(/\/+$/, ''),
     enableMockApi: deployed ? false : enableMockApi,
     appEnv,
     appVersion: options.appVersion ?? '0.1.0',
@@ -82,8 +87,18 @@ export function resolveMobileConfig(
   };
 }
 
-export const appConfig = resolveMobileConfig(process.env, {
-  appVersion: Constants.expoConfig?.version,
-  citizenAppLinkHost: (Constants.expoConfig?.extra as { citizenAppLinkHost?: string } | undefined)
-    ?.citizenAppLinkHost,
-});
+// Keep direct EXPO_PUBLIC_* member reads so Metro can inline release values.
+export const appConfig = resolveMobileConfig(
+  {
+    EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+    EXPO_PUBLIC_ENABLE_MOCK_API:
+      process.env.EXPO_PUBLIC_ENABLE_MOCK_API ??
+      (process.env.NODE_ENV === 'test' ? 'true' : undefined),
+    EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
+  },
+  {
+    appVersion: Constants.expoConfig?.version,
+    citizenAppLinkHost: (Constants.expoConfig?.extra as { citizenAppLinkHost?: string } | undefined)
+      ?.citizenAppLinkHost,
+  },
+);

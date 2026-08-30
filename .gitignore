@@ -14,10 +14,17 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
-.activity-timeline-backfill.checkpoint.json
-backend/models/*.onnx
 
 .DS_Store
+
+# Mobile signing / store credentials (issue #192)
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+credentials.json
+google-services.json
+GoogleService-Info.plist
 
 # Terraform/OpenTofu local state and provider cache can contain deployment metadata.
 **/.terraform/

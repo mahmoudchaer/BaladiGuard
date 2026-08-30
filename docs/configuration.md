@@ -27,11 +27,11 @@ fail-closed rules.
 
 | Area | `local` / `development` / `test` | `staging` / `production` |
 | --- | --- | --- |
-| Persistence | `DATABASE_BACKEND=memory` allowed | Staging and production must use `dynamodb`. |
-| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Staging and production must use the real adapter (staging may use provider sandbox/allowlists). |
+| Persistence | `DATABASE_BACKEND=memory` allowed | Production: must be `dynamodb`. Staging may use memory for demos. |
+| Notifications | `NOTIFICATION_ADAPTER=mock` allowed | Production: must be `real`. Staging may mock for demos. |
 | Secrets | Empty / placeholder `SECRET_KEY` allowed for local demos | Production: non-placeholder `SECRET_KEY` required |
 | Staff auth password | Demo `STAFF_PASSWORD` allowed locally | Production: non-demo credentials required |
-| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Lebanon place index | Production: real Amazon Location index required |
+| Location | Empty `LOCATION_PLACE_INDEX_NAME` → local Beirut index | Production: real Amazon Location index required |
 | Photo uploads | `AWS_S3_BUCKET` optional until you test uploads | Production: `AWS_S3_BUCKET` required |
 | Dynamo endpoint | Localhost Docker URL allowed | Production must not point at localhost |
 | Sample seed | Optional synthetic mocks only | Production: `SEED_SAMPLE_TICKETS=false` (never load real citizen exports) |
@@ -56,26 +56,8 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `S3_PRESIGNED_URL_TTL_SECONDS` | No | `300` | Authorized photo URL lifetime; minimum 30 seconds |
 | `DYNAMODB_ENDPOINT_URL` | No | empty = AWS | `http://localhost:8001` for Docker Local only |
 | `DYNAMODB_TABLE_PREFIX` | No | `baladiguard-` | Table name prefix |
-| `ACTIVITY_TIMELINE_USE_GSI` | No | `false` | Enable only after timeline GSIs are ACTIVE and `backfill_activity_timeline_keys.py` has finished for status, audit, and comments. See `docs/staff-comments-and-activity.md`. |
 | `SEED_SAMPLE_TICKETS` | No | `false` | Must be `false` in production |
 | `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | AI classification / cleaning |
-| `MUNICIPALITY_ROUTING_ENABLED` | No | `true` | Auto-assign tickets after classification (#322) |
-| `MUNICIPALITY_ROUTING_USE_MODEL` | No | `false` | Optional Bedrock tie-break; keep false in CI |
-| `MUNICIPALITY_ROUTING_MODEL_ID` | No | `BEDROCK_MODEL_ID` | Structured municipality routing tool |
-| `MUNICIPALITY_ROUTING_HIGH_CONFIDENCE` | No | `0.85` | Model-path assign threshold (0.5–1.0) |
-| `CONTENT_SAFETY_ENABLED` | No | `true` | Enroll new tickets in content-safety screening (#319) |
-| `CONTENT_SAFETY_FAIL_CLOSED` | No | `true` except local/test/development | Provider outage → `review_required`, never public `passed` |
-| `CONTENT_SAFETY_TEXT_MODEL_ID` | No | `BEDROCK_MODEL_ID` | Bedrock structured moderation model |
-| `CONTENT_SAFETY_IMAGE_REJECT_CONFIDENCE` | No | `80` | Rekognition high-severity cutoff (50–100) |
-| `CONTENT_SAFETY_IMAGE_REVIEW_CONFIDENCE` | No | `50` | Rekognition review cutoff (0–100) |
-| `CONTENT_SAFETY_AUTHENTICITY_REVIEW_SCORE` | No | `0.85` | ONNX score that may add a review signal; never auto-rejects alone |
-| `AUTHENTICITY_DETECTION_MODEL` | No | pinned DeepfakeDet ONNX | Docker: `/opt/models/community-forensics-deepfakedet-vit.onnx`. Local: `backend/models/` after `make download-authenticity-model` |
-| `CONTENT_SAFETY_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
-| `CONTENT_SAFETY_JOB_TIMEOUT_SECONDS` | No | `300` | Claim timeout before stale recovery |
-| `CONTENT_SAFETY_JOB_BACKOFF_BASE_SECONDS` | No | `5` | First retry delay |
-| `CONTENT_SAFETY_JOB_BACKOFF_MAX_SECONDS` | No | `300` | Upper bound for retry delay |
-| `IMAGE_REDACTION_ENABLED` | No | `true` | Must remain enabled in staging/production. |
-| `IMAGE_REDACTION_DETECTOR` | No | `aws_rekognition` | Deployed environments require Rekognition; disabled/local detectors are development-only. |
 | `LOCATION_PLACE_INDEX_NAME` | Production | empty → local index | Geocoding |
 | `AI_PROCESSING_CLAIM_TIMEOUT_SECONDS` | No | `300` | Integer ≥ 1 |
 | `AI_JOB_MAX_ATTEMPTS` | No | `5` | Bounded attempts before dead-lettering |
@@ -98,14 +80,7 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `NOTIFICATION_DESTINATION_RATE_LIMIT` | No | `10` | Per-destination burst cap |
 | `NOTIFICATION_DESTINATION_RATE_WINDOW_SECONDS` | No | `60` | Throttle window (seconds) |
 | `CITIZEN_APP_BASE_URL` | Staging + production | local/dev/test: `http://localhost:8081` when unset | Citizen app base for notification deep links (`/t/{trackingCode}`); staging/production must be https and non-localhost (#257) |
-| `WHATSAPP_ENABLED` | No | `false` | Kill switch for WhatsApp report channel (#296). See [whatsapp-channel.md](./whatsapp-channel.md). |
-| `WHATSAPP_PROVIDER` | When enabled | `mock` | `mock` (local/tests) or `cloud` (Meta Graph). Staging/production require `cloud`. |
-| `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` | When enabled | empty | Required when `WHATSAPP_ENABLED=true` (never commit real values). |
-| `WHATSAPP_ACCESS_TOKEN` | When `cloud` | empty | Graph send/media token for production Meta. |
-| `CITIZEN_OTP_DELIVERY_CHANNEL` | Staging + production (`sns` or `whatsapp`) | unset → legacy auto | Citizen OTP transport: `mock` \| `sns` \| `whatsapp` (#297). See [citizen-otp-delivery.md](./citizen-otp-delivery.md). Independent of `NOTIFICATION_ADAPTER` and #296. |
-| `CITIZEN_OTP_WHATSAPP_*` | When channel=`whatsapp` | empty | Phone-number ID, access token, template name/language/Graph version for Meta auth-template OTP. `CITIZEN_OTP_WHATSAPP_MESSAGE_MODE=session_text` is sandbox-only (24h window) and is rejected in production. |
 | `CORS_ALLOWED_ORIGINS` | Staging + production | local/dev/test: Vite admin `:5173`, citizen-web `:5174`, Expo ports when unset | Comma-separated browser origins for CORS (#263). Staging/production must set explicit https non-localhost origins (admin + citizen-web). |
-| `ALLOWED_HOSTS` | Staging + production | local/dev/test: `*` (any Host, including TestClient `testserver`) | Comma-separated API hostnames (#316). Staging/production reject localhost and `*`. Health paths are exempt so ALB IP Host probes stay up. |
 | `OTP_DEV_PLAINTEXT_STDOUT` | Local only | `false` | **Unsafe local helper.** When `true` in `local`/`development`/`test`, citizen OTP codes are printed to process stdout (not the logging framework) so the mobile OTP flow can be completed without SMS. Default is off: use `CitizenService.peek_dev_otp_code` in tests, or enable this explicitly for manual local runs. Process stdout is often captured by Docker/IDE log collectors — never enable in staging/production. |
 | `TRUST_X_FORWARDED_FOR` | No | `false` | Set `true` only behind a trusted proxy/gateway that strips or overwrites client-supplied XFF |
 | `RATE_LIMIT_TICKET_SUBMIT_LIMIT` / `_WINDOW_SECONDS` | No | `20` / `60` | Public ticket submit (AI-triggering) |
@@ -113,22 +88,12 @@ Secret **values** are never printed in logs or returned by `/health`.
 | `RATE_LIMIT_UPLOAD_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `60` | Report photo upload (stricter) |
 | `RATE_LIMIT_LOCATION_VALIDATE_LIMIT` / `_WINDOW_SECONDS` | No | `30` / `60` | Location validate |
 | `RATE_LIMIT_STAFF_LOGIN_LIMIT` / `_WINDOW_SECONDS` | No | `10` / `300` | Staff login |
-| `RATE_LIMIT_STAFF_ASSISTANT_LIMIT` / `_WINDOW_SECONDS` | No | `30` / `60` | Staff assistant questions (#42) |
-| `RATE_LIMIT_STAFF_SEARCH_LIMIT` / `_WINDOW_SECONDS` | No | `40` / `60` | Staff global search (#42 / #260) |
-| `RATE_LIMIT_CITIZEN_OTP_REQUEST_*` / `RATE_LIMIT_CITIZEN_OTP_VERIFY_*` | No | `5`/`300`, `10`/`300` | Citizen OTP HTTP |
-| `RATE_LIMIT_CITIZEN_EXPORT_*` / `RATE_LIMIT_CITIZEN_DELETE_*` | No | `5`/`300`, `3`/`300` | Citizen profile export / delete |
-| `RATE_LIMIT_WHATSAPP_SUBMIT_*` | No | `8` / `3600` | Per-phone WhatsApp ticket submission |
-| `RATE_LIMIT_STAFF_MUTATION_*` | No | `300` / `60` | Authenticated staff write APIs |
-| `RATE_LIMIT_OPS_DASHBOARD_*` | No | `120` / `60` | Developer ops dashboard reads |
-| `MAX_JSON_BODY_BYTES` | No | `262144` | Non-upload write body ceiling |
-| `MAX_HEADER_BYTES` | No | `16384` | Combined request header ceiling |
+| `RATE_LIMIT_CITIZEN_OTP_REQUEST_*` / `RATE_LIMIT_CITIZEN_OTP_VERIFY_*` | No | `5`/`300`, `10`/`300` | Reserved for citizen OTP HTTP (#170) |
 | `RATE_LIMIT_SMOKE_BYPASS_TOKEN` | No | empty | Optional smoke header token; never a global disable |
 | `RATE_LIMIT_SMOKE_LIMIT` | No | `1000` | Higher still-enforced quota for smoke token clients |
 | `SECRET_KEY` | Production | empty | Auth/signing; no placeholders in production |
-| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin`, `staff`, and `operator` accounts (#175 / #320) |
+| `SEED_DEMO_STAFF` | No | `true` for local/test/development; `false` for production | Bootstrap demo `admin` + `staff` accounts (#175) |
 | `DEMO_STAFF_PASSWORD` | When seeding demos | `staff-demo-password` | Password used only to hash demo staff accounts; never used as shared login |
-| `DEVELOPER_OPERATOR_USERNAME` / `DEVELOPER_OPERATOR_PASSWORD` | Production bootstrap | empty | Creates the first `developer_operator` if the username is unused (#320) |
-| `DEVELOPER_OPERATOR_EMAIL` | With operator bootstrap | `ops@example.com` | Email on the bootstrapped operator account |
 | `STAFF_PASSWORD` | Legacy alias | same as demo default | Deprecated alias for `DEMO_STAFF_PASSWORD` |
 | `STAFF_USERNAME` | Legacy | `staff` | Deprecated; ignored for authentication |
 | `STAFF_TOKEN_TTL_SECONDS` | No | `43200` | Integer ≥ 60 |
@@ -151,11 +116,10 @@ Production observability (dashboards, alarms, retention, staging drill) is docum
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `VITE_APP_ENV` | `local` | Staging/production enable fail-closed build validation. |
-| `VITE_API_BASE_URL` | `http://localhost:8000` | Staging/production require an HTTPS non-localhost backend origin. |
+| `VITE_API_BASE_URL` | `http://localhost:8000` | Backend base URL |
 | `VITE_USE_MOCK_DATA` | `false` | Opt-in mock fixtures |
-| `VITE_STAFF_USERNAME` | `staff` | Local mock credential; must be absent from staging/production builds. |
-| `VITE_STAFF_PASSWORD` | `staff-demo-password` | Local mock credential; must be absent from staging/production builds. |
+| `VITE_STAFF_USERNAME` | `staff` | Demo credential for local #71 auth |
+| `VITE_STAFF_PASSWORD` | `staff-demo-password` | **Local only** — never ship demo password to production builds |
 
 Vite embeds these values in the browser bundle. They are not backend secrets.
 
@@ -173,13 +137,18 @@ Dev server defaults to port **5174** (admin uses 5173). Ensure backend `CORS_ALL
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8000/v1` | API base |
-| `EXPO_PUBLIC_ENABLE_MOCK_API` | `false` | Opt-in mock submit |
-| `EXPO_PUBLIC_APP_ENV` | `local` | App label |
+| `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8000/v1` | API base. Release/production binaries require absolute **HTTPS** (not localhost). |
+| `EXPO_PUBLIC_ENABLE_MOCK_API` | `false` | Opt-in mock submit. **Rejected** when `EXPO_PUBLIC_APP_ENV=production` or in any release binary (`!__DEV__`). |
+| `EXPO_PUBLIC_APP_ENV` | `local` | `local` \| `development` \| `preview` \| `production` |
+| `EXPO_PUBLIC_PRIVACY_POLICY_URL` | GitHub privacy-lifecycle doc | Optional HTTPS privacy URL for store/in-app metadata |
 | `EXPO_PUBLIC_CITIZEN_APP_HOST` | derived / placeholder | Host claimed for iOS Universal Links + Android App Links (`/t/*`); must match backend `CITIZEN_APP_BASE_URL` host (#257) |
 | `EXPO_PUBLIC_CITIZEN_APP_BASE_URL` | empty | Optional full https base; used to derive host when `EXPO_PUBLIC_CITIZEN_APP_HOST` is unset |
 | `EXPO_PUBLIC_SUPABASE_URL` | empty | Reserved / unused for MVP core path |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | empty | Reserved / unused for MVP core path |
+| `EAS_PROJECT_ID` | empty | Optional; normally written by `eas init` into app config |
+
+Signed Android/iOS release process, credential handling, and rollback steps:
+[mobile-release.md](mobile-release.md).
 
 ## Local development (explicit)
 
@@ -216,7 +185,11 @@ Before deploy (#74):
 13. Admin production build: omit `VITE_STAFF_*`; browser-bundled credentials are mock-only
 14. Citizen web production build: set `VITE_APP_ENV=production` and `VITE_API_BASE_URL=https://…` (never mock/localhost)
 15. Confirm process starts (validation aborts on failure) and `/health` is `ok`
-16. Mobile release: set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
+16. Mobile production EAS profile: `EXPO_PUBLIC_APP_ENV=production`,
+    `EXPO_PUBLIC_ENABLE_MOCK_API=false`, HTTPS `EXPO_PUBLIC_API_BASE_URL`,
+    signing credentials only in Expo/secret manager (see [mobile-release.md](mobile-release.md)).
+    Run `cd mobile && npm run check:release` before cutting a mobile release tag.
+    Set `EXPO_PUBLIC_CITIZEN_APP_HOST` (or base URL) to the same host as `CITIZEN_APP_BASE_URL`, rebuild so Associated Domains / App Links are baked in, and host AASA + Digital Asset Links JSON (see [notifications.md](./notifications.md#deep-links-257)).
 17. Capacity / concurrency validation complete (see [release-readiness.md](./release-readiness.md) and [capacity-validation.md](./capacity-validation.md))
 
 ## Health payload

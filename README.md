@@ -438,7 +438,7 @@ npm start
 ```
 
 By default the mobile app talks to the real backend API. Mock mode is opt-in only
-(`EXPO_PUBLIC_ENABLE_MOCK_API=true`).
+(`EXPO_PUBLIC_ENABLE_MOCK_API=true`) and is rejected in production/release binaries.
 
 For real end-to-end submission:
 
@@ -448,6 +448,9 @@ For real end-to-end submission:
 4. Set `EXPO_PUBLIC_API_BASE_URL` to your API URL (`http://localhost:8000/v1` for emulators; use your machine IP for a physical device).
 
 See `mobile/.env.example` for the full checklist.
+
+For signed production / internal release builds (EAS profiles, signing credentials,
+device QA, rollback), see [docs/mobile-release.md](docs/mobile-release.md).
 
 ### Admin Dashboard
 

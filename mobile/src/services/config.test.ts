@@ -10,7 +10,15 @@ const deployed = (overrides: Record<string, string | undefined> = {}) => ({
 
 describe('resolveMobileConfig', () => {
   it('allows explicit mock mode only for local development', () => {
-    expect(resolveMobileConfig({ EXPO_PUBLIC_ENABLE_MOCK_API: 'true' }).enableMockApi).toBe(true);
+    const config = resolveMobileConfig({ EXPO_PUBLIC_ENABLE_MOCK_API: 'true' });
+    expect(config.enableMockApi).toBe(true);
+    expect(config.apiBaseUrl).toBe('https://mock.invalid/v1');
+  });
+
+  it('requires an explicit API URL when local mock mode is disabled', () => {
+    expect(() => resolveMobileConfig({ EXPO_PUBLIC_ENABLE_MOCK_API: 'false' })).toThrow(
+      'EXPO_PUBLIC_API_BASE_URL is required',
+    );
   });
 
   it('rejects an unlabeled release build instead of selecting local mode', () => {
