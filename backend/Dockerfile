@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /build
 
@@ -16,7 +16,7 @@ RUN mkdir -p /models \
     && python -c "import hashlib, pathlib, urllib.request; p=pathlib.Path('/models/license-plate.onnx'); urllib.request.urlretrieve('${PLATE_MODEL_URL}', p); actual=hashlib.sha256(p.read_bytes()).hexdigest(); expected='${PLATE_MODEL_SHA256}'; assert actual == expected, f'plate model checksum mismatch: {actual}'" \
     && python -c "import hashlib, pathlib, urllib.request; p=pathlib.Path('/models/community-forensics-deepfakedet-vit.onnx'); urllib.request.urlretrieve('${AUTHENTICITY_MODEL_URL}', p); actual=hashlib.sha256(p.read_bytes()).hexdigest(); expected='${AUTHENTICITY_MODEL_SHA256}'; assert actual == expected, f'authenticity model checksum mismatch: {actual}'"
 
-FROM python:3.14-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
